@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, DragEvent } from "react";
+import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   PieChart,
   Pie,
@@ -38,6 +39,7 @@ const COLORS = [
 ];
 
 export default function AnalisisCartolaPage() {
+  const { advisor } = useAdvisor();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statement, setStatement] = useState<ParsedStatement | null>(null);
@@ -56,7 +58,7 @@ export default function AnalisisCartolaPage() {
       const res = await fetch("/api/send-questionnaire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, advisorEmail: advisor?.email }),
       });
       if (!res.ok) throw new Error();
       setQuestionnaireSent(true);

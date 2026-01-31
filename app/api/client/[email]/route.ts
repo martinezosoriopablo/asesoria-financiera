@@ -23,7 +23,7 @@ export async function GET(
     // Buscar el cliente por email
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, email, full_name")
+      .select("id, email, nombre, apellido")
       .eq("email", email)
       .single();
 

@@ -13,7 +13,7 @@ function getServiceClient() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, scores, responses, retirementData, projection } = await req.json();
+    const { email, scores, responses, retirementData, projection, advisorEmail: advisorEmailFromClient } = await req.json();
 
     if (!email || !scores) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     } else {
       const { data: newClient, error: newClientError } = await supabase
         .from("clients")
-        .insert({ email, full_name: email })
+        .insert({ email, nombre: email, apellido: "" })
         .select("id")
         .single();
 
@@ -105,13 +105,14 @@ export async function POST(req: NextRequest) {
       // Find the advisor linked to this client
       const { data: client } = await supabase
         .from("clients")
-        .select("asesor_id, full_name")
+        .select("asesor_id, nombre, apellido")
         .eq("id", clientId)
         .single();
 
-      let advisorEmail: string | null = null;
+      // Priority: 1) advisor from questionnaire link, 2) assigned advisor, 3) first advisor
+      let advisorEmail: string | null = advisorEmailFromClient || null;
 
-      if (client?.asesor_id) {
+      if (!advisorEmail && client?.asesor_id) {
         const { data: advisor } = await supabase
           .from("advisors")
           .select("email")
@@ -120,7 +121,6 @@ export async function POST(req: NextRequest) {
         advisorEmail = advisor?.email || null;
       }
 
-      // Fallback: get first advisor if no specific one assigned
       if (!advisorEmail) {
         const { data: firstAdvisor } = await supabase
           .from("advisors")
@@ -130,11 +130,13 @@ export async function POST(req: NextRequest) {
         advisorEmail = firstAdvisor?.email || null;
       }
 
+      console.log("Notification lookup:", { clientId, asesor_id: client?.asesor_id, advisorEmail });
+
       if (advisorEmail) {
-        const clientName = client?.full_name || email;
+        const clientName = client?.nombre ? `${client.nombre} ${client.apellido || ""}`.trim() : email;
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
 
-        await resend.emails.send({
+        const { data: emailResult, error: emailError } = await resend.emails.send({
           from: "Asesoría Financiera <send@greybark.com>",
           to: advisorEmail,
           subject: `Cuestionario completado: ${clientName} — Perfil ${scores.profileLabel}`,
@@ -165,10 +167,15 @@ export async function POST(req: NextRequest) {
             </div>
           `,
         });
-        console.log("Advisor notification sent to:", advisorEmail);
+        if (emailError) {
+          console.error("Resend error:", JSON.stringify(emailError));
+        } else {
+          console.log("Advisor notification sent to:", advisorEmail, "id:", emailResult?.id);
+        }
+      } else {
+        console.log("No advisor email found, skipping notification");
       }
     } catch (notifyError) {
-      // Don't fail the request if notification fails
       console.error("Error sending advisor notification:", notifyError);
     }
 

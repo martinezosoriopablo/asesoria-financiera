@@ -6,14 +6,14 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const { email, clientName } = await req.json();
+    const { email, clientName, advisorEmail } = await req.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email es requerido" }, { status: 400 });
     }
 
     const appUrl = "https://asesoria-financiera.vercel.app";
-    const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}`;
+    const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}${advisorEmail ? `&advisor=${encodeURIComponent(advisorEmail)}` : ""}`;
     const displayName = clientName || email;
 
     const { error } = await resend.emails.send({
