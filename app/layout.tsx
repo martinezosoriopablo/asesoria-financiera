@@ -19,16 +19,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="es">
+      <head>
+        <link 
+          href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" 
+          rel="stylesheet" 
+        />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
