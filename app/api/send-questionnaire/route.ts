@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     const displayName = clientName || email;
 
     const { error } = await resend.emails.send({
-      from: "Asesoría Financiera <send@greybark.com>",
+      from: "Asesoría Financiera <pmartinez@greybark.com>",
       to: email,
       subject: "Cuestionario de Perfil de Inversor",
       html: `

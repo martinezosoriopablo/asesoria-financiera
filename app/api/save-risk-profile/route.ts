@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
 
         const { data: emailResult, error: emailError } = await resend.emails.send({
-          from: "Asesoría Financiera <send@greybark.com>",
+          from: "Asesoría Financiera <pmartinez@greybark.com>",
           to: advisorEmail,
           subject: `Cuestionario completado: ${clientName} — Perfil ${scores.profileLabel}`,
           html: `
