@@ -1,25 +1,82 @@
 // app/api/clients/[id]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-// GET - Obtener un cliente específico
+interface ClientInteraction {
+  id: string;
+  tipo: string;
+  titulo: string;
+  descripcion: string;
+  resultado: string;
+  duracion_minutos: number | null;
+  fecha: string;
+  created_by: string | null;
+}
+
+/**
+ * Verifica que el cliente pertenece al advisor autenticado o no tiene asesor asignado.
+ * Clientes sin asesor (huérfanos) pueden ser accedidos para asignarlos.
+ */
+async function verifyClientAccess(
+  supabase: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  advisorId: string
+) {
+  const { data: client, error } = await supabase
+    .from("clients")
+    .select("id, asesor_id")
+    .eq("id", clientId)
+    .single();
+
+  if (error || !client) {
+    return { exists: false, canAccess: false, isOrphan: false };
+  }
+
+  const isOrphan = client.asesor_id === null;
+  const isOwned = client.asesor_id === advisorId;
+
+  return {
+    exists: true,
+    canAccess: isOwned || isOrphan, // Puede acceder si es suyo o si no tiene asesor
+    isOrphan,
+  };
+}
+
+// GET - Obtener un cliente específico (si pertenece al advisor o no tiene asesor)
 export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const { id } = await context.params;
 
+    // Verificar acceso al cliente
+    const access = await verifyClientAccess(supabase, id, advisor!.id);
+    if (!access.exists) {
+      return NextResponse.json(
+        { success: false, error: "Cliente no encontrado" },
+        { status: 404 }
+      );
+    }
+    if (!access.canAccess) {
+      return NextResponse.json(
+        { success: false, error: "No tiene permiso para ver este cliente" },
+        { status: 403 }
+      );
+    }
+
+    // Obtener cliente con interacciones
     const { data: client, error } = await supabase
       .from("clients")
       .select(`
@@ -39,22 +96,14 @@ export async function GET(
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Cliente no encontrado",
-          },
-          { status: 404 }
-        );
-      }
       throw error;
     }
 
     // Ordenar interacciones por fecha (más reciente primero)
     if (client.client_interactions) {
       client.client_interactions.sort(
-        (a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+        (a: ClientInteraction, b: ClientInteraction) =>
+          new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
       );
     }
 
@@ -62,47 +111,67 @@ export async function GET(
       success: true,
       client,
     });
-  } catch (error: any) {
-    console.error("Error fetching client:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al obtener cliente";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al obtener cliente",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }
 }
 
-// PUT - Actualizar cliente
+// PUT - Actualizar cliente (si pertenece al advisor o no tiene asesor)
+// Si el cliente no tiene asesor, se asigna automáticamente al advisor que lo edita
 export async function PUT(
   request: NextRequest,
   context: RouteContext
 ) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const { id } = await context.params;
+
+    // Verificar acceso al cliente
+    const access = await verifyClientAccess(supabase, id, advisor!.id);
+    if (!access.exists) {
+      return NextResponse.json(
+        { success: false, error: "Cliente no encontrado" },
+        { status: 404 }
+      );
+    }
+    if (!access.canAccess) {
+      return NextResponse.json(
+        { success: false, error: "No tiene permiso para modificar este cliente" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
-    const updateData: any = {};
-    
-    if (body.nombre !== undefined) updateData.nombre = body.nombre;
-    if (body.apellido !== undefined) updateData.apellido = body.apellido;
-    if (body.email !== undefined) updateData.email = body.email;
-    if (body.telefono !== undefined) updateData.telefono = body.telefono;
-    if (body.rut !== undefined) updateData.rut = body.rut;
-    if (body.patrimonio_estimado !== undefined) updateData.patrimonio_estimado = body.patrimonio_estimado;
-    if (body.ingreso_mensual !== undefined) updateData.ingreso_mensual = body.ingreso_mensual;
-    if (body.objetivo_inversion !== undefined) updateData.objetivo_inversion = body.objetivo_inversion;
-    if (body.horizonte_temporal !== undefined) updateData.horizonte_temporal = body.horizonte_temporal;
-    if (body.perfil_riesgo !== undefined) updateData.perfil_riesgo = body.perfil_riesgo;
-    if (body.puntaje_riesgo !== undefined) updateData.puntaje_riesgo = body.puntaje_riesgo;
-    if (body.tolerancia_perdida !== undefined) updateData.tolerancia_perdida = body.tolerancia_perdida;
-    if (body.tiene_portfolio !== undefined) updateData.tiene_portfolio = body.tiene_portfolio;
-    if (body.portfolio_data !== undefined) updateData.portfolio_data = body.portfolio_data;
-    if (body.status !== undefined) updateData.status = body.status;
-    if (body.notas !== undefined) updateData.notas = body.notas;
+    // Campos permitidos para actualización (whitelist)
+    const allowedFields = [
+      'nombre', 'apellido', 'email', 'telefono', 'rut',
+      'patrimonio_estimado', 'ingreso_mensual', 'objetivo_inversion',
+      'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo',
+      'tolerancia_perdida', 'tiene_portfolio', 'portfolio_data',
+      'status', 'notas'
+    ];
+
+    const updateData: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updateData[field] = body[field];
+      }
+    }
+
+    // Si el cliente no tiene asesor, asignarlo al advisor actual
+    if (access.isOrphan) {
+      updateData.asesor_id = advisor!.id;
+    }
 
     const { data: updatedClient, error } = await supabase
       .from("clients")
@@ -114,16 +183,14 @@ export async function PUT(
     if (error) {
       if (error.code === "PGRST116") {
         return NextResponse.json(
-          {
-            success: false,
-            error: "Cliente no encontrado",
-          },
+          { success: false, error: "Cliente no encontrado" },
           { status: 404 }
         );
       }
       throw error;
     }
 
+    // Registrar la actualización
     await supabase.from("client_interactions").insert([
       {
         client_id: id,
@@ -131,6 +198,7 @@ export async function PUT(
         titulo: "Información Actualizada",
         descripcion: "Datos del cliente actualizados en el sistema",
         resultado: "exitoso",
+        created_by: advisor!.email,
       },
     ]);
 
@@ -138,86 +206,90 @@ export async function PUT(
       success: true,
       client: updatedClient,
     });
-  } catch (error: any) {
-    console.error("Error updating client:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al actualizar cliente";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al actualizar cliente",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }
 }
 
-// DELETE - Eliminar cliente
+// DELETE - Desactivar cliente (soft delete)
+// NOTA: Hard delete removido por seguridad. Solo se permite soft delete.
 export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const { id } = await context.params;
-    const { searchParams } = new URL(request.url);
-    const hardDelete = searchParams.get("hard") === "true";
 
-    if (hardDelete) {
-      const { error } = await supabase
-        .from("clients")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      return NextResponse.json({
-        success: true,
-        message: "Cliente eliminado permanentemente",
-      });
-    } else {
-      const { data: client, error } = await supabase
-        .from("clients")
-        .update({ status: "inactivo" })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === "PGRST116") {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Cliente no encontrado",
-            },
-            { status: 404 }
-          );
-        }
-        throw error;
-      }
-
-      await supabase.from("client_interactions").insert([
-        {
-          client_id: id,
-          tipo: "otro",
-          titulo: "Cliente Desactivado",
-          descripcion: "Cliente marcado como inactivo",
-          resultado: "exitoso",
-        },
-      ]);
-
-      return NextResponse.json({
-        success: true,
-        message: "Cliente marcado como inactivo",
-        client,
-      });
+    // Verificar acceso al cliente
+    const access = await verifyClientAccess(supabase, id, advisor!.id);
+    if (!access.exists) {
+      return NextResponse.json(
+        { success: false, error: "Cliente no encontrado" },
+        { status: 404 }
+      );
     }
-  } catch (error: any) {
-    console.error("Error deleting client:", error);
-    return NextResponse.json(
+    if (!access.canAccess) {
+      return NextResponse.json(
+        { success: false, error: "No tiene permiso para eliminar este cliente" },
+        { status: 403 }
+      );
+    }
+
+    // Solo soft delete (marcar como inactivo)
+    // Si es huérfano, también asignarlo al advisor que lo desactiva
+    const updateData: Record<string, unknown> = { status: "inactivo" };
+    if (access.isOrphan) {
+      updateData.asesor_id = advisor!.id;
+    }
+
+    const { data: client, error } = await supabase
+      .from("clients")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        return NextResponse.json(
+          { success: false, error: "Cliente no encontrado" },
+          { status: 404 }
+        );
+      }
+      throw error;
+    }
+
+    // Registrar la desactivación
+    await supabase.from("client_interactions").insert([
       {
-        success: false,
-        error: error.message || "Error al eliminar cliente",
+        client_id: id,
+        tipo: "otro",
+        titulo: "Cliente Desactivado",
+        descripcion: "Cliente marcado como inactivo",
+        resultado: "exitoso",
+        created_by: advisor!.email,
       },
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      message: "Cliente marcado como inactivo",
+      client,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al eliminar cliente";
+    return NextResponse.json(
+      { success: false, error: message },
       { status: 500 }
     );
   }

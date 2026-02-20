@@ -1,5 +1,8 @@
-import AnalizadorFondos from "@/components/analisis/AnalizadorFondos";
+// app/analisis-fondos/page.tsx
+// Redirect to new Fund Center
 
-export default function AnalisisFondosPage() {
-  return <AnalizadorFondos />;
+import { redirect } from "next/navigation";
+
+export default function AnalisisFondosRedirect() {
+  redirect("/fund-center?mode=analyze");
 }

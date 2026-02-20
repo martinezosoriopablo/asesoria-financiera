@@ -1,14 +1,12 @@
 // app/api/advisor/meetings/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// GET - Obtener reuniones del asesor
+// GET - Obtener reuniones del asesor autenticado
 export async function GET(request: NextRequest) {
+  // Rate limiting
   const { allowed, remaining } = rateLimit(`meetings:${getClientIp(request)}`, { limit: 30, windowSeconds: 60 });
   if (!allowed) {
     return NextResponse.json(
@@ -17,32 +15,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const { searchParams } = new URL(request.url);
-    const advisorEmail = searchParams.get("email");
-    if (!advisorEmail) {
-      return NextResponse.json(
-        { success: false, error: "Email del asesor es requerido" },
-        { status: 400 }
-      );
-    }
-    const timeframe = searchParams.get("timeframe") || "upcoming"; // 'upcoming', 'today', 'week', 'all'
-
-    // Obtener ID del asesor
-    const { data: advisor } = await supabase
-      .from("advisors")
-      .select("id")
-      .eq("email", advisorEmail)
-      .single();
-
-    if (!advisor) {
-      return NextResponse.json(
-        { success: false, error: "Asesor no encontrado" },
-        { status: 404 }
-      );
-    }
+    const timeframe = searchParams.get("timeframe") || "upcoming";
 
     let query = supabase
       .from("meetings")
@@ -57,13 +38,13 @@ export async function GET(request: NextRequest) {
           perfil_riesgo
         )
       `)
-      .eq("asesor_id", advisor.id)
+      .eq("asesor_id", advisor!.id)
       .eq("cancelada", false)
       .order("fecha", { ascending: true });
 
     // Filtros por timeframe
     const now = new Date();
-    
+
     if (timeframe === "upcoming" || timeframe === "today") {
       query = query.gte("fecha", now.toISOString()).eq("completada", false);
     }
@@ -79,10 +60,10 @@ export async function GET(request: NextRequest) {
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() - now.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
-      
+
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(endOfWeek.getDate() + 7);
-      
+
       query = query
         .gte("fecha", startOfWeek.toISOString())
         .lt("fecha", endOfWeek.toISOString())
@@ -98,20 +79,18 @@ export async function GET(request: NextRequest) {
       meetings: meetings || [],
       total: meetings?.length || 0,
     });
-  } catch (error: any) {
-    console.error("Error fetching meetings:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al obtener reuniones";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al obtener reuniones",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }
 }
 
-// POST - Crear nueva reunión
+// POST - Crear nueva reunión (solo para clientes del asesor)
 export async function POST(request: NextRequest) {
+  // Rate limiting
   const { allowed } = rateLimit(`meetings-post:${getClientIp(request)}`, { limit: 10, windowSeconds: 60 });
   if (!allowed) {
     return NextResponse.json(
@@ -120,43 +99,45 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const body = await request.json();
 
     // Validar campos requeridos
-    if (!body.client_id || !body.asesor_email || !body.titulo || !body.fecha) {
+    if (!body.client_id || !body.titulo || !body.fecha) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "client_id, asesor_email, titulo y fecha son requeridos",
-        },
+        { success: false, error: "client_id, titulo y fecha son requeridos" },
         { status: 400 }
       );
     }
 
-    // Obtener ID del asesor
-    const { data: advisor } = await supabase
-      .from("advisors")
+    // Verificar que el cliente pertenece al asesor autenticado
+    const { data: client } = await supabase
+      .from("clients")
       .select("id")
-      .eq("email", body.asesor_email)
+      .eq("id", body.client_id)
+      .eq("asesor_id", advisor!.id)
       .single();
 
-    if (!advisor) {
+    if (!client) {
       return NextResponse.json(
-        { success: false, error: "Asesor no encontrado" },
+        { success: false, error: "Cliente no encontrado o no tiene permiso" },
         { status: 404 }
       );
     }
 
-    // Crear reunión
+    // Crear reunión asignada al asesor autenticado
     const { data: newMeeting, error } = await supabase
       .from("meetings")
       .insert([
         {
           client_id: body.client_id,
-          asesor_id: advisor.id,
+          asesor_id: advisor!.id, // Siempre el asesor autenticado
           titulo: body.titulo,
           descripcion: body.descripcion || null,
           fecha: body.fecha,
@@ -179,6 +160,7 @@ export async function POST(request: NextRequest) {
         titulo: `Reunión agendada: ${body.titulo}`,
         descripcion: `Reunión programada para ${new Date(body.fecha).toLocaleDateString("es-CL")}`,
         resultado: "pendiente",
+        created_by: advisor!.email,
       },
     ]);
 
@@ -186,13 +168,10 @@ export async function POST(request: NextRequest) {
       success: true,
       meeting: newMeeting,
     });
-  } catch (error: any) {
-    console.error("Error creating meeting:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al crear reunión";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al crear reunión",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }

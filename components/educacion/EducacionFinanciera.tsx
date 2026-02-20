@@ -170,23 +170,23 @@ export default function EducacionFinanciera() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-12">
+    <div className="min-h-screen bg-gb-light py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gb-black rounded-full mb-4">
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">
-            Educación Financiera
+          <h1 className="text-4xl font-bold text-gb-black mb-2">
+            Educacion Financiera
           </h1>
-          <p className="text-lg text-slate-600">
+          <p className="text-lg text-gb-gray">
             Aprende los conceptos clave para invertir con confianza
           </p>
         </div>
 
         {/* Navigation */}
-        <div className="bg-white rounded-xl shadow-lg p-4 mb-8 border border-slate-200">
+        <div className="bg-white border border-gb-border rounded-lg p-4 mb-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {modulos.map((modulo) => {
               const Icono = modulo.icono;
@@ -198,18 +198,18 @@ export default function EducacionFinanciera() {
                   onClick={() => setModuloActivo(modulo.id)}
                   className={`p-4 rounded-lg border-2 transition-all text-center ${
                     isActive
-                      ? "border-blue-600 bg-blue-50"
-                      : "border-slate-300 bg-white hover:border-slate-400"
+                      ? "border-gb-accent bg-gb-light"
+                      : "border-gb-border bg-white hover:border-gb-gray"
                   }`}
                 >
                   <Icono
                     className={`w-6 h-6 mx-auto mb-2 ${
-                      isActive ? "text-blue-600" : "text-slate-600"
+                      isActive ? "text-gb-accent" : "text-gb-gray"
                     }`}
                   />
                   <p
                     className={`text-sm font-semibold ${
-                      isActive ? "text-blue-900" : "text-slate-700"
+                      isActive ? "text-gb-black" : "text-gb-dark"
                     }`}
                   >
                     {modulo.titulo}
@@ -233,8 +233,8 @@ export default function EducacionFinanciera() {
             disabled={moduloActivo === 1}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
               moduloActivo === 1
-                ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                : "bg-white border-2 border-slate-300 text-slate-700 hover:border-slate-400"
+                ? "bg-gb-light text-gb-gray cursor-not-allowed"
+                : "bg-white border-2 border-gb-border text-gb-dark hover:border-gb-gray"
             }`}
           >
             ← Anterior
@@ -244,8 +244,8 @@ export default function EducacionFinanciera() {
             disabled={moduloActivo === 4}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
               moduloActivo === 4
-                ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                : "bg-blue-600 text-white hover:bg-blue-700"
+                ? "bg-gb-light text-gb-gray cursor-not-allowed"
+                : "bg-gb-black text-white hover:bg-gb-dark"
             }`}
           >
             Siguiente →
@@ -264,25 +264,25 @@ function ModuloRiesgoRetorno() {
   return (
     <div className="space-y-8">
       {/* Explicación */}
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
-        <h2 className="text-3xl font-bold text-slate-900 mb-4 flex items-center gap-3">
-          <TrendingUp className="w-8 h-8 text-blue-600" />
-          Riesgo y Retorno: La Relación Clave
+      <div className="bg-white border border-gb-border rounded-lg p-8">
+        <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
+          <TrendingUp className="w-8 h-8 text-gb-accent" />
+          Riesgo y Retorno: La Relacion Clave
         </h2>
 
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
-          <p className="text-lg font-semibold text-slate-900 mb-3">
-            💡 Concepto Simple:
+        <div className="bg-gb-light border-2 border-gb-border rounded-lg p-6 mb-6">
+          <p className="text-lg font-semibold text-gb-black mb-3">
+            Concepto Simple:
           </p>
-          <div className="space-y-2 text-slate-700">
-            <p>• Más riesgo = Más sube y baja tu inversión</p>
-            <p>• Pero también = Más ganancia promedio a largo plazo</p>
+          <div className="space-y-2 text-gb-dark">
+            <p>• Mas riesgo = Mas sube y baja tu inversion</p>
+            <p>• Pero tambien = Mas ganancia promedio a largo plazo</p>
           </div>
         </div>
 
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            📊 Gráfico: Riesgo vs Retorno
+          <h3 className="text-xl font-bold text-gb-black mb-4">
+            Grafico: Riesgo vs Retorno
           </h3>
 
           <ResponsiveContainer width="100%" height={400}>
@@ -328,17 +328,17 @@ function ModuloRiesgoRetorno() {
             {Object.values(comparacionActivos).map((activo) => (
               <div
                 key={activo.nombre}
-                className="p-4 bg-slate-50 rounded-lg border border-slate-200"
+                className="p-4 bg-gb-light rounded-lg border border-gb-border"
               >
                 <div
                   className="w-4 h-4 rounded-full mb-2"
                   style={{ backgroundColor: activo.color }}
                 />
-                <p className="font-semibold text-slate-900">{activo.nombre}</p>
-                <p className="text-sm text-slate-600">
+                <p className="font-semibold text-gb-black">{activo.nombre}</p>
+                <p className="text-sm text-gb-gray">
                   Retorno: {activo.retornoAnual}%/año
                 </p>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-gb-gray">
                   Volatilidad: {activo.volatilidad}%
                 </p>
               </div>
@@ -346,11 +346,11 @@ function ModuloRiesgoRetorno() {
           </div>
         </div>
 
-        <div className="p-6 bg-gradient-to-r from-blue-50 to-slate-50 border-2 border-blue-300 rounded-lg">
-          <p className="text-lg font-semibold text-slate-900 mb-2">🎯 Mensaje Clave:</p>
-          <p className="text-slate-700">
-            Si quieres más ganancia, tienes que aceptar que tu inversión va a subir y
-            bajar más. <strong>Pero a largo plazo, vale la pena.</strong> Es el precio
+        <div className="p-6 bg-gb-light border-2 border-gb-border rounded-lg">
+          <p className="text-lg font-semibold text-gb-black mb-2">Mensaje Clave:</p>
+          <p className="text-gb-dark">
+            Si quieres mas ganancia, tienes que aceptar que tu inversion va a subir y
+            bajar mas. <strong>Pero a largo plazo, vale la pena.</strong> Es el precio
             que pagas por obtener mejores retornos.
           </p>
         </div>
@@ -366,33 +366,33 @@ function ModuloRiesgoRetorno() {
 function ModuloDiversificacion() {
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
-        <h2 className="text-3xl font-bold text-slate-900 mb-4 flex items-center gap-3">
-          <Shield className="w-8 h-8 text-blue-600" />
-          Diversificación: No Pongas Todos los Huevos en la Misma Canasta
+      <div className="bg-white border border-gb-border rounded-lg p-8">
+        <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
+          <Shield className="w-8 h-8 text-gb-accent" />
+          Diversificacion: No Pongas Todos los Huevos en la Misma Canasta
         </h2>
 
         {/* Analogía */}
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
-          <p className="text-lg font-semibold text-slate-900 mb-3">💼 Analogía Simple:</p>
-          <p className="text-slate-700 mb-3">
+        <div className="bg-gb-light border-2 border-gb-border rounded-lg p-6 mb-6">
+          <p className="text-lg font-semibold text-gb-black mb-3">Analogia Simple:</p>
+          <p className="text-gb-dark mb-3">
             Imagina que tienes 3 negocios:
           </p>
-          <ul className="space-y-2 text-slate-700 ml-6">
-            <li>• <strong>Heladería:</strong> Va bien en verano ☀️</li>
-            <li>• <strong>Cafetería:</strong> Va bien en invierno ❄️</li>
-            <li>• <strong>Panadería:</strong> Va bien todo el año 🍞</li>
+          <ul className="space-y-2 text-gb-dark ml-6">
+            <li>• <strong>Heladeria:</strong> Va bien en verano</li>
+            <li>• <strong>Cafeteria:</strong> Va bien en invierno</li>
+            <li>• <strong>Panaderia:</strong> Va bien todo el año</li>
           </ul>
-          <p className="text-slate-700 mt-3">
-            Si solo tienes heladería, en invierno pierdes. Pero con los 3 negocios,
-            siempre estás ganando. <strong>Eso es diversificación.</strong>
+          <p className="text-gb-dark mt-3">
+            Si solo tienes heladeria, en invierno pierdes. Pero con los 3 negocios,
+            siempre estas ganando. <strong>Eso es diversificacion.</strong>
           </p>
         </div>
 
         {/* Gráfico de Reducción de Volatilidad */}
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            📊 Efecto de la Diversificación
+          <h3 className="text-xl font-bold text-gb-black mb-4">
+            Efecto de la Diversificacion
           </h3>
 
           <ResponsiveContainer width="100%" height={300}>
@@ -419,22 +419,22 @@ function ModuloDiversificacion() {
             {datosDiversificacion.map((item) => (
               <div
                 key={item.fondos}
-                className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center"
+                className="p-4 bg-gb-light rounded-lg border border-gb-border text-center"
               >
-                <p className="font-semibold text-slate-900">{item.fondos}</p>
-                <p className="text-2xl font-bold text-blue-600 mt-2">
+                <p className="font-semibold text-gb-black">{item.fondos}</p>
+                <p className="text-2xl font-bold text-gb-accent mt-2">
                   {item.volatilidad}%
                 </p>
-                <p className="text-xs text-slate-600 mt-1">volatilidad</p>
+                <p className="text-xs text-gb-gray mt-1">volatilidad</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="p-6 bg-gradient-to-r from-emerald-50 to-blue-50 border-2 border-emerald-300 rounded-lg">
-          <p className="text-lg font-semibold text-slate-900 mb-2">🎯 Mensaje Clave:</p>
-          <p className="text-slate-700">
-            Con más fondos, reduces el riesgo <strong>SIN sacrificar mucha
+        <div className="p-6 bg-gb-light border-2 border-gb-border rounded-lg">
+          <p className="text-lg font-semibold text-gb-black mb-2">Mensaje Clave:</p>
+          <p className="text-gb-dark">
+            Con mas fondos, reduces el riesgo <strong>SIN sacrificar mucha
             rentabilidad.</strong> Es como tener un seguro gratis. Un portafolio
             diversificado (10+ fondos) tiene la mitad del riesgo de un solo fondo.
           </p>
@@ -453,43 +453,43 @@ function ModuloDiversificacion() {
 function ModuloCaidasHistoricas() {
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
-        <h2 className="text-3xl font-bold text-slate-900 mb-4 flex items-center gap-3">
-          <TrendingDown className="w-8 h-8 text-blue-600" />
-          Análisis de Caídas Históricas del S&P 500
+      <div className="bg-white border border-gb-border rounded-lg p-8">
+        <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
+          <TrendingDown className="w-8 h-8 text-gb-accent" />
+          Analisis de Caidas Historicas del S&P 500
         </h2>
 
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
-          <p className="text-lg text-slate-700">
-            <strong>S&P 500:</strong> Índice que representa las 500 empresas más grandes de
-            Estados Unidos. Es el mejor indicador de cómo le va al mercado de acciones
+        <div className="bg-gb-light border-2 border-gb-border rounded-lg p-6 mb-6">
+          <p className="text-lg text-gb-dark">
+            <strong>S&P 500:</strong> Indice que representa las 500 empresas mas grandes de
+            Estados Unidos. Es el mejor indicador de como le va al mercado de acciones
             global.
           </p>
         </div>
 
         {/* Tabla de Crashes */}
         <div className="mb-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            🔍 Crashes Históricos Principales
+          <h3 className="text-xl font-bold text-gb-black mb-4">
+            Crashes Historicos Principales
           </h3>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b-2 border-slate-300 bg-slate-50">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                <tr className="border-b-2 border-gb-border bg-gb-light">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gb-dark">
                     Evento
                   </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-slate-700">
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
                     Año
                   </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-slate-700">
-                    Caída
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
+                    Caida
                   </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-slate-700">
-                    Recuperación
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
+                    Recuperacion
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gb-dark">
                     Contexto
                   </th>
                 </tr>
@@ -498,31 +498,27 @@ function ModuloCaidasHistoricas() {
                 {crashesSP500.map((crash) => (
                   <tr
                     key={crash.año}
-                    className={`border-b border-slate-200 ${
-                      crash.destacado ? "bg-blue-50" : ""
+                    className={`border-b border-gb-border ${
+                      crash.destacado ? "bg-gb-light" : ""
                     }`}
                   >
-                    <td className="py-3 px-4 font-semibold text-slate-900">
+                    <td className="py-3 px-4 font-semibold text-gb-black">
                       {crash.nombre}
                     </td>
-                    <td className="py-3 px-4 text-center text-slate-700">
+                    <td className="py-3 px-4 text-center text-gb-dark">
                       {crash.año}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="font-bold text-red-600">
                         {crash.caida}%
-                        {crash.caida === estadisticasCrashes.peorCaida && " 💀"}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="font-semibold text-slate-700">
+                      <span className="font-semibold text-gb-dark">
                         {crash.mesesRecuperacion} meses
-                        {crash.mesesRecuperacion === estadisticasCrashes.mejorRecuperacion &&
-                          " ⚡"}
-                        {crash.mesesRecuperacion > 70 && " 😱"}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600">
+                    <td className="py-3 px-4 text-sm text-gb-gray">
                       {crash.contexto}
                     </td>
                   </tr>
@@ -535,41 +531,41 @@ function ModuloCaidasHistoricas() {
         {/* Estadísticas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="p-6 bg-red-50 rounded-lg border-2 border-red-200 text-center">
-            <p className="text-sm text-slate-600 mb-2">Peor Caída</p>
+            <p className="text-sm text-gb-gray mb-2">Peor Caida</p>
             <p className="text-4xl font-bold text-red-600">
               {estadisticasCrashes.peorCaida}%
             </p>
-            <p className="text-xs text-slate-600 mt-1">2008</p>
+            <p className="text-xs text-gb-gray mt-1">2008</p>
           </div>
 
           <div className="p-6 bg-emerald-50 rounded-lg border-2 border-emerald-200 text-center">
-            <p className="text-sm text-slate-600 mb-2">Mejor Recuperación</p>
+            <p className="text-sm text-gb-gray mb-2">Mejor Recuperacion</p>
             <p className="text-4xl font-bold text-emerald-600">
               {estadisticasCrashes.mejorRecuperacion}
             </p>
-            <p className="text-xs text-slate-600 mt-1">meses (2020)</p>
+            <p className="text-xs text-gb-gray mt-1">meses (2020)</p>
           </div>
 
-          <div className="p-6 bg-slate-50 rounded-lg border-2 border-slate-300 text-center">
-            <p className="text-sm text-slate-600 mb-2">Caída Promedio</p>
-            <p className="text-4xl font-bold text-slate-700">
+          <div className="p-6 bg-gb-light rounded-lg border-2 border-gb-border text-center">
+            <p className="text-sm text-gb-gray mb-2">Caida Promedio</p>
+            <p className="text-4xl font-bold text-gb-dark">
               {estadisticasCrashes.promedioCaida}%
             </p>
           </div>
 
-          <div className="p-6 bg-blue-50 rounded-lg border-2 border-blue-200 text-center">
-            <p className="text-sm text-slate-600 mb-2">Recuperación Promedio</p>
-            <p className="text-4xl font-bold text-blue-600">
+          <div className="p-6 bg-gb-light rounded-lg border-2 border-gb-border text-center">
+            <p className="text-sm text-gb-gray mb-2">Recuperacion Promedio</p>
+            <p className="text-4xl font-bold text-gb-accent">
               {estadisticasCrashes.promedioRecuperacion}
             </p>
-            <p className="text-xs text-slate-600 mt-1">meses</p>
+            <p className="text-xs text-gb-gray mt-1">meses</p>
           </div>
         </div>
 
         {/* Gráfico Histórico */}
         <div className="mb-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            📈 Evolución del S&P 500 (1950-2024)
+          <h3 className="text-xl font-bold text-gb-black mb-4">
+            Evolucion del S&P 500 (1950-2024)
           </h3>
 
           <ResponsiveContainer width="100%" height={400}>
@@ -603,26 +599,26 @@ function ModuloCaidasHistoricas() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-              <p className="text-sm font-semibold text-slate-900 mb-1">
-                Caídas visibles:
+              <p className="text-sm font-semibold text-gb-black mb-1">
+                Caidas visibles:
               </p>
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-gb-dark">
                 1973, 1987, 2000-2002, 2008, 2020
               </p>
             </div>
             <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-              <p className="text-sm font-semibold text-slate-900 mb-1">
+              <p className="text-sm font-semibold text-gb-black mb-1">
                 Tendencia general:
               </p>
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-gb-dark">
                 Siempre hacia ARRIBA a largo plazo
               </p>
             </div>
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm font-semibold text-slate-900 mb-1">
+            <div className="p-4 bg-gb-light rounded-lg border border-gb-border">
+              <p className="text-sm font-semibold text-gb-black mb-1">
                 Crecimiento:
               </p>
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-gb-dark">
                 De 100 a 4,500 en 74 años (45x)
               </p>
             </div>
@@ -630,11 +626,11 @@ function ModuloCaidasHistoricas() {
         </div>
 
         {/* MENSAJE CLAVE (MUY IMPORTANTE) */}
-        <div className="p-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-xl text-white">
+        <div className="p-8 bg-gb-black rounded-lg border border-gb-border text-white">
           <div className="text-center mb-6">
-            <h3 className="text-3xl font-bold mb-4">🌟 EL MENSAJE CLAVE 🌟</h3>
+            <h3 className="text-3xl font-bold mb-4">EL MENSAJE CLAVE</h3>
             <p className="text-2xl font-bold mb-2">
-              "Las caídas son TEMPORALES,
+              "Las caidas son TEMPORALES,
             </p>
             <p className="text-2xl font-bold">
               el crecimiento es PERMANENTE."
@@ -645,10 +641,10 @@ function ModuloCaidasHistoricas() {
             <div className="flex items-start gap-3 bg-white/10 backdrop-blur rounded-lg p-4">
               <CheckCircle className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
-                <p className="font-semibold mb-1">Todas las caídas se recuperaron</p>
-                <p className="text-sm text-blue-100">
-                  En los últimos 74 años, ha habido 15 caídas grandes ({">"} 20%). TODAS se
-                  recuperaron. Sin excepción.
+                <p className="font-semibold mb-1">Todas las caidas se recuperaron</p>
+                <p className="text-sm text-white/70">
+                  En los ultimos 74 años, ha habido 15 caidas grandes ({">"} 20%). TODAS se
+                  recuperaron. Sin excepcion.
                 </p>
               </div>
             </div>
@@ -657,9 +653,9 @@ function ModuloCaidasHistoricas() {
               <TrendingUp className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
                 <p className="font-semibold mb-1">La tendencia siempre es hacia arriba</p>
-                <p className="text-sm text-blue-100">
+                <p className="text-sm text-white/70">
                   A pesar de guerras, pandemias, crisis financieras, el mercado siempre
-                  termina más alto que antes.
+                  termina mas alto que antes.
                 </p>
               </div>
             </div>
@@ -668,9 +664,9 @@ function ModuloCaidasHistoricas() {
               <Clock className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
                 <p className="font-semibold mb-1">Solo necesitas TIEMPO</p>
-                <p className="text-sm text-blue-100">
+                <p className="text-sm text-white/70">
                   Si inviertes hoy y el mercado cae mañana 30%, tu dinero NO desaparece.
-                  Está ahí, esperando a recuperarse. Históricamente, SIEMPRE se recupera.
+                  Esta ahi, esperando a recuperarse. Historicamente, SIEMPRE se recupera.
                 </p>
               </div>
             </div>
@@ -678,9 +674,9 @@ function ModuloCaidasHistoricas() {
             <div className="flex items-start gap-3 bg-white/10 backdrop-blur rounded-lg p-4">
               <AlertCircle className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
-                <p className="font-semibold mb-1">Tu única enemiga es el PÁNICO</p>
-                <p className="text-sm text-blue-100">
-                  Si vendes en la caída, pierdes. Si esperas con paciencia, ganas. La
+                <p className="font-semibold mb-1">Tu unica enemiga es el PANICO</p>
+                <p className="text-sm text-white/70">
+                  Si vendes en la caida, pierdes. Si esperas con paciencia, ganas. La
                   historia lo ha demostrado una y otra vez.
                 </p>
               </div>
@@ -689,10 +685,10 @@ function ModuloCaidasHistoricas() {
 
           <div className="mt-6 p-4 bg-white/20 backdrop-blur rounded-lg text-center">
             <p className="text-xl font-bold">
-              📈 TIEMPO {">"} TIMING 📈
+              TIEMPO {">"} TIMING
             </p>
-            <p className="text-sm mt-2 text-blue-100">
-              Más importante que el momento perfecto para entrar, es el tiempo que te quedas
+            <p className="text-sm mt-2 text-white/70">
+              Mas importante que el momento perfecto para entrar, es el tiempo que te quedas
               invertido.
             </p>
           </div>
@@ -713,74 +709,74 @@ function ModuloComparacion() {
 
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
-        <h2 className="text-3xl font-bold text-slate-900 mb-4 flex items-center gap-3">
-          <BarChart3 className="w-8 h-8 text-blue-600" />
-          Comparación Final: ¿Qué Elegir?
+      <div className="bg-white border border-gb-border rounded-lg p-8">
+        <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
+          <BarChart3 className="w-8 h-8 text-gb-accent" />
+          Comparacion Final: Que Elegir?
         </h2>
 
         {/* Tabla Comparativa */}
         <div className="mb-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            ⚖️ Acciones vs Bonos vs Balanceado
+          <h3 className="text-xl font-bold text-gb-black mb-4">
+            Acciones vs Bonos vs Balanceado
           </h3>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b-2 border-slate-300 bg-slate-50">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
-                    Característica
+                <tr className="border-b-2 border-gb-border bg-gb-light">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gb-dark">
+                    Caracteristica
                   </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-slate-700">
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
                     Acciones (100%)
                   </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-slate-700">
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
                     Bonos (100%)
                   </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-slate-700">
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
                     Balanceado (60/40)
                   </th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-slate-200">
-                  <td className="py-3 px-4 font-semibold text-slate-900">
+                <tr className="border-b border-gb-border">
+                  <td className="py-3 px-4 font-semibold text-gb-black">
                     Retorno Anual
                   </td>
-                  <td className="py-3 px-4 text-center text-blue-600 font-bold">
+                  <td className="py-3 px-4 text-center text-gb-accent font-bold">
                     {comparacionActivos.acciones.retornoAnual}%
                   </td>
-                  <td className="py-3 px-4 text-center text-slate-600 font-semibold">
+                  <td className="py-3 px-4 text-center text-gb-gray font-semibold">
                     {comparacionActivos.bonos.retornoAnual}%
                   </td>
                   <td className="py-3 px-4 text-center text-emerald-600 font-bold">
                     {comparacionActivos.balanceado.retornoAnual}%
                   </td>
                 </tr>
-                <tr className="border-b border-slate-200">
-                  <td className="py-3 px-4 font-semibold text-slate-900">Peor Año</td>
+                <tr className="border-b border-gb-border">
+                  <td className="py-3 px-4 font-semibold text-gb-black">Peor Año</td>
                   <td className="py-3 px-4 text-center text-red-600 font-bold">
                     {comparacionActivos.acciones.peorAño}%
                   </td>
-                  <td className="py-3 px-4 text-center text-slate-600 font-semibold">
+                  <td className="py-3 px-4 text-center text-gb-gray font-semibold">
                     {comparacionActivos.bonos.peorAño}%
                   </td>
                   <td className="py-3 px-4 text-center text-orange-600 font-semibold">
                     {comparacionActivos.balanceado.peorAño}%
                   </td>
                 </tr>
-                <tr className="border-b border-slate-200">
-                  <td className="py-3 px-4 font-semibold text-slate-900">
-                    Recuperación Promedio
+                <tr className="border-b border-gb-border">
+                  <td className="py-3 px-4 font-semibold text-gb-black">
+                    Recuperacion Promedio
                   </td>
-                  <td className="py-3 px-4 text-center text-slate-600">
+                  <td className="py-3 px-4 text-center text-gb-gray">
                     {comparacionActivos.acciones.recuperacionPromedio} meses
                   </td>
-                  <td className="py-3 px-4 text-center text-slate-600">
+                  <td className="py-3 px-4 text-center text-gb-gray">
                     {comparacionActivos.bonos.recuperacionPromedio} meses
                   </td>
-                  <td className="py-3 px-4 text-center text-slate-600">
+                  <td className="py-3 px-4 text-center text-gb-gray">
                     {comparacionActivos.balanceado.recuperacionPromedio} meses
                   </td>
                 </tr>
@@ -791,8 +787,8 @@ function ModuloComparacion() {
 
         {/* Simulación 20 años */}
         <div className="mb-8">
-          <h3 className="text-xl font-bold text-slate-900 mb-4">
-            💰 Simulación: $10M invertidos por 20 años
+          <h3 className="text-xl font-bold text-gb-black mb-4">
+            Simulacion: $10M invertidos por 20 años
           </h3>
 
           <ResponsiveContainer width="100%" height={300}>
@@ -825,17 +821,17 @@ function ModuloComparacion() {
               return (
                 <div
                   key={key}
-                  className="p-6 bg-slate-50 rounded-lg border-2 border-slate-200 text-center"
+                  className="p-6 bg-gb-light rounded-lg border-2 border-gb-border text-center"
                 >
                   <div
                     className="w-6 h-6 rounded-full mx-auto mb-3"
                     style={{ backgroundColor: activo.color }}
                   />
-                  <p className="font-semibold text-slate-900 mb-2">{activo.nombre}</p>
+                  <p className="font-semibold text-gb-black mb-2">{activo.nombre}</p>
                   <p className="text-3xl font-bold mb-1" style={{ color: activo.color }}>
                     ${valorFinal.toFixed(1)}M
                   </p>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-gb-gray">
                     Ganancia: ${(valorFinal - 10).toFixed(1)}M
                   </p>
                 </div>
@@ -847,55 +843,55 @@ function ModuloComparacion() {
         {/* Conclusión */}
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-6 bg-slate-50 rounded-lg border-2 border-slate-300">
-              <p className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                <Shield className="w-5 h-5 text-slate-600" />
+            <div className="p-6 bg-gb-light rounded-lg border-2 border-gb-border">
+              <p className="font-bold text-gb-black mb-2 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-gb-gray" />
                 Solo Bonos
               </p>
-              <p className="text-sm text-slate-700">
-                ✅ Más seguro, menos volatilidad
+              <p className="text-sm text-gb-dark">
+                Mas seguro, menos volatilidad
               </p>
-              <p className="text-sm text-slate-700 mt-2">
-                ❌ Crece poco, pierdes poder adquisitivo
+              <p className="text-sm text-gb-dark mt-2">
+                Crece poco, pierdes poder adquisitivo
               </p>
             </div>
 
-            <div className="p-6 bg-blue-50 rounded-lg border-2 border-blue-300">
-              <p className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-600" />
+            <div className="p-6 bg-gb-light rounded-lg border-2 border-gb-accent">
+              <p className="font-bold text-gb-black mb-2 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-gb-accent" />
                 Solo Acciones
               </p>
-              <p className="text-sm text-slate-700">
-                ✅ Máxima rentabilidad (2.5x más que bonos)
+              <p className="text-sm text-gb-dark">
+                Maxima rentabilidad (2.5x mas que bonos)
               </p>
-              <p className="text-sm text-slate-700 mt-2">
-                ⚠️ Más volatilidad, requiere paciencia
+              <p className="text-sm text-gb-dark mt-2">
+                Mas volatilidad, requiere paciencia
               </p>
             </div>
 
-            <div className="p-6 bg-emerald-50 rounded-lg border-2 border-emerald-300">
-              <p className="font-bold text-slate-900 mb-2 flex items-center gap-2">
+            <div className="p-6 bg-gb-light rounded-lg border-2 border-emerald-300">
+              <p className="font-bold text-gb-black mb-2 flex items-center gap-2">
                 <Target className="w-5 h-5 text-emerald-600" />
                 Balanceado
               </p>
-              <p className="text-sm text-slate-700">
-                ✅ Lo mejor de ambos mundos
+              <p className="text-sm text-gb-dark">
+                Lo mejor de ambos mundos
               </p>
-              <p className="text-sm text-slate-700 mt-2">
-                ✅ Buen retorno con riesgo moderado
+              <p className="text-sm text-gb-dark mt-2">
+                Buen retorno con riesgo moderado
               </p>
             </div>
           </div>
 
-          <div className="p-8 bg-gradient-to-r from-blue-50 to-emerald-50 border-2 border-blue-300 rounded-xl">
-            <p className="text-2xl font-bold text-slate-900 mb-4 text-center">
-              🎯 Conclusión Final
+          <div className="p-8 bg-gb-light border-2 border-gb-border rounded-lg">
+            <p className="text-2xl font-bold text-gb-black mb-4 text-center">
+              Conclusion Final
             </p>
-            <div className="space-y-3 text-slate-700">
+            <div className="space-y-3 text-gb-dark">
               <p className="flex items-start gap-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Si tienes <strong>TIEMPO</strong> (10+ años), vale la pena aceptar más
+                  Si tienes <strong>TIEMPO</strong> (10+ años), vale la pena aceptar mas
                   riesgo con acciones o balanceado.
                 </span>
               </p>
@@ -909,15 +905,15 @@ function ModuloComparacion() {
               <p className="flex items-start gap-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  El <strong>portafolio balanceado</strong> es ideal para la mayoría: buen
-                  retorno ($42M) sin tanto estrés.
+                  El <strong>portafolio balanceado</strong> es ideal para la mayoria: buen
+                  retorno ($42M) sin tanto estres.
                 </span>
               </p>
               <p className="flex items-start gap-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Recuerda: Las caídas son temporales, el crecimiento es permanente. Solo
-                  necesitas <strong>no vender en pánico.</strong>
+                  Recuerda: Las caidas son temporales, el crecimiento es permanente. Solo
+                  necesitas <strong>no vender en panico.</strong>
                 </span>
               </p>
             </div>
@@ -926,18 +922,18 @@ function ModuloComparacion() {
       </div>
 
       {/* Mensaje Final Motivacional */}
-      <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-xl p-8 text-white text-center">
+      <div className="bg-gb-black rounded-lg border border-gb-border p-8 text-white text-center">
         <Activity className="w-16 h-16 mx-auto mb-4" />
-        <h3 className="text-3xl font-bold mb-4">¡Felicitaciones!</h3>
+        <h3 className="text-3xl font-bold mb-4">Felicitaciones!</h3>
         <p className="text-xl mb-6">
           Ahora tienes las herramientas para invertir con confianza.
         </p>
         <div className="bg-white/10 backdrop-blur rounded-lg p-6">
           <p className="text-lg font-semibold mb-2">Recuerda los 3 pilares:</p>
           <div className="space-y-2 text-left">
-            <p>1️⃣ <strong>Riesgo-Retorno:</strong> Más riesgo = Más ganancia</p>
-            <p>2️⃣ <strong>Diversificación:</strong> Reduce riesgo gratis</p>
-            <p>3️⃣ <strong>Tiempo:</strong> Las caídas se recuperan, siempre</p>
+            <p>1. <strong>Riesgo-Retorno:</strong> Mas riesgo = Mas ganancia</p>
+            <p>2. <strong>Diversificacion:</strong> Reduce riesgo gratis</p>
+            <p>3. <strong>Tiempo:</strong> Las caidas se recuperan, siempre</p>
           </div>
         </div>
       </div>
@@ -947,4 +943,3 @@ function ModuloComparacion() {
 
 // Agregar Cell component for recharts
 import { Cell } from "recharts";
-

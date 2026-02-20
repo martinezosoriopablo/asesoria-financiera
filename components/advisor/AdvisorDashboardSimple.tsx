@@ -52,24 +52,20 @@ export default function ImprovedAdvisorDashboard() {
   const fetchData = async () => {
     try {
       // Obtener estadísticas
-      const statsRes = await fetch(
-        `/api/advisor/stats?email=${advisor.email}`
-      );
+      const statsRes = await fetch("/api/advisor/stats");
       const statsData = await statsRes.json();
       if (statsData.success) {
         setStats(statsData.stats);
       }
 
       // Obtener reuniones de la semana
-      const meetingsRes = await fetch(
-        `/api/advisor/meetings?email=${advisor.email}&timeframe=week`
-      );
+      const meetingsRes = await fetch("/api/advisor/meetings?timeframe=week");
       const meetingsData = await meetingsRes.json();
       if (meetingsData.success) {
         setMeetings(meetingsData.meetings);
       }
-    } catch (error) {
-      console.error("Error fetching data:", error);
+    } catch {
+      // Error silencioso - el usuario verá datos vacíos
     } finally {
       setLoading(false);
     }
@@ -99,7 +95,6 @@ export default function ImprovedAdvisorDashboard() {
         advisorName={advisor.name}
         advisorEmail={advisor.email}
         advisorPhoto={advisor.photo}
-        logoUrl={logoUrl}
       />
 
       {/* Main Content */}

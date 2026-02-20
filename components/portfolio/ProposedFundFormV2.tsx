@@ -133,16 +133,31 @@ export function ProposedFundFormV2({
   };
 
   const normalizeDate = (dateValue: any): string => {
+    // Número de serie de Excel (ej: 44197 = 1 enero 2021)
     if (typeof dateValue === "number") {
-      const date = XLSX.SSF.parse_date_code(dateValue);
-      return `${date.y}-${String(date.m).padStart(2, "0")}-${String(date.d).padStart(2, "0")}`;
+      // Convertir número de serie Excel a fecha manualmente
+      // Excel cuenta desde 1 enero 1900, pero tiene un bug con el año bisiesto 1900
+      const excelEpoch = new Date(1899, 11, 30); // 30 dic 1899
+      const date = new Date(excelEpoch.getTime() + dateValue * 24 * 60 * 60 * 1000);
+
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     }
 
     if (typeof dateValue === "string") {
+      // YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+      // DD/MM/YYYY
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateValue)) {
         const [day, month, year] = dateValue.split("/");
         return `${year}-${month}-${day}`;
+      }
+      // MM/DD/YYYY (formato US)
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue)) {
+        const parts = dateValue.split("/");
+        return `${parts[2]}-${parts[0].padStart(2, "0")}-${parts[1].padStart(2, "0")}`;
       }
     }
 
@@ -153,7 +168,8 @@ export function ProposedFundFormV2({
       return `${year}-${month}-${day}`;
     }
 
-    return dateValue.toString();
+    // Fallback seguro
+    return dateValue ? String(dateValue) : "";
   };
 
   const calculateReturnsFromNav = (navs: NavData[]) => {

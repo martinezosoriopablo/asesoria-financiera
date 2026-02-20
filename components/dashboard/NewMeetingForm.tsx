@@ -11,12 +11,11 @@ interface Client {
 }
 
 interface NewMeetingFormProps {
-  advisorEmail: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function NewMeetingForm({ advisorEmail, onClose, onSuccess }: NewMeetingFormProps) {
+export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,17 +38,13 @@ export default function NewMeetingForm({ advisorEmail, onClose, onSuccess }: New
 
   const fetchClients = async () => {
     try {
-      console.log('🔍 Cargando clientes...');
       const res = await fetch("/api/clients");
       const data = await res.json();
-      console.log('✅ Clientes cargados:', data);
       if (data.success) {
         setClients(data.clients);
-      } else {
-        console.error('❌ Error al cargar clientes:', data);
       }
-    } catch (error) {
-      console.error("❌ Error fetching clients:", error);
+    } catch {
+      // Error silencioso - selector de clientes quedará vacío
     }
   };
 
@@ -65,7 +60,6 @@ export default function NewMeetingForm({ advisorEmail, onClose, onSuccess }: New
 
       const payload = {
         client_id: formData.client_id,
-        asesor_email: advisorEmail,
         titulo: formData.titulo,
         descripcion: formData.descripcion || null,
         fecha: fechaHora,
@@ -74,36 +68,25 @@ export default function NewMeetingForm({ advisorEmail, onClose, onSuccess }: New
         ubicacion: formData.ubicacion || null,
       };
 
-      console.log('📤 Enviando reunión:', payload);
-
       const res = await fetch("/api/advisor/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      console.log('📥 Response status:', res.status);
-      
       const data = await res.json();
-      console.log('📥 Response data:', data);
 
       if (data.success) {
-        console.log('✅ Reunión creada exitosamente:', data.meeting);
         setSuccess(true);
-        
-        // Esperar 1 segundo para mostrar mensaje de éxito
         setTimeout(() => {
-          console.log('🔄 Llamando onSuccess y onClose...');
-          onSuccess(); // Recargar datos
-          onClose();   // Cerrar modal
+          onSuccess();
+          onClose();
         }, 1000);
       } else {
-        console.error('❌ Error del servidor:', data.error);
         setError(data.error || "Error al crear reunión");
       }
-    } catch (error) {
-      console.error("❌ Error en handleSubmit:", error);
-      setError("Error al crear reunión. Ver consola para detalles.");
+    } catch {
+      setError("Error al crear reunión");
     } finally {
       setLoading(false);
     }

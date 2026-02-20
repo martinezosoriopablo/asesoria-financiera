@@ -1,40 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #1a1a1a;
+  --gb-black: #1a1a1a;
+  --gb-dark: #2d2d2d;
+  --gb-gray: #6b7280;
+  --gb-light: #f3f4f6;
+  --gb-border: #e5e7eb;
+  --gb-accent: #4b5563;
+  --gb-white: #ffffff;
+  --gb-success: #059669;
+  --gb-warning: #d97706;
+  --gb-danger: #dc2626;
+  --gb-info: #2563eb;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-gb-black: var(--gb-black);
+  --color-gb-dark: var(--gb-dark);
+  --color-gb-gray: var(--gb-gray);
+  --color-gb-light: var(--gb-light);
+  --color-gb-border: var(--gb-border);
+  --color-gb-accent: var(--gb-accent);
+  --color-gb-white: var(--gb-white);
+  --color-gb-success: var(--gb-success);
+  --color-gb-warning: var(--gb-warning);
+  --color-gb-danger: var(--gb-danger);
+  --color-gb-info: var(--gb-info);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
-/* COMENTADO EL DARK MODE QUE JODE LOS BOTONES */
-/*
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-*/
-
 body {
   background: var(--background);
-  /* NO aplicar color global - deja que cada componente maneje su color */
-  /* color: var(--foreground); */
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* Los textos normales sí deben tener color */
-p, h1, h2, h3, h4, h5, h6, span, div {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Pero los links NO heredan el color del body */
-a {
-  color: inherit;
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Table styling */
+table {
+  border-collapse: collapse;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--gb-accent);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+a, button {
+  transition: all 0.15s ease;
 }

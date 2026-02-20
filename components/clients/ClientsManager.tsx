@@ -2,22 +2,20 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import AdvisorHeader from "@/components/shared/AdvisorHeader";
+import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   Users,
   Search,
   Plus,
   Filter,
-  TrendingUp,
-  AlertCircle,
   Phone,
-  Mail,
   Calendar,
   DollarSign,
   Shield,
   Eye,
   Loader,
-  ArrowLeft,
-  FileText,
+  AlertCircle,
 } from "lucide-react";
 
 interface Client {
@@ -44,36 +42,23 @@ interface Stats {
   patrimonio_total: number;
 }
 
-const PERFIL_COLORS: { [key: string]: { bg: string; text: string; badge: string } } = {
-  conservador: {
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-    badge: "bg-blue-100",
-  },
-  moderado: {
-    bg: "bg-green-50",
-    text: "text-green-700",
-    badge: "bg-green-100",
-  },
-  agresivo: {
-    bg: "bg-orange-50",
-    text: "text-orange-700",
-    badge: "bg-orange-100",
-  },
-  muy_agresivo: {
-    bg: "bg-red-50",
-    text: "text-red-700",
-    badge: "bg-red-100",
-  },
+const PERFIL_LABELS: Record<string, string> = {
+  conservador: "Conservador",
+  moderado: "Moderado",
+  agresivo: "Agresivo",
+  muy_agresivo: "Muy Agresivo",
+  defensivo: "Defensivo",
+  crecimiento: "Crecimiento",
 };
 
-const STATUS_COLORS: { [key: string]: { bg: string; text: string } } = {
-  activo: { bg: "bg-green-100", text: "text-green-800" },
-  prospecto: { bg: "bg-yellow-100", text: "text-yellow-800" },
-  inactivo: { bg: "bg-gray-100", text: "text-gray-800" },
+const STATUS_STYLES: Record<string, string> = {
+  activo: "bg-emerald-50 text-emerald-700",
+  prospecto: "bg-amber-50 text-amber-700",
+  inactivo: "bg-gray-100 text-gray-600",
 };
 
 export default function ClientsManager() {
+  const { advisor, loading: authLoading } = useAdvisor();
   const [clients, setClients] = useState<Client[]>([]);
   const [filteredClients, setFilteredClients] = useState<Client[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -88,16 +73,14 @@ export default function ClientsManager() {
   }, []);
 
   useEffect(() => {
-    filterClients();
+    filterClientsFn();
   }, [clients, searchTerm, filterStatus, filterPerfil]);
 
   const fetchClients = async () => {
     try {
       const response = await fetch("/api/clients");
       const data = await response.json();
-      if (data.success) {
-        setClients(data.clients);
-      }
+      if (data.success) setClients(data.clients);
     } catch (error) {
       console.error("Error fetching clients:", error);
     } finally {
@@ -109,329 +92,203 @@ export default function ClientsManager() {
     try {
       const response = await fetch("/api/clients/stats");
       const data = await response.json();
-      if (data.success) {
-        setStats(data.stats);
-      }
+      if (data.success) setStats(data.stats);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
   };
 
-  const filterClients = () => {
+  const filterClientsFn = () => {
     let filtered = [...clients];
-
-    // Filtro de búsqueda
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
-        (client) =>
-          client.nombre.toLowerCase().includes(term) ||
-          client.apellido.toLowerCase().includes(term) ||
-          client.email.toLowerCase().includes(term)
+        (c) =>
+          c.nombre.toLowerCase().includes(term) ||
+          c.apellido.toLowerCase().includes(term) ||
+          c.email.toLowerCase().includes(term)
       );
     }
-
-    // Filtro de status
-    if (filterStatus !== "all") {
-      filtered = filtered.filter((client) => client.status === filterStatus);
-    }
-
-    // Filtro de perfil de riesgo
-    if (filterPerfil !== "all") {
-      filtered = filtered.filter((client) => client.perfil_riesgo === filterPerfil);
-    }
-
+    if (filterStatus !== "all") filtered = filtered.filter((c) => c.status === filterStatus);
+    if (filterPerfil !== "all") filtered = filtered.filter((c) => c.perfil_riesgo === filterPerfil);
     setFilteredClients(filtered);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", minimumFractionDigits: 0 }).format(amount);
 
   const getDaysSinceLastContact = (lastContact: string) => {
-    const now = new Date();
-    const last = new Date(lastContact);
-    const diffTime = Math.abs(now.getTime() - last.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    const diffTime = Math.abs(new Date().getTime() - new Date(lastContact).getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <Loader className="w-12 h-12 text-blue-600 animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span className="text-sm font-medium">Volver al Dashboard</span>
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm text-slate-600">Asesor</p>
-                <p className="font-semibold text-slate-900">Pablo</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <Users className="w-8 h-8 text-blue-600" />
-                Gestión de Clientes
-              </h1>
-              <p className="text-slate-600 mt-1">
-                {filteredClients.length} clientes
-                {searchTerm || filterStatus !== "all" || filterPerfil !== "all"
-                  ? ` (filtrados de ${clients.length} totales)`
-                  : ""}
-              </p>
-            </div>
-            <Link
-              href="/clients/new"
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
-            >
-              <Plus className="w-5 h-5" />
-              Nuevo Cliente
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 mb-1">Total Clientes</p>
-                  <p className="text-3xl font-bold text-slate-900">
-                    {stats.total_clientes}
-                  </p>
-                </div>
-                <Users className="w-12 h-12 text-blue-500 opacity-20" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 mb-1">Clientes Activos</p>
-                  <p className="text-3xl font-bold text-slate-900">
-                    {stats.clientes_activos}
-                  </p>
-                </div>
-                <Shield className="w-12 h-12 text-green-500 opacity-20" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-yellow-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 mb-1">Prospectos</p>
-                  <p className="text-3xl font-bold text-slate-900">
-                    {stats.prospectos}
-                  </p>
-                </div>
-                <AlertCircle className="w-12 h-12 text-yellow-500 opacity-20" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-slate-600 mb-1">Patrimonio Total</p>
-                  <p className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(stats.patrimonio_total)}
-                  </p>
-                </div>
-                <DollarSign className="w-12 h-12 text-purple-500 opacity-20" />
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background">
+      {advisor && (
+        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} />
       )}
 
-      {/* Search and Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Search */}
+      <div className="max-w-6xl mx-auto px-5 py-8">
+        {/* Page header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-gb-black">Clientes</h1>
+            <p className="text-sm text-gb-gray mt-0.5">
+              {filteredClients.length} cliente{filteredClients.length !== 1 ? "s" : ""}
+              {(searchTerm || filterStatus !== "all" || filterPerfil !== "all") && ` de ${clients.length}`}
+            </p>
+          </div>
+          <Link
+            href="/clients/new"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-gb-black text-white rounded-md hover:bg-gb-dark"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo Cliente
+          </Link>
+        </div>
+
+        {/* Stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[
+              { label: "Total", value: stats.total_clientes },
+              { label: "Activos", value: stats.clientes_activos },
+              { label: "Prospectos", value: stats.prospectos },
+              { label: "Patrimonio Total", value: formatCurrency(stats.patrimonio_total) },
+            ].map((s) => (
+              <div key={s.label} className="bg-white rounded-lg border border-gb-border p-4">
+                <p className="text-xs font-medium text-gb-gray uppercase tracking-wide">{s.label}</p>
+                <p className="text-xl font-semibold text-gb-black mt-1">{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg border border-gb-border p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
               <input
                 type="text"
                 placeholder="Buscar por nombre o email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-9 pr-3 py-2 border border-gb-border rounded-md text-sm focus:ring-2 focus:ring-gb-accent focus:border-transparent"
               />
             </div>
-
-            {/* Filter by Status */}
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
-              >
-                <option value="all">Todos los estados</option>
-                <option value="activo">Activo</option>
-                <option value="prospecto">Prospecto</option>
-                <option value="inactivo">Inactivo</option>
-              </select>
-            </div>
-
-            {/* Filter by Risk Profile */}
-            <div className="relative">
-              <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <select
-                value={filterPerfil}
-                onChange={(e) => setFilterPerfil(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
-              >
-                <option value="all">Todos los perfiles</option>
-                <option value="conservador">Conservador</option>
-                <option value="moderado">Moderado</option>
-                <option value="agresivo">Agresivo</option>
-                <option value="muy_agresivo">Muy Agresivo</option>
-              </select>
-            </div>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-gb-border rounded-md text-sm bg-white focus:ring-2 focus:ring-gb-accent"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="activo">Activo</option>
+              <option value="prospecto">Prospecto</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
+            <select
+              value={filterPerfil}
+              onChange={(e) => setFilterPerfil(e.target.value)}
+              className="w-full px-3 py-2 border border-gb-border rounded-md text-sm bg-white focus:ring-2 focus:ring-gb-accent"
+            >
+              <option value="all">Todos los perfiles</option>
+              <option value="defensivo">Defensivo</option>
+              <option value="conservador">Conservador</option>
+              <option value="moderado">Moderado</option>
+              <option value="crecimiento">Crecimiento</option>
+              <option value="agresivo">Agresivo</option>
+              <option value="muy_agresivo">Muy Agresivo</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      {/* Clients List */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredClients.map((client) => {
-            const perfilColors = PERFIL_COLORS[client.perfil_riesgo] || PERFIL_COLORS.moderado;
-            const statusColors = STATUS_COLORS[client.status] || STATUS_COLORS.activo;
-            const daysSinceContact = getDaysSinceLastContact(client.ultima_interaccion);
-            const needsFollowup = daysSinceContact > 30;
-
-            return (
-              <div
-                key={client.id}
-                className="bg-white rounded-xl shadow-md hover:shadow-xl transition-shadow p-6 border-2 border-transparent hover:border-blue-500"
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {client.nombre} {client.apellido}
-                    </h3>
-                    <p className="text-sm text-slate-600">{client.email}</p>
-                  </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors.bg} ${statusColors.text}`}
-                  >
-                    {client.status}
-                  </span>
-                </div>
-
-                {/* Perfil de Riesgo */}
-                {client.perfil_riesgo && (
-                  <div
-                    className={`${perfilColors.bg} rounded-lg p-3 mb-4`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-semibold ${perfilColors.text}`}>
-                        {client.perfil_riesgo.charAt(0).toUpperCase() +
-                          client.perfil_riesgo.slice(1).replace("_", " ")}
-                      </span>
-                      <span className={`text-xs font-bold ${perfilColors.text}`}>
-                        {client.puntaje_riesgo}/100
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Info */}
-                <div className="space-y-2 mb-4">
-                  {client.telefono && (
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Phone className="w-4 h-4" />
-                      {client.telefono}
-                    </div>
-                  )}
-                  {client.patrimonio_estimado && (
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <DollarSign className="w-4 h-4" />
-                      {formatCurrency(client.patrimonio_estimado)}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Calendar className="w-4 h-4" />
-                    Cliente desde {formatDate(client.fecha_onboarding)}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <FileText className="w-4 h-4" />
-                    {client.num_interacciones} interacciones
-                  </div>
-                </div>
-
-                {/* Last Contact Warning */}
-                {needsFollowup && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-yellow-600" />
-                      <span className="text-xs text-yellow-800 font-medium">
-                        Hace {daysSinceContact} días sin contacto
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <Link
-                    href={`/clients/${client.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Ver Detalle
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {filteredClients.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-600 text-lg">No se encontraron clientes</p>
-            <p className="text-slate-400 text-sm">
-              Intenta ajustar los filtros o agregar un nuevo cliente
-            </p>
+        {/* Client table */}
+        {filteredClients.length > 0 ? (
+          <div className="bg-white rounded-lg border border-gb-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gb-border bg-gb-light">
+                    <th className="text-left py-3 px-4 font-medium text-gb-gray">Nombre</th>
+                    <th className="text-left py-3 px-4 font-medium text-gb-gray hidden md:table-cell">Contacto</th>
+                    <th className="text-left py-3 px-4 font-medium text-gb-gray">Perfil</th>
+                    <th className="text-right py-3 px-4 font-medium text-gb-gray hidden lg:table-cell">Patrimonio</th>
+                    <th className="text-left py-3 px-4 font-medium text-gb-gray">Estado</th>
+                    <th className="text-right py-3 px-4 font-medium text-gb-gray hidden lg:table-cell">Último contacto</th>
+                    <th className="text-right py-3 px-4 font-medium text-gb-gray"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredClients.map((client) => {
+                    const days = getDaysSinceLastContact(client.ultima_interaccion);
+                    const needsFollowup = days > 30;
+                    return (
+                      <tr key={client.id} className="border-b border-gb-border last:border-0 hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <div className="font-medium text-gb-black">
+                            {client.nombre} {client.apellido}
+                          </div>
+                          <div className="text-xs text-gb-gray md:hidden">{client.email}</div>
+                        </td>
+                        <td className="py-3 px-4 text-gb-gray hidden md:table-cell">
+                          <div>{client.email}</div>
+                          {client.telefono && <div className="text-xs">{client.telefono}</div>}
+                        </td>
+                        <td className="py-3 px-4">
+                          {client.perfil_riesgo ? (
+                            <div>
+                              <span className="text-sm text-gb-black">
+                                {PERFIL_LABELS[client.perfil_riesgo] || client.perfil_riesgo}
+                              </span>
+                              <span className="text-xs text-gb-gray ml-1">({client.puntaje_riesgo})</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gb-gray">Sin perfil</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums text-gb-black hidden lg:table-cell">
+                          {client.patrimonio_estimado ? formatCurrency(client.patrimonio_estimado) : "—"}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLES[client.status] || STATUS_STYLES.activo}`}>
+                            {client.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right hidden lg:table-cell">
+                          <span className={`text-xs ${needsFollowup ? "text-amber-600 font-medium" : "text-gb-gray"}`}>
+                            Hace {days}d
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Link
+                            href={`/clients/${client.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gb-accent hover:text-gb-black border border-gb-border rounded-md hover:bg-gb-light"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-16">
+            <Users className="w-12 h-12 text-gb-border mx-auto mb-3" />
+            <p className="text-gb-gray">No se encontraron clientes</p>
+            <p className="text-xs text-gb-gray mt-1">Ajusta los filtros o agrega un nuevo cliente</p>
           </div>
         )}
       </div>

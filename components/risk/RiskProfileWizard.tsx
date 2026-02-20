@@ -32,6 +32,7 @@ interface RetirementAnswers {
   edadActual: number;
   edadJubilacion: number;
   pensionDeseada: number;
+  ahorroActual: number;
   fuma: boolean;
   salud: "excelente" | "buena" | "regular" | "mala";
 }
@@ -56,6 +57,7 @@ const DEFAULT_RETIREMENT: RetirementAnswers = {
   edadActual: 35,
   edadJubilacion: 65,
   pensionDeseada: 500000,
+  ahorroActual: 0,
   fuma: false,
   salud: "buena",
 };
@@ -562,6 +564,24 @@ function RetirementForm({ values, onChange }: RetirementFormProps) {
           step={50000}
           value={values.pensionDeseada}
           onChange={(e) => update("pensionDeseada", Number(e.target.value))}
+          className="w-48 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Ahorro actual */}
+      <div>
+        <label className="font-medium text-slate-900 mb-1 block text-lg">
+          ¿Cuánto tienes ahorrado actualmente para tu jubilación? (CLP)
+        </label>
+        <p className="text-sm text-slate-500 mb-2">
+          Incluye AFP, APV, ahorro voluntario, inversiones destinadas a retiro.
+        </p>
+        <input
+          type="number"
+          min={0}
+          step={1000000}
+          value={values.ahorroActual}
+          onChange={(e) => update("ahorroActual", Number(e.target.value))}
           className="w-48 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>

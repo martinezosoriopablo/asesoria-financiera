@@ -43,22 +43,22 @@ export default function StatsCards({
             <p className="text-sm text-slate-600 mb-1">Clientes</p>
             <p className="text-3xl font-bold text-slate-900">{totalClientes}</p>
             <div className="mt-2 flex items-center gap-2 text-xs">
-              <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full font-semibold">
+              <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full font-semibold">
                 {clientesActivos} Activos
               </span>
-              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-semibold">
+              <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-full font-semibold">
                 {prospectos} Prospectos
               </span>
             </div>
           </div>
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
             <Users className="w-6 h-6 text-blue-600" />
           </div>
         </div>
       </div>
 
       {/* AUM */}
-      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
+      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-600">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-sm text-slate-600 mb-1">AUM Total</p>
@@ -69,14 +69,14 @@ export default function StatsCards({
               Assets Under Management
             </p>
           </div>
-          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-            <DollarSign className="w-6 h-6 text-green-600" />
+          <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
+            <DollarSign className="w-6 h-6 text-blue-600" />
           </div>
         </div>
       </div>
 
       {/* Reuniones Esta Semana */}
-      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
+      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-indigo-500">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-sm text-slate-600 mb-1">Esta Semana</p>
@@ -87,14 +87,14 @@ export default function StatsCards({
               Reuniones programadas
             </p>
           </div>
-          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-            <Calendar className="w-6 h-6 text-purple-600" />
+          <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center">
+            <Calendar className="w-6 h-6 text-indigo-600" />
           </div>
         </div>
       </div>
 
       {/* Reuniones Pendientes */}
-      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
+      <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-slate-400">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <p className="text-sm text-slate-600 mb-1">Pendientes</p>
@@ -105,8 +105,8 @@ export default function StatsCards({
               Reuniones totales
             </p>
           </div>
-          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-            <AlertCircle className="w-6 h-6 text-orange-600" />
+          <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
+            <AlertCircle className="w-6 h-6 text-slate-500" />
           </div>
         </div>
       </div>

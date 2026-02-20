@@ -1,10 +1,8 @@
-import { Suspense } from "react";
-import RiskProfileWizard from "@/components/risk/RiskProfileWizard";
+// app/mi-perfil-inversor/page.tsx
+// Redirect to canonical URL /client/risk-profile
 
-export default function RiskProfilePage() {
-  return (
-    <Suspense>
-      <RiskProfileWizard />
-    </Suspense>
-  );
+import { redirect } from "next/navigation";
+
+export default function MiPerfilInversorRedirect() {
+  redirect("/client/risk-profile");
 }

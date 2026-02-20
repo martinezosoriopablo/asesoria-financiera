@@ -1,14 +1,23 @@
 // app/api/clients/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Sanitiza string para uso en queries ILIKE (previene inyección)
+function sanitizeSearchInput(input: string): string {
+  // Limitar longitud y escapar caracteres especiales de PostgreSQL
+  return input
+    .slice(0, 100)
+    .replace(/[%_\\]/g, "\\$&");
+}
 
-// GET - Obtener lista de clientes
+// GET - Obtener lista de clientes (solo del advisor autenticado)
 export async function GET(request: NextRequest) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const { searchParams } = new URL(request.url);
@@ -16,9 +25,11 @@ export async function GET(request: NextRequest) {
     const perfilRiesgo = searchParams.get("perfil_riesgo");
     const search = searchParams.get("search");
 
+    // Mostrar clientes del advisor + clientes sin asesor asignado (para poder asignarlos)
     let query = supabase
       .from("clients")
       .select("*")
+      .or(`asesor_id.eq.${advisor!.id},asesor_id.is.null`)
       .order("created_at", { ascending: false });
 
     if (status) {
@@ -30,8 +41,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      const sanitized = sanitizeSearchInput(search);
       query = query.or(
-        `nombre.ilike.%${search}%,apellido.ilike.%${search}%,email.ilike.%${search}%`
+        `nombre.ilike.%${sanitized}%,apellido.ilike.%${sanitized}%,email.ilike.%${sanitized}%`
       );
     }
 
@@ -44,21 +56,22 @@ export async function GET(request: NextRequest) {
       clients: clients || [],
       total: clients?.length || 0,
     });
-  } catch (error: any) {
-    console.error("Error fetching clients:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al obtener clientes";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al obtener clientes",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }
 }
 
-// POST - Crear nuevo cliente
+// POST - Crear nuevo cliente (asignado al advisor autenticado)
 export async function POST(request: NextRequest) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const body = await request.json();
@@ -74,11 +87,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar que el email no exista
+    // Verificar que el email no exista para este advisor
     const { data: existingClient } = await supabase
       .from("clients")
       .select("id")
       .eq("email", body.email)
+      .eq("asesor_id", advisor!.id)
       .single();
 
     if (existingClient) {
@@ -91,7 +105,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Crear cliente
+    // Crear cliente asignado al advisor autenticado
     const { data: newClient, error } = await supabase
       .from("clients")
       .insert([
@@ -110,7 +124,7 @@ export async function POST(request: NextRequest) {
           tolerancia_perdida: body.tolerancia_perdida || null,
           status: body.status || "prospecto",
           notas: body.notas || null,
-          asesor_id: body.asesor_id || null,
+          asesor_id: advisor!.id, // Siempre asignar al advisor autenticado
         },
       ])
       .select()
@@ -122,13 +136,10 @@ export async function POST(request: NextRequest) {
       success: true,
       client: newClient,
     });
-  } catch (error: any) {
-    console.error("Error creating client:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al crear cliente";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al crear cliente",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }

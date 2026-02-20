@@ -1,13 +1,12 @@
 // app/api/advisor/stats/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
+// GET - Obtener estadísticas del asesor autenticado
 export async function GET(request: NextRequest) {
+  // Rate limiting
   const { allowed, remaining } = rateLimit(`stats:${getClientIp(request)}`, { limit: 30, windowSeconds: 60 });
   if (!allowed) {
     return NextResponse.json(
@@ -16,48 +15,28 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // Verificar autenticación - usa el email del usuario autenticado
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
-    const { searchParams } = new URL(request.url);
-    const advisorEmail = searchParams.get("email");
-    if (!advisorEmail) {
-      return NextResponse.json(
-        { success: false, error: "Email del asesor es requerido" },
-        { status: 400 }
-      );
-    }
-
-    // Obtener estadísticas usando la función SQL
+    // Intentar usar la función SQL
     const { data: stats, error: statsError } = await supabase
-      .rpc("get_advisor_stats", { advisor_email: advisorEmail });
+      .rpc("get_advisor_stats", { advisor_email: advisor!.email });
 
     if (statsError) {
-      console.error("Error calling function:", statsError);
-      
       // Fallback: calcular manualmente
-      const { data: advisor } = await supabase
-        .from("advisors")
-        .select("id")
-        .eq("email", advisorEmail)
-        .single();
-
-      if (!advisor) {
-        return NextResponse.json(
-          { success: false, error: "Asesor no encontrado" },
-          { status: 404 }
-        );
-      }
-
       const { data: clients } = await supabase
         .from("clients")
         .select("*")
-        .eq("asesor_id", advisor.id);
+        .eq("asesor_id", advisor!.id);
 
       const { data: meetings } = await supabase
         .from("meetings")
         .select("*")
-        .eq("asesor_id", advisor.id)
+        .eq("asesor_id", advisor!.id)
         .eq("completada", false)
         .eq("cancelada", false)
         .gte("fecha", new Date().toISOString());
@@ -91,13 +70,10 @@ export async function GET(request: NextRequest) {
       success: true,
       stats: stats[0],
     });
-  } catch (error: any) {
-    console.error("Error fetching advisor stats:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al obtener estadísticas";
     return NextResponse.json(
-      {
-        success: false,
-        error: error.message || "Error al obtener estadísticas",
-      },
+      { success: false, error: message },
       { status: 500 }
     );
   }

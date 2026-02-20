@@ -98,6 +98,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Error guardando perfil: ${profileError.message}` }, { status: 500 });
     }
 
+    // Update clients table with risk profile for easy querying
+    const { error: clientUpdateError } = await supabase
+      .from("clients")
+      .update({
+        perfil_riesgo: scores.profileLabel.toLowerCase().replace(/ /g, "_"),
+        puntaje_riesgo: Math.round(scores.global),
+        status: "activo",
+      })
+      .eq("id", clientId);
+
+    if (clientUpdateError) {
+      console.error("Error updating client profile:", clientUpdateError);
+      // No retornamos error aquí porque el perfil ya se guardó correctamente
+    }
+
     // Notify advisor by email
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);

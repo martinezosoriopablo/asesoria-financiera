@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import AdvisorHeader from "@/components/shared/AdvisorHeader";
+import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   ArrowLeft,
   Mail,
@@ -18,6 +20,7 @@ import {
   User,
   Target,
   BarChart3,
+  Briefcase,
 } from "lucide-react";
 
 interface Client {
@@ -54,31 +57,20 @@ interface Interaction {
   created_by: string;
 }
 
-const TIPO_ICONS: { [key: string]: any } = {
-  llamada: Phone,
-  email: Mail,
-  reunion: User,
-  perfil_riesgo: Shield,
-  modelo_cartera: TrendingUp,
-  analisis_fondos: BarChart3,
-  comparador_etf: TrendingUp,
-  calculadora_apv: DollarSign,
-  otro: FileText,
-};
-
-const TIPO_COLORS: { [key: string]: string } = {
-  llamada: "bg-blue-100 text-blue-700",
-  email: "bg-purple-100 text-purple-700",
-  reunion: "bg-green-100 text-green-700",
-  perfil_riesgo: "bg-orange-100 text-orange-700",
-  modelo_cartera: "bg-pink-100 text-pink-700",
-  analisis_fondos: "bg-indigo-100 text-indigo-700",
-  comparador_etf: "bg-cyan-100 text-cyan-700",
-  calculadora_apv: "bg-teal-100 text-teal-700",
-  otro: "bg-gray-100 text-gray-700",
+const TIPO_LABELS: Record<string, string> = {
+  llamada: "Llamada",
+  email: "Email",
+  reunion: "Reunión",
+  perfil_riesgo: "Perfil Riesgo",
+  modelo_cartera: "Modelo Cartera",
+  analisis_fondos: "Análisis Fondos",
+  comparador_etf: "Comparador ETF",
+  calculadora_apv: "Calculadora APV",
+  otro: "Otro",
 };
 
 export default function ClientDetail({ clientId }: { clientId: string }) {
+  const { advisor, loading: authLoading } = useAdvisor();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
@@ -98,9 +90,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     try {
       const response = await fetch(`/api/clients/${clientId}`);
       const data = await response.json();
-      if (data.success) {
-        setClient(data.client);
-      }
+      if (data.success) setClient(data.client);
     } catch (error) {
       console.error("Error fetching client:", error);
     } finally {
@@ -115,51 +105,33 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newInteraction,
-          duracion_minutos: newInteraction.duracion_minutos
-            ? parseInt(newInteraction.duracion_minutos)
-            : null,
+          duracion_minutos: newInteraction.duracion_minutos ? parseInt(newInteraction.duracion_minutos) : null,
         }),
       });
-
       const data = await response.json();
       if (data.success) {
         setShowAddInteraction(false);
-        setNewInteraction({
-          tipo: "llamada",
-          titulo: "",
-          descripcion: "",
-          resultado: "exitoso",
-          duracion_minutos: "",
-        });
-        fetchClient(); // Refresh
+        setNewInteraction({ tipo: "llamada", titulo: "", descripcion: "", resultado: "exitoso", duracion_minutos: "" });
+        fetchClient();
       }
     } catch (error) {
       console.error("Error adding interaction:", error);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", minimumFractionDigits: 0 }).format(amount);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
 
-  if (loading) {
+  const formatDateTime = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <Loader className="w-12 h-12 text-blue-600 animate-spin" />
+        <Loader className="w-8 h-8 text-blue-600 animate-spin" />
       </div>
     );
   }
@@ -168,11 +140,8 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-slate-600 text-lg">Cliente no encontrado</p>
-          <Link
-            href="/clients"
-            className="text-blue-600 hover:underline mt-4 inline-block"
-          >
+          <p className="text-gb-gray">Cliente no encontrado</p>
+          <Link href="/clients" className="text-sm text-gb-accent hover:underline mt-2 inline-block">
             Volver a la lista
           </Link>
         </div>
@@ -182,102 +151,83 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Link
-            href="/clients"
-            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors mb-6"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Volver a Clientes</span>
-          </Link>
+      {advisor && (
+        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} />
+      )}
 
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">
-                {client.nombre} {client.apellido}
-              </h1>
-              <p className="text-slate-600 mt-1">Cliente desde {formatDate(client.fecha_onboarding)}</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowAddInteraction(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-5 h-5" />
-                Nueva Interacción
-              </button>
-              <Link
-                href={`/clients/${client.id}/edit`}
-                className="flex items-center gap-2 px-4 py-2 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <Edit className="w-5 h-5" />
-                Editar
-              </Link>
-            </div>
+      <div className="max-w-6xl mx-auto px-5 py-8">
+        {/* Breadcrumb + actions */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <Link href="/clients" className="inline-flex items-center gap-1 text-sm text-gb-gray hover:text-gb-black mb-2">
+              <ArrowLeft className="w-4 h-4" />
+              Clientes
+            </Link>
+            <h1 className="text-2xl font-semibold text-gb-black">
+              {client.nombre} {client.apellido}
+            </h1>
+            <p className="text-sm text-gb-gray mt-0.5">
+              Cliente desde {formatDate(client.fecha_onboarding)}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddInteraction(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Interacción
+            </button>
+            <Link
+              href={`/clients/${client.id}/edit`}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-blue-200 text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            >
+              <Edit className="w-4 h-4" />
+              Editar
+            </Link>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Info */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Contact Info */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">
-                Información de Contacto
-              </h2>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-slate-400" />
-                  <div>
-                    <p className="text-xs text-slate-500">Email</p>
-                    <p className="text-sm font-medium text-slate-900">{client.email}</p>
-                  </div>
+          {/* Left column */}
+          <div className="space-y-4">
+            {/* Contact */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-3">Contacto</h2>
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  <Mail className="w-4 h-4 text-gb-gray shrink-0" />
+                  <span className="text-sm text-gb-black">{client.email}</span>
                 </div>
                 {client.telefono && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">Teléfono</p>
-                      <p className="text-sm font-medium text-slate-900">{client.telefono}</p>
-                    </div>
+                  <div className="flex items-center gap-2.5">
+                    <Phone className="w-4 h-4 text-gb-gray shrink-0" />
+                    <span className="text-sm text-gb-black">{client.telefono}</span>
                   </div>
                 )}
                 {client.rut && (
-                  <div className="flex items-center gap-3">
-                    <User className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <p className="text-xs text-slate-500">RUT</p>
-                      <p className="text-sm font-medium text-slate-900">{client.rut}</p>
-                    </div>
+                  <div className="flex items-center gap-2.5">
+                    <User className="w-4 h-4 text-gb-gray shrink-0" />
+                    <span className="text-sm text-gb-black">{client.rut}</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Financial Info */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">
-                Información Financiera
-              </h2>
-              <div className="space-y-4">
+            {/* Financial */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-600 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-3">Información Financiera</h2>
+              <div className="space-y-3">
                 {client.patrimonio_estimado && (
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Patrimonio Estimado</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(client.patrimonio_estimado)}
-                    </p>
+                    <p className="text-xs text-gb-gray">Patrimonio Estimado</p>
+                    <p className="text-lg font-semibold text-gb-black">{formatCurrency(client.patrimonio_estimado)}</p>
                   </div>
                 )}
                 {client.ingreso_mensual && (
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Ingreso Mensual</p>
-                    <p className="text-xl font-bold text-green-600">
-                      {formatCurrency(client.ingreso_mensual)}
-                    </p>
+                    <p className="text-xs text-gb-gray">Ingreso Mensual</p>
+                    <p className="text-lg font-semibold text-gb-black">{formatCurrency(client.ingreso_mensual)}</p>
                   </div>
                 )}
               </div>
@@ -285,66 +235,55 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
             {/* Risk Profile */}
             {client.perfil_riesgo && (
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
+              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 shadow-sm">
+                <h2 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-indigo-500" />
                   Perfil de Riesgo
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Clasificación</p>
-                    <p className="text-lg font-bold text-slate-900 capitalize">
+                    <p className="text-xs text-gb-gray">Clasificación</p>
+                    <p className="text-base font-semibold text-gb-black capitalize">
                       {client.perfil_riesgo.replace("_", " ")}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Puntaje</p>
+                    <p className="text-xs text-gb-gray mb-1">Puntaje</p>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-slate-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${client.puntaje_riesgo}%` }}
-                        />
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                        <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${client.puntaje_riesgo}%` }} />
                       </div>
-                      <span className="text-sm font-bold text-slate-900">
-                        {client.puntaje_riesgo}/100
-                      </span>
+                      <span className="text-sm font-semibold text-gb-black">{client.puntaje_riesgo}</span>
                     </div>
                   </div>
                   {client.tolerancia_perdida && (
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Tolerancia a Pérdida</p>
-                      <p className="text-lg font-bold text-orange-600">
-                        {client.tolerancia_perdida}%
-                      </p>
+                      <p className="text-xs text-gb-gray">Tolerancia a Pérdida</p>
+                      <p className="text-base font-semibold text-gb-black">{client.tolerancia_perdida}%</p>
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Investment Goals */}
+            {/* Goals */}
             {(client.objetivo_inversion || client.horizonte_temporal) && (
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <Target className="w-5 h-5" />
-                  Objetivos de Inversión
+              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-400 p-5 shadow-sm">
+                <h2 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-blue-400" />
+                  Objetivos
                 </h2>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {client.objetivo_inversion && (
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Objetivo</p>
-                      <p className="text-sm font-medium text-slate-900">
-                        {client.objetivo_inversion}
-                      </p>
+                      <p className="text-xs text-gb-gray">Objetivo</p>
+                      <p className="text-sm text-gb-black">{client.objetivo_inversion}</p>
                     </div>
                   )}
                   {client.horizonte_temporal && (
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Horizonte Temporal</p>
-                      <p className="text-sm font-medium text-slate-900 capitalize">
-                        {client.horizonte_temporal.replace("_", " ")}
-                      </p>
+                      <p className="text-xs text-gb-gray">Horizonte</p>
+                      <p className="text-sm text-gb-black capitalize">{client.horizonte_temporal.replace("_", " ")}</p>
                     </div>
                   )}
                 </div>
@@ -353,106 +292,115 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
             {/* Notes */}
             {client.notas && (
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-lg font-bold text-slate-900 mb-4">Notas</h2>
-                <p className="text-sm text-slate-600 whitespace-pre-wrap">{client.notas}</p>
+              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-slate-400 p-5 shadow-sm">
+                <h2 className="text-sm font-semibold text-gb-black mb-2">Notas</h2>
+                <p className="text-sm text-gb-gray whitespace-pre-wrap">{client.notas}</p>
               </div>
             )}
+
+            {/* Quick actions */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-3">Acciones</h2>
+              <div className="space-y-1">
+                <Link
+                  href={`/analisis-cartola?client=${client.email}`}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  <Shield className="w-4 h-4" />
+                  Perfil de Riesgo / Cartola
+                </Link>
+                <Link
+                  href={`/portfolio-comparison?client=${client.email}`}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Comparar Ideal vs Actual
+                </Link>
+                <Link
+                  href={`/modelo-cartera?client=${client.email}`}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  <Briefcase className="w-4 h-4" />
+                  Construir Modelo
+                </Link>
+                <Link
+                  href={`/analisis-fondos?client=${client.email}`}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Analizar Fondos
+                </Link>
+              </div>
+            </div>
           </div>
 
-          {/* Right Column - Interactions */}
+          {/* Right column - Interactions */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Historial de Interacciones ({client.client_interactions?.length || 0})
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-slate-300 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-4 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-slate-400" />
+                Historial ({client.client_interactions?.length || 0})
               </h2>
 
-              {/* Add Interaction Form */}
+              {/* Add interaction form */}
               {showAddInteraction && (
-                <div className="bg-blue-50 rounded-lg p-6 mb-6 border-2 border-blue-200">
-                  <h3 className="font-bold text-slate-900 mb-4">Nueva Interacción</h3>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gb-light rounded-lg p-5 mb-5 border border-gb-border">
+                  <h3 className="text-sm font-semibold text-gb-black mb-3">Nueva Interacción</h3>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Tipo
-                        </label>
+                        <label className="block text-xs font-medium text-gb-gray mb-1">Tipo</label>
                         <select
                           value={newInteraction.tipo}
-                          onChange={(e) =>
-                            setNewInteraction({ ...newInteraction, tipo: e.target.value })
-                          }
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setNewInteraction({ ...newInteraction, tipo: e.target.value })}
+                          className="w-full px-3 py-2 border border-gb-border rounded-md text-sm bg-white"
                         >
-                          <option value="llamada">Llamada</option>
-                          <option value="email">Email</option>
-                          <option value="reunion">Reunión</option>
-                          <option value="perfil_riesgo">Perfil de Riesgo</option>
-                          <option value="modelo_cartera">Modelo de Cartera</option>
-                          <option value="analisis_fondos">Análisis de Fondos</option>
-                          <option value="comparador_etf">Comparador ETF</option>
-                          <option value="calculadora_apv">Calculadora APV</option>
-                          <option value="otro">Otro</option>
+                          {Object.entries(TIPO_LABELS).map(([val, label]) => (
+                            <option key={val} value={val}>{label}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Duración (minutos)
-                        </label>
+                        <label className="block text-xs font-medium text-gb-gray mb-1">Duración (min)</label>
                         <input
                           type="number"
                           value={newInteraction.duracion_minutos}
-                          onChange={(e) =>
-                            setNewInteraction({
-                              ...newInteraction,
-                              duracion_minutos: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setNewInteraction({ ...newInteraction, duracion_minutos: e.target.value })}
+                          className="w-full px-3 py-2 border border-gb-border rounded-md text-sm"
                           placeholder="30"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Título *
-                      </label>
+                      <label className="block text-xs font-medium text-gb-gray mb-1">Título *</label>
                       <input
                         type="text"
                         value={newInteraction.titulo}
-                        onChange={(e) =>
-                          setNewInteraction({ ...newInteraction, titulo: e.target.value })
-                        }
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="Ej: Revisión de portafolio trimestral"
+                        onChange={(e) => setNewInteraction({ ...newInteraction, titulo: e.target.value })}
+                        className="w-full px-3 py-2 border border-gb-border rounded-md text-sm"
+                        placeholder="Ej: Revisión de portafolio"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Descripción
-                      </label>
+                      <label className="block text-xs font-medium text-gb-gray mb-1">Descripción</label>
                       <textarea
                         value={newInteraction.descripcion}
-                        onChange={(e) =>
-                          setNewInteraction({ ...newInteraction, descripcion: e.target.value })
-                        }
-                        rows={3}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="Detalles adicionales..."
+                        onChange={(e) => setNewInteraction({ ...newInteraction, descripcion: e.target.value })}
+                        rows={2}
+                        className="w-full px-3 py-2 border border-gb-border rounded-md text-sm"
                       />
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-2">
                       <button
                         onClick={handleAddInteraction}
                         disabled={!newInteraction.titulo}
-                        className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-40 transition-colors"
                       >
                         Guardar
                       </button>
                       <button
                         onClick={() => setShowAddInteraction(false)}
-                        className="px-6 py-2 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+                        className="px-4 py-2 text-sm font-medium border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
                       >
                         Cancelar
                       </button>
@@ -461,111 +409,50 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 </div>
               )}
 
-              {/* Interactions Timeline */}
-              <div className="space-y-4">
+              {/* Timeline */}
+              <div className="space-y-3">
                 {client.client_interactions && client.client_interactions.length > 0 ? (
-                  client.client_interactions.map((interaction) => {
-                    const Icon = TIPO_ICONS[interaction.tipo] || FileText;
-                    const colorClass = TIPO_COLORS[interaction.tipo] || TIPO_COLORS.otro;
-
-                    return (
-                      <div
-                        key={interaction.id}
-                        className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className={`p-3 rounded-lg ${colorClass}`}>
-                            <Icon className="w-5 h-5" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <h4 className="font-bold text-slate-900">
-                                  {interaction.titulo}
-                                </h4>
-                                <p className="text-xs text-slate-500 mt-1">
-                                  {formatDate(interaction.fecha)}
-                                </p>
-                              </div>
-                              {interaction.duracion_minutos && (
-                                <div className="flex items-center gap-1 text-xs text-slate-600">
-                                  <Clock className="w-4 h-4" />
-                                  {interaction.duracion_minutos} min
-                                </div>
-                              )}
-                            </div>
-                            {interaction.descripcion && (
-                              <p className="text-sm text-slate-600 mb-2">
-                                {interaction.descripcion}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded capitalize">
-                                {interaction.tipo.replace("_", " ")}
-                              </span>
-                              {interaction.resultado && (
-                                <span
-                                  className={`text-xs px-2 py-1 rounded capitalize ${
-                                    interaction.resultado === "exitoso"
-                                      ? "bg-green-100 text-green-800"
-                                      : interaction.resultado === "pendiente"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-blue-100 text-blue-800"
-                                  }`}
-                                >
-                                  {interaction.resultado}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                  client.client_interactions.map((interaction) => (
+                    <div key={interaction.id} className="border border-gb-border rounded-lg p-4 hover:bg-blue-50 hover:border-blue-200 transition-colors">
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <h4 className="text-sm font-medium text-gb-black">{interaction.titulo}</h4>
+                          <p className="text-xs text-gb-gray mt-0.5">{formatDateTime(interaction.fecha)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {interaction.duracion_minutos && (
+                            <span className="flex items-center gap-1 text-xs text-gb-gray">
+                              <Clock className="w-3 h-3" />
+                              {interaction.duracion_minutos}m
+                            </span>
+                          )}
                         </div>
                       </div>
-                    );
-                  })
+                      {interaction.descripcion && (
+                        <p className="text-sm text-gb-gray mt-1">{interaction.descripcion}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
+                          {TIPO_LABELS[interaction.tipo] || interaction.tipo}
+                        </span>
+                        {interaction.resultado && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            interaction.resultado === "exitoso" ? "bg-emerald-50 text-emerald-700" :
+                            interaction.resultado === "pendiente" ? "bg-amber-50 text-amber-700" :
+                            "bg-gray-100 text-gray-600"
+                          }`}>
+                            {interaction.resultado}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
                 ) : (
                   <div className="text-center py-12">
-                    <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-600">No hay interacciones registradas</p>
-                    <p className="text-slate-400 text-sm">
-                      Agrega la primera interacción con este cliente
-                    </p>
+                    <FileText className="w-10 h-10 text-gb-border mx-auto mb-2" />
+                    <p className="text-sm text-gb-gray">Sin interacciones registradas</p>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="mt-6 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-bold mb-4">Acciones Rápidas</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  href={`/risk-profile?client=${client.email}`}
-                  className="flex items-center gap-2 px-4 py-3 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors"
-                >
-                  <Shield className="w-5 h-5" />
-                  Perfil de Riesgo
-                </Link>
-                <Link
-                  href={`/modelo-cartera?client=${client.email}`}
-                  className="flex items-center gap-2 px-4 py-3 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors"
-                >
-                  <TrendingUp className="w-5 h-5" />
-                  Construir Modelo
-                </Link>
-                <Link
-                  href={`/portfolio-comparison?client=${client.email}`}
-                  className="flex items-center gap-2 px-4 py-3 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  Comparar Costos
-                </Link>
-                <Link
-                  href={`/analisis-fondos?client=${client.email}`}
-                  className="flex items-center gap-2 px-4 py-3 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors"
-                >
-                  <FileText className="w-5 h-5" />
-                  Analizar Fondos
-                </Link>
               </div>
             </div>
           </div>

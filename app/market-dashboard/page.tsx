@@ -217,11 +217,9 @@ export default function MarketDashboard() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fafafa' }}>
-      <AdvisorHeader 
+      <AdvisorHeader
         advisorName={advisorName}
         advisorEmail={advisorEmail}
-        logoUrl="https://zysotxkelepvotzujhxe.supabase.co/storage/v1/object/public/assets/logo.png"
-        logoSize="large"
       />
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px' }}>
