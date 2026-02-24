@@ -129,7 +129,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
     if (periodo === 'todo' || datos.length === 0) return datos;
     
     const hoy = new Date();
-    let fechaInicio = new Date();
+    const fechaInicio = new Date();
     
     switch (periodo) {
       case '1m': fechaInicio.setMonth(hoy.getMonth() - 1); break;

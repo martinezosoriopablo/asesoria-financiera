@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   Mail,
   Phone,
-  Calendar,
   DollarSign,
   Shield,
   TrendingUp,

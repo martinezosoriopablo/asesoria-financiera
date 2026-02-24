@@ -117,7 +117,7 @@ async function importFundsFromExcel(filePath: string): Promise<void> {
   
   let created = 0;
   let updated = 0;
-  let skipped = 0;
+  const skipped = 0;
   let errors = 0;
   
   // Procesar en lotes de 50

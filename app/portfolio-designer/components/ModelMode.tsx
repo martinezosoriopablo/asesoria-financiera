@@ -320,8 +320,8 @@ export default function ModelMode() {
         }
       });
       setAlternativeFunds(altFunds as AlternativeSelectedFunds);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       setErrorMsg("Ocurrió un error inesperado al cargar el modelo de cartera.");
     } finally {
       setLoading(false);
@@ -502,8 +502,8 @@ export default function ModelMode() {
 
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSaveMsg(null), 3000);
-    } catch (err) {
-      console.error("Error cargando modelo:", err);
+    } catch (error) {
+      console.error("Error cargando modelo:", error);
       setSaveErrorMsg("Error al cargar el modelo guardado.");
     }
   };

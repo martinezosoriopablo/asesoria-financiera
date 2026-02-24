@@ -220,8 +220,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, clientId });
-  } catch (err) {
-    console.error("Save risk profile error:", err);
+  } catch (error) {
+    console.error("Save risk profile error:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

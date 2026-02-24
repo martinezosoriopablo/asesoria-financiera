@@ -9,7 +9,6 @@ import {
   Users,
   Shield,
   BarChart3,
-  Briefcase,
   Calculator,
   TrendingUp,
   GraduationCap,

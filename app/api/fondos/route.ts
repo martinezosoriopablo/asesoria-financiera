@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         console.log('🔍 Comparador: Buscando fondos con datos diarios...');
         
         // Obtener IDs únicos de fondos que tienen datos (con paginación para evitar límite 1000)
-        let allFondosIds = new Set<string>();
+        const allFondosIds = new Set<string>();
         let currentPage = 0;
         const pageSize = 1000;
         let hasMore = true;
@@ -155,8 +155,8 @@ export async function POST(request: NextRequest) {
       
       console.log('🔍 API Fondos - Contando datos diarios para', fondosIds.length, 'fondos');
       
-      let dailyDataCounts: { [key: string]: number } = {};
-      let rentabilidadesAgregadas: { [key: string]: any } = {};
+      const dailyDataCounts: { [key: string]: number } = {};
+      const rentabilidadesAgregadas: { [key: string]: any } = {};
       
       if (fondosIds.length > 0) {
         // ✅ NUEVO: Usar COUNT individual por fondo (evita límite 1000)

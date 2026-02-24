@@ -136,9 +136,9 @@ export default function CompareMode() {
       setEtfsSeleccionados([...etfsSeleccionados, ticker]);
       setEtfData([...etfData, newETF]);
       setTickerInput("");
-    } catch (err) {
+    } catch (error) {
       setError("Error al cargar ETF. Verifica que el ticker sea correcto.");
-      console.error(err);
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -174,7 +174,7 @@ export default function CompareMode() {
       );
 
       setEtfData(updatedData);
-    } catch (err) {
+    } catch {
       setError("Error al actualizar datos");
     } finally {
       setLoading(false);

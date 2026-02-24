@@ -6,14 +6,11 @@ import React from "react";
 import Link from "next/link";
 import {
   TrendingUp,
-  DollarSign,
   FileText,
   BarChart3,
   CheckCircle,
   ArrowRight,
   Globe,
-  Shield,
-  Zap,
   Building2,
 } from "lucide-react";
 

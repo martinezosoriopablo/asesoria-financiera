@@ -105,7 +105,7 @@ export async function GET(request: Request) {
     })).filter(d => d.close !== null);
 
     // Calculate returns
-    let returns: { period: string; value: number }[] = [];
+    const returns: { period: string; value: number }[] = [];
     if (historicalData.length >= 2) {
       const latestPrice = historicalData[historicalData.length - 1].close!;
 

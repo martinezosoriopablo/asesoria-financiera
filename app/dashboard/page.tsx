@@ -96,8 +96,8 @@ export default function DashboardPage() {
         );
         setBenchmark(bm);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       setErrorMsg("Ocurrió un error inesperado al cargar el perfil.");
     } finally {
       setLoading(false);

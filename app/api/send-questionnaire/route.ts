@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("Send questionnaire error:", err);
+  } catch (error) {
+    console.error("Send questionnaire error:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

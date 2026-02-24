@@ -142,8 +142,8 @@ function AnalisisCartolaContent() {
           setStatement(null);
           setComposition(null);
         }
-      } catch (err) {
-        console.error("Error fetching client profile:", err);
+      } catch (error) {
+        console.error("Error fetching client profile:", error);
         setClientProfile(null);
         setRecommendedAllocation(null);
       } finally {
@@ -211,8 +211,8 @@ function AnalisisCartolaContent() {
       } else {
         console.error("Error guardando portafolio");
       }
-    } catch (err) {
-      console.error("Error saving portfolio:", err);
+    } catch (error) {
+      console.error("Error saving portfolio:", error);
     }
   }
 
@@ -239,8 +239,8 @@ function AnalisisCartolaContent() {
       if (clientProfile?.id) {
         await savePortfolioData(data, comp);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Error desconocido");
     } finally {
       setLoading(false);
     }

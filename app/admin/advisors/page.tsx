@@ -15,11 +15,9 @@ import {
   UserCheck,
   Mail,
   Building2,
-  Shield,
   Loader,
   X,
   Save,
-  Upload,
 } from "lucide-react";
 
 interface AdvisorData {
@@ -65,7 +63,7 @@ export default function AdminAdvisorsPage() {
       }
       loadAdvisors();
     }
-  }, [authLoading, advisor]);
+  }, [authLoading, advisor, router]);
 
   const loadAdvisors = async () => {
     setLoading(true);
@@ -78,7 +76,7 @@ export default function AdminAdvisorsPage() {
       } else {
         setError(data.error || "Error al cargar asesores");
       }
-    } catch (err) {
+    } catch {
       setError("Error de conexión");
     } finally {
       setLoading(false);
@@ -135,7 +133,7 @@ export default function AdminAdvisorsPage() {
       } else {
         alert(data.error || "Error al guardar");
       }
-    } catch (err) {
+    } catch {
       alert("Error de conexión");
     } finally {
       setSaving(false);
@@ -178,7 +176,7 @@ export default function AdminAdvisorsPage() {
         }
       }
       loadAdvisors();
-    } catch (err) {
+    } catch {
       alert("Error de conexión");
     }
   };
