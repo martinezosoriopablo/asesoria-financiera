@@ -21,10 +21,23 @@ export async function POST(req: NextRequest) {
 
     const supabase = getServiceClient();
 
+    // Look up advisor ID from email if provided
+    let advisorId: string | null = null;
+    if (advisorEmailFromClient) {
+      const { data: advisor } = await supabase
+        .from("advisors")
+        .select("id")
+        .eq("email", advisorEmailFromClient)
+        .single();
+      if (advisor) {
+        advisorId = advisor.id;
+      }
+    }
+
     // Find or create client
     const { data: existingClient } = await supabase
       .from("clients")
-      .select("id")
+      .select("id, asesor_id")
       .eq("email", email)
       .maybeSingle();
 
@@ -32,10 +45,22 @@ export async function POST(req: NextRequest) {
 
     if (existingClient) {
       clientId = existingClient.id;
+      // If client has no advisor assigned and we have one, assign it
+      if (!existingClient.asesor_id && advisorId) {
+        await supabase
+          .from("clients")
+          .update({ asesor_id: advisorId })
+          .eq("id", clientId);
+      }
     } else {
       const { data: newClient, error: newClientError } = await supabase
         .from("clients")
-        .insert({ email, nombre: email, apellido: "" })
+        .insert({
+          email,
+          nombre: email,
+          apellido: "",
+          asesor_id: advisorId // Assign advisor if known
+        })
         .select("id")
         .single();
 
