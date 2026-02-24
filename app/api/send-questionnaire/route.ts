@@ -21,18 +21,20 @@ export async function POST(req: NextRequest) {
     // Obtener datos del asesor si tenemos su email
     let advisorName = "Tu asesor financiero";
     let companyName = "";
+    let logoUrl = "";
     let replyTo = "pmartinez@greybark.com";
 
     if (advisorEmail) {
       const { data: advisor } = await supabase
         .from("advisors")
-        .select("nombre, apellido, email, company_name")
+        .select("nombre, apellido, email, company_name, logo_url")
         .eq("email", advisorEmail)
         .single();
 
       if (advisor) {
         advisorName = `${advisor.nombre} ${advisor.apellido}`;
         companyName = advisor.company_name || "";
+        logoUrl = advisor.logo_url || "";
         replyTo = advisor.email;
       }
     }
@@ -49,6 +51,11 @@ export async function POST(req: NextRequest) {
       subject: "Cuestionario de Perfil de Inversor",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          ${logoUrl ? `
+          <div style="text-align: center; margin-bottom: 24px;">
+            <img src="${logoUrl}" alt="${companyName || 'Logo'}" style="max-height: 60px; max-width: 200px;" />
+          </div>
+          ` : ""}
           <h2 style="color: #1e293b;">Hola ${displayName},</h2>
           <p style="color: #475569; font-size: 16px; line-height: 1.6;">
             <strong>${advisorName}</strong>${companyName ? ` de <strong>${companyName}</strong>` : ""} te ha enviado un cuestionario para determinar tu perfil de inversor.

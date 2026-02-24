@@ -24,7 +24,8 @@
       "Bash(npx vercel env add:*)",
       "Bash(npx vercel --prod)",
       "Bash(npm install:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(ls:*)"
     ]
   }
 }
