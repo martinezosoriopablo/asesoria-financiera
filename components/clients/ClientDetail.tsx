@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
@@ -15,6 +16,7 @@ import {
   Edit,
   Plus,
   Loader,
+  Trash2,
   FileText,
   Clock,
   User,
@@ -72,10 +74,13 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export default function ClientDetail({ clientId }: { clientId: string }) {
+  const router = useRouter();
   const { advisor, loading: authLoading } = useAdvisor();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [newInteraction, setNewInteraction] = useState({
     tipo: "llamada",
     titulo: "",
@@ -118,6 +123,27 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       }
     } catch (error) {
       console.error("Error adding interaction:", error);
+    }
+  };
+
+  const handleDeleteClient = async () => {
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (data.success) {
+        router.push("/clients");
+      } else {
+        alert("Error al eliminar cliente: " + (data.error || "Error desconocido"));
+      }
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      alert("Error al eliminar cliente");
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -187,8 +213,54 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
               <Edit className="w-4 h-4" />
               Editar
             </Link>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Eliminar
+            </button>
           </div>
         </div>
+
+        {/* Delete confirmation modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-gb-black mb-2">¿Eliminar cliente?</h3>
+              <p className="text-sm text-gb-gray mb-4">
+                Esta acción desactivará al cliente <strong>{client.nombre} {client.apellido}</strong>.
+                El cliente no aparecerá en la lista pero sus datos se mantendrán en el sistema.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  className="px-4 py-2 text-sm font-medium border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeleteClient}
+                  disabled={deleting}
+                  className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Sí, eliminar
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column */}
