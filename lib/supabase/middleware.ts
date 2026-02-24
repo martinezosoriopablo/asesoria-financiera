@@ -32,7 +32,10 @@ export async function updateSession(request: NextRequest) {
   // Public routes that don't require authentication
   const publicPaths = [
     "/login",
+    "/forgot-password",
+    "/reset-password",
     "/risk-profile",
+    "/client/risk-profile",
     "/mi-perfil-inversor",
     "/api/save-risk-profile",
   ];
