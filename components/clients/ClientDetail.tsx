@@ -47,6 +47,26 @@ interface Client {
   fecha_onboarding: string;
   ultima_interaccion: string;
   client_interactions: Interaction[];
+  parent_client_id?: string | null;
+}
+
+interface AssociatedClient {
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  rut: string;
+  perfil_riesgo: string;
+  puntaje_riesgo: number;
+}
+
+interface ParentClient {
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  perfil_riesgo: string;
+  puntaje_riesgo: number;
 }
 
 interface Interaction {
@@ -79,13 +99,35 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [showAddInteraction, setShowAddInteraction] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newInteraction, setNewInteraction] = useState({
     tipo: "llamada",
     titulo: "",
     descripcion: "",
     resultado: "exitoso",
     duracion_minutos: "",
+  });
+  const [editForm, setEditForm] = useState({
+    nombre: "",
+    apellido: "",
+    email: "",
+    telefono: "",
+    rut: "",
+    patrimonio_estimado: "",
+    notas: "",
+  });
+  const [associatedClients, setAssociatedClients] = useState<AssociatedClient[]>([]);
+  const [parentClient, setParentClient] = useState<ParentClient | null>(null);
+  const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
+  const [savingFamily, setSavingFamily] = useState(false);
+  const [familyForm, setFamilyForm] = useState({
+    nombre: "",
+    apellido: "",
+    email: "",
+    rut: "",
+    telefono: "",
   });
 
   useEffect(() => {
@@ -96,7 +138,11 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     try {
       const response = await fetch(`/api/clients/${clientId}`);
       const data = await response.json();
-      if (data.success) setClient(data.client);
+      if (data.success) {
+        setClient(data.client);
+        setAssociatedClients(data.associatedClients || []);
+        setParentClient(data.parentClient || null);
+      }
     } catch (error) {
       console.error("Error fetching client:", error);
     } finally {
@@ -143,6 +189,79 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const openEditModal = () => {
+    if (!client) return;
+    setEditForm({
+      nombre: client.nombre || "",
+      apellido: client.apellido || "",
+      email: client.email || "",
+      telefono: client.telefono || "",
+      rut: client.rut || "",
+      patrimonio_estimado: client.patrimonio_estimado?.toString() || "",
+      notas: client.notas || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...editForm,
+          patrimonio_estimado: editForm.patrimonio_estimado ? parseInt(editForm.patrimonio_estimado) : null,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowEditModal(false);
+        fetchClient();
+      } else {
+        alert("Error al guardar: " + (data.error || "Error desconocido"));
+      }
+    } catch (error) {
+      console.error("Error saving client:", error);
+      alert("Error al guardar cliente");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddFamilyMember = async () => {
+    if (!client) return;
+    setSavingFamily(true);
+    try {
+      // Crear nuevo cliente con parent_client_id
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...familyForm,
+          parent_client_id: client.id,
+          // Heredar perfil de riesgo del titular
+          perfil_riesgo: client.perfil_riesgo,
+          puntaje_riesgo: client.puntaje_riesgo,
+          status: "activo",
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowAddFamilyModal(false);
+        setFamilyForm({ nombre: "", apellido: "", email: "", rut: "", telefono: "" });
+        fetchClient();
+      } else {
+        alert("Error al agregar familiar: " + (data.error || "Error desconocido"));
+      }
+    } catch (error) {
+      console.error("Error adding family member:", error);
+      alert("Error al agregar familiar");
+    } finally {
+      setSavingFamily(false);
     }
   };
 
@@ -205,13 +324,13 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
               <Plus className="w-4 h-4" />
               Interacción
             </button>
-            <Link
-              href={`/clients/${client.id}/edit`}
+            <button
+              onClick={openEditModal}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-blue-200 text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
             >
               <Edit className="w-4 h-4" />
               Editar
-            </Link>
+            </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
@@ -261,9 +380,210 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
           </div>
         )}
 
+        {/* Edit client modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-gb-black mb-4">Editar Cliente</h3>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                    <input
+                      type="text"
+                      value={editForm.nombre}
+                      onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Apellido</label>
+                    <input
+                      type="text"
+                      value={editForm.apellido}
+                      onChange={(e) => setEditForm({ ...editForm, apellido: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                    <input
+                      type="tel"
+                      value={editForm.telefono}
+                      onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">RUT</label>
+                    <input
+                      type="text"
+                      value={editForm.rut}
+                      onChange={(e) => setEditForm({ ...editForm, rut: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="12.345.678-9"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Patrimonio Estimado (CLP)</label>
+                  <input
+                    type="number"
+                    value={editForm.patrimonio_estimado}
+                    onChange={(e) => setEditForm({ ...editForm, patrimonio_estimado: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Notas</label>
+                  <textarea
+                    value={editForm.notas}
+                    onChange={(e) => setEditForm({ ...editForm, notas: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Notas adicionales sobre el cliente..."
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-medium border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar cambios"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add family member modal */}
+        {showAddFamilyModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold text-gb-black mb-4">Agregar Familiar / RUT Asociado</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Este cliente heredará el perfil de riesgo de <strong>{client.nombre} {client.apellido}</strong>.
+              </p>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+                    <input
+                      type="text"
+                      value={familyForm.nombre}
+                      onChange={(e) => setFamilyForm({ ...familyForm, nombre: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Apellido *</label>
+                    <input
+                      type="text"
+                      value={familyForm.apellido}
+                      onChange={(e) => setFamilyForm({ ...familyForm, apellido: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">RUT *</label>
+                  <input
+                    type="text"
+                    value={familyForm.rut}
+                    onChange={(e) => setFamilyForm({ ...familyForm, rut: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="12.345.678-9"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={familyForm.email}
+                    onChange={(e) => setFamilyForm({ ...familyForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
+                  <input
+                    type="tel"
+                    value={familyForm.telefono}
+                    onChange={(e) => setFamilyForm({ ...familyForm, telefono: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => setShowAddFamilyModal(false)}
+                  disabled={savingFamily}
+                  className="px-4 py-2 text-sm font-medium border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAddFamilyMember}
+                  disabled={savingFamily || !familyForm.nombre || !familyForm.apellido || !familyForm.rut}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {savingFamily ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Agregar Familiar"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column */}
           <div className="space-y-4">
+            {/* Parent client indicator */}
+            {parentClient && (
+              <div className="bg-amber-50 rounded-lg border border-amber-200 p-4">
+                <p className="text-xs text-amber-600 font-medium mb-1">Perfil heredado de:</p>
+                <Link href={`/clients/${parentClient.id}`} className="text-sm font-semibold text-amber-800 hover:underline">
+                  {parentClient.nombre} {parentClient.apellido}
+                </Link>
+                <p className="text-xs text-amber-600 mt-1">
+                  {parentClient.perfil_riesgo} ({parentClient.puntaje_riesgo}/100)
+                </p>
+              </div>
+            )}
+
             {/* Contact */}
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gb-black mb-3">Contacto</h2>
@@ -286,6 +606,40 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 )}
               </div>
             </div>
+
+            {/* Family Group - Only show for titular clients (no parent) */}
+            {!parentClient && (
+              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-purple-500 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-gb-black">Grupo Familiar</h2>
+                  <button
+                    onClick={() => setShowAddFamilyModal(true)}
+                    className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Agregar
+                  </button>
+                </div>
+                {associatedClients.length === 0 ? (
+                  <p className="text-xs text-slate-500">No hay RUTs asociados</p>
+                ) : (
+                  <div className="space-y-2">
+                    {associatedClients.map((member) => (
+                      <Link
+                        key={member.id}
+                        href={`/clients/${member.id}`}
+                        className="block p-2 bg-slate-50 rounded-md hover:bg-slate-100 transition-colors"
+                      >
+                        <p className="text-sm font-medium text-gb-black">
+                          {member.nombre} {member.apellido}
+                        </p>
+                        <p className="text-xs text-slate-500">{member.rut}</p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Financial */}
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-600 p-5 shadow-sm">

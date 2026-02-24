@@ -107,9 +107,29 @@ export async function GET(
       );
     }
 
+    // Obtener clientes asociados (grupo familiar)
+    const { data: associatedClients } = await supabase
+      .from("clients")
+      .select("id, nombre, apellido, email, rut, perfil_riesgo, puntaje_riesgo")
+      .eq("parent_client_id", id)
+      .eq("status", "activo");
+
+    // Si es un cliente asociado, obtener info del titular
+    let parentClient = null;
+    if (client.parent_client_id) {
+      const { data: parent } = await supabase
+        .from("clients")
+        .select("id, nombre, apellido, email, perfil_riesgo, puntaje_riesgo")
+        .eq("id", client.parent_client_id)
+        .single();
+      parentClient = parent;
+    }
+
     return NextResponse.json({
       success: true,
       client,
+      associatedClients: associatedClients || [],
+      parentClient,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al obtener cliente";
@@ -156,7 +176,7 @@ export async function PUT(
     const allowedFields = [
       'nombre', 'apellido', 'email', 'telefono', 'rut',
       'patrimonio_estimado', 'ingreso_mensual', 'objetivo_inversion',
-      'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo',
+      'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo', 'parent_client_id',
       'tolerancia_perdida', 'tiene_portfolio', 'portfolio_data',
       'status', 'notas'
     ];

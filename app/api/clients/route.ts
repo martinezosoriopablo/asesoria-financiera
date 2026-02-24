@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
           status: body.status || "prospecto",
           notas: body.notas || null,
           asesor_id: advisor!.id, // Siempre asignar al advisor autenticado
+          parent_client_id: body.parent_client_id || null, // Para grupos familiares
         },
       ])
       .select()

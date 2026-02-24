@@ -20,17 +20,19 @@ export async function POST(req: NextRequest) {
 
     // Obtener datos del asesor si tenemos su email
     let advisorName = "Tu asesor financiero";
+    let companyName = "";
     let replyTo = "pmartinez@greybark.com";
 
     if (advisorEmail) {
       const { data: advisor } = await supabase
         .from("advisors")
-        .select("nombre, apellido, email")
+        .select("nombre, apellido, email, company_name")
         .eq("email", advisorEmail)
         .single();
 
       if (advisor) {
         advisorName = `${advisor.nombre} ${advisor.apellido}`;
+        companyName = advisor.company_name || "";
         replyTo = advisor.email;
       }
     }
@@ -39,8 +41,9 @@ export async function POST(req: NextRequest) {
     const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}${advisorEmail ? `&advisor=${encodeURIComponent(advisorEmail)}` : ""}`;
     const displayName = clientName || email;
 
+    const fromName = companyName || "Asesoría Financiera";
     const { error } = await resend.emails.send({
-      from: "Asesoría Financiera <pmartinez@greybark.com>",
+      from: `${fromName} <pmartinez@greybark.com>`,
       replyTo: replyTo,
       to: email,
       subject: "Cuestionario de Perfil de Inversor",
@@ -48,7 +51,7 @@ export async function POST(req: NextRequest) {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #1e293b;">Hola ${displayName},</h2>
           <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-            <strong>${advisorName}</strong> te ha enviado un cuestionario para determinar tu perfil de inversor.
+            <strong>${advisorName}</strong>${companyName ? ` de <strong>${companyName}</strong>` : ""} te ha enviado un cuestionario para determinar tu perfil de inversor.
             Este cuestionario nos ayudará a entender tu capacidad, tolerancia y comportamiento frente
             al riesgo, para recomendarte una estrategia de inversión alineada con tus objetivos.
           </p>
@@ -62,7 +65,7 @@ export async function POST(req: NextRequest) {
             </a>
           </div>
           <p style="color: #94a3b8; font-size: 13px;">
-            Si tienes dudas, puedes responder directamente a este correo para contactar a ${advisorName}.
+            Si tienes dudas, puedes responder directamente a este correo para contactar a ${advisorName}${companyName ? ` (${companyName})` : ""}.
           </p>
         </div>
       `,
