@@ -90,6 +90,9 @@ function FundCenterContent() {
         advisorName={advisor?.name || ""}
         advisorEmail={advisor?.email || ""}
         advisorPhoto={advisor?.photo}
+        advisorLogo={advisor?.logo}
+        companyName={advisor?.companyName}
+        isAdmin={advisor?.isAdmin}
       />
 
       {/* Page Header */}

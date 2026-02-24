@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -14,10 +15,27 @@ interface PortfolioHolding {
 }
 
 interface PortfolioComposition {
-  RV: number;
-  RF: number;
-  alternativo: number;
-  cash: number;
+  // Legacy format
+  RV?: number;
+  RF?: number;
+  alternativo?: number;
+  cash?: number;
+  // New format from fund_classifier
+  byAssetClass?: {
+    Equity?: { value: number; percent: number };
+    "Fixed Income"?: { value: number; percent: number };
+    Cash?: { value: number; percent: number };
+  };
+  byRegion?: Record<string, { value: number; percent: number }>;
+  holdings?: Array<{
+    fundName: string;
+    securityId: string;
+    assetClass: string;
+    region: string;
+    marketValue: number;
+    percentOfPortfolio: number;
+  }>;
+  totalValue?: number;
 }
 
 interface PortfolioData {
@@ -47,11 +65,13 @@ interface ComiteReport {
 }
 
 interface CarteraRecomendada {
+  contextoPerfil: string;
   resumenEjecutivo: string;
   cartera: {
     clase: string;
     ticker: string;
     nombre: string;
+    descripcionSimple: string;
     porcentaje: number;
     justificacion: string;
   }[];
@@ -106,6 +126,18 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Debug: Log portfolio_data
+    console.error("=== DEBUG: Client Data ===");
+    console.error("Client ID:", client.id);
+    console.error("Client Name:", client.nombre, client.apellido);
+    console.error("Portfolio Data exists:", !!client.portfolio_data);
+    console.error("Portfolio Data raw:", JSON.stringify(client.portfolio_data, null, 2));
+    if (client.portfolio_data) {
+      console.error("Portfolio composition:", client.portfolio_data.composition);
+      console.error("Portfolio holdings count:", client.portfolio_data.statement?.holdings?.length || 0);
+    }
+    console.error("========================");
 
     // 2. Obtener los 4 reportes del comité
     const { data: reports, error: reportsError } = await supabase
@@ -197,6 +229,12 @@ export async function POST(request: NextRequest) {
       },
       recomendacion: carteraData,
       generadoEn: new Date().toISOString(),
+      // Debug info
+      _debug: {
+        hasPortfolioData: !!client.portfolio_data,
+        portfolioDataKeys: client.portfolio_data ? Object.keys(client.portfolio_data) : [],
+        holdingsCount: client.portfolio_data?.statement?.holdings?.length || 0,
+      },
     });
   } catch (error: any) {
     console.error("Error in generar-cartera:", error);
@@ -226,15 +264,65 @@ function buildPrompt(
 
   // Construir sección de cartera actual si existe
   let carteraActualSection = "";
-  if (client.portfolio_data?.composition || client.portfolio_data?.statement?.holdings) {
+  const portfolioData = client.portfolio_data;
+
+  // Check for composition data in either format
+  const hasComposition = portfolioData?.composition?.byAssetClass ||
+                         portfolioData?.composition?.RV !== undefined;
+  const hasHoldings = (portfolioData?.statement?.holdings?.length ?? 0) > 0 ||
+                      (portfolioData?.composition?.holdings?.length ?? 0) > 0;
+
+  if (hasComposition || hasHoldings) {
     carteraActualSection = `
 ## CARTERA ACTUAL DEL CLIENTE
 
 El cliente ya tiene una cartera de inversiones que debemos analizar y comparar con la recomendación ideal.
 `;
 
-    if (client.portfolio_data.composition) {
-      const comp = client.portfolio_data.composition;
+    // Handle new format (from fund_classifier)
+    if (portfolioData?.composition?.byAssetClass) {
+      const byClass = portfolioData.composition.byAssetClass;
+      const equityPct = byClass.Equity?.percent || 0;
+      const fixedIncomePct = byClass["Fixed Income"]?.percent || 0;
+      const cashPct = byClass.Cash?.percent || 0;
+      const totalValue = portfolioData.composition.totalValue || portfolioData.statement?.endingValue || 0;
+
+      carteraActualSection += `
+### Composición Actual (% del portafolio)
+- Renta Variable (Equity): ${equityPct.toFixed(1)}%
+- Renta Fija (Fixed Income): ${fixedIncomePct.toFixed(1)}%
+- Cash/Liquidez: ${cashPct.toFixed(1)}%
+- Valor Total: $${totalValue.toLocaleString()}
+`;
+
+      // Add regional breakdown if available
+      if (portfolioData.composition.byRegion) {
+        carteraActualSection += `
+### Distribución por Región
+`;
+        for (const [region, data] of Object.entries(portfolioData.composition.byRegion)) {
+          carteraActualSection += `- ${region}: ${(data as any).percent.toFixed(1)}%\n`;
+        }
+      }
+
+      // Add holdings from composition if available
+      const compositionHoldings = portfolioData.composition.holdings;
+      if (compositionHoldings && compositionHoldings.length > 0) {
+        carteraActualSection += `
+### Holdings Actuales (${compositionHoldings.length} posiciones)
+`;
+        for (const holding of compositionHoldings.slice(0, 10)) {
+          const pct = holding.percentOfPortfolio?.toFixed(1) || "N/A";
+          carteraActualSection += `- ${holding.fundName} (${holding.assetClass}, ${holding.region}): ${pct}% - $${holding.marketValue.toLocaleString()}\n`;
+        }
+        if (compositionHoldings.length > 10) {
+          carteraActualSection += `... y ${compositionHoldings.length - 10} posiciones más\n`;
+        }
+      }
+    }
+    // Handle legacy format
+    else if (portfolioData?.composition) {
+      const comp = portfolioData.composition;
       carteraActualSection += `
 ### Composición Actual (% del portafolio)
 - Renta Variable: ${comp.RV?.toFixed(1) || 0}%
@@ -244,36 +332,65 @@ El cliente ya tiene una cartera de inversiones que debemos analizar y comparar c
 `;
     }
 
-    if (client.portfolio_data.statement?.holdings && client.portfolio_data.statement.holdings.length > 0) {
+    // Add statement holdings if available (legacy format)
+    const statementHoldings = portfolioData?.statement?.holdings;
+    if (statementHoldings && statementHoldings.length > 0 && !portfolioData?.composition?.holdings) {
       carteraActualSection += `
 ### Holdings Actuales
 `;
-      for (const holding of client.portfolio_data.statement.holdings.slice(0, 15)) {
+      for (const holding of statementHoldings.slice(0, 15)) {
         const value = holding.marketValue ? `$${holding.marketValue.toLocaleString()}` : "N/A";
         carteraActualSection += `- ${holding.fundName} (${holding.securityId || "N/A"}): ${value}\n`;
       }
-      if (client.portfolio_data.statement.holdings.length > 15) {
-        carteraActualSection += `... y ${client.portfolio_data.statement.holdings.length - 15} posiciones más\n`;
+      if (statementHoldings.length > 15) {
+        carteraActualSection += `... y ${statementHoldings.length - 15} posiciones más\n`;
       }
     }
 
-    if (client.portfolio_data.statement?.endingValue) {
+    if (portfolioData?.statement?.endingValue && !portfolioData?.composition?.totalValue) {
       carteraActualSection += `
-### Valor Total Actual: $${client.portfolio_data.statement.endingValue.toLocaleString()}
+### Valor Total Actual: $${portfolioData.statement.endingValue.toLocaleString()}
 `;
     }
   }
 
-  return `Eres un asesor financiero senior de Greybark Research. Tu tarea es generar una cartera de inversión personalizada para un cliente, basándote en:
-1. El perfil de riesgo del cliente
-2. Los reportes actuales del Comité de Inversiones
-${client.portfolio_data ? "3. La cartera actual del cliente (para comparar y sugerir cambios)" : ""}
+  // Obtener distribución recomendada usando el sistema de benchmarks real
+  const benchmark = getBenchmarkFromScore(client.puntaje_riesgo, true, "global");
+  const distribucion = {
+    rv: benchmark.weights.equities,
+    rf: benchmark.weights.fixedIncome,
+    alt: benchmark.weights.alternatives,
+    cash: benchmark.weights.cash,
+  };
+
+  // Mapeo de banda a descripción amigable
+  const bandDescriptions: Record<string, string> = {
+    defensivo: "defensivo, priorizando la preservación de capital",
+    moderado: "moderado, buscando un balance entre crecimiento y seguridad",
+    crecimiento: "orientado al crecimiento, con mayor exposición a renta variable",
+    agresivo: "agresivo, maximizando el potencial de crecimiento a largo plazo",
+  };
+  const bandaDescripcion = bandDescriptions[benchmark.band] || "moderado";
+
+  return `Eres un asesor financiero de Greybark Research. Tu tarea es generar una cartera de inversión personalizada para un cliente.
+
+IMPORTANTE: El cliente NO es un especialista en finanzas. Debes explicar todo en lenguaje simple y educativo, como si le explicaras a alguien que recién comienza a invertir.
 
 ## CLIENTE
 - Nombre: ${client.nombre} ${client.apellido}
 - Perfil de Riesgo: ${client.perfil_riesgo}
 - Puntaje de Riesgo: ${client.puntaje_riesgo}/100
 - Monto a Invertir: ${montoStr}
+
+## DISTRIBUCIÓN RECOMENDADA PARA SU PERFIL
+- Perfil del cliente: ${client.perfil_riesgo} (puntaje: ${client.puntaje_riesgo}/100)
+- Banda de inversión: ${benchmark.band} (${bandaDescripcion})
+- Renta Variable (acciones): ${distribucion.rv}%
+- Renta Fija (bonos): ${distribucion.rf}%
+- Alternativos: ${distribucion.alt}%
+- Cash/Liquidez: ${distribucion.cash}%
+
+IMPORTANTE: La cartera DEBE respetar aproximadamente esta distribución. Un cliente ${client.perfil_riesgo} con banda ${benchmark.band} debe tener ~${distribucion.rv}% en renta variable.
 ${carteraActualSection}
 ## REPORTES DEL COMITÉ DE INVERSIONES
 
@@ -289,54 +406,60 @@ ${reportsByType.rf || "No disponible"}
 ### REPORTE ASSET ALLOCATION
 ${reportsByType.asset_allocation || "No disponible"}
 
-## INSTRUCCIONES
+## INSTRUCCIONES DE LENGUAJE
 
-Genera una recomendación de cartera que:
-1. Se ajuste al perfil de riesgo del cliente (${client.perfil_riesgo})
-2. Incorpore las visiones tácticas del Comité (OW/UW por región, sector, duración)
-3. Use los ETFs recomendados en el Focus List cuando sea apropiado
-4. Explique de forma clara y personalizada por qué cada posición
-${client.portfolio_data ? "5. Compare la cartera actual del cliente con la ideal y sugiera cambios específicos" : ""}
+CRÍTICO - Usa lenguaje educativo y simple:
+1. Cuando menciones un ETF, SIEMPRE explica qué es en términos simples
+   - Ejemplo: "VOO (Vanguard S&P 500): Invierte en las 500 empresas más grandes de Estados Unidos como Apple, Microsoft y Amazon"
+   - Ejemplo: "TLT (iShares 20+ Year Treasury Bond): Invierte en bonos del gobierno de EE.UU. a largo plazo, considerados muy seguros"
+2. Evita jerga técnica sin explicar. Si usas términos como "duración", "spread", "beta", explícalos
+3. Explica POR QUÉ algo es bueno para el cliente, no solo qué es
+4. Usa analogías cuando ayude a entender
 
 ## FORMATO DE RESPUESTA
 
-Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones fuera del JSON):
+Responde ÚNICAMENTE con JSON válido (sin markdown, sin comentarios):
 
 {
-  "resumenEjecutivo": "Texto de 2-3 párrafos dirigido al cliente explicando: su perfil, la visión actual del comité, ${client.portfolio_data ? "cómo está su cartera actual vs lo ideal, " : ""}y cómo se traduce en su cartera recomendada. Debe ser cálido y profesional, usando su nombre.",
+  "contextoPerfil": "Un párrafo explicando qué significa ser un inversionista con perfil ${client.perfil_riesgo}. DEBE incluir los porcentajes exactos: ${distribucion.rv}% en renta variable, ${distribucion.rf}% en renta fija, ${distribucion.alt}% en alternativos y ${distribucion.cash}% en liquidez. Ejemplo: '${client.nombre}, usted tiene un perfil ${client.perfil_riesgo} con un puntaje de ${client.puntaje_riesgo}/100, lo que lo ubica en una estrategia ${bandaDescripcion}. Para su perfil, la distribución recomendada es: ${distribucion.rv}% en renta variable (acciones), ${distribucion.rf}% en renta fija (bonos), ${distribucion.alt}% en inversiones alternativas y ${distribucion.cash}% en liquidez. Esto significa que [explicar beneficio según perfil].' Ser cálido y profesional.",
+  "resumenEjecutivo": "Texto de 2-3 párrafos dirigido al cliente explicando la visión actual del mercado en términos simples, ${client.portfolio_data ? "cómo está su cartera actual comparada con lo ideal, " : ""}y qué estamos recomendando. NO repetir la explicación del perfil (ya está en contextoPerfil). Usar lenguaje accesible.",
   "cartera": [
     {
       "clase": "Renta Variable" | "Renta Fija" | "Commodities" | "Cash",
-      "ticker": "SPY",
-      "nombre": "SPDR S&P 500 ETF",
+      "ticker": "VOO",
+      "nombre": "Vanguard S&P 500 ETF",
+      "descripcionSimple": "Invierte en las 500 empresas más grandes de Estados Unidos. Incluye gigantes tecnológicos como Apple y Microsoft, bancos, empresas de salud y consumo.",
       "porcentaje": 20,
-      "justificacion": "Breve explicación de por qué este ETF, vinculado a la visión del comité"
+      "justificacion": "Le recomendamos este fondo porque [razón vinculada a visión del comité en lenguaje simple]"
     }
   ],
   ${client.portfolio_data ? `"cambiosSugeridos": [
     {
       "tipo": "vender" | "reducir" | "mantener" | "aumentar" | "comprar",
-      "instrumento": "Nombre del fondo/ETF actual o nuevo",
-      "razon": "Por qué hacer este cambio"
+      "instrumento": "Nombre del fondo/ETF con explicación simple",
+      "razon": "Explicación clara de por qué hacer este cambio, en lenguaje simple"
     }
   ],` : ""}
   "riesgos": [
-    "Riesgo 1 a monitorear",
-    "Riesgo 2 a monitorear"
+    "Explicación simple de un riesgo. Por ejemplo: 'Si la inflación en EE.UU. sube más de lo esperado, los bonos podrían perder valor temporalmente'",
+    "Otro riesgo explicado de forma accesible"
   ],
   "proximosMonitorear": [
-    "Evento o dato a monitorear en las próximas semanas"
+    "Evento explicado claramente. Por ejemplo: 'La reunión de la Reserva Federal el 15 de marzo, donde decidirán si suben o bajan las tasas de interés'"
   ]
 }
 
-REGLAS:
+REGLAS CRÍTICAS:
 - Los porcentajes deben sumar 100%
+- CRÍTICO: La suma de posiciones de Renta Variable debe ser aproximadamente ${distribucion.rv}% (±5%)
+- CRÍTICO: La suma de posiciones de Renta Fija debe ser aproximadamente ${distribucion.rf}% (±5%)
+- El contextoPerfil DEBE incluir los porcentajes exactos: ${distribucion.rv}% RV, ${distribucion.rf}% RF
+- Cada posición en cartera DEBE tener descripcionSimple explicando qué hace ese ETF
 - Usa los ETFs del Focus List del reporte de Asset Allocation cuando sea posible
-- El resumenEjecutivo debe mencionar al cliente por su nombre
 - Máximo 8-10 posiciones en la cartera
 - Incluye al menos 2-3 riesgos relevantes del reporte Macro
-- El tono debe ser profesional pero accesible
-${client.portfolio_data ? "- En cambiosSugeridos, indica qué fondos actuales vender/reducir y qué nuevos comprar/aumentar" : ""}`;
+- TODO debe estar en lenguaje simple, como explicándole a alguien sin conocimiento financiero
+${client.portfolio_data ? "- En cambiosSugeridos, explica claramente qué fondos vender/reducir y por qué" : ""}`;
 }
 
 function extractTextFromHTML(html: string): string {

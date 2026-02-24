@@ -220,6 +220,9 @@ export default function MarketDashboard() {
       <AdvisorHeader
         advisorName={advisorName}
         advisorEmail={advisorEmail}
+        advisorLogo={advisor?.logo}
+        companyName={advisor?.companyName}
+        isAdmin={advisor?.isAdmin}
       />
 
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px' }}>

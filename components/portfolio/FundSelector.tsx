@@ -43,6 +43,15 @@ export interface Fund {
   dividendYield?: number;
   beta?: number;
   isETF?: boolean;
+  // Tracking data source (alphavantage, yahoo, massive)
+  dataSource?: "alphavantage" | "yahoo" | "massive";
+  // Historical price data for comparison charts
+  historicalData?: { date: string; close: number }[];
+  // For current funds from cartola
+  costBasis?: number;
+  marketValue?: number;
+  unrealizedGainLoss?: number;
+  hasYahooData?: boolean;
 }
 
 interface FundSelectorProps {

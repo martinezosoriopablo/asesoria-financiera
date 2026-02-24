@@ -18,6 +18,8 @@ import {
   Sparkles,
   X,
   Download,
+  Shield,
+  Info,
 } from "lucide-react";
 import CarteraComitePDF from "@/components/pdf/CarteraComitePDF";
 
@@ -25,6 +27,7 @@ interface CarteraPosition {
   clase: string;
   ticker: string;
   nombre: string;
+  descripcionSimple?: string;
   porcentaje: number;
   justificacion: string;
 }
@@ -36,6 +39,7 @@ interface CambioSugerido {
 }
 
 interface CarteraData {
+  contextoPerfil?: string;
   resumenEjecutivo: string;
   cartera: CarteraPosition[];
   cambiosSugeridos?: CambioSugerido[];
@@ -54,8 +58,9 @@ interface CarteraRecomendadaProps {
   cliente: ClienteInfo;
   recomendacion: CarteraData;
   generadoEn: string;
-  onAplicar?: () => void;
+  onAplicar?: () => void | Promise<void>;
   onCerrar?: () => void;
+  aplicando?: boolean;
 }
 
 const CLASE_ICONS: Record<string, React.ElementType> = {
@@ -80,6 +85,7 @@ export default function CarteraRecomendada({
   generadoEn,
   onAplicar,
   onCerrar,
+  aplicando = false,
 }: CarteraRecomendadaProps) {
   const [expandedPosition, setExpandedPosition] = useState<string | null>(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);
@@ -164,10 +170,27 @@ export default function CarteraRecomendada({
         </div>
       </div>
 
+      {/* Contexto del Perfil de Riesgo */}
+      {recomendacion.contextoPerfil && (
+        <div className="px-6 py-5 border-b border-gb-border bg-blue-50/50">
+          <h3 className="text-sm font-semibold text-gb-black uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-blue-600" />
+            Su Perfil de Inversionista
+          </h3>
+          <div className="prose prose-sm max-w-none text-gb-dark leading-relaxed">
+            {recomendacion.contextoPerfil.split("\n").map((paragraph, i) => (
+              <p key={i} className="mb-2 last:mb-0">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Resumen Ejecutivo */}
       <div className="px-6 py-5 border-b border-gb-border bg-gb-light/30">
         <h3 className="text-sm font-semibold text-gb-black uppercase tracking-wide mb-3">
-          Resumen Ejecutivo
+          Visión de Mercado y Recomendación
         </h3>
         <div className="prose prose-sm max-w-none text-gb-dark leading-relaxed">
           {recomendacion.resumenEjecutivo.split("\n").map((paragraph, i) => (
@@ -255,12 +278,25 @@ export default function CarteraRecomendada({
                   />
                 </div>
 
-                {/* Justificación expandida */}
+                {/* Descripción y Justificación expandida */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 pt-0">
+                  <div className="px-4 pb-4 pt-0 space-y-3">
+                    {/* Descripción simple del instrumento */}
+                    {position.descripcionSimple && (
+                      <div className="bg-blue-50/70 rounded-lg p-3 border-l-3 border-blue-400">
+                        <p className="text-sm text-gb-dark leading-relaxed flex items-start gap-2">
+                          <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                          <span>
+                            <span className="font-medium text-blue-700">¿Qué es {position.ticker}? </span>
+                            {position.descripcionSimple}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                    {/* Justificación */}
                     <div className="bg-gb-light/50 rounded-lg p-3 border-l-3 border-gb-accent">
                       <p className="text-sm text-gb-dark leading-relaxed">
-                        <span className="font-medium text-gb-black">Justificación: </span>
+                        <span className="font-medium text-gb-black">¿Por qué lo recomendamos? </span>
                         {position.justificacion}
                       </p>
                     </div>
@@ -359,10 +395,20 @@ export default function CarteraRecomendada({
           {onAplicar && (
             <button
               onClick={onAplicar}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gb-accent text-white rounded-lg hover:bg-gb-accent/90 transition-colors"
+              disabled={aplicando}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gb-accent text-white rounded-lg hover:bg-gb-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CheckCircle className="w-4 h-4" />
-              Aplicar Propuesta
+              {aplicando ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Aplicando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Aplicar Propuesta
+                </>
+              )}
             </button>
           )}
         </div>

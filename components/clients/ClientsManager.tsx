@@ -133,7 +133,7 @@ export default function ClientsManager() {
   return (
     <div className="min-h-screen bg-background">
       {advisor && (
-        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} />
+        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
       )}
 
       <div className="max-w-6xl mx-auto px-5 py-8">

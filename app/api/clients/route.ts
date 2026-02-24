@@ -1,7 +1,7 @@
 // app/api/clients/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 
 // Sanitiza string para uso en queries ILIKE (previene inyección)
 function sanitizeSearchInput(input: string): string {
@@ -11,7 +11,9 @@ function sanitizeSearchInput(input: string): string {
     .replace(/[%_\\]/g, "\\$&");
 }
 
-// GET - Obtener lista de clientes (solo del advisor autenticado)
+// GET - Obtener lista de clientes
+// - Advisor normal: ve sus clientes + huérfanos
+// - Admin: ve sus clientes + clientes de subordinados + huérfanos
 export async function GET(request: NextRequest) {
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
@@ -24,12 +26,31 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const perfilRiesgo = searchParams.get("perfil_riesgo");
     const search = searchParams.get("search");
+    const advisorFilter = searchParams.get("advisor_id"); // Para filtrar por asesor específico (solo admins)
 
-    // Mostrar clientes del advisor + clientes sin asesor asignado (para poder asignarlos)
+    // Determinar qué asesores puede ver este usuario
+    let allowedAdvisorIds: string[] = [advisor!.id];
+
+    if (advisor!.rol === 'admin') {
+      // Admin puede ver clientes de todos sus subordinados
+      allowedAdvisorIds = await getSubordinateAdvisorIds(advisor!.id);
+    }
+
+    // Construir filtro de asesores
+    let advisorFilterStr: string;
+    if (advisorFilter && advisor!.rol === 'admin' && allowedAdvisorIds.includes(advisorFilter)) {
+      // Admin filtrando por un asesor específico
+      advisorFilterStr = `asesor_id.eq.${advisorFilter}`;
+    } else {
+      // Mostrar todos los permitidos + huérfanos
+      const idsFilter = allowedAdvisorIds.map(id => `asesor_id.eq.${id}`).join(',');
+      advisorFilterStr = `${idsFilter},asesor_id.is.null`;
+    }
+
     let query = supabase
       .from("clients")
       .select("*")
-      .or(`asesor_id.eq.${advisor!.id},asesor_id.is.null`)
+      .or(advisorFilterStr)
       .order("created_at", { ascending: false });
 
     if (status) {
@@ -55,6 +76,8 @@ export async function GET(request: NextRequest) {
       success: true,
       clients: clients || [],
       total: clients?.length || 0,
+      isAdmin: advisor!.rol === 'admin',
+      allowedAdvisorIds,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al obtener clientes";

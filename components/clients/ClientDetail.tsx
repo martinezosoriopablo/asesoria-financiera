@@ -21,7 +21,9 @@ import {
   Target,
   BarChart3,
   Briefcase,
+  LineChart,
 } from "lucide-react";
+import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 
 interface Client {
   id: string;
@@ -152,7 +154,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {advisor && (
-        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} />
+        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
       )}
 
       <div className="max-w-6xl mx-auto px-5 py-8">
@@ -334,8 +336,23 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
             </div>
           </div>
 
-          {/* Right column - Interactions */}
-          <div className="lg:col-span-2">
+          {/* Right column - Portfolio Evolution & Interactions */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Portfolio Evolution - only show if client has portfolio data */}
+            {client.tiene_portfolio && client.portfolio_data && (
+              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-emerald-500 p-5 shadow-sm">
+                <h2 className="text-sm font-semibold text-gb-black mb-4 flex items-center gap-1.5">
+                  <LineChart className="w-4 h-4 text-emerald-500" />
+                  Evolución del Portafolio
+                </h2>
+                <PortfolioEvolution
+                  clientId={client.id}
+                  clientName={`${client.nombre} ${client.apellido}`}
+                  portfolioData={client.portfolio_data}
+                />
+              </div>
+            )}
+
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-slate-300 p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gb-black mb-4 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-slate-400" />

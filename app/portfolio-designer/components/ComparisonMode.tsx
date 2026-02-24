@@ -30,8 +30,10 @@ import {
   PlusCircle,
   Sparkles,
   X,
+  Edit,
 } from "lucide-react";
 import CarteraRecomendada, { GenerarCarteraButton } from "@/components/comite/CarteraRecomendada";
+import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
 
 // ============================================================
 // INTERFACES
@@ -43,6 +45,14 @@ interface Client {
   apellido: string;
   email: string;
   rut?: string;
+  portfolio_data?: {
+    composition?: {
+      holdings?: any[];
+    };
+    statement?: {
+      holdings?: any[];
+    };
+  };
 }
 
 interface RiskProfile {
@@ -304,6 +314,10 @@ export default function ComparisonMode() {
   // AI Cartera state
   const [carteraIA, setCarteraIA] = useState<any>(null);
   const [showCarteraIA, setShowCarteraIA] = useState(false);
+  const [applyingCartera, setApplyingCartera] = useState(false);
+  const [applySuccess, setApplySuccess] = useState<string | null>(null);
+  const [carteraAplicada, setCarteraAplicada] = useState<any[] | null>(null);
+  const [skipBenchmarkUpdate, setSkipBenchmarkUpdate] = useState(false);
 
   // Currency state
   type Currency = "CLP" | "USD" | "UF";
@@ -440,12 +454,50 @@ export default function ComparisonMode() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update asset classes when benchmark changes
+  // Update asset classes when benchmark changes (preserve proposed funds)
   useEffect(() => {
-    if (benchmark) {
-      setAssetClasses(buildBenchmarkProfile(benchmark));
+    if (benchmark && !skipBenchmarkUpdate) {
+      setAssetClasses((prev) => {
+        // If there are no existing proposed funds, just rebuild from benchmark
+        const hasProposedFunds = prev.some(ac => ac.allocations.some(a => a.proposedFund));
+        if (!hasProposedFunds) {
+          return buildBenchmarkProfile(benchmark);
+        }
+
+        // Otherwise, rebuild but preserve the proposed fund allocations
+        const newProfile = buildBenchmarkProfile(benchmark);
+
+        // Merge proposed funds from previous state
+        for (const prevAc of prev) {
+          const newAcIndex = newProfile.findIndex(ac => ac.id === prevAc.id);
+          if (newAcIndex === -1) continue;
+
+          for (const prevAlloc of prevAc.allocations) {
+            if (prevAlloc.proposedFund) {
+              // Check if this allocation exists in new profile
+              const existingIndex = newProfile[newAcIndex].allocations.findIndex(
+                a => a.region === prevAlloc.region
+              );
+
+              if (existingIndex !== -1) {
+                // Update existing allocation with proposed fund
+                newProfile[newAcIndex].allocations[existingIndex].proposedFund = prevAlloc.proposedFund;
+              } else {
+                // Add new allocation with proposed fund
+                newProfile[newAcIndex].allocations.push(prevAlloc);
+              }
+            }
+          }
+        }
+
+        return newProfile;
+      });
     }
-  }, [benchmark]);
+    // Reset the skip flag after the effect runs
+    if (skipBenchmarkUpdate) {
+      setSkipBenchmarkUpdate(false);
+    }
+  }, [benchmark, skipBenchmarkUpdate]);
 
   // ============================================================
   // CLIENT SEARCH
@@ -872,6 +924,113 @@ export default function ComparisonMode() {
                   />
                 </div>
               )}
+
+              {/* Success message after applying cartera */}
+              {applySuccess && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <p className="text-sm text-green-800 font-medium">{applySuccess}</p>
+                </div>
+              )}
+
+              {/* Cartera Aplicada - Muestra las posiciones recomendadas con opción de editar */}
+              {carteraAplicada && carteraAplicada.length > 0 && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Cartera Propuesta por IA
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          // Re-open the AI modal to regenerate or edit
+                          setShowCarteraIA(true);
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => setCarteraAplicada(null)}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {carteraAplicada.map((pos: any, idx: number) => (
+                      <div key={idx} className="bg-white p-3 rounded-md border border-blue-100 group relative">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-sm font-bold text-blue-800">{pos.ticker}</span>
+                          <input
+                            type="number"
+                            value={pos.porcentaje}
+                            onChange={(e) => {
+                              const newValue = parseFloat(e.target.value) || 0;
+                              setCarteraAplicada(prev =>
+                                prev?.map((p, i) => i === idx ? { ...p, porcentaje: newValue } : p) || null
+                              );
+                            }}
+                            className="w-14 text-sm font-semibold text-blue-600 text-right bg-transparent border-b border-transparent hover:border-blue-300 focus:border-blue-500 focus:outline-none"
+                            min="0"
+                            max="100"
+                          />
+                          <span className="text-sm text-blue-600">%</span>
+                        </div>
+                        <p className="text-xs text-gray-600 truncate">{pos.nombre}</p>
+                        <p className="text-xs text-gray-400 mt-1">{pos.clase}</p>
+                        <button
+                          onClick={() => {
+                            setCarteraAplicada(prev => prev?.filter((_, i) => i !== idx) || null);
+                          }}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"
+                          title="Eliminar posición"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <p className="text-xs text-blue-600">
+                      Total: {carteraAplicada.reduce((sum: number, p: any) => sum + p.porcentaje, 0)}% asignado
+                    </p>
+                    <button
+                      onClick={async () => {
+                        // Re-apply with updated allocations
+                        setApplySuccess("Actualizando allocations...");
+                        // Trigger re-apply logic similar to onAplicar
+                        const rvPositions = carteraAplicada.filter((p: any) => p.clase === "Renta Variable");
+                        const rfPositions = carteraAplicada.filter((p: any) => p.clase === "Renta Fija");
+                        const altPositions = carteraAplicada.filter((p: any) => p.clase === "Commodities" || p.clase === "Alternativos");
+
+                        setAssetClasses((prev) => {
+                          return prev.map((ac) => {
+                            if (ac.id === "equity" && rvPositions.length > 0) {
+                              return { ...ac, totalPercent: rvPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0), expanded: true };
+                            }
+                            if (ac.id === "fixed_income" && rfPositions.length > 0) {
+                              return { ...ac, totalPercent: rfPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0), expanded: true };
+                            }
+                            if (ac.id === "alternative" && altPositions.length > 0) {
+                              return { ...ac, totalPercent: altPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0), expanded: true };
+                            }
+                            return ac;
+                          });
+                        });
+                        setApplySuccess("✓ Porcentajes actualizados");
+                        setTimeout(() => setApplySuccess(null), 3000);
+                      }}
+                      className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                    >
+                      Actualizar %
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1112,6 +1271,15 @@ export default function ComparisonMode() {
             Agrega las subcategorías que necesites comparar
           </p>
         </div>
+
+        {/* Debug: mostrar estado de allocations */}
+        {carteraAplicada && (
+          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+            <strong>Debug:</strong> {assetClasses.map(ac =>
+              `${ac.id}: ${ac.allocations.length} allocs (${ac.allocations.filter(a => a.proposedFund).length} con propuesto)`
+            ).join(" | ")}
+          </div>
+        )}
         <div className="space-y-4">
           {assetClasses.map((assetClass) => (
             <div key={assetClass.id} className="bg-white border border-gb-border rounded-lg overflow-hidden">
@@ -1490,9 +1658,354 @@ export default function ComparisonMode() {
               recomendacion={carteraIA.recomendacion}
               generadoEn={carteraIA.generadoEn}
               onCerrar={() => setShowCarteraIA(false)}
-              onAplicar={() => {
-                // TODO: Aplicar los fondos de la cartera IA a las secciones
-                setShowCarteraIA(false);
+              aplicando={applyingCartera}
+              onAplicar={async () => {
+                if (!client || !carteraIA) return;
+
+                setApplyingCartera(true);
+                try {
+                  // 1. Call API to save recommendation and create model
+                  const response = await fetch("/api/comite/aplicar-cartera", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      clientId: client.id,
+                      cliente: carteraIA.cliente,
+                      recomendacion: carteraIA.recomendacion,
+                      generadoEn: carteraIA.generadoEn,
+                    }),
+                  });
+
+                  const result = await response.json();
+
+                  if (!result.success) {
+                    alert("Error: " + result.error);
+                    return;
+                  }
+
+                  // 2. Auto-fill proposed portfolio with AI recommendations
+                  // Map AI cartera positions to asset class allocations
+                  const cartera = carteraIA.recomendacion.cartera as Array<{
+                    clase: string;
+                    ticker: string;
+                    nombre: string;
+                    porcentaje: number;
+                  }>;
+
+                  // Group by asset class and update allocations
+                  setAssetClasses((prev) => {
+                    // Deep clone to ensure React detects changes
+                    const updated = prev.map(ac => ({
+                      ...ac,
+                      allocations: [...ac.allocations.map(a => ({ ...a }))]
+                    }));
+
+                    console.log("Aplicando cartera con", cartera.length, "posiciones");
+
+                    for (const position of cartera) {
+                      // Find matching asset class (IDs: equity, fixed_income, alternative, cash)
+                      const assetClassId = position.clase === "Renta Variable" ? "equity"
+                        : position.clase === "Renta Fija" ? "fixed_income"
+                        : position.clase === "Commodities" || position.clase === "Alternativos" ? "alternative"
+                        : position.clase === "Cash" ? "cash"
+                        : null;
+
+                      if (!assetClassId) {
+                        console.log("No se encontró asset class para:", position.clase);
+                        continue;
+                      }
+
+                      const acIndex = updated.findIndex((ac) => ac.id === assetClassId);
+                      if (acIndex === -1) {
+                        console.log("Asset class no encontrado:", assetClassId);
+                        continue;
+                      }
+
+                      // Create a Fund object from the AI recommendation
+                      const proposedFund: Fund = {
+                        id: `ai-${position.ticker}`,
+                        ticker: position.ticker,
+                        name: position.nombre,
+                        currency: "USD",
+                        type: "proposed",
+                        asset_class: position.clase === "Renta Variable" ? "Equity" : "Fixed Income",
+                      };
+
+                      // Add or update allocation for this position
+                      const existingAllocIndex = updated[acIndex].allocations.findIndex(
+                        (a) => a.region === position.ticker || a.proposedFund?.ticker === position.ticker
+                      );
+
+                      if (existingAllocIndex !== -1) {
+                        // Update existing allocation
+                        updated[acIndex].allocations[existingAllocIndex] = {
+                          ...updated[acIndex].allocations[existingAllocIndex],
+                          proposedFund: proposedFund,
+                          neutralPercent: position.porcentaje,
+                        };
+                        console.log("Actualizado:", position.ticker, "en", assetClassId);
+                      } else {
+                        // Add new allocation
+                        updated[acIndex].allocations.push({
+                          region: position.ticker,
+                          regionLabel: position.nombre,
+                          subCategory: position.ticker,
+                          neutralPercent: position.porcentaje,
+                          benchmark: position.ticker,
+                          currentFund: null,
+                          proposedFund: proposedFund,
+                        });
+                        console.log("Agregado:", position.ticker, "a", assetClassId);
+                      }
+                    }
+
+                    // Expand all sections that have proposed funds
+                    for (const ac of updated) {
+                      if (ac.allocations.some(a => a.proposedFund)) {
+                        ac.expanded = true;
+                      }
+                    }
+
+                    console.log("Estado actualizado:", updated.map(ac => ({
+                      id: ac.id,
+                      allocations: ac.allocations.length,
+                      withProposed: ac.allocations.filter(a => a.proposedFund).length
+                    })));
+
+                    return updated;
+                  });
+
+                  // 3. Store applied cartera for display
+                  setCarteraAplicada(cartera);
+
+                  // Skip benchmark update to prevent overwriting
+                  setSkipBenchmarkUpdate(true);
+
+                  // 4. Fill the subcategories with the AI recommendations
+                  // Fetch real fund data using unified API (Alpha Vantage -> Yahoo Finance -> Massive fallback)
+                  const fetchFundData = async (ticker: string, nombre: string): Promise<Fund | null> => {
+                    try {
+                      // Use unified-profile API with automatic fallbacks
+                      const response = await fetch(`/api/funds/unified-profile?symbol=${encodeURIComponent(ticker)}&name=${encodeURIComponent(nombre)}`);
+                      const result = await response.json();
+
+                      if (result.success && result.profile) {
+                        const profile = result.profile;
+                        console.log(`✓ Found ${ticker} via ${profile.source}`, result.attempts);
+                        return {
+                          id: `etf-${ticker}`,
+                          ticker: profile.symbol || ticker,
+                          symbol: profile.symbol || ticker,
+                          name: profile.name || nombre,
+                          currency: profile.currency || "USD",
+                          type: "proposed" as const,
+                          asset_class: profile.assetType,
+                          total_expense_ratio: profile.expenseRatio,
+                          return_1m: profile.returns?.["1m"],
+                          return_3m: profile.returns?.["3m"],
+                          return_6m: profile.returns?.["6m"],
+                          return_ytd: profile.returns?.ytd,
+                          return_1y: profile.returns?.["1y"],
+                          return_3y: profile.returns?.["3y"],
+                          return_5y: profile.returns?.["5y"],
+                          price: profile.price,
+                          dividendYield: profile.dividendYield,
+                          beta: profile.beta,
+                          isETF: profile.assetType === "ETF",
+                          dataSource: profile.source,
+                          historicalData: profile.historicalData,
+                        };
+                      }
+
+                      // Log which sources were tried
+                      console.warn(`✗ No data for ${ticker}:`, result.attempts);
+                      return null;
+                    } catch (e) {
+                      console.error("Error fetching fund:", ticker, e);
+                      return null;
+                    }
+                  };
+
+                  // Get client's current holdings from portfolio_data
+                  const currentHoldings = client.portfolio_data?.composition?.holdings ||
+                                          client.portfolio_data?.statement?.holdings || [];
+
+                  // Separate holdings by asset class
+                  const equityHoldings = currentHoldings.filter((h: any) => h.assetClass === "Equity");
+                  const fixedIncomeHoldings = currentHoldings.filter((h: any) => h.assetClass === "Fixed Income");
+
+                  // Group cartera by asset class
+                  const rvPositions = cartera.filter((p: any) => p.clase === "Renta Variable");
+                  const rfPositions = cartera.filter((p: any) => p.clase === "Renta Fija");
+                  const altPositions = cartera.filter((p: any) => p.clase === "Commodities" || p.clase === "Alternativos");
+
+                  // Function to fetch current fund data from Yahoo Finance
+                  const fetchCurrentFundData = async (fundName: string, securityId: string): Promise<any> => {
+                    try {
+                      // Try to find Yahoo Finance symbol for this fund
+                      const yahooMapping = findYahooSymbol(fundName);
+                      if (!yahooMapping) {
+                        console.log(`No Yahoo mapping found for: ${fundName}`);
+                        return null;
+                      }
+
+                      console.log(`Fetching Yahoo data for ${fundName} -> ${yahooMapping.yahooSymbol}`);
+                      const response = await fetch(`/api/funds/yahoo-historical?symbol=${encodeURIComponent(yahooMapping.yahooSymbol)}&range=1y`);
+                      const result = await response.json();
+
+                      if (result.success) {
+                        // Convert Yahoo Finance returns to fund format
+                        const returns = result.returns || [];
+                        return {
+                          yahooSymbol: result.symbol,
+                          name: result.name || fundName,
+                          currency: result.currency,
+                          currentPrice: result.currentPrice,
+                          return_1m: returns.find((r: any) => r.period === "1M")?.value,
+                          return_3m: returns.find((r: any) => r.period === "3M")?.value,
+                          return_6m: returns.find((r: any) => r.period === "6M")?.value,
+                          return_1y: returns.find((r: any) => r.period === "1Y")?.value,
+                          return_ytd: returns.find((r: any) => r.period === "YTD")?.value,
+                          historicalData: result.historicalData,
+                        };
+                      }
+                      return null;
+                    } catch (e) {
+                      console.error("Error fetching Yahoo data:", fundName, e);
+                      return null;
+                    }
+                  };
+
+                  // Create allocations with real fund data
+                  const createAllocationsAsync = async (positions: any[], holdingsForClass: any[]) => {
+                    const allocations = [];
+
+                    for (let i = 0; i < positions.length; i++) {
+                      const pos = positions[i];
+                      // Try to fetch real fund data from full-profile API
+                      const realFund = await fetchFundData(pos.ticker, pos.nombre);
+
+                      // Match with current holding at same index (or null if no more holdings)
+                      const matchingHolding = holdingsForClass[i] || null;
+
+                      // Create current fund - fetch historical data from Yahoo Finance if available
+                      let currentFund = null;
+                      if (matchingHolding) {
+                        // Try to get Yahoo Finance data for the current fund
+                        const yahooData = await fetchCurrentFundData(matchingHolding.fundName, matchingHolding.securityId);
+
+                        currentFund = {
+                          id: `current-${matchingHolding.securityId}`,
+                          ticker: yahooData?.yahooSymbol || matchingHolding.securityId,
+                          symbol: yahooData?.yahooSymbol || matchingHolding.securityId,
+                          name: matchingHolding.fundName,
+                          currency: yahooData?.currency || "USD",
+                          type: "chilean" as const,
+                          asset_class: matchingHolding.assetClass,
+                          // Use cartola data for cost/value info
+                          costBasis: matchingHolding.costBasis,
+                          marketValue: matchingHolding.marketValue,
+                          unrealizedGainLoss: matchingHolding.unrealizedGainLoss,
+                          // Use Yahoo Finance data for returns if available, otherwise leave undefined
+                          return_1m: yahooData?.return_1m,
+                          return_3m: yahooData?.return_3m,
+                          return_6m: yahooData?.return_6m,
+                          return_1y: yahooData?.return_1y,
+                          return_ytd: yahooData?.return_ytd,
+                          // Price from Yahoo if available
+                          price: yahooData?.currentPrice ? {
+                            current: yahooData.currentPrice,
+                            previousClose: null,
+                            changePercent: null,
+                            currency: yahooData.currency,
+                          } : {
+                            current: matchingHolding.marketPrice,
+                            previousClose: null,
+                            changePercent: null,
+                            currency: "USD",
+                          },
+                          // Store historical data for comparison chart
+                          historicalData: yahooData?.historicalData,
+                          // Flag if Yahoo data was found
+                          hasYahooData: !!yahooData,
+                        };
+                      }
+
+                      allocations.push({
+                        region: pos.ticker,
+                        regionLabel: pos.nombre,
+                        subCategory: pos.ticker,
+                        neutralPercent: pos.porcentaje,
+                        benchmark: pos.ticker,
+                        currentFund: currentFund,
+                        proposedFund: realFund || {
+                          id: `ai-${pos.ticker}`,
+                          ticker: pos.ticker,
+                          name: pos.nombre,
+                          currency: "USD",
+                          type: "proposed" as const,
+                          asset_class: pos.clase === "Renta Variable" ? "Equity" : "Fixed Income",
+                        },
+                      });
+                    }
+                    return allocations;
+                  };
+
+                  // Create all allocations (matching holdings by asset class)
+                  const [rvAllocations, rfAllocations, altAllocations] = await Promise.all([
+                    createAllocationsAsync(rvPositions, equityHoldings),
+                    createAllocationsAsync(rfPositions, fixedIncomeHoldings),
+                    createAllocationsAsync(altPositions, []), // No alternative holdings typically
+                  ]);
+
+                  // Update asset classes with new allocations (IDs: equity, fixed_income, alternative, cash)
+                  setAssetClasses((prev) => {
+                    return prev.map((ac) => {
+                      if (ac.id === "equity" && rvAllocations.length > 0) {
+                        return { ...ac, allocations: rvAllocations, expanded: true, totalPercent: rvPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0) };
+                      }
+
+                      if (ac.id === "fixed_income" && rfAllocations.length > 0) {
+                        return { ...ac, allocations: rfAllocations, expanded: true, totalPercent: rfPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0) };
+                      }
+
+                      if (ac.id === "alternative" && altAllocations.length > 0) {
+                        return { ...ac, allocations: altAllocations, expanded: true, totalPercent: altPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0) };
+                      }
+
+                      return ac;
+                    });
+                  });
+
+                  // 5. Show success message
+                  setApplySuccess(`✓ Cartera guardada con ${cartera.length} posiciones`);
+                  setTimeout(() => setApplySuccess(null), 10000);
+
+                  // Close the modal first
+                  setShowCarteraIA(false);
+
+                  // Force re-render with timeout to ensure state is applied
+                  setTimeout(() => {
+                    setAssetClasses((current) => {
+                      console.log("Final asset classes:", current.map(ac => ({
+                        id: ac.id,
+                        expanded: ac.expanded,
+                        allocations: ac.allocations.length,
+                        withProposed: ac.allocations.filter(a => a.proposedFund).length
+                      })));
+                      // Force all sections with allocations to expand
+                      return current.map(ac => ({
+                        ...ac,
+                        expanded: ac.allocations.some(a => a.proposedFund) ? true : ac.expanded
+                      }));
+                    });
+                  }, 100);
+                } catch (error) {
+                  console.error("Error applying cartera:", error);
+                  alert("Error al aplicar la cartera");
+                } finally {
+                  setApplyingCartera(false);
+                }
               }}
             />
           </div>

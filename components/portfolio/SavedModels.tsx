@@ -3,7 +3,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabaseBrowserClient } from "@/lib/supabase/supabaseClient";
 import { History, Download, Trash2, Calendar, TrendingUp, Shield, Landmark, X } from "lucide-react";
 
 interface SavedModel {
@@ -47,20 +46,15 @@ export function SavedModels({ clientId, clientEmail, onLoadModel, onClose }: Sav
     setError(null);
 
     try {
-      const supabase = supabaseBrowserClient();
+      const response = await fetch(`/api/portfolio-models?client_id=${clientId}`);
+      const result = await response.json();
 
-      const { data, error: fetchError } = await supabase
-        .from("portfolio_models")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false });
-
-      if (fetchError) {
-        setError("Error al cargar los modelos guardados: " + fetchError.message);
+      if (!result.success) {
+        setError("Error al cargar los modelos guardados: " + (result.error || "Error desconocido"));
         return;
       }
 
-      setModels(data || []);
+      setModels(result.models || []);
     } catch (err) {
       setError("Error inesperado al cargar los modelos");
       console.error(err);
@@ -77,15 +71,13 @@ export function SavedModels({ clientId, clientEmail, onLoadModel, onClose }: Sav
     setDeletingId(modelId);
 
     try {
-      const supabase = supabaseBrowserClient();
+      const response = await fetch(`/api/portfolio-models?id=${modelId}`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
 
-      const { error: deleteError } = await supabase
-        .from("portfolio_models")
-        .delete()
-        .eq("id", modelId);
-
-      if (deleteError) {
-        alert("Error al eliminar el modelo: " + deleteError.message);
+      if (!result.success) {
+        alert("Error al eliminar el modelo: " + (result.error || "Error desconocido"));
         return;
       }
 

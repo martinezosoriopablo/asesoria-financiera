@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     const data = XLSX.utils.sheet_to_json(sheet);
 
     console.log('📊 Excel procesado:', { totalFilas: data.length, primeraFila: data[0] });
+    console.log('📋 Columnas detectadas:', data[0] ? Object.keys(data[0]) : 'ninguna');
 
     if (data.length === 0) {
       return NextResponse.json(
@@ -73,33 +74,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ OPTIMIZACIÓN 1: Obtener TODOS los fondos de una vez
+    // ✅ OPTIMIZACIÓN 1: Obtener TODOS los fondos con paginación (Supabase limita a 1000 por query)
     const fondosMap = new Map<string, string>(); // key: "fo_run-fm_serie", value: id
     const fondosNoEncontrados: string[] = [];
 
-    console.log('🔍 Buscando fondos en batch...');
+    console.log('🔍 Buscando fondos en batch (con paginación)...');
 
-    // ✅ BATCH QUERY: Obtener todos los fondos
-    const { data: fondos, error: fondosError } = await supabase
-      .from('fondos_mutuos')
-      .select('id, fo_run, fm_serie')
-      .limit(10000);
+    // Paginar para obtener todos los fondos (Supabase limita a 1000 por query)
+    const PAGE_SIZE = 1000;
+    let currentPage = 0;
+    let hasMore = true;
 
-    if (fondosError) {
-      console.error('Error obteniendo fondos:', fondosError);
-      return NextResponse.json(
-        { success: false, error: 'Error al buscar fondos' },
-        { status: 500 }
-      );
+    while (hasMore) {
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data: fondos, error: fondosError } = await supabase
+        .from('fondos_mutuos')
+        .select('id, fo_run, fm_serie')
+        .range(from, to);
+
+      if (fondosError) {
+        console.error('Error obteniendo fondos (página ' + currentPage + '):', fondosError);
+        return NextResponse.json(
+          { success: false, error: 'Error al buscar fondos' },
+          { status: 500 }
+        );
+      }
+
+      // Agregar fondos al mapa
+      fondos?.forEach((fondo: any) => {
+        const key = `${fondo.fo_run}-${fondo.fm_serie}`;
+        fondosMap.set(key, fondo.id);
+      });
+
+      // Si trajo menos de PAGE_SIZE, no hay más páginas
+      hasMore = fondos !== null && fondos.length === PAGE_SIZE;
+      currentPage++;
+
+      // Seguridad: máximo 10 páginas (10,000 fondos)
+      if (currentPage >= 10) hasMore = false;
     }
 
-    // Crear mapa de fondos
-    fondos?.forEach((fondo: any) => {
-      const key = `${fondo.fo_run}-${fondo.fm_serie}`;
-      fondosMap.set(key, fondo.id);
-    });
-
-    console.log('✅ Fondos cargados:', fondosMap.size);
+    console.log('✅ Fondos cargados:', fondosMap.size, '(' + currentPage + ' páginas)');
 
     // ✅ OPTIMIZACIÓN 2: Preparar registros sin queries individuales
     const registros: any[] = [];
@@ -107,10 +124,17 @@ export async function POST(request: NextRequest) {
     
     for (const row of data) {
       try {
-        const fo_run = (row as any).fo_run || (row as any).FO_RUN || (row as any).forun;
-        const fm_serie = ((row as any).fm_serie || (row as any).FM_SERIE || (row as any).serie)?.toString().trim().toUpperCase();
+        // Buscar fo_run en diferentes posibles nombres de columna
+        const fo_run = (row as any).fo_run || (row as any).FO_RUN || (row as any).forun ||
+                       (row as any)['1'] || (row as any)['FO_RUN'] || (row as any)['Fo_Run'] ||
+                       (row as any).run || (row as any).RUN;
+        const fm_serie = ((row as any).fm_serie || (row as any).FM_SERIE || (row as any).serie ||
+                         (row as any).SERIE || (row as any).Serie)?.toString().trim().toUpperCase();
         
         if (!fo_run || !fm_serie) {
+          if (errores < 3) {
+            console.log('⚠️ Fila sin fo_run o fm_serie:', { fo_run, fm_serie, row: JSON.stringify(row).substring(0, 200) });
+          }
           errores++;
           continue;
         }
@@ -124,10 +148,19 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Extraer rentabilidades (soportar diferentes nombres)
+        // Extraer rentabilidades (soportar diferentes nombres y formato europeo con comas)
         const parseNum = (val: any) => {
           if (val === null || val === undefined || val === '') return null;
-          const num = parseFloat(val);
+          // Si es número, retornarlo directamente
+          if (typeof val === 'number') return val;
+          // Si es string, convertir comas a puntos (formato europeo)
+          let strVal = String(val).trim();
+          // Si tiene múltiples comas (dato corrupto como "77,16,54"), retornar null
+          const commaCount = (strVal.match(/,/g) || []).length;
+          if (commaCount > 1) return null;
+          // Reemplazar coma por punto
+          strVal = strVal.replace(',', '.');
+          const num = parseFloat(strVal);
           return isNaN(num) ? null : num;
         };
 
@@ -138,7 +171,7 @@ export async function POST(request: NextRequest) {
           rent_30d: parseNum((row as any).rent_30d || (row as any).rent_30dias || (row as any).RENT_30D),
           rent_90d: parseNum((row as any).rent_90d || (row as any).rent_90dias || (row as any).RENT_90D),
           rent_180d: parseNum((row as any).rent_180d || (row as any).rent_180dias || (row as any).RENT_180D),
-          rent_365d: parseNum((row as any).rent_365d || (row as any).rent_1y || (row as any).RENT_365D),
+          rent_365d: parseNum((row as any).rent_365d || (row as any).rent_365 || (row as any).rent_1y || (row as any).RENT_365D || (row as any).RENT_365),
           rent_ytd: parseNum((row as any).rent_ytd || (row as any).YTD || (row as any).RENT_YTD),
           rent_3y: parseNum((row as any).rent_3y || (row as any).RENT_3Y),
           rent_5y: parseNum((row as any).rent_5y || (row as any).RENT_5Y),

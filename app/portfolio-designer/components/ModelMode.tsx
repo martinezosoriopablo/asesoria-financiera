@@ -4,7 +4,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { supabaseBrowserClient } from "@/lib/supabase/supabaseClient";
 import {
   getBenchmarkFromScore,
   AssetAllocation,
@@ -55,6 +54,8 @@ interface ClientBasic {
   id: string;
   email: string;
   full_name: string | null;
+  nombre?: string;
+  apellido?: string;
 }
 
 type EquityModelWeights = Record<EquityBlockId, number>;
@@ -220,41 +221,46 @@ export default function ModelMode() {
         return;
       }
 
-      const supabase = supabaseBrowserClient();
+      // 1. Buscar cliente usando la API
+      const clientsResponse = await fetch(`/api/clients?search=${encodeURIComponent(email)}`);
+      const clientsData = await clientsResponse.json();
 
-      // 1. Buscar cliente
-      const { data: clientRow, error: clientError } = await supabase
-        .from("clients")
-        .select("id, email, full_name")
-        .eq("email", email)
-        .single();
-
-      if (clientError || !clientRow) {
+      if (!clientsData.success || !clientsData.clients || clientsData.clients.length === 0) {
         setErrorMsg("No se encontró el cliente con ese correo.");
+        return;
+      }
+
+      // Buscar el cliente exacto por email
+      const clientRow = clientsData.clients.find(
+        (c: any) => c.email.toLowerCase() === email.toLowerCase()
+      );
+
+      if (!clientRow) {
+        setErrorMsg("No se encontró el cliente con ese correo exacto.");
         return;
       }
 
       const clientData: ClientBasic = {
         id: clientRow.id,
         email: clientRow.email,
-        full_name: clientRow.full_name,
+        full_name: clientRow.nombre && clientRow.apellido
+          ? `${clientRow.nombre} ${clientRow.apellido}`
+          : clientRow.full_name || clientRow.nombre || null,
+        nombre: clientRow.nombre,
+        apellido: clientRow.apellido,
       };
       setClient(clientData);
 
-      // 2. Buscar perfil de riesgo
-      const { data: profileRows, error: profileError } = await supabase
-        .from("risk_profiles")
-        .select("*")
-        .eq("client_id", clientRow.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
+      // 2. Buscar perfil de riesgo usando la API
+      const profileResponse = await fetch(`/api/clients/${clientData.id}/risk-profile`);
+      const profileResult = await profileResponse.json();
 
-      if (profileError || !profileRows || profileRows.length === 0) {
-        setErrorMsg("No se encontró un perfil de riesgo para este cliente.");
+      if (!profileResult.success || !profileResult.profile) {
+        setErrorMsg(profileResult.error || "No se encontró un perfil de riesgo para este cliente.");
         return;
       }
 
-      const profileData = profileRows[0] as RiskProfileRow;
+      const profileData = profileResult.profile as RiskProfileRow;
       setProfile(profileData);
 
       // 3. Generar allocation basado en el score
@@ -350,8 +356,6 @@ export default function ModelMode() {
     setSaveErrorMsg(null);
 
     try {
-      const supabase = supabaseBrowserClient();
-
       const equityBlocksPayload =
         equityRows?.map(({ block, neutral }) => ({
           block_id: block.id,
@@ -393,13 +397,18 @@ export default function ModelMode() {
         alternative_blocks: alternativeBlocksPayload,
       };
 
-      const { error } = await supabase.from("portfolio_models").insert(payload);
+      const response = await fetch("/api/portfolio-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      if (error) {
-        // OJO: nada de console.error para que no aparezca el overlay rojo
+      const result = await response.json();
+
+      if (!result.success) {
         setSaveErrorMsg(
-          error.message ||
-            "No se pudo guardar el modelo en la base de datos. Revisa el esquema de la tabla o las políticas de Supabase."
+          result.error ||
+            "No se pudo guardar el modelo en la base de datos."
         );
         return;
       }

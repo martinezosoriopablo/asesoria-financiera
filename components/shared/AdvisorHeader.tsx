@@ -22,12 +22,16 @@ import {
   ChevronDown,
   FileText,
   Search,
+  Settings,
 } from 'lucide-react';
 
 interface AdvisorHeaderProps {
   advisorName: string;
   advisorEmail: string;
   advisorPhoto?: string;
+  advisorLogo?: string | null;
+  companyName?: string | null;
+  isAdmin?: boolean;
 }
 
 const NAV_ITEMS = [
@@ -48,6 +52,9 @@ export default function AdvisorHeader({
   advisorName,
   advisorEmail,
   advisorPhoto,
+  advisorLogo,
+  companyName,
+  isAdmin = false,
 }: AdvisorHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -62,16 +69,20 @@ export default function AdvisorHeader({
 
   const isActive = (href: string) => pathname === href;
 
+  // Usar logo personalizado si existe, sino usar el default
+  const logoSrc = advisorLogo || '/logo-greybark.png';
+  const logoAlt = companyName || 'Greybark Advisors';
+
   return (
     <>
       <header className="bg-white border-b border-gb-border sticky top-0 z-50">
         <div className="max-w-[1400px] mx-auto px-5">
           <div className="flex items-center justify-between h-20">
-            {/* Logo */}
+            {/* Logo - personalizado por asesor */}
             <Link href="/advisor" className="flex items-center gap-3 shrink-0">
               <img
-                src="/logo-greybark.png"
-                alt="Greybark Advisors"
+                src={logoSrc}
+                alt={logoAlt}
                 className="h-28 w-auto"
               />
             </Link>
@@ -181,6 +192,16 @@ export default function AdvisorHeader({
                         <User className="w-4 h-4" />
                         Mi Perfil
                       </Link>
+                      {isAdmin && (
+                        <Link
+                          href="/admin/advisors"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gray-50"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Gestión Asesores
+                        </Link>
+                      )}
                       <hr className="my-1 border-gb-border" />
                       <button
                         onClick={handleLogout}

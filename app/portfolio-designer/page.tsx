@@ -8,7 +8,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import { BarChart3, User, Zap, TrendingUp, Loader } from "lucide-react";
-import ComparisonMode from "./components/ComparisonMode";
+import ComparisonMode from "./components/ComparisonModeV2";
 import ModelMode from "./components/ModelMode";
 import QuickMode from "./components/QuickMode";
 import AnalysisMode from "./components/AnalysisMode";
@@ -108,6 +108,9 @@ function PortfolioDesignerContent() {
         advisorName={advisor?.name || ""}
         advisorEmail={advisor?.email || ""}
         advisorPhoto={advisor?.photo}
+        advisorLogo={advisor?.logo}
+        companyName={advisor?.companyName}
+        isAdmin={advisor?.isAdmin}
       />
 
       {/* Page Header */}

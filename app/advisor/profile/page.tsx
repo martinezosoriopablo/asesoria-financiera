@@ -97,6 +97,9 @@ export default function AdvisorProfilePage() {
           advisorName="Cargando..."
           advisorEmail={advisorEmail}
           advisorPhoto={photoUrl}
+          advisorLogo={advisor?.logo}
+          companyName={advisor?.companyName}
+          isAdmin={advisor?.isAdmin}
         />
         <div className="flex items-center justify-center h-64">
           <Loader className="w-8 h-8 text-gb-gray animate-spin" />
@@ -112,6 +115,9 @@ export default function AdvisorProfilePage() {
           advisorName="Error"
           advisorEmail={advisorEmail}
           advisorPhoto={photoUrl}
+          advisorLogo={advisor?.logo}
+          companyName={advisor?.companyName}
+          isAdmin={advisor?.isAdmin}
         />
         <div className="max-w-4xl mx-auto px-5 py-8">
           <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg text-sm">
@@ -128,6 +134,9 @@ export default function AdvisorProfilePage() {
         advisorName={`${profile.nombre} ${profile.apellido}`}
         advisorEmail={profile.email}
         advisorPhoto={photoUrl}
+        advisorLogo={advisor?.logo}
+        companyName={advisor?.companyName}
+        isAdmin={advisor?.isAdmin}
       />
 
       <div className="max-w-4xl mx-auto px-5 py-8">

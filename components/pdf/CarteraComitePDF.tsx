@@ -17,6 +17,7 @@ interface CarteraPosition {
   clase: string;
   ticker: string;
   nombre: string;
+  descripcionSimple?: string;
   porcentaje: number;
   justificacion: string;
 }
@@ -28,6 +29,7 @@ interface CambioSugerido {
 }
 
 interface CarteraData {
+  contextoPerfil?: string;
   resumenEjecutivo: string;
   cartera: CarteraPosition[];
   cambiosSugeridos?: CambioSugerido[];
@@ -276,6 +278,34 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
 
+  // Profile Context
+  profileSection: {
+    backgroundColor: "#eff6ff",
+    padding: 12,
+    borderRadius: 6,
+    borderLeft: `3 solid #3b82f6`,
+    marginBottom: 15,
+  },
+  profileTitle: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#1d4ed8",
+    marginBottom: 8,
+  },
+  profileContextText: {
+    fontSize: 9,
+    color: colors.primary,
+    lineHeight: 1.5,
+  },
+
+  // Position description
+  positionDescription: {
+    fontSize: 8,
+    color: "#3b82f6",
+    marginTop: 2,
+    fontStyle: "italic",
+  },
+
   // Footer
   footer: {
     position: "absolute",
@@ -354,9 +384,17 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
           </View>
         </View>
 
+        {/* Profile Context */}
+        {recomendacion.contextoPerfil && (
+          <View style={styles.profileSection}>
+            <Text style={styles.profileTitle}>Su Perfil de Inversionista</Text>
+            <Text style={styles.profileContextText}>{recomendacion.contextoPerfil}</Text>
+          </View>
+        )}
+
         {/* Executive Summary */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Resumen Ejecutivo</Text>
+          <Text style={styles.sectionTitle}>Visión de Mercado y Recomendación</Text>
           <Text style={styles.summaryText}>{recomendacion.resumenEjecutivo}</Text>
         </View>
 
@@ -387,7 +425,12 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
             {recomendacion.cartera.map((pos, idx) => (
               <View key={pos.ticker} style={[styles.tableRow, idx % 2 === 1 ? styles.tableRowAlt : {}]}>
                 <Text style={[styles.tableCellTicker, { width: "12%" }]}>{pos.ticker}</Text>
-                <Text style={[styles.tableCell, { width: "28%" }]}>{pos.nombre}</Text>
+                <View style={{ width: "28%" }}>
+                  <Text style={styles.tableCell}>{pos.nombre}</Text>
+                  {pos.descripcionSimple && (
+                    <Text style={styles.positionDescription}>{pos.descripcionSimple}</Text>
+                  )}
+                </View>
                 <Text style={[styles.tableCell, { width: "15%" }]}>{pos.clase}</Text>
                 <Text style={[styles.tableCellPercent, { width: "10%", textAlign: "right" }]}>
                   {pos.porcentaje}%

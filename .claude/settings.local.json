@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:onedrive.live.com)",
+      "Bash(npm run dev:*)",
+      "Bash(node:*)",
+      "Bash(npx next build)",
+      "Bash(npm run build:*)",
+      "Bash(npx rimraf:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx supabase db execute --help:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:massive.com)",
+      "Bash(claude mcp list:*)",
+      "WebSearch",
+      "WebFetch(domain:query1.finance.yahoo.com)",
+      "Bash(powershell -Command \"Invoke-RestMethod -Uri ''https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=VOO&apikey=EAP2RCIFEO3EYDB7'' | ConvertTo-Json -Depth 5\")"
+    ]
+  }
+}

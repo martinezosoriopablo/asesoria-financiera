@@ -87,7 +87,7 @@ export default function AdvisorDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} />
+        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
         <div className="flex items-center justify-center py-32">
           <Loader className="w-8 h-8 text-gb-gray animate-spin" />
         </div>
@@ -125,7 +125,7 @@ export default function AdvisorDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} />
+      <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
 
       <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Welcome */}
