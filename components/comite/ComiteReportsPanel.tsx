@@ -82,7 +82,10 @@ export default function ComiteReportsPanel() {
   const handleUploadClick = (type: string) => {
     setSelectedType(type);
     setError(null);
-    fileInputRef.current?.click();
+    // Usar setTimeout para asegurar que el state se actualice antes del click
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 0);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -251,13 +254,14 @@ export default function ComiteReportsPanel() {
         </div>
       </div>
 
-      {/* Hidden file input */}
+      {/* Hidden file input - using sr-only for better browser compatibility */}
       <input
         ref={fileInputRef}
         type="file"
-        accept=".html,text/html"
+        accept=".html,.htm,text/html"
         onChange={handleFileChange}
-        className="hidden"
+        className="sr-only"
+        aria-hidden="true"
       />
     </div>
   );
