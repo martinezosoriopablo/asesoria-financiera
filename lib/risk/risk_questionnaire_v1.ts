@@ -60,7 +60,7 @@ export const RISK_QUESTIONNAIRE_V1: RiskQuestion[] = [
     id: "cap_3_dependencia_portafolio",
     dimension: "capacity",
     type: "single_choice",
-    text: "¿Qué tan dependes de este portafolio para financiar tus gastos anuales?",
+    text: "¿Qué tanto dependes de este portafolio para financiar tus gastos anuales?",
     options: [
       { value: "nada", label: "Casi nada, es ahorro de largo plazo", score: 90 },
       { value: "parcial", label: "Parcialmente, pero no es mi fuente principal", score: 70 },
