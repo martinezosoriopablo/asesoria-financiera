@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
 
     if (existingClient) {
       clientId = existingClient.id;
-      // If client has no advisor assigned and we have one, assign it
-      if (!existingClient.asesor_id && advisorId) {
+      // Always assign to the advisor from the questionnaire link (takes precedence)
+      if (advisorId) {
         await supabase
           .from("clients")
           .update({ asesor_id: advisorId })
