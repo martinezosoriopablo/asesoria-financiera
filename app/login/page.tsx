@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Lock, Mail, Loader, AlertCircle } from "lucide-react";
@@ -113,6 +114,15 @@ function LoginForm() {
               "Ingresar"
             )}
           </button>
+
+          <div className="text-center">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-gb-gray hover:text-gb-accent"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
         </form>
 
         <p className="text-center text-xs text-gb-gray mt-8">

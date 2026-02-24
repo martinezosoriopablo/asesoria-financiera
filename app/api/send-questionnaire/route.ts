@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,19 +18,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email es requerido" }, { status: 400 });
     }
 
+    // Obtener datos del asesor si tenemos su email
+    let advisorName = "Tu asesor financiero";
+    let replyTo = "pmartinez@greybark.com";
+
+    if (advisorEmail) {
+      const { data: advisor } = await supabase
+        .from("advisors")
+        .select("nombre, apellido, email")
+        .eq("email", advisorEmail)
+        .single();
+
+      if (advisor) {
+        advisorName = `${advisor.nombre} ${advisor.apellido}`;
+        replyTo = advisor.email;
+      }
+    }
+
     const appUrl = "https://asesoria-financiera.vercel.app";
     const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}${advisorEmail ? `&advisor=${encodeURIComponent(advisorEmail)}` : ""}`;
     const displayName = clientName || email;
 
     const { error } = await resend.emails.send({
       from: "Asesoría Financiera <pmartinez@greybark.com>",
+      replyTo: replyTo,
       to: email,
       subject: "Cuestionario de Perfil de Inversor",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #1e293b;">Hola ${displayName},</h2>
           <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-            Tu asesor financiero te ha enviado un cuestionario para determinar tu perfil de inversor.
+            <strong>${advisorName}</strong> te ha enviado un cuestionario para determinar tu perfil de inversor.
             Este cuestionario nos ayudará a entender tu capacidad, tolerancia y comportamiento frente
             al riesgo, para recomendarte una estrategia de inversión alineada con tus objetivos.
           </p>
@@ -38,7 +62,7 @@ export async function POST(req: NextRequest) {
             </a>
           </div>
           <p style="color: #94a3b8; font-size: 13px;">
-            Si no solicitaste este cuestionario, puedes ignorar este mensaje.
+            Si tienes dudas, puedes responder directamente a este correo para contactar a ${advisorName}.
           </p>
         </div>
       `,

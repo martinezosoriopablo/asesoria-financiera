@@ -19,7 +19,10 @@
       "Bash(claude mcp list:*)",
       "WebSearch",
       "WebFetch(domain:query1.finance.yahoo.com)",
-      "Bash(powershell -Command \"Invoke-RestMethod -Uri ''https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=VOO&apikey=EAP2RCIFEO3EYDB7'' | ConvertTo-Json -Depth 5\")"
+      "Bash(powershell -Command \"Invoke-RestMethod -Uri ''https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=VOO&apikey=EAP2RCIFEO3EYDB7'' | ConvertTo-Json -Depth 5\")",
+      "Bash(git push:*)",
+      "Bash(npx vercel env add:*)",
+      "Bash(npx vercel --prod)"
     ]
   }
 }
