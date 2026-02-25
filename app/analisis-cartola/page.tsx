@@ -35,6 +35,11 @@ import {
   Shield,
   TrendingUp,
   AlertTriangle,
+  Building2,
+  Layers,
+  Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface ParsedStatement {
@@ -56,10 +61,31 @@ interface ManualPosition {
   percent: number;
 }
 
+// Cartola guardada en la base de datos
+interface ClientCartola {
+  id: string;
+  client_id: string;
+  nombre_agf: string;
+  portfolio_data: {
+    statement: ParsedStatement;
+  } | null;
+  composition: Record<string, number> | null;
+  total_value: number;
+  created_at: string;
+}
+
+// Consolidado de todas las cartolas
+interface CartolaConsolidado {
+  total: number;
+  composicion: Record<string, number>;
+  porcentajes: Record<string, number>;
+}
+
 interface ClientRiskProfile {
   id: string;
   nombre: string;
   apellido: string;
+  email: string;
   perfil_riesgo: string;
   puntaje_riesgo: number;
   portfolio_data?: {
@@ -68,6 +94,24 @@ interface ClientRiskProfile {
     savedAt: string;
   } | null;
 }
+
+// AGFs conocidos en Chile
+const AGFS_CHILE = [
+  "Banchile",
+  "BTG Pactual",
+  "LarrainVial",
+  "Santander",
+  "Security",
+  "Sura",
+  "Itaú",
+  "Principal",
+  "BICE",
+  "Credicorp Capital",
+  "Scotia",
+  "Compass Group",
+  "Moneda",
+  "Otro",
+];
 
 // Paleta sobria: indigo, teal, slate, con variaciones
 const COLORS = ["#6366f1", "#14b8a6", "#64748b", "#8b5cf6", "#0d9488", "#475569", "#a78bfa", "#334155"];
@@ -99,6 +143,98 @@ function AnalisisCartolaContent() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [recommendedAllocation, setRecommendedAllocation] = useState<AssetAllocation | null>(null);
 
+  // Multicartola state
+  const [cartolas, setCartolas] = useState<ClientCartola[]>([]);
+  const [consolidado, setConsolidado] = useState<CartolaConsolidado | null>(null);
+  const [loadingCartolas, setLoadingCartolas] = useState(false);
+  const [selectedAgf, setSelectedAgf] = useState<string>("Banchile");
+  const [savingCartola, setSavingCartola] = useState(false);
+  const [viewMode, setViewMode] = useState<"consolidado" | "detalle">("consolidado");
+  const [expandedCartola, setExpandedCartola] = useState<string | null>(null);
+
+  // Fetch cartolas when client changes
+  async function fetchCartolas(clientId: string) {
+    setLoadingCartolas(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/cartolas`);
+      if (!res.ok) {
+        console.error("Error fetching cartolas:", res.status);
+        return;
+      }
+      const data = await res.json();
+      if (data.success) {
+        setCartolas(data.cartolas || []);
+        setConsolidado(data.consolidado || null);
+      }
+    } catch (error) {
+      console.error("Error fetching cartolas:", error);
+    } finally {
+      setLoadingCartolas(false);
+    }
+  }
+
+  // Save new cartola
+  async function saveCartola(stmt: ParsedStatement, comp: PortfolioComposition, agfName: string) {
+    if (!clientProfile?.id || !comp.byAssetClass) return;
+
+    // Convert composition to simple values: { "Equity": 1000 } instead of { "Equity": { value: 1000, percent: 50 } }
+    const simpleComposition: Record<string, number> = {};
+    for (const [key, data] of Object.entries(comp.byAssetClass)) {
+      simpleComposition[key] = data.value;
+    }
+
+    setSavingCartola(true);
+    try {
+      const res = await fetch(`/api/clients/${clientProfile.id}/cartolas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre_agf: agfName,
+          portfolio_data: { statement: stmt },
+          composition: simpleComposition,
+          total_value: comp.totalValue,
+        }),
+      });
+
+      if (res.ok) {
+        // Refresh cartolas
+        await fetchCartolas(clientProfile.id);
+        // Clear current upload
+        setStatement(null);
+        setComposition(null);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || "Error al guardar cartola");
+      }
+    } catch (error) {
+      console.error("Error saving cartola:", error);
+      setError("Error de conexión al guardar cartola");
+    } finally {
+      setSavingCartola(false);
+    }
+  }
+
+  // Delete cartola
+  async function deleteCartola(cartolaId: string) {
+    if (!clientProfile?.id) return;
+    if (!confirm("¿Eliminar esta cartola?")) return;
+
+    try {
+      const res = await fetch(`/api/clients/${clientProfile.id}/cartolas?cartola_id=${cartolaId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        await fetchCartolas(clientProfile.id);
+      } else {
+        alert("Error al eliminar cartola");
+      }
+    } catch (error) {
+      console.error("Error deleting cartola:", error);
+      alert("Error de conexión");
+    }
+  }
+
   // Fetch client profile when email changes
   useEffect(() => {
     async function fetchClientProfile() {
@@ -107,6 +243,8 @@ function AnalisisCartolaContent() {
         setRecommendedAllocation(null);
         setStatement(null);
         setComposition(null);
+        setCartolas([]);
+        setConsolidado(null);
         return;
       }
 
@@ -116,31 +254,25 @@ function AnalisisCartolaContent() {
         const data = await res.json();
 
         if (data.success && data.clients.length > 0) {
-          const client = data.clients.find((c: any) => c.email === email);
+          const client = data.clients.find((c: ClientRiskProfile) => c.email === email);
           if (client && client.puntaje_riesgo) {
             setClientProfile(client);
             const allocation = getBenchmarkFromScore(client.puntaje_riesgo, true, "global");
             setRecommendedAllocation(allocation);
 
-            // Load saved portfolio data if exists
-            if (client.portfolio_data?.composition && client.portfolio_data?.statement) {
-              setComposition(client.portfolio_data.composition);
-              setStatement(client.portfolio_data.statement);
-            } else {
-              setStatement(null);
-              setComposition(null);
-            }
+            // Fetch multicartolas
+            await fetchCartolas(client.id);
           } else {
             setClientProfile(null);
             setRecommendedAllocation(null);
-            setStatement(null);
-            setComposition(null);
+            setCartolas([]);
+            setConsolidado(null);
           }
         } else {
           setClientProfile(null);
           setRecommendedAllocation(null);
-          setStatement(null);
-          setComposition(null);
+          setCartolas([]);
+          setConsolidado(null);
         }
       } catch (error) {
         console.error("Error fetching client profile:", error);
@@ -179,42 +311,6 @@ function AnalisisCartolaContent() {
     }
   }
 
-  async function savePortfolioData(stmt: ParsedStatement, comp: PortfolioComposition) {
-    if (!clientProfile?.id) return;
-
-    const savedAt = new Date().toISOString();
-
-    try {
-      const res = await fetch(`/api/clients/${clientProfile.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          portfolio_data: {
-            composition: comp,
-            statement: stmt,
-            savedAt,
-          },
-          tiene_portfolio: true,
-        }),
-      });
-
-      if (res.ok) {
-        // Actualizar el estado local para mostrar la fecha de guardado
-        setClientProfile((prev) =>
-          prev
-            ? {
-                ...prev,
-                portfolio_data: { composition: comp, statement: stmt, savedAt },
-              }
-            : null
-        );
-      } else {
-        console.error("Error guardando portafolio");
-      }
-    } catch (error) {
-      console.error("Error saving portfolio:", error);
-    }
-  }
 
   async function processFile(file: File) {
     setLoading(true);
@@ -234,11 +330,7 @@ function AnalisisCartolaContent() {
       const comp = classifyPortfolio(data.holdings, data.cashBalance);
       setStatement(data);
       setComposition(comp);
-
-      // Guardar en la base de datos si hay cliente
-      if (clientProfile?.id) {
-        await savePortfolioData(data, comp);
-      }
+      // No guardamos automáticamente - el usuario debe seleccionar AGF y guardar
     } catch (error) {
       setError(error instanceof Error ? error.message : "Error desconocido");
     } finally {
@@ -290,7 +382,7 @@ function AnalisisCartolaContent() {
     );
   }
 
-  async function processManualPositions() {
+  function processManualPositions() {
     const total = manualPositions.reduce((s, p) => s + p.amount, 0);
     if (total <= 0) return;
 
@@ -327,11 +419,7 @@ function AnalisisCartolaContent() {
 
     setStatement(stmt);
     setComposition(comp);
-
-    // Guardar en la base de datos si hay cliente
-    if (clientProfile?.id) {
-      await savePortfolioData(stmt, comp);
-    }
+    // No guardamos automáticamente - el usuario debe seleccionar AGF y guardar
   }
 
   const manualTotal = manualPositions.reduce((s, p) => s + p.amount, 0);
@@ -459,6 +547,139 @@ function AnalisisCartolaContent() {
                 Envíale el cuestionario para obtener una recomendación de portafolio personalizada.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Multicartola Section */}
+        {clientProfile && (
+          <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-teal-500 p-5 mb-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gb-black flex items-center gap-2">
+                <Layers className="w-4 h-4 text-teal-500" />
+                Cartolas por AGF
+                {loadingCartolas && <Loader className="w-4 h-4 animate-spin text-teal-500" />}
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setViewMode("consolidado")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === "consolidado"
+                      ? "bg-teal-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  Consolidado
+                </button>
+                <button
+                  onClick={() => setViewMode("detalle")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === "detalle"
+                      ? "bg-teal-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Detalle por AGF
+                </button>
+              </div>
+            </div>
+
+            {/* Cartolas existentes */}
+            {cartolas.length > 0 ? (
+              <div className="space-y-2 mb-4">
+                {cartolas.map((cartola) => (
+                  <div
+                    key={cartola.id}
+                    className="border border-gb-border rounded-lg overflow-hidden"
+                  >
+                    <div
+                      className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => setExpandedCartola(expandedCartola === cartola.id ? null : cartola.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Building2 className="w-4 h-4 text-teal-600" />
+                        <span className="font-medium text-sm text-gb-black">{cartola.nombre_agf}</span>
+                        <span className="text-xs text-gb-gray">
+                          ${cartola.total_value.toLocaleString("es-CL")}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gb-gray">
+                          {new Date(cartola.created_at).toLocaleDateString("es-CL")}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteCartola(cartola.id);
+                          }}
+                          className="p-1 text-gb-gray hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        {expandedCartola === cartola.id ? (
+                          <ChevronUp className="w-4 h-4 text-gb-gray" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gb-gray" />
+                        )}
+                      </div>
+                    </div>
+
+                    {expandedCartola === cartola.id && cartola.composition && (
+                      <div className="p-3 border-t border-gb-border bg-white">
+                        <div className="grid grid-cols-4 gap-2">
+                          {Object.entries(cartola.composition).map(([asset, value]) => (
+                            <div key={asset} className="text-center p-2 bg-gray-50 rounded">
+                              <p className="text-xs text-gb-gray">{asset}</p>
+                              <p className="text-sm font-semibold text-gb-black">
+                                ${(value as number).toLocaleString("es-CL")}
+                              </p>
+                              {cartola.total_value > 0 && (
+                                <p className="text-xs text-teal-600">
+                                  {((value as number / cartola.total_value) * 100).toFixed(1)}%
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gb-gray text-sm mb-4">
+                <Building2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p>No hay cartolas registradas</p>
+                <p className="text-xs mt-1">Sube una cartola PDF o ingresa las posiciones manualmente</p>
+              </div>
+            )}
+
+            {/* Consolidado */}
+            {consolidado && consolidado.total > 0 && viewMode === "consolidado" && (
+              <div className="border-t border-gb-border pt-4">
+                <h3 className="text-xs font-semibold text-gb-gray uppercase tracking-wide mb-3">
+                  Vista Consolidada
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="bg-teal-50 rounded-lg p-3 border border-teal-100 col-span-2 md:col-span-1">
+                    <p className="text-xs text-teal-600 font-medium">Total</p>
+                    <p className="text-xl font-bold text-teal-700">
+                      ${consolidado.total.toLocaleString("es-CL")}
+                    </p>
+                  </div>
+                  {Object.entries(consolidado.porcentajes).map(([asset, pct]) => (
+                    <div key={asset} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs text-gray-600 font-medium truncate">{asset}</p>
+                      <p className="text-lg font-bold text-gray-700">{pct}%</p>
+                      <p className="text-xs text-gray-500">
+                        ${(consolidado.composicion[asset] || 0).toLocaleString("es-CL")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -632,19 +853,48 @@ function AnalisisCartolaContent() {
         {/* Results */}
         {statement && composition && (
           <>
-            {/* Saved indicator */}
-            {clientProfile?.portfolio_data?.savedAt && (
-              <div className="flex items-center gap-2 mb-4 text-sm text-slate-500">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                <span>
-                  Datos guardados: {new Date(clientProfile.portfolio_data.savedAt).toLocaleDateString("es-CL", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit"
-                  })}
-                </span>
+            {/* Save to AGF selector */}
+            {clientProfile && (
+              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-emerald-500 p-4 mb-6 shadow-sm">
+                <h3 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-emerald-500" />
+                  Guardar Cartola
+                </h3>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={selectedAgf}
+                    onChange={(e) => setSelectedAgf(e.target.value)}
+                    className="flex-1 max-w-xs px-3 py-2 border border-gb-border rounded-md text-sm bg-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    {AGFS_CHILE.map((agf) => (
+                      <option key={agf} value={agf}>{agf}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => saveCartola(statement, composition, selectedAgf)}
+                    disabled={savingCartola}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {savingCartola ? (
+                      <Loader className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Guardar en {selectedAgf}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStatement(null);
+                      setComposition(null);
+                    }}
+                    className="px-3 py-2 text-sm text-gb-gray hover:text-gb-black transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <p className="text-xs text-gb-gray mt-2">
+                  Valor total: ${composition.totalValue.toLocaleString("es-CL")} • {statement.holdings.length} posiciones
+                </p>
               </div>
             )}
 
@@ -662,21 +912,33 @@ function AnalisisCartolaContent() {
               ))}
             </div>
 
-            {/* Comparison: Recommended vs Actual */}
-            {recommendedAllocation && (
+            {/* Comparison: Recommended vs Actual (uses consolidated if available) */}
+            {recommendedAllocation && (consolidado?.total || composition) && (
               <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 mb-6 shadow-sm">
                 <h2 className="text-base font-semibold text-gb-black mb-4 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-indigo-500" />
-                  Comparación: Recomendado vs Actual
+                  Comparación: Recomendado vs {consolidado?.total ? "Consolidado" : "Actual"}
                 </h2>
 
                 {(() => {
-                  // Calculate actual allocation percentages (using English keys from classifier)
-                  const actualRV = composition.byAssetClass["Equity"]?.percent || 0;
-                  const actualRF = composition.byAssetClass["Fixed Income"]?.percent || 0;
-                  const actualCash = composition.byAssetClass["Cash"]?.percent || 0;
-                  // Alternativos no existe en el clasificador, asumimos 0
-                  const actualAlt = 0;
+                  // Use consolidated data if available, otherwise use current composition
+                  let actualRV = 0;
+                  let actualRF = 0;
+                  let actualCash = 0;
+                  let actualAlt = 0;
+
+                  if (consolidado?.total && consolidado.porcentajes) {
+                    // Use consolidated percentages - map keys to our categories
+                    actualRV = consolidado.porcentajes["Equity"] || 0;
+                    actualRF = consolidado.porcentajes["Fixed Income"] || 0;
+                    actualCash = consolidado.porcentajes["Cash"] || 0;
+                    actualAlt = consolidado.porcentajes["Alternative"] || 0;
+                  } else if (composition) {
+                    // Calculate from current composition
+                    actualRV = composition.byAssetClass["Equity"]?.percent || 0;
+                    actualRF = composition.byAssetClass["Fixed Income"]?.percent || 0;
+                    actualCash = composition.byAssetClass["Cash"]?.percent || 0;
+                  }
 
                   const comparisonData = [
                     {
@@ -873,6 +1135,141 @@ function AnalisisCartolaContent() {
               </div>
             </div>
           </>
+        )}
+
+        {/* Consolidated Comparison (when there are cartolas but no current statement) */}
+        {!statement && consolidado && consolidado.total > 0 && recommendedAllocation && (
+          <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 mb-6 shadow-sm">
+            <h2 className="text-base font-semibold text-gb-black mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-indigo-500" />
+              Análisis Consolidado vs Recomendado
+            </h2>
+
+            {(() => {
+              const actualRV = consolidado.porcentajes["Equity"] || 0;
+              const actualRF = consolidado.porcentajes["Fixed Income"] || 0;
+              const actualCash = consolidado.porcentajes["Cash"] || 0;
+              const actualAlt = consolidado.porcentajes["Alternative"] || 0;
+
+              const comparisonData = [
+                {
+                  name: "Renta Variable",
+                  recomendado: recommendedAllocation.weights.equities,
+                  actual: actualRV,
+                  diff: actualRV - recommendedAllocation.weights.equities,
+                },
+                {
+                  name: "Renta Fija",
+                  recomendado: recommendedAllocation.weights.fixedIncome,
+                  actual: actualRF,
+                  diff: actualRF - recommendedAllocation.weights.fixedIncome,
+                },
+                {
+                  name: "Alternativos",
+                  recomendado: recommendedAllocation.weights.alternatives,
+                  actual: actualAlt,
+                  diff: actualAlt - recommendedAllocation.weights.alternatives,
+                },
+                {
+                  name: "Liquidez",
+                  recomendado: recommendedAllocation.weights.cash,
+                  actual: actualCash,
+                  diff: actualCash - recommendedAllocation.weights.cash,
+                },
+              ];
+
+              return (
+                <>
+                  <div className="mb-4 p-3 bg-teal-50 rounded-lg border border-teal-100">
+                    <p className="text-sm text-teal-700">
+                      <strong>Total consolidado:</strong> ${consolidado.total.toLocaleString("es-CL")} en {cartolas.length} cartola{cartolas.length > 1 ? "s" : ""}
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto mb-6">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gb-border">
+                          <th className="text-left py-2 pr-4 font-medium text-gb-gray">Clase de Activo</th>
+                          <th className="text-right py-2 px-4 font-medium text-indigo-600">Recomendado</th>
+                          <th className="text-right py-2 px-4 font-medium text-teal-600">Consolidado</th>
+                          <th className="text-right py-2 pl-4 font-medium text-gb-gray">Diferencia</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparisonData.map((row) => (
+                          <tr key={row.name} className="border-b border-gb-border last:border-0">
+                            <td className="py-3 pr-4 font-medium text-gb-black">{row.name}</td>
+                            <td className="py-3 px-4 text-right tabular-nums text-indigo-600 font-semibold">
+                              {row.recomendado}%
+                            </td>
+                            <td className="py-3 px-4 text-right tabular-nums text-teal-600 font-semibold">
+                              {row.actual}%
+                            </td>
+                            <td className={`py-3 pl-4 text-right tabular-nums font-semibold ${
+                              Math.abs(row.diff) <= 5 ? "text-emerald-600" :
+                              Math.abs(row.diff) <= 15 ? "text-amber-600" : "text-red-600"
+                            }`}>
+                              {row.diff > 0 ? "+" : ""}{row.diff}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={comparisonData} layout="vertical" margin={{ left: 10, right: 10 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                      <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} />
+                      <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(value) => `${value}%`} contentStyle={{ fontSize: 11 }} />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      <Bar dataKey="recomendado" name="Recomendado" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="actual" name="Consolidado" fill="#14b8a6" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+
+                  {comparisonData.some((d) => Math.abs(d.diff) > 10) ? (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        Ajustes Sugeridos
+                      </h4>
+                      <ul className="text-sm text-amber-700 space-y-1">
+                        {comparisonData.map((d) => {
+                          if (d.diff > 10) {
+                            return (
+                              <li key={d.name}>
+                                • <strong>{d.name}</strong>: Reducir {d.diff.toFixed(1)}pp
+                              </li>
+                            );
+                          } else if (d.diff < -10) {
+                            return (
+                              <li key={d.name}>
+                                • <strong>{d.name}</strong>: Aumentar {Math.abs(d.diff).toFixed(1)}pp
+                              </li>
+                            );
+                          }
+                          return null;
+                        })}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <h4 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Portafolio consolidado alineado
+                      </h4>
+                      <p className="text-sm text-emerald-700 mt-1">
+                        La distribución consolidada está dentro del rango aceptable (±10%) respecto al benchmark.
+                      </p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
         )}
       </div>
     </div>

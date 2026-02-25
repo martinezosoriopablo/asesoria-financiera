@@ -152,12 +152,13 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
   const handleAddInteraction = async () => {
     try {
+      const duracion = newInteraction.duracion_minutos ? parseInt(newInteraction.duracion_minutos, 10) : null;
       const response = await fetch(`/api/clients/${clientId}/interactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newInteraction,
-          duracion_minutos: newInteraction.duracion_minutos ? parseInt(newInteraction.duracion_minutos) : null,
+          duracion_minutos: Number.isNaN(duracion) ? null : duracion,
         }),
       });
       const data = await response.json();
@@ -209,12 +210,13 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const handleSaveEdit = async () => {
     setSaving(true);
     try {
+      const patrimonio = editForm.patrimonio_estimado ? parseInt(editForm.patrimonio_estimado, 10) : null;
       const response = await fetch(`/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...editForm,
-          patrimonio_estimado: editForm.patrimonio_estimado ? parseInt(editForm.patrimonio_estimado) : null,
+          patrimonio_estimado: Number.isNaN(patrimonio) ? null : patrimonio,
         }),
       });
       const data = await response.json();
