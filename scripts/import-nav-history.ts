@@ -175,8 +175,9 @@ async function importNavHistory(filePath: string): Promise<void> {
 
       // Pausa breve para no saturar
       await new Promise((resolve) => setTimeout(resolve, 100));
-    } catch (error: any) {
-      console.error(`  ❌ Error procesando fondo ${cmfCode}: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`  ❌ Error procesando fondo ${cmfCode}: ${errorMessage}`);
       stats.errors++;
     }
   }
@@ -211,10 +212,10 @@ function readFile(filePath: string): NavRecord[] {
       trim: true,
     });
 
-    return records.map((record: any) => ({
+    return records.map((record: Record<string, unknown>) => ({
       date: normalizeDate(record.fecha || record.date),
-      cmf_code: (record.cmf_code || record.run || record.fo_run).toString(),
-      nav: parseFloat(record.valor_cuota || record.nav || record.value),
+      cmf_code: String(record.cmf_code || record.run || record.fo_run),
+      nav: parseFloat(String(record.valor_cuota || record.nav || record.value)),
     }));
   } else if (ext === '.xlsx' || ext === '.xls') {
     // Leer Excel
@@ -223,17 +224,20 @@ function readFile(filePath: string): NavRecord[] {
     const worksheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(worksheet);
 
-    return data.map((record: any) => ({
-      date: normalizeDate(record.fecha || record.date),
-      cmf_code: (record.cmf_code || record.run || record.fo_run).toString(),
-      nav: parseFloat(record.valor_cuota || record.nav || record.value),
-    }));
+    return data.map((record) => {
+      const r = record as Record<string, unknown>;
+      return {
+        date: normalizeDate(r.fecha || r.date),
+        cmf_code: String(r.cmf_code || r.run || r.fo_run),
+        nav: parseFloat(String(r.valor_cuota || r.nav || r.value)),
+      };
+    });
   } else {
     throw new Error(`Formato de archivo no soportado: ${ext}`);
   }
 }
 
-function normalizeDate(dateValue: any): string {
+function normalizeDate(dateValue: unknown): string {
   // Si es un número (Excel serial date)
   if (typeof dateValue === 'number') {
     const date = XLSX.SSF.parse_date_code(dateValue);
@@ -316,11 +320,13 @@ async function main() {
   try {
     await importNavHistory(filePath);
     console.log('✅ Proceso completado exitosamente');
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('');
-    console.error('💥 Error fatal:', error.message);
-    if (error.stack) {
-      console.error('Stack trace:', error.stack);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('💥 Error fatal:', errorMessage);
+    if (errorStack) {
+      console.error('Stack trace:', errorStack);
     }
     process.exit(1);
   }

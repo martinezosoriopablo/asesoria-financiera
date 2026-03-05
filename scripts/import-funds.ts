@@ -176,8 +176,9 @@ async function importFundsFromExcel(filePath: string): Promise<void> {
             created++;
           }
         }
-      } catch (error: any) {
-        errorMessages.push(`Error procesando fondo: ${error.message}`);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errorMessages.push(`Error procesando fondo: ${errorMessage}`);
         errors++;
       }
     }
@@ -212,7 +213,27 @@ async function importFundsFromExcel(filePath: string): Promise<void> {
 // TRANSFORMACIÓN DE DATOS
 // ============================================================
 
-function transformFundData(excelFund: ExcelFund): any {
+interface FundData {
+  ticker: string;
+  name: string;
+  series: string;
+  provider: string;
+  provider_code: string;
+  asset_class: string;
+  sub_category: string;
+  geographic_focus: string;
+  currency: string;
+  total_expense_ratio: number;
+  management_fee: number;
+  aum: number;
+  aum_currency: string;
+  is_active: boolean;
+  cmf_code: string;
+  description: string;
+  minimum_investment: number | null;
+}
+
+function transformFundData(excelFund: ExcelFund): FundData {
   const ticker = generateTicker(
     excelFund.nombre_agf,
     excelFund.nombre_fondo,
@@ -313,12 +334,14 @@ async function main() {
   try {
     await importFundsFromExcel(filePath);
     console.log('✅ Proceso completado exitosamente');
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('');
-    console.error('💥 Error fatal:', error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('💥 Error fatal:', errorMessage);
     console.error('');
-    if (error.stack) {
-      console.error('Stack trace:', error.stack);
+    if (errorStack) {
+      console.error('Stack trace:', errorStack);
     }
     process.exit(1);
   }

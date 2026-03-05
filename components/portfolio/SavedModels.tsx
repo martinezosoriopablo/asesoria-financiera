@@ -5,6 +5,12 @@
 import React, { useState, useEffect } from "react";
 import { History, Download, Trash2, Calendar, TrendingUp, Shield, Landmark, X } from "lucide-react";
 
+interface BlockData {
+  label: string;
+  model_weight: number;
+  neutral_weight: number;
+}
+
 interface SavedModel {
   id: string;
   client_id: string;
@@ -18,9 +24,9 @@ interface SavedModel {
     alternatives: number;
     cash: number;
   };
-  equity_blocks: any[];
-  fixed_income_blocks: any[];
-  alternative_blocks: any[];
+  equity_blocks: BlockData[];
+  fixed_income_blocks: BlockData[];
+  alternative_blocks: BlockData[];
   created_at: string;
 }
 
@@ -39,6 +45,7 @@ export function SavedModels({ clientId, clientEmail, onLoadModel, onClose }: Sav
 
   useEffect(() => {
     loadModels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   const loadModels = async () => {
@@ -397,7 +404,7 @@ function ModelCard({ model, onLoad, onDelete, isDeleting, formatDate }: ModelCar
 }
 
 // Componente para mostrar detalle de cada bloque
-function BlockDetail({ block }: { block: any }) {
+function BlockDetail({ block }: { block: BlockData }) {
   const diff = block.model_weight - block.neutral_weight;
   const isSignificant = Math.abs(diff) >= 0.2;
 

@@ -9,7 +9,13 @@ interface UploadRentAgregadasModalProps {
 export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregadasModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    insertados: number;
+    errores: number;
+    fecha_calculo: string;
+    modo: string;
+    fondosNoEncontrados?: string[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fechaCalculo, setFechaCalculo] = useState(new Date().toISOString().split('T')[0]);
   const [modo, setModo] = useState<'reemplazar' | 'actualizar'>('reemplazar');
@@ -58,9 +64,9 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
           setError(data.error + ' | Fondos no encontrados: ' + data.fondosNoEncontrados.join(', '));
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error:', error);
-      setError('Error de conexión: ' + error.message);
+      setError('Error de conexión: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }

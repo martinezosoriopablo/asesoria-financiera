@@ -47,12 +47,12 @@ export async function GET(request: NextRequest) {
         currency: f.currency,
       })),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error buscando fondos:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al buscar fondos",
+        error: error instanceof Error ? error.message : "Error al buscar fondos",
       },
       { status: 500 }
     );

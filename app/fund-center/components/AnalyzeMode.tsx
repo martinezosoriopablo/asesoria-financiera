@@ -6,20 +6,12 @@
 import React, { useState } from "react";
 import {
   Upload,
-  TrendingUp,
-  PieChart as PieChartIcon,
-  BarChart3,
   FileText,
   AlertCircle,
 } from "lucide-react";
 import {
   LineChart,
   Line,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -70,10 +62,6 @@ interface FundData {
   num_posiciones: number;
 }
 
-const SECTOR_COLORS = [
-  "#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
-  "#ec4899", "#06b6d4", "#f97316", "#84cc16", "#6366f1",
-];
 
 export default function AnalyzeMode() {
   const [fundData, setFundData] = useState<FundData | null>(null);
@@ -122,10 +110,6 @@ export default function AnalyzeMode() {
     if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
     if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
     return `$${value.toLocaleString()}`;
-  };
-
-  const prepareSectorData = (sectors: { [key: string]: number }) => {
-    return Object.entries(sectors).map(([name, value]) => ({ name, value }));
   };
 
   return (

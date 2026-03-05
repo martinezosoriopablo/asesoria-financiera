@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Calendar, Clock, MapPin, Video, Phone, User } from "lucide-react";
+import { Clock, MapPin, Video, Phone, User } from "lucide-react";
 
 interface Meeting {
   id: string;

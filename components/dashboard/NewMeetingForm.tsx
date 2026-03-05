@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Calendar, Clock, MapPin, Video, Phone, User, X } from "lucide-react";
+import { Calendar, MapPin, Video, Phone, X } from "lucide-react";
 
 interface Client {
   id: string;
@@ -89,17 +89,6 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
       setError("Error al crear reunión");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getTipoIcon = (tipo: string) => {
-    switch (tipo) {
-      case "virtual":
-        return <Video className="w-4 h-4" />;
-      case "llamada":
-        return <Phone className="w-4 h-4" />;
-      default:
-        return <MapPin className="w-4 h-4" />;
     }
   };
 

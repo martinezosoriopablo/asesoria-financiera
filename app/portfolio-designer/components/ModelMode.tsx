@@ -75,6 +75,41 @@ type ConsolidatedRow = {
   tilt: TiltInfo;
 };
 
+// Type for client search result from API
+interface ClientSearchResult {
+  id: string;
+  email: string;
+  full_name: string | null;
+  nombre?: string;
+  apellido?: string;
+}
+
+// Type for saved portfolio model blocks
+interface SavedModelBlock {
+  block_id: string;
+  label: string;
+  neutral_weight: number;
+  model_weight: number;
+  selected_fund_id: string | null;
+}
+
+// Type for saved portfolio model from API
+interface SavedPortfolioModel {
+  id: string;
+  universe: BenchmarkUniverse;
+  include_alternatives: boolean;
+  portfolio_amount: number | null;
+  equity_blocks: SavedModelBlock[];
+  fixed_income_blocks: SavedModelBlock[];
+  alternative_blocks: SavedModelBlock[];
+}
+
+// Type for AbsoluteValuesTable row
+interface AbsoluteValueRow {
+  block: { id: string; label: string };
+  model: number;
+}
+
 // Tolerancia para considerar consistente la suma de pesos vs benchmark (en pp)
 const TOLERANCIA_PESOS_PORC = 0.1;
 
@@ -232,7 +267,7 @@ export default function ModelMode() {
 
       // Buscar el cliente exacto por email
       const clientRow = clientsData.clients.find(
-        (c: any) => c.email.toLowerCase() === email.toLowerCase()
+        (c: ClientSearchResult) => c.email.toLowerCase() === email.toLowerCase()
       );
 
       if (!clientRow) {
@@ -414,9 +449,9 @@ export default function ModelMode() {
       }
 
       setSaveMsg("Modelo de cartera guardado correctamente.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSaveErrorMsg(
-        err?.message ||
+        (err instanceof Error ? err.message : null) ||
           "Ocurrió un error inesperado al guardar el modelo de cartera."
       );
     } finally {
@@ -424,7 +459,7 @@ export default function ModelMode() {
     }
   };
 
-  const handleLoadModel = async (model: any) => {
+  const handleLoadModel = async (model: SavedPortfolioModel) => {
     try {
       // Establecer universo y alternatives
       setUniverse(model.universe);
@@ -449,14 +484,14 @@ export default function ModelMode() {
 
       // Reconstruir pesos de equity
       const eqWeights: Partial<EquityModelWeights> = {};
-      model.equity_blocks.forEach((block: any) => {
+      model.equity_blocks.forEach((block: SavedModelBlock) => {
         eqWeights[block.block_id as EquityBlockId] = block.model_weight;
       });
       setEquityWeights(eqWeights as EquityModelWeights);
 
       // Reconstruir fondos de equity
       const eqFunds: Partial<EquitySelectedFunds> = {};
-      model.equity_blocks.forEach((block: any) => {
+      model.equity_blocks.forEach((block: SavedModelBlock) => {
         if (block.selected_fund_id) {
           eqFunds[block.block_id as EquityBlockId] = block.selected_fund_id;
         }
@@ -465,14 +500,14 @@ export default function ModelMode() {
 
       // Reconstruir pesos de fixed income
       const fiWeights: Partial<FixedIncomeModelWeights> = {};
-      model.fixed_income_blocks.forEach((block: any) => {
+      model.fixed_income_blocks.forEach((block: SavedModelBlock) => {
         fiWeights[block.block_id as FixedIncomeBlockId] = block.model_weight;
       });
       setFixedIncomeWeights(fiWeights as FixedIncomeModelWeights);
 
       // Reconstruir fondos de fixed income
       const fiFunds: Partial<FixedIncomeSelectedFunds> = {};
-      model.fixed_income_blocks.forEach((block: any) => {
+      model.fixed_income_blocks.forEach((block: SavedModelBlock) => {
         if (block.selected_fund_id) {
           fiFunds[block.block_id as FixedIncomeBlockId] = block.selected_fund_id;
         }
@@ -482,13 +517,13 @@ export default function ModelMode() {
       // Reconstruir pesos de alternatives si aplica
       if (model.include_alternatives && model.alternative_blocks) {
         const altWeights: Partial<AlternativeModelWeights> = {};
-        model.alternative_blocks.forEach((block: any) => {
+        model.alternative_blocks.forEach((block: SavedModelBlock) => {
           altWeights[block.block_id as AlternativeBlockId] = block.model_weight;
         });
         setAlternativeWeights(altWeights as AlternativeModelWeights);
 
         const altFunds: Partial<AlternativeSelectedFunds> = {};
-        model.alternative_blocks.forEach((block: any) => {
+        model.alternative_blocks.forEach((block: SavedModelBlock) => {
           if (block.selected_fund_id) {
             altFunds[block.block_id as AlternativeBlockId] = block.selected_fund_id;
           }
@@ -1066,7 +1101,7 @@ export default function ModelMode() {
 
 // Absolute Values Table Component
 interface AbsoluteValuesTableProps {
-  rows: any[];
+  rows: AbsoluteValueRow[];
   portfolioAmount: number;
   assetClass: string;
   color: "blue" | "slate" | "indigo";
@@ -1100,7 +1135,7 @@ function AbsoluteValuesTable({
         Valores Absolutos - {assetClass}
       </h4>
       <div className="space-y-2">
-        {rows.map(({ block, model }: any) => {
+        {rows.map(({ block, model }: AbsoluteValueRow) => {
           const absoluteValue = (model / 100) * portfolioAmount;
           return (
             <div
@@ -1133,7 +1168,7 @@ function AbsoluteValuesTable({
             $
             {rows
               .reduce(
-                (sum: number, { model }: any) => sum + (model / 100) * portfolioAmount,
+                (sum: number, { model }: AbsoluteValueRow) => sum + (model / 100) * portfolioAmount,
                 0
               )
               .toLocaleString("es-CL", {
@@ -1349,7 +1384,7 @@ function EquityTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gb-border">
-              {rows.map(({ block, neutral, model, tilt }) => {
+              {rows.map(({ block, neutral, model: _model, tilt }) => {
                 const fundOptions = block.compatibleFunds;
                 const selectedFundId = selectedFunds[block.id] ?? "";
 
@@ -1523,7 +1558,7 @@ function FixedIncomeTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gb-border">
-              {rows.map(({ block, neutral, model, tilt }) => {
+              {rows.map(({ block, neutral, model: _model, tilt }) => {
                 const fundOptions = block.compatibleFunds;
                 const selectedFundId = selectedFunds[block.id] ?? "";
 
@@ -1697,7 +1732,7 @@ function AlternativeTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gb-border">
-              {rows.map(({ block, neutral, model, tilt }) => {
+              {rows.map(({ block, neutral, model: _model, tilt }) => {
                 const fundOptions = block.compatibleFunds;
                 const selectedFundId = selectedFunds[block.id] ?? "";
 

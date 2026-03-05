@@ -11,10 +11,48 @@ import * as XLSX from "xlsx";
 // INTERFACES
 // ============================================================
 
+interface ProposedFund {
+  id: string;
+  name: string;
+  ticker: string;
+  provider: string;
+  platform: string;
+  asset_class: string;
+  sub_category: string;
+  currency: string;
+  expense_ratio: number;
+  platform_fee: number;
+  total_cost: number;
+  return_1y: number | null;
+  return_3y: number | null;
+  return_5y: number | null;
+  return_10y?: number | null;
+  return_ytd?: number | null;
+  description: string | null;
+  factsheet_url: string | null;
+  is_active: boolean;
+}
+
+interface CalculatedReturns {
+  return_1y?: number;
+  return_3y?: number;
+  return_5y?: number;
+  return_10y?: number;
+  return_ytd?: number;
+}
+
+interface ExcelRow {
+  fecha?: string | number | Date;
+  date?: string | number | Date;
+  valor_cuota?: string | number;
+  nav?: string | number;
+  value?: string | number;
+}
+
 interface ProposedFundFormProps {
   assetClass: string;
   subCategory?: string;
-  onSuccess: (fund: any) => void;
+  onSuccess: (fund: ProposedFund) => void;
   onCancel: () => void;
 }
 
@@ -65,7 +103,7 @@ export function ProposedFundFormV2({
   const [navUploadMethod, setNavUploadMethod] = useState<"manual" | "file">("manual");
   const [navFile, setNavFile] = useState<File | null>(null);
   const [navData, setNavData] = useState<NavData[]>([]);
-  const [calculatedReturns, setCalculatedReturns] = useState<any>(null);
+  const [calculatedReturns, setCalculatedReturns] = useState<CalculatedReturns | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -106,10 +144,13 @@ export function ProposedFundFormV2({
       const data = XLSX.utils.sheet_to_json(worksheet);
 
       // Parsear datos
-      const parsed: NavData[] = data.map((row: any) => ({
-        date: normalizeDate(row.fecha || row.date),
-        nav: parseFloat(row.valor_cuota || row.nav || row.value),
-      }));
+      const parsed: NavData[] = data.map((row: unknown) => {
+        const excelRow = row as ExcelRow;
+        return {
+          date: normalizeDate(excelRow.fecha || excelRow.date),
+          nav: parseFloat(String(excelRow.valor_cuota || excelRow.nav || excelRow.value)),
+        };
+      });
 
       // Ordenar por fecha
       parsed.sort((a, b) => a.date.localeCompare(b.date));
@@ -127,12 +168,13 @@ export function ProposedFundFormV2({
         return_3y: returns.return_3y,
         return_5y: returns.return_5y,
       }));
-    } catch (error: any) {
-      setError(`Error leyendo archivo: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      setError(`Error leyendo archivo: ${errorMessage}`);
     }
   };
 
-  const normalizeDate = (dateValue: any): string => {
+  const normalizeDate = (dateValue: string | number | Date | undefined): string => {
     // Número de serie de Excel (ej: 44197 = 1 enero 2021)
     if (typeof dateValue === "number") {
       // Convertir número de serie Excel a fecha manualmente
@@ -278,7 +320,7 @@ export function ProposedFundFormV2({
         // Recalcular rentabilidades con función de BD
         const { data: returns, error: returnsError } = await supabase
           .rpc("calculate_proposed_fund_returns", { p_proposed_fund_id: fund.id })
-          .single() as { data: Record<string, any>; error: any };
+          .single() as { data: CalculatedReturns | null; error: Error | null };
 
         if (!returnsError && returns) {
           // Actualizar fondo con rentabilidades calculadas
@@ -296,9 +338,10 @@ export function ProposedFundFormV2({
       }
 
       onSuccess(fund);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error guardando fondo:", error);
-      setError(error.message || "Error al guardar el fondo");
+      const errorMessage = error instanceof Error ? error.message : "Error al guardar el fondo";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

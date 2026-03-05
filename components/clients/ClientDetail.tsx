@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   Mail,
   Phone,
-  DollarSign,
   Shield,
   TrendingUp,
   Edit,
@@ -41,7 +40,7 @@ interface Client {
   puntaje_riesgo: number;
   tolerancia_perdida: number;
   tiene_portfolio: boolean;
-  portfolio_data: any;
+  portfolio_data: Record<string, unknown>;
   status: string;
   notas: string;
   fecha_onboarding: string;
@@ -132,6 +131,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
   useEffect(() => {
     fetchClient();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   const fetchClient = async () => {

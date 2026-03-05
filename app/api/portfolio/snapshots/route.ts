@@ -15,7 +15,7 @@ interface SnapshotData {
     alternatives?: { value: number; percent: number };
     cash?: { value: number; percent: number };
   };
-  holdings?: any[];
+  holdings?: unknown[];
   source?: string;
 }
 
@@ -89,9 +89,9 @@ export async function GET(request: NextRequest) {
         endDate: endDate.toISOString().split("T")[0],
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in GET snapshots:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Error in GET snapshots" }, { status: 500 });
   }
 }
 
@@ -192,14 +192,43 @@ export async function POST(request: NextRequest) {
       success: true,
       data: snapshot,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in POST snapshot:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Error in POST snapshot" }, { status: 500 });
   }
 }
 
 // Función para calcular métricas de rendimiento
-function calculateMetrics(snapshots: any[]): any {
+interface SnapshotRecord {
+  total_value: number;
+  snapshot_date: string;
+  unrealized_gain_loss?: number;
+  equity_percent?: number;
+  fixed_income_percent?: number;
+  alternatives_percent?: number;
+  cash_percent?: number;
+}
+
+interface PortfolioMetrics {
+  totalReturn: number;
+  annualizedReturn: number;
+  volatility: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+  currentValue: number;
+  initialValue: number;
+  dataPoints: number;
+  unrealizedGainLoss?: number;
+  periodDays?: number;
+  composition?: {
+    equity: number | undefined;
+    fixedIncome: number | undefined;
+    alternatives: number | undefined;
+    cash: number | undefined;
+  };
+}
+
+function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
   if (snapshots.length < 2) {
     return {
       totalReturn: 0,

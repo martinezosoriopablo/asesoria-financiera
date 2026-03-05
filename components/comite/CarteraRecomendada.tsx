@@ -12,7 +12,6 @@ import {
   Wallet,
   AlertTriangle,
   Eye,
-  FileText,
   CheckCircle,
   Loader,
   Sparkles,
@@ -418,10 +417,18 @@ export default function CarteraRecomendada({
 }
 
 // Componente para el botón de generar
+interface GenerarCarteraResponse {
+  success: boolean;
+  cliente?: ClienteInfo;
+  recomendacion?: CarteraData;
+  generadoEn?: string;
+  error?: string;
+}
+
 interface GenerarCarteraButtonProps {
   clientId: string;
   montoInversion?: number;
-  onCarteraGenerada: (data: any) => void;
+  onCarteraGenerada: (data: GenerarCarteraResponse) => void;
   disabled?: boolean;
 }
 
@@ -452,7 +459,7 @@ export function GenerarCarteraButton({
       } else {
         setError(data.error || "Error al generar cartera");
       }
-    } catch (err) {
+    } catch {
       setError("Error de conexión");
     } finally {
       setLoading(false);

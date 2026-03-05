@@ -9,13 +9,12 @@ import { FundSelector, Fund } from "@/components/portfolio/FundSelector";
 import { supabaseBrowserClient } from "@/lib/supabase/supabaseClient";
 import { getBenchmarkFromScore, type AssetAllocation } from "@/lib/risk/benchmarks";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   LineChart, Line, CartesianGrid,
 } from "recharts";
 import {
   ChevronDown,
   ChevronUp,
-  Plus,
   DollarSign,
   TrendingUp,
   Search,
@@ -39,6 +38,15 @@ import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
 // INTERFACES
 // ============================================================
 
+interface PortfolioHolding {
+  name?: string;
+  ticker?: string;
+  value?: number;
+  percent?: number;
+  type?: string;
+  assetClass?: string;
+}
+
 interface Client {
   id: string;
   nombre: string;
@@ -47,10 +55,10 @@ interface Client {
   rut?: string;
   portfolio_data?: {
     composition?: {
-      holdings?: any[];
+      holdings?: PortfolioHolding[];
     };
     statement?: {
-      holdings?: any[];
+      holdings?: PortfolioHolding[];
     };
   };
 }
@@ -312,11 +320,23 @@ export default function ComparisonMode() {
   const [exportingPDF, setExportingPDF] = useState(false);
 
   // AI Cartera state
-  const [carteraIA, setCarteraIA] = useState<any>(null);
+  interface CarteraIAItem {
+    ticker?: string;
+    name?: string;
+    weight?: number;
+    assetClass?: string;
+    region?: string;
+  }
+  interface CarteraIA {
+    items?: CarteraIAItem[];
+    allocations?: CarteraIAItem[];
+    [key: string]: unknown;
+  }
+  const [carteraIA, setCarteraIA] = useState<CarteraIA | null>(null);
   const [showCarteraIA, setShowCarteraIA] = useState(false);
   const [applyingCartera, setApplyingCartera] = useState(false);
   const [applySuccess, setApplySuccess] = useState<string | null>(null);
-  const [carteraAplicada, setCarteraAplicada] = useState<any[] | null>(null);
+  const [carteraAplicada, setCarteraAplicada] = useState<CarteraIAItem[] | null>(null);
   const [skipBenchmarkUpdate, setSkipBenchmarkUpdate] = useState(false);
 
   // Currency state
@@ -556,11 +576,14 @@ export default function ComparisonMode() {
           "Cash": "cash",
         };
 
-        const positions: ActualPosition[] = Object.entries(byAssetClass).map(([key, data]: [string, any]) => ({
-          type: keyMap[key] || "alternativo",
-          amount: data.value || 0,
-          percent: data.percent || 0,
-        }));
+        const positions: ActualPosition[] = Object.entries(byAssetClass).map(([key, data]) => {
+          const assetData = data as { value?: number; percent?: number };
+          return {
+            type: keyMap[key] || "alternativo",
+            amount: assetData.value || 0,
+            percent: assetData.percent || 0,
+          };
+        });
 
         if (positions.length > 0) {
           setActualPositions(positions);
@@ -843,9 +866,10 @@ export default function ComparisonMode() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error exportando PDF:", error);
-      alert(`Error al generar el PDF: ${error.message}`);
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      alert(`Error al generar el PDF: ${message}`);
     } finally {
       setExportingPDF(false);
     }
@@ -961,13 +985,15 @@ export default function ComparisonMode() {
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {carteraAplicada.map((pos: any, idx: number) => (
+                    {carteraAplicada.map((pos, idx: number) => {
+                      const posItem = pos as CarteraIAItem & { porcentaje?: number; nombre?: string; clase?: string };
+                      return (
                       <div key={idx} className="bg-white p-3 rounded-md border border-blue-100 group relative">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-mono text-sm font-bold text-blue-800">{pos.ticker}</span>
+                          <span className="font-mono text-sm font-bold text-blue-800">{posItem.ticker}</span>
                           <input
                             type="number"
-                            value={pos.porcentaje}
+                            value={posItem.porcentaje || 0}
                             onChange={(e) => {
                               const newValue = parseFloat(e.target.value) || 0;
                               setCarteraAplicada(prev =>
@@ -980,8 +1006,8 @@ export default function ComparisonMode() {
                           />
                           <span className="text-sm text-blue-600">%</span>
                         </div>
-                        <p className="text-xs text-gray-600 truncate">{pos.nombre}</p>
-                        <p className="text-xs text-gray-400 mt-1">{pos.clase}</p>
+                        <p className="text-xs text-gray-600 truncate">{posItem.nombre || posItem.name}</p>
+                        <p className="text-xs text-gray-400 mt-1">{posItem.clase || posItem.assetClass}</p>
                         <button
                           onClick={() => {
                             setCarteraAplicada(prev => prev?.filter((_, i) => i !== idx) || null);
@@ -992,31 +1018,32 @@ export default function ComparisonMode() {
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                    ))}
+                    )})}
                   </div>
                   <div className="flex items-center justify-between mt-3">
                     <p className="text-xs text-blue-600">
-                      Total: {carteraAplicada.reduce((sum: number, p: any) => sum + p.porcentaje, 0)}% asignado
+                      Total: {carteraAplicada.reduce((sum: number, p) => sum + ((p as CarteraIAItem & { porcentaje?: number }).porcentaje || 0), 0)}% asignado
                     </p>
                     <button
                       onClick={async () => {
                         // Re-apply with updated allocations
                         setApplySuccess("Actualizando allocations...");
                         // Trigger re-apply logic similar to onAplicar
-                        const rvPositions = carteraAplicada.filter((p: any) => p.clase === "Renta Variable");
-                        const rfPositions = carteraAplicada.filter((p: any) => p.clase === "Renta Fija");
-                        const altPositions = carteraAplicada.filter((p: any) => p.clase === "Commodities" || p.clase === "Alternativos");
+                        type ExtendedCarteraItem = CarteraIAItem & { porcentaje?: number; clase?: string };
+                        const rvPositions = carteraAplicada.filter((p) => (p as ExtendedCarteraItem).clase === "Renta Variable");
+                        const rfPositions = carteraAplicada.filter((p) => (p as ExtendedCarteraItem).clase === "Renta Fija");
+                        const altPositions = carteraAplicada.filter((p) => (p as ExtendedCarteraItem).clase === "Commodities" || (p as ExtendedCarteraItem).clase === "Alternativos");
 
                         setAssetClasses((prev) => {
                           return prev.map((ac) => {
                             if (ac.id === "equity" && rvPositions.length > 0) {
-                              return { ...ac, totalPercent: rvPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0), expanded: true };
+                              return { ...ac, totalPercent: rvPositions.reduce((sum: number, p) => sum + ((p as ExtendedCarteraItem).porcentaje || 0), 0), expanded: true };
                             }
                             if (ac.id === "fixed_income" && rfPositions.length > 0) {
-                              return { ...ac, totalPercent: rfPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0), expanded: true };
+                              return { ...ac, totalPercent: rfPositions.reduce((sum: number, p) => sum + ((p as ExtendedCarteraItem).porcentaje || 0), 0), expanded: true };
                             }
                             if (ac.id === "alternative" && altPositions.length > 0) {
-                              return { ...ac, totalPercent: altPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0), expanded: true };
+                              return { ...ac, totalPercent: altPositions.reduce((sum: number, p) => sum + ((p as ExtendedCarteraItem).porcentaje || 0), 0), expanded: true };
                             }
                             return ac;
                           });
@@ -1080,7 +1107,6 @@ export default function ComparisonMode() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {Object.entries(ASSET_TYPE_LABELS).map(([key, label]) => {
                     const override = managerOverrides[key] || 0;
-                    const baseValue = baseWeights[key as keyof typeof baseWeights] || 0;
                     return (
                       <div key={key} className="bg-white rounded-lg p-3 border border-amber-200">
                         <div className="text-xs font-medium text-gb-gray mb-1">{label}</div>
@@ -1830,17 +1856,37 @@ export default function ComparisonMode() {
                   const currentHoldings = client.portfolio_data?.composition?.holdings ||
                                           client.portfolio_data?.statement?.holdings || [];
 
+                  interface CarteraPosition {
+                    ticker: string;
+                    nombre: string;
+                    porcentaje: number;
+                    clase: string;
+                  }
+
+                  interface YahooFundData {
+                    yahooSymbol: string;
+                    name: string;
+                    currency: string;
+                    currentPrice: number;
+                    return_1m?: number;
+                    return_3m?: number;
+                    return_6m?: number;
+                    return_1y?: number;
+                    return_ytd?: number;
+                    historicalData?: { date: string; value: number }[];
+                  }
+
                   // Separate holdings by asset class
-                  const equityHoldings = currentHoldings.filter((h: any) => h.assetClass === "Equity");
-                  const fixedIncomeHoldings = currentHoldings.filter((h: any) => h.assetClass === "Fixed Income");
+                  const equityHoldings = currentHoldings.filter((h) => h.assetClass === "Equity");
+                  const fixedIncomeHoldings = currentHoldings.filter((h) => h.assetClass === "Fixed Income");
 
                   // Group cartera by asset class
-                  const rvPositions = cartera.filter((p: any) => p.clase === "Renta Variable");
-                  const rfPositions = cartera.filter((p: any) => p.clase === "Renta Fija");
-                  const altPositions = cartera.filter((p: any) => p.clase === "Commodities" || p.clase === "Alternativos");
+                  const rvPositions = cartera.filter((p: CarteraPosition) => p.clase === "Renta Variable");
+                  const rfPositions = cartera.filter((p: CarteraPosition) => p.clase === "Renta Fija");
+                  const altPositions = cartera.filter((p: CarteraPosition) => p.clase === "Commodities" || p.clase === "Alternativos");
 
                   // Function to fetch current fund data from Yahoo Finance
-                  const fetchCurrentFundData = async (fundName: string, securityId: string): Promise<any> => {
+                  const fetchCurrentFundData = async (fundName: string, _securityId: string): Promise<YahooFundData | null> => {
                     try {
                       // Try to find Yahoo Finance symbol for this fund
                       const yahooMapping = findYahooSymbol(fundName);
@@ -1855,17 +1901,18 @@ export default function ComparisonMode() {
 
                       if (result.success) {
                         // Convert Yahoo Finance returns to fund format
-                        const returns = result.returns || [];
+                        interface ReturnItem { period: string; value: number }
+                        const returns: ReturnItem[] = result.returns || [];
                         return {
                           yahooSymbol: result.symbol,
                           name: result.name || fundName,
                           currency: result.currency,
                           currentPrice: result.currentPrice,
-                          return_1m: returns.find((r: any) => r.period === "1M")?.value,
-                          return_3m: returns.find((r: any) => r.period === "3M")?.value,
-                          return_6m: returns.find((r: any) => r.period === "6M")?.value,
-                          return_1y: returns.find((r: any) => r.period === "1Y")?.value,
-                          return_ytd: returns.find((r: any) => r.period === "YTD")?.value,
+                          return_1m: returns.find((r) => r.period === "1M")?.value,
+                          return_3m: returns.find((r) => r.period === "3M")?.value,
+                          return_6m: returns.find((r) => r.period === "6M")?.value,
+                          return_1y: returns.find((r) => r.period === "1Y")?.value,
+                          return_ytd: returns.find((r) => r.period === "YTD")?.value,
                           historicalData: result.historicalData,
                         };
                       }
@@ -1877,7 +1924,7 @@ export default function ComparisonMode() {
                   };
 
                   // Create allocations with real fund data
-                  const createAllocationsAsync = async (positions: any[], holdingsForClass: any[]) => {
+                  const createAllocationsAsync = async (positions: CarteraPosition[], holdingsForClass: PortfolioHolding[]) => {
                     const allocations = [];
 
                     for (let i = 0; i < positions.length; i++) {
@@ -1962,15 +2009,15 @@ export default function ComparisonMode() {
                   setAssetClasses((prev) => {
                     return prev.map((ac) => {
                       if (ac.id === "equity" && rvAllocations.length > 0) {
-                        return { ...ac, allocations: rvAllocations, expanded: true, totalPercent: rvPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0) };
+                        return { ...ac, allocations: rvAllocations, expanded: true, totalPercent: rvPositions.reduce((sum: number, p: CarteraPosition) => sum + p.porcentaje, 0) };
                       }
 
                       if (ac.id === "fixed_income" && rfAllocations.length > 0) {
-                        return { ...ac, allocations: rfAllocations, expanded: true, totalPercent: rfPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0) };
+                        return { ...ac, allocations: rfAllocations, expanded: true, totalPercent: rfPositions.reduce((sum: number, p: CarteraPosition) => sum + p.porcentaje, 0) };
                       }
 
                       if (ac.id === "alternative" && altAllocations.length > 0) {
-                        return { ...ac, allocations: altAllocations, expanded: true, totalPercent: altPositions.reduce((sum: number, p: any) => sum + p.porcentaje, 0) };
+                        return { ...ac, allocations: altAllocations, expanded: true, totalPercent: altPositions.reduce((sum: number, p: CarteraPosition) => sum + p.porcentaje, 0) };
                       }
 
                       return ac;

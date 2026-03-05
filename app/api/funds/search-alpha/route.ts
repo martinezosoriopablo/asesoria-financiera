@@ -112,12 +112,12 @@ export async function GET(request: NextRequest) {
       funds,
       count: funds.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error buscando en Alpha Vantage:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al buscar fondos",
+        error: error instanceof Error ? error.message : "Error al buscar fondos",
       },
       { status: 500 }
     );

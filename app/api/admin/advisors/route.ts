@@ -2,10 +2,10 @@
 // API para gestión de asesores (solo admins)
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin, requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 
 // GET - Obtener lista de asesores
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 

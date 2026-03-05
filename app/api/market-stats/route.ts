@@ -23,6 +23,15 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     // Agrupar por proveedor
+    interface FundRecord {
+      id: string;
+      name: string;
+      provider: string | null;
+      total_expense_ratio: number | null;
+      return_1y: number | null;
+      return_3y: number | null;
+      [key: string]: unknown;
+    }
     const statsByProvider: {
       [key: string]: {
         provider: string;
@@ -34,7 +43,7 @@ export async function GET(request: NextRequest) {
         maxReturn1y: number;
         minReturn1y: number;
         avgReturn3y: number;
-        funds: any[];
+        funds: FundRecord[];
       };
     } = {};
 
@@ -113,12 +122,12 @@ export async function GET(request: NextRequest) {
       providers: providersArray,
       marketAverage,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error obteniendo estadísticas:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al obtener estadísticas",
+        error: error instanceof Error ? error.message : "Error al obtener estadísticas",
       },
       { status: 500 }
     );

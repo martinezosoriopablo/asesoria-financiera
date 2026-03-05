@@ -236,10 +236,11 @@ export async function POST(request: NextRequest) {
         holdingsCount: client.portfolio_data?.statement?.holdings?.length || 0,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in generar-cartera:", error);
+    const message = error instanceof Error ? error.message : "Error interno";
     return NextResponse.json(
-      { success: false, error: error.message || "Error interno" },
+      { success: false, error: message },
       { status: 500 }
     );
   }
@@ -301,7 +302,8 @@ El cliente ya tiene una cartera de inversiones que debemos analizar y comparar c
 ### Distribución por Región
 `;
         for (const [region, data] of Object.entries(portfolioData.composition.byRegion)) {
-          carteraActualSection += `- ${region}: ${(data as any).percent.toFixed(1)}%\n`;
+          const regionData = data as { value: number; percent: number };
+          carteraActualSection += `- ${region}: ${regionData.percent.toFixed(1)}%\n`;
         }
       }
 

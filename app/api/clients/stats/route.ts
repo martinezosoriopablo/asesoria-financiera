@@ -46,12 +46,13 @@ export async function GET() {
         clientes_sin_seguimiento: clientsNeedingFollowup,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching stats:", error);
+    const message = error instanceof Error ? error.message : "Error al obtener estadísticas";
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al obtener estadísticas",
+        error: message,
       },
       { status: 500 }
     );

@@ -98,7 +98,7 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     let parsed;
     try {
       const textContent =
-        data.content.find((c: any) => c.type === "text")?.text || "";
+        data.content.find((c: { type: string; text?: string }) => c.type === "text")?.text || "";
 
       let jsonText = textContent.trim();
       if (jsonText.startsWith("```json")) {
@@ -116,11 +116,11 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     }
 
     return NextResponse.json(parsed);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in parse-portfolio-statement API:", error);
     return NextResponse.json(
       {
-        error: error.message || "Error al analizar la cartola",
+        error: error instanceof Error ? error.message : "Error al analizar la cartola",
         details: "Verifica que el PDF sea una cartola o estado de cuenta válido",
       },
       { status: 500 }

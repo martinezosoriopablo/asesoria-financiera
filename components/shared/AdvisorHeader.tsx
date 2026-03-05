@@ -13,14 +13,12 @@ import {
   TrendingUp,
   GraduationCap,
   Activity,
-  PieChart,
   Menu,
   X,
   LogOut,
   User,
   ChevronDown,
   FileText,
-  Search,
   Settings,
 } from 'lucide-react';
 

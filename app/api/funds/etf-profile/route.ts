@@ -88,12 +88,12 @@ export async function GET(request: NextRequest) {
       rawProfile: profileData,
       rawOverview: overviewData,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error obteniendo perfil de ETF:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al obtener perfil",
+        error: error instanceof Error ? error.message : "Error al obtener perfil",
       },
       { status: 500 }
     );

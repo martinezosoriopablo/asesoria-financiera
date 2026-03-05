@@ -6,6 +6,23 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Interface for rentabilidades agregadas record
+interface RentabilidadesRecord {
+  fondo_id: string;
+  rent_7d: number | null;
+  rent_30d: number | null;
+  rent_90d: number | null;
+  rent_180d: number | null;
+  rent_365d: number | null;
+  rent_ytd: number | null;
+  rent_3y: number | null;
+  rent_5y: number | null;
+  volatilidad_30d: number | null;
+  volatilidad_365d: number | null;
+  sharpe_365d: number | null;
+  patrimonio_mm: number | null;
+}
+
 // Función para clasificar familia simplificada
 function getCategoriaSimple(familia: string | null): string {
   if (!familia) return 'Otros';
@@ -156,7 +173,7 @@ export async function POST(request: NextRequest) {
       console.log('🔍 API Fondos - Contando datos diarios para', fondosIds.length, 'fondos');
       
       const dailyDataCounts: { [key: string]: number } = {};
-      const rentabilidadesAgregadas: { [key: string]: any } = {};
+      const rentabilidadesAgregadas: { [key: string]: RentabilidadesRecord } = {};
       
       if (fondosIds.length > 0) {
         // ✅ NUEVO: Usar COUNT individual por fondo (evita límite 1000)
@@ -197,7 +214,7 @@ export async function POST(request: NextRequest) {
         
         // Crear mapa de rentabilidades por fondo_id
         if (rentAgregadas) {
-          rentAgregadas.forEach((record: any) => {
+          rentAgregadas.forEach((record: RentabilidadesRecord) => {
             rentabilidadesAgregadas[record.fondo_id] = record;
           });
         }
@@ -274,8 +291,8 @@ export async function POST(request: NextRequest) {
       // Calcular estadísticas generales
       const stats = {
         total_fondos: fondos?.length || 0,
-        por_familia: {} as any,
-        por_clase: {} as any,
+        por_familia: {} as { [key: string]: number },
+        por_clase: {} as { [key: string]: number },
         rent_promedio: 0,
         tac_promedio: 0
       };
@@ -368,13 +385,13 @@ export async function POST(request: NextRequest) {
       error: 'Acción no válida' 
     }, { status: 400 });
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en API fondos:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
-        error: 'Error interno del servidor', 
-        details: error.message 
+        error: 'Error interno del servidor',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );

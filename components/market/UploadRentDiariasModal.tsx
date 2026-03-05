@@ -14,7 +14,11 @@ interface UploadRentDiariasModalProps {
 export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDiariasModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    insertados: number;
+    verificados?: number;
+    errores: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modo, setModo] = useState<'reemplazar' | 'agregar'>('reemplazar');
 
@@ -76,8 +80,8 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
       } else {
         setError(data.error || 'Error al cargar el archivo');
       }
-    } catch (err: any) {
-      setError('Error de conexión: ' + err.message);
+    } catch (err: unknown) {
+      setError('Error de conexión: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -259,7 +263,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
                 name="modo"
                 value="reemplazar"
                 checked={modo === 'reemplazar'}
-                onChange={(e) => setModo('reemplazar')}
+                onChange={() => setModo('reemplazar')}
                 style={{ cursor: 'pointer' }}
               />
               <div>
@@ -288,7 +292,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
                 name="modo"
                 value="agregar"
                 checked={modo === 'agregar'}
-                onChange={(e) => setModo('agregar')}
+                onChange={() => setModo('agregar')}
                 style={{ cursor: 'pointer' }}
               />
               <div>

@@ -6,12 +6,9 @@ import Link from "next/link";
 import {
   ArrowLeft,
   User,
-  Mail,
-  Phone,
   DollarSign,
   Shield,
   Target,
-  Calendar,
   Save,
   Loader,
 } from "lucide-react";
@@ -51,7 +48,7 @@ export default function NewClientPage() {
 
     try {
       // Preparar datos para enviar
-      const dataToSend: any = {
+      const dataToSend: Record<string, string | number> = {
         nombre: formData.nombre,
         apellido: formData.apellido,
         email: formData.email,
@@ -86,8 +83,8 @@ export default function NewClientPage() {
       } else {
         setError(data.error || "Error al crear cliente");
       }
-    } catch (err: any) {
-      setError(err.message || "Error al crear cliente");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al crear cliente");
     } finally {
       setLoading(false);
     }

@@ -12,16 +12,14 @@ import { Fund } from "@/components/portfolio/FundSelector";
 import { supabaseBrowserClient } from "@/lib/supabase/supabaseClient";
 import { getBenchmarkFromScore, type AssetAllocation } from "@/lib/risk/benchmarks";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend,
-  LineChart, Line, CartesianGrid, Area, AreaChart,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  CartesianGrid, Area, AreaChart,
 } from "recharts";
 import {
   ChevronDown,
   ChevronUp,
-  DollarSign,
   TrendingUp,
   Search,
-  FileDown,
   User,
   Loader,
   AlertTriangle,
@@ -32,7 +30,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   RefreshCw,
-  Pencil,
   Check,
   Save,
   Upload,
@@ -49,6 +46,25 @@ import * as XLSX from "xlsx";
 // INTERFACES
 // ============================================================
 
+interface PortfolioHolding {
+  securityId?: string;
+  ticker?: string;
+  fundName?: string;
+  name?: string;
+  assetClass?: string;
+  marketValue?: number;
+  costBasis?: number;
+  unrealizedGainLoss?: number;
+  percentOfPortfolio?: number;
+}
+
+interface CarteraPosition {
+  ticker: string;
+  nombre: string;
+  clase: string;
+  porcentaje: number;
+}
+
 interface Client {
   id: string;
   nombre: string;
@@ -57,21 +73,16 @@ interface Client {
   rut?: string;
   portfolio_data?: {
     composition?: {
-      holdings?: any[];
+      holdings?: PortfolioHolding[];
       totalValue?: number;
       byAssetClass?: Record<string, { value: number; percent: number }>;
     };
     statement?: {
-      holdings?: any[];
+      holdings?: PortfolioHolding[];
     };
   };
   cartera_recomendada?: {
-    cartera?: Array<{
-      ticker: string;
-      nombre: string;
-      clase: string;
-      porcentaje: number;
-    }>;
+    cartera?: CarteraPosition[];
     generadoEn?: string;
     aplicadoEn?: string;
   };
@@ -115,6 +126,11 @@ const BENCHMARK_PROXIES = [
   { symbol: "VNQ", name: "Real Estate (VNQ)", clase: "Alternativos" },
 ];
 
+interface YahooData {
+  ter?: number;
+  return_1y?: number;
+}
+
 interface CurrentHolding {
   securityId: string;
   fundName: string;
@@ -123,7 +139,7 @@ interface CurrentHolding {
   costBasis: number;
   unrealizedGainLoss: number;
   percentOfPortfolio: number;
-  yahooData?: any;
+  yahooData?: YahooData;
   // Manual overrides
   manualTER?: number;
   manualReturn1Y?: number;
@@ -142,6 +158,18 @@ interface HistoricalPoint {
   propuesto?: number;
 }
 
+interface CarteraIAData {
+  recomendacion?: {
+    cartera?: CarteraPosition[];
+  };
+  cartera?: CarteraPosition[];
+}
+
+interface HistoricalDataPoint {
+  date: string;
+  close: number;
+}
+
 // ============================================================
 // COMPONENT
 // ============================================================
@@ -158,11 +186,11 @@ export default function ComparisonModeV2() {
 
   // Portfolio state
   const [totalInvestment, setTotalInvestment] = useState(0);
-  const [benchmark, setBenchmark] = useState<AssetAllocation | null>(null);
+  const [_benchmark, setBenchmark] = useState<AssetAllocation | null>(null);
 
   // Proposed portfolio (from AI)
   const [proposedPositions, setProposedPositions] = useState<ProposedPosition[]>([]);
-  const [loadingProposed, setLoadingProposed] = useState(false);
+  const [_loadingProposed, setLoadingProposed] = useState(false);
 
   // Current holdings (from cartola)
   const [currentHoldings, setCurrentHoldings] = useState<CurrentHolding[]>([]);
@@ -173,12 +201,12 @@ export default function ComparisonModeV2() {
 
   // AI Cartera modal
   const [showCarteraIA, setShowCarteraIA] = useState(false);
-  const [carteraIA, setCarteraIA] = useState<any>(null);
+  const [_carteraIA, setCarteraIA] = useState<CarteraIAData | null>(null);
   const [carteraLoadedFromDB, setCarteraLoadedFromDB] = useState(false);
   const [savingCartera, setSavingCartera] = useState(false);
 
   // Currency
-  const [exchangeRates, setExchangeRates] = useState({ usd: 980, uf: 38500 });
+  const [_exchangeRates, setExchangeRates] = useState({ usd: 980, uf: 38500 });
 
   // Sections expanded state
   const [proposedExpanded, setProposedExpanded] = useState(true);
@@ -249,6 +277,7 @@ export default function ComparisonModeV2() {
     if (clientEmail.trim()) {
       searchClient();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ============================================================
@@ -301,7 +330,7 @@ export default function ComparisonModeV2() {
       const totalValue = clientData.portfolio_data?.composition?.totalValue || 0;
       setTotalInvestment(totalValue);
 
-      const mappedHoldings: CurrentHolding[] = holdings.map((h: any) => ({
+      const mappedHoldings: CurrentHolding[] = holdings.map((h: PortfolioHolding) => ({
         securityId: h.securityId || h.ticker || "N/A",
         fundName: h.fundName || h.name || "Fondo",
         assetClass: h.assetClass || "Unknown",
@@ -334,7 +363,7 @@ export default function ComparisonModeV2() {
   // SAVE CARTERA TO DATABASE
   // ============================================================
 
-  const saveCartera = async (cartera?: any[], fullData?: any) => {
+  const saveCartera = async (cartera?: CarteraPosition[], fullData?: { generadoEn?: string }) => {
     if (!client) return;
 
     // If no cartera provided, use current proposedPositions
@@ -410,14 +439,14 @@ export default function ComparisonModeV2() {
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as (string | number | Date | undefined)[][];
 
         // Find date and value columns
-        const headers = jsonData[0]?.map((h: any) => String(h).toLowerCase()) || [];
-        let dateCol = headers.findIndex((h: string) =>
+        const headers = jsonData[0]?.map((h) => String(h).toLowerCase()) || [];
+        let dateCol = headers.findIndex((h) =>
           h.includes("fecha") || h.includes("date") || h === "f" || h === "d"
         );
-        let valueCol = headers.findIndex((h: string) =>
+        let valueCol = headers.findIndex((h) =>
           h.includes("precio") || h.includes("price") || h.includes("close") ||
           h.includes("valor") || h.includes("value") || h.includes("nav") ||
           h.includes("cuota") || h === "p" || h === "v"
@@ -521,14 +550,14 @@ export default function ComparisonModeV2() {
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as (string | number | Date | undefined)[][];
 
         // Find date and value columns
-        const headers = jsonData[0]?.map((h: any) => String(h).toLowerCase()) || [];
-        let dateCol = headers.findIndex((h: string) =>
+        const headers = jsonData[0]?.map((h) => String(h).toLowerCase()) || [];
+        let dateCol = headers.findIndex((h) =>
           h.includes("fecha") || h.includes("date") || h === "f" || h === "d"
         );
-        let valueCol = headers.findIndex((h: string) =>
+        let valueCol = headers.findIndex((h) =>
           h.includes("precio") || h.includes("price") || h.includes("close") ||
           h.includes("valor") || h.includes("value") || h.includes("nav") || h === "p" || h === "v"
         );
@@ -625,7 +654,7 @@ export default function ComparisonModeV2() {
   // APPLY AI CARTERA
   // ============================================================
 
-  const applyCartera = async (cartera: any[]) => {
+  const applyCartera = async (cartera: CarteraPosition[]) => {
     setLoadingProposed(true);
 
     try {
@@ -710,7 +739,7 @@ export default function ComparisonModeV2() {
 
     try {
       // Fetch benchmark proxy data for positions that need it
-      const positionsWithProxyData: { pos: ProposedPosition; historicalData: any[] }[] = [];
+      const positionsWithProxyData: { pos: ProposedPosition; historicalData: HistoricalDataPoint[] }[] = [];
 
       for (const pos of proposedPositions) {
         // Priority: 1) Manual Excel data, 2) API data, 3) Benchmark proxy
@@ -734,7 +763,7 @@ export default function ComparisonModeV2() {
       // Get all unique dates from all positions
       const allDates = new Set<string>();
       positionsWithProxyData.forEach(({ historicalData }) => {
-        historicalData.forEach((d: any) => allDates.add(d.date));
+        historicalData.forEach((d) => allDates.add(d.date));
       });
 
       // Sort dates
@@ -749,11 +778,11 @@ export default function ComparisonModeV2() {
         // Normalize each position to base 100 first
         const normalizedPositions = positionsWithProxyData.map(({ pos, historicalData }) => {
           const sortedHistory = [...historicalData].sort(
-            (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
           );
           const baseValue = sortedHistory[0]?.close || 1;
           const normalized = new Map<string, number>();
-          sortedHistory.forEach((d: any) => {
+          sortedHistory.forEach((d) => {
             normalized.set(d.date, (d.close / baseValue) * 100);
           });
           return {
@@ -794,7 +823,7 @@ export default function ComparisonModeV2() {
         const proposedData = await proposedRes.json();
         if (proposedData.historicalData) {
           const baseValue = proposedData.historicalData[0]?.close || 1;
-          proposedData.historicalData.forEach((d: any) => {
+          (proposedData.historicalData as HistoricalDataPoint[]).forEach((d) => {
             proposedHistorical.push({
               date: d.date,
               value: (d.close / baseValue) * 100,
@@ -809,7 +838,7 @@ export default function ComparisonModeV2() {
       let currentTotalWeight = 0;
 
       for (const holding of currentHoldings) {
-        let historicalData: any[] | null = null;
+        let historicalData: HistoricalDataPoint[] | null = null;
 
         // 1) Check for manual Excel data
         if (holding.manualHistoricalData && holding.manualHistoricalData.length > 0) {
@@ -846,10 +875,10 @@ export default function ComparisonModeV2() {
         // Process historical data if we got any
         if (historicalData && historicalData.length > 0) {
           const sorted = [...historicalData].sort(
-            (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
           );
           const baseValue = sorted[0]?.close || 1;
-          sorted.forEach((d: any) => {
+          sorted.forEach((d) => {
             const normalizedValue = (d.close / baseValue) * 100;
             const existing = currentHistoricalMap.get(d.date) || [];
             existing.push(normalizedValue * (holding.percentOfPortfolio / 100));
@@ -902,14 +931,14 @@ export default function ComparisonModeV2() {
   // ============================================================
 
   // Group proposed positions by asset class
-  const proposedByClass = {
+  const _proposedByClass = {
     rv: proposedPositions.filter((p) => p.clase === "Renta Variable"),
     rf: proposedPositions.filter((p) => p.clase === "Renta Fija"),
     alt: proposedPositions.filter((p) => p.clase === "Commodities" || p.clase === "Alternativos"),
   };
 
   // Group current holdings by asset class
-  const currentByClass = {
+  const _currentByClass = {
     rv: currentHoldings.filter((h) => h.assetClass === "Equity"),
     rf: currentHoldings.filter((h) => h.assetClass === "Fixed Income"),
     alt: currentHoldings.filter((h) => h.assetClass !== "Equity" && h.assetClass !== "Fixed Income" && h.assetClass !== "Cash"),
@@ -958,7 +987,7 @@ export default function ComparisonModeV2() {
     return sum + (ret * p.porcentaje / 100);
   }, 0);
 
-  const current1YReturn = currentHoldings.reduce((sum, h) => {
+  const _current1YReturn = currentHoldings.reduce((sum, h) => {
     const ret = h.manualReturn1Y ?? h.yahooData?.return_1y ?? 0;
     return sum + (ret * h.percentOfPortfolio / 100);
   }, 0);
@@ -967,7 +996,7 @@ export default function ComparisonModeV2() {
   // FORMATTERS
   // ============================================================
 
-  const fmt = (n: number) => n.toLocaleString("es-CL", { maximumFractionDigits: 0 });
+  const _fmt = (n: number) => n.toLocaleString("es-CL", { maximumFractionDigits: 0 });
   const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
   const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
@@ -1141,7 +1170,6 @@ export default function ComparisonModeV2() {
                   <tbody>
                     {proposedPositions.map((pos, idx) => {
                       const hasHistoricalData = pos.fundData?.historicalData && pos.fundData.historicalData.length > 0;
-                      const hasAutoData = pos.fundData && (pos.fundData.total_expense_ratio != null || pos.fundData.return_1y != null);
                       const ter = pos.manualTER ?? pos.fundData?.total_expense_ratio ?? null;
                       const ret1y = pos.manualReturn1Y ?? pos.fundData?.return_1y ?? null;
 
@@ -1924,7 +1952,7 @@ export default function ComparisonModeV2() {
                 <GenerarCarteraButton
                   clientId={client.id}
                   montoInversion={totalInvestment}
-                  onCarteraGenerada={(data: { recomendacion?: { cartera?: any[] }; cartera?: any[] }) => {
+                  onCarteraGenerada={(data: { recomendacion?: { cartera?: CarteraPosition[]; generadoEn?: string }; cartera?: CarteraPosition[]; generadoEn?: string }) => {
                     // La cartera viene en data.recomendacion.cartera
                     const posiciones = data.recomendacion?.cartera || data.cartera || [];
                     console.log("Cartera generada:", posiciones);

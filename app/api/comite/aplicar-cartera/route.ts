@@ -26,6 +26,15 @@ interface CarteraRecomendacion {
   proximosMonitorear: string[];
 }
 
+interface PortfolioBlock {
+  label: string;
+  ticker: string;
+  descripcion: string;
+  neutral_weight: number;
+  model_weight: number;
+  justificacion: string;
+}
+
 interface AplicarCarteraRequest {
   clientId: string;
   cliente: {
@@ -88,9 +97,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Build blocks for the model
-    const equityBlocks: any[] = [];
-    const fixedIncomeBlocks: any[] = [];
-    const alternativeBlocks: any[] = [];
+    const equityBlocks: PortfolioBlock[] = [];
+    const fixedIncomeBlocks: PortfolioBlock[] = [];
+    const alternativeBlocks: PortfolioBlock[] = [];
 
     for (const position of recomendacion.cartera) {
       const block = {
@@ -196,10 +205,11 @@ export async function POST(request: NextRequest) {
         })),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in aplicar-cartera:", error);
+    const message = error instanceof Error ? error.message : "Error interno";
     return NextResponse.json(
-      { success: false, error: error.message || "Error interno" },
+      { success: false, error: message },
       { status: 500 }
     );
   }

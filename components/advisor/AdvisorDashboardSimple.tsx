@@ -33,8 +33,6 @@ export default function ImprovedAdvisorDashboard() {
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const logoUrl = "https://zysotxkelepvotzujhxe.supabase.co/storage/v1/object/public/assets/logo.png";
-
   useEffect(() => {
     if (advisor) fetchData();
   }, [advisor]);

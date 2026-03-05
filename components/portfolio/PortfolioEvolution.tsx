@@ -5,8 +5,6 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,19 +12,15 @@ import {
   ResponsiveContainer,
   Area,
   AreaChart,
-  Legend,
 } from "recharts";
 import {
   TrendingUp,
-  TrendingDown,
   Activity,
   BarChart3,
-  Calendar,
   DollarSign,
   Percent,
   AlertTriangle,
   RefreshCw,
-  Download,
   Plus,
 } from "lucide-react";
 
@@ -73,7 +67,7 @@ interface PortfolioEvolutionProps {
         Equity?: { value: number; percent: number };
         "Fixed Income"?: { value: number; percent: number };
       };
-      holdings?: any[];
+      holdings?: Record<string, unknown>[];
     };
     statement?: {
       endingValue?: number;
@@ -106,6 +100,7 @@ export default function PortfolioEvolution({
 
   useEffect(() => {
     loadSnapshots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, period]);
 
   const loadSnapshots = async () => {

@@ -45,7 +45,7 @@ interface ETFData {
 interface HistoricalPoint {
   date: string;
   value: number;
-  [key: string]: any; // Para múltiples ETFs
+  [key: string]: string | number; // Para múltiples ETFs
 }
 
 // ============================================================
@@ -195,7 +195,7 @@ export default function CompareMode() {
 
     // Crear dataset combinado
     return sortedDates.map(date => {
-      const point: any = { date };
+      const point: Record<string, string | number> = { date };
 
       etfData.forEach(etf => {
         const dataPoint = etf.historicalData.find(p => p.date === date);
@@ -326,7 +326,7 @@ export default function CompareMode() {
                 ].map((p) => (
                   <button
                     key={p.value}
-                    onClick={() => handleCambioPeriodo(p.value as any)}
+                    onClick={() => handleCambioPeriodo(p.value as "1y" | "5y" | "10y" | "max")}
                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                       periodo === p.value
                         ? "bg-gb-black text-white"
@@ -364,7 +364,7 @@ export default function CompareMode() {
                   label={{ value: "Retorno (%)", angle: -90, position: "insideLeft" }}
                 />
                 <Tooltip
-                  formatter={(value: any) => `${value.toFixed(2)}%`}
+                  formatter={(value) => `${Number(value).toFixed(2)}%`}
                   labelFormatter={(label) => {
                     const date = new Date(label);
                     return date.toLocaleDateString("es-CL");

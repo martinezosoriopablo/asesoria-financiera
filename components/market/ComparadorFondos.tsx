@@ -78,6 +78,7 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
     if (fondosSeleccionados.length > 0) {
       cargarDatosComparacion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fondosSeleccionados, periodo]);
 
   const cargarDatosComparacion = async () => {
@@ -234,7 +235,7 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
         
         {/* Líneas de cada fondo */}
         {datosNormalizados.map((fondo, idx) => {
-          const puntos = fondo.datosNorm.map((d, i) => {
+          const puntos = fondo.datosNorm.map((d) => {
             const x = paddingLeft + (fechasOrdenadas.indexOf(d.fecha) / (fechasOrdenadas.length - 1)) * (width - paddingLeft - paddingRight);
             const y = height - paddingBottom - ((d.valor - minVal) / rangoVal) * (height - paddingTop - paddingBottom);
             return `${x},${y}`;

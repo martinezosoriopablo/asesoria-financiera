@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown, ChevronUp, Check, TrendingUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Check } from "lucide-react";
 
 // ============================================================
 // TIPOS

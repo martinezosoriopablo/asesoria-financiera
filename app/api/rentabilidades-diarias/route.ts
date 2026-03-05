@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
+// Interfaces for Excel data processing
+interface ExcelRow {
+  [key: string]: string | number | Date | null | undefined;
+}
+
+interface RentabilidadRegistro {
+  fondo_id: string;
+  fecha: string;
+  valor_cuota: number;
+  rent_diaria: number | null;
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -73,10 +85,10 @@ export async function GET(request: NextRequest) {
       total: datos.length
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Error en API rentabilidades-diarias GET:', error);
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: error.message },
+      { success: false, error: 'Error interno del servidor', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -140,13 +152,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ FIX CARGA: Buscar nombres de columnas con múltiples variantes
-    const primeraFila: any = data[0];
+    const primeraFila = data[0] as ExcelRow;
     const columnasDisponibles = Object.keys(primeraFila);
     
     console.log('🔍 Columnas disponibles:', columnasDisponibles);
 
     // Función para encontrar columna (case-insensitive, con variantes)
-    const findColumn = (row: any, variants: string[]): any => {
+    const findColumn = (row: ExcelRow, variants: string[]): string | number | Date | null | undefined => {
       for (const key of Object.keys(row)) {
         const keyLower = key.toLowerCase().trim();
         for (const variant of variants) {
@@ -161,7 +173,7 @@ export async function POST(request: NextRequest) {
     };
 
     // ✅ NUEVO: Función para convertir fechas de Excel a formato ISO
-    const convertirFechaExcel = (fecha: any): string | null => {
+    const convertirFechaExcel = (fecha: string | number | Date | null | undefined): string | null => {
       if (!fecha) return null;
 
       // Si ya es string con formato yyyy-mm-dd o similar, retornar tal cual
@@ -202,7 +214,7 @@ export async function POST(request: NextRequest) {
 
     // ✅ NUEVO: Log de ejemplo de conversión de fecha
     if (data.length > 0) {
-      const primeraFechaRaw = findColumn(data[0], ['fecha', 'Fecha', 'FECHA', 'date', 'Date', 'DATE']);
+      const primeraFechaRaw = findColumn(data[0] as ExcelRow, ['fecha', 'Fecha', 'FECHA', 'date', 'Date', 'DATE']);
       const primeraFechaConvertida = convertirFechaExcel(primeraFechaRaw);
       console.log('🔄 Conversión fecha ejemplo:', { 
         fechaRaw: primeraFechaRaw, 
@@ -212,12 +224,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Preparar registros con búsqueda flexible
-    const registros: any[] = [];
+    const registros: RentabilidadRegistro[] = [];
     let errores = 0;
     const erroresDetalle: string[] = [];
     
     for (let i = 0; i < data.length; i++) {
-      const row = data[i];
+      const row = data[i] as ExcelRow;
       try {
         // Buscar fecha (múltiples variantes)
         const fechaRaw = findColumn(row, [
@@ -251,14 +263,14 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const valor_cuota = parseFloat(valor_cuota_raw);
+        const valor_cuota = parseFloat(String(valor_cuota_raw));
         if (isNaN(valor_cuota) || valor_cuota <= 0) {
           erroresDetalle.push(`Fila ${i + 1}: Valor cuota inválido (${valor_cuota_raw})`);
           errores++;
           continue;
         }
 
-        const rent_diaria = parseFloat(rent_diaria_raw);
+        const rent_diaria = parseFloat(String(rent_diaria_raw));
 
         registros.push({
           fondo_id: fondo.id,
@@ -344,10 +356,10 @@ export async function POST(request: NextRequest) {
       primerosErrores: erroresDetalle.slice(0, 5)
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Error en API rentabilidades-diarias POST:', error);
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: error.message },
+      { success: false, error: 'Error interno del servidor', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -399,7 +411,7 @@ export async function DELETE(request: NextRequest) {
     console.log('✅ Datos eliminados exitosamente');
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Error en DELETE:', error);
     return NextResponse.json(
       { success: false, error: 'Error interno del servidor' },

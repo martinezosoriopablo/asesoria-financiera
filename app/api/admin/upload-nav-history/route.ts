@@ -16,6 +16,19 @@ interface NavRecord {
   nav: number;
 }
 
+interface FundReturns {
+  return_1y: number | null;
+  return_3y: number | null;
+  return_5y: number | null;
+  return_10y: number | null;
+  return_ytd: number | null;
+  return_mtd: number | null;
+}
+
+interface ExcelRow {
+  [key: string]: string | number | null | undefined;
+}
+
 export async function POST(request: NextRequest) {
   console.log("=== INICIO UPLOAD NAV HISTORY ===");
 
@@ -68,7 +81,7 @@ export async function POST(request: NextRequest) {
     let errors = 0;
     let notFound = 0;
     const notFoundFunds: string[] = [];
-    let lastCalculatedReturns: any = null;
+    let lastCalculatedReturns: FundReturns | null = null;
 
     // Procesar cada fondo
     for (const [fundCode, navRecords] of Object.entries(byFund)) {
@@ -177,10 +190,11 @@ export async function POST(request: NextRequest) {
       },
       returns: lastCalculatedReturns,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error en importación:", error);
+    const errorMessage = error instanceof Error ? error.message : "Error en la importación";
     return NextResponse.json(
-      { error: error.message || "Error en la importación" },
+      { error: errorMessage },
       { status: 500 }
     );
   }
@@ -260,7 +274,7 @@ async function findFund(identifier: string, autoCreate: boolean = true): Promise
 // ============================================================
 
 // Helper para obtener valor de columna case-insensitive
-function getColumnValue(record: any, ...possibleNames: string[]): any {
+function getColumnValue(record: ExcelRow, ...possibleNames: string[]): string | number | null | undefined {
   // Crear un mapa de keys en lowercase para búsqueda case-insensitive
   const lowercaseMap: Record<string, string> = {};
   for (const key of Object.keys(record)) {
@@ -278,7 +292,7 @@ function getColumnValue(record: any, ...possibleNames: string[]): any {
 
 function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): NavRecord[] {
   const ext = filename?.split(".")?.pop()?.toLowerCase() || "";
-  let rawRecords: any[] = [];
+  let rawRecords: ExcelRow[] = [];
 
   console.log(`Parseando archivo: ${filename}, extensión: ${ext}, fundIdentifier: ${fundIdentifier}`);
 
@@ -324,9 +338,10 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
     } else {
       throw new Error(`Formato de archivo no soportado: ${ext}`);
     }
-  } catch (parseErr: any) {
+  } catch (parseErr: unknown) {
     console.error("Error parseando archivo:", parseErr);
-    throw new Error(`Error leyendo archivo: ${parseErr?.message || parseErr}`);
+    const errMessage = parseErr instanceof Error ? parseErr.message : String(parseErr);
+    throw new Error(`Error leyendo archivo: ${errMessage}`);
   }
 
   // Parsear registros con búsqueda case-insensitive de columnas
@@ -375,9 +390,10 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
           nav: parsedNav,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Ignorar filas con errores de parseo
-      console.warn(`Error parsing row ${i}:`, err?.message || err);
+      const errMessage = err instanceof Error ? err.message : String(err);
+      console.warn(`Error parsing row ${i}:`, errMessage);
     }
   }
 
@@ -385,7 +401,7 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
   return parsedRecords;
 }
 
-function normalizeDate(dateValue: any): string {
+function normalizeDate(dateValue: string | number | Date | null | undefined): string {
   // Número de serie de Excel (ej: 44197 = 1 enero 2021)
   if (typeof dateValue === "number") {
     // Convertir número de serie Excel a fecha

@@ -61,7 +61,7 @@ export default function ComiteReportsPanel() {
         if (data.success && data.reports) {
           setReports((prev) =>
             prev.map((r) => {
-              const serverReport = data.reports.find((sr: any) => sr.type === r.type);
+              const serverReport = data.reports.find((sr: { type: string; filename?: string; uploaded_at?: string }) => sr.type === r.type);
               if (serverReport) {
                 return {
                   ...r,

@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Loader, Globe, Plus, X, Upload, FileSpreadsheet } from "lucide-react";
+import { Search, Loader, Plus, X, Upload, FileSpreadsheet } from "lucide-react";
 
 // ============================================================
 // INTERFACES
@@ -68,11 +68,8 @@ interface FundSelectorProps {
 // ============================================================
 
 export function FundSelector({
-  assetClass,
-  subCategory,
   type,
   onSelectFund,
-  placeholder = "Buscar ETF o fondo mutuo...",
   value,
 }: FundSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,7 +125,7 @@ export function FundSelector({
         const localResult = await localResponse.json();
 
         if (localResult.success && localResult.funds) {
-          const localFunds: Fund[] = localResult.funds.map((f: any) => ({
+          const localFunds: Fund[] = localResult.funds.map((f: Record<string, unknown>) => ({
             id: f.id,
             symbol: f.symbol || f.name?.substring(0, 6).toUpperCase(),
             isin: f.isin,
@@ -161,7 +158,7 @@ export function FundSelector({
         const alphaResult = await alphaResponse.json();
 
         if (alphaResult.success && alphaResult.funds) {
-          const alphaFunds: Fund[] = alphaResult.funds.map((f: any) => ({
+          const alphaFunds: Fund[] = alphaResult.funds.map((f: Record<string, unknown>) => ({
             id: f.symbol || f.id,
             symbol: f.symbol,
             name: f.name,
@@ -188,9 +185,9 @@ export function FundSelector({
 
       setFunds(allFunds);
       setShowDropdown(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error buscando fondos:", err);
-      setError(err.message || "Error al buscar fondos");
+      setError(err instanceof Error ? err.message : "Error al buscar fondos");
       setFunds([]);
     } finally {
       setLoading(false);
@@ -309,8 +306,8 @@ export function FundSelector({
             return_10y: result.returns.return_10y != null ? String(result.returns.return_10y) : prev.return_10y,
           }));
         }
-      } catch (err: any) {
-        setUploadResult({ success: false, message: err.message || "Error al subir archivo" });
+      } catch (err: unknown) {
+        setUploadResult({ success: false, message: err instanceof Error ? err.message : "Error al subir archivo" });
         setUploadingNav(false);
         return;
       }
@@ -647,7 +644,7 @@ export function FundSelector({
           {/* No results */}
           {showDropdown && !loading && searchQuery.length >= 2 && funds.length === 0 && !error && (
             <div className="absolute z-50 w-full mt-2 bg-white border-2 border-slate-200 rounded-lg shadow-xl p-4 text-center text-slate-500 text-sm">
-              No se encontraron fondos para "{searchQuery}"
+              No se encontraron fondos para &quot;{searchQuery}&quot;
             </div>
           )}
 

@@ -20,7 +20,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ScatterChart,
   Scatter,
@@ -308,7 +307,7 @@ function ModuloRiesgoRetorno() {
               />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
-                formatter={(value: any) => `${value}%`}
+                formatter={(value) => `${value}%`}
                 contentStyle={{
                   backgroundColor: "white",
                   border: "1px solid #e2e8f0",
@@ -404,7 +403,7 @@ function ModuloDiversificacion() {
                 label={{ value: "Volatilidad (%)", angle: -90, position: "insideLeft" }}
               />
               <Tooltip
-                formatter={(value: any) => `${value}%`}
+                formatter={(value) => `${value}%`}
                 contentStyle={{
                   backgroundColor: "white",
                   border: "1px solid #e2e8f0",
@@ -630,10 +629,10 @@ function ModuloCaidasHistoricas() {
           <div className="text-center mb-6">
             <h3 className="text-3xl font-bold mb-4">EL MENSAJE CLAVE</h3>
             <p className="text-2xl font-bold mb-2">
-              "Las caidas son TEMPORALES,
+              &quot;Las caidas son TEMPORALES,
             </p>
             <p className="text-2xl font-bold">
-              el crecimiento es PERMANENTE."
+              el crecimiento es PERMANENTE.&quot;
             </p>
           </div>
 
@@ -800,7 +799,7 @@ function ModuloComparacion() {
                 label={{ value: "Valor Final (Millones $)", angle: -90, position: "insideLeft" }}
               />
               <Tooltip
-                formatter={(value: any) => `$${value.toFixed(1)}M`}
+                formatter={(value) => `$${Number(value).toFixed(1)}M`}
                 contentStyle={{
                   backgroundColor: "white",
                   border: "1px solid #e2e8f0",

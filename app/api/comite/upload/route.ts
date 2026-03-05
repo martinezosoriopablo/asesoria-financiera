@@ -111,10 +111,11 @@ export async function POST(request: NextRequest) {
         uploadedAt: data.uploaded_at,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in comite upload:", error);
+    const message = error instanceof Error ? error.message : "Error interno";
     return NextResponse.json(
-      { success: false, error: error.message || "Error interno" },
+      { success: false, error: message },
       { status: 500 }
     );
   }

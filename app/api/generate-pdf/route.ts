@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     
     // Generar PDF
     const pdfBuffer = await renderToBuffer(
-      React.createElement(PortfolioComparisonPDF, { data }) as any
+      React.createElement(PortfolioComparisonPDF, { data }) as React.ReactElement
     );
 
     console.log("✅ PDF generado exitosamente");
@@ -41,15 +41,17 @@ export async function POST(request: NextRequest) {
         "Content-Disposition": `attachment; filename="comparacion-portafolio-${Date.now()}.pdf"`,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("💥 Error generando PDF:", error);
-    console.error("Stack trace:", error.stack);
-    
+    const errorMessage = error instanceof Error ? error.message : "Error al generar PDF";
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error("Stack trace:", errorStack);
+
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al generar PDF",
-        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        error: errorMessage,
+        details: process.env.NODE_ENV === "development" ? errorStack : undefined,
       },
       { status: 500 }
     );

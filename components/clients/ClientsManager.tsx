@@ -8,11 +8,8 @@ import {
   Users,
   Search,
   Plus,
-  Filter,
-  Phone,
   Eye,
   Loader,
-  AlertCircle,
 } from "lucide-react";
 
 interface Client {
@@ -28,7 +25,7 @@ interface Client {
   ultima_interaccion: string;
   fecha_onboarding: string;
   num_interacciones: number;
-  client_interactions: any[];
+  client_interactions: unknown[];
 }
 
 interface Stats {
@@ -71,6 +68,7 @@ export default function ClientsManager() {
 
   useEffect(() => {
     filterClientsFn();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, searchTerm, filterStatus, filterPerfil]);
 
   const fetchClients = async () => {

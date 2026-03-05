@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     // Generar PDF
     const pdfBuffer = await renderToBuffer(
-      React.createElement(PortfolioComparisonPDF, { data }) as any
+      React.createElement(PortfolioComparisonPDF, { data }) as React.ReactElement
     );
 
     // Retornar PDF como respuesta
@@ -21,12 +21,12 @@ export async function POST(request: NextRequest) {
         "Content-Disposition": `attachment; filename="comparacion-portafolio-${Date.now()}.pdf"`,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error generando PDF:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al generar PDF",
+        error: error instanceof Error ? error.message : "Error al generar PDF",
       },
       { status: 500 }
     );

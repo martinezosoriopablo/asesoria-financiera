@@ -1,11 +1,10 @@
 // src/lib/risk/risk_scoring.ts
 
 import {
-  RISK_QUESTIONNAIRE_V1,
-  RiskQuestion
+  RISK_QUESTIONNAIRE_V1
 } from "./risk_questionnaire_v1";
 
-export type AnswerMap = Record<string, any>;
+export type AnswerMap = Record<string, string | number | boolean | null>;
 
 export interface RiskScores {
   capacity: number;
@@ -64,7 +63,7 @@ export function calculateRiskScores(answers: AnswerMap): RiskScores {
       const raw = Number(ans); // 1..5
       if (!raw || raw < 1 || raw > 5) continue;
 
-      const reverse = (question as any).reverse ?? false;
+      const reverse = (question as { reverse?: boolean }).reverse ?? false;
       const mapped = reverse ? 5 - raw : raw - 1; // 0..4
       const score = (mapped / 4) * 100; // 0..100
 

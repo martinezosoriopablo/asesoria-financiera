@@ -175,7 +175,7 @@ export async function GET(request: NextRequest) {
     // Procesar datos históricos para calcular retornos
     const weeklyTimeSeries = weeklyData["Weekly Time Series"] || {};
     const historicalData: HistoricalData[] = Object.entries(weeklyTimeSeries)
-      .map(([date, values]: [string, any]) => ({
+      .map(([date, values]: [string, Record<string, string>]) => ({
         date,
         close: parseFloat(values["4. close"]),
       }))
@@ -254,12 +254,12 @@ export async function GET(request: NextRequest) {
       success: true,
       profile,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error obteniendo perfil completo:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Error al obtener perfil",
+        error: error instanceof Error ? error.message : "Error al obtener perfil",
       },
       { status: 500 }
     );

@@ -12,8 +12,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -676,7 +674,7 @@ export default function CalculadoraAPV() {
                   label={{ value: "Saldo (Millones $)", angle: -90, position: "insideLeft" }}
                 />
                 <Tooltip
-                  formatter={(value: any) => formatearConUF(value)}
+                  formatter={(value) => formatearConUF(Number(value))}
                   labelFormatter={(label) => `Edad: ${label} años`}
                   contentStyle={{
                     backgroundColor: "white",
@@ -1091,7 +1089,7 @@ export default function CalculadoraAPV() {
                   <div>
                     <p className="font-semibold text-slate-900">BENEFICIO TRIBUTARIO</p>
                     <p className="text-slate-600 text-sm">
-                      El Estado te "regala" ~{resultado?.rentabilidadEquivalenteA.toFixed(0)}% de tu
+                      El Estado te &quot;regala&quot; ~{resultado?.rentabilidadEquivalenteA.toFixed(0)}% de tu
                       aporte cada año (en tu tramo). Es dinero extra que también genera
                       rentabilidad.
                     </p>

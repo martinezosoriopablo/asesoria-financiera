@@ -83,7 +83,7 @@ async function fetchFromAlphaVantage(symbol: string): Promise<FundProfile | null
     // Process historical data
     const weeklyTimeSeries = weeklyData["Weekly Time Series"] || {};
     const historicalData = Object.entries(weeklyTimeSeries)
-      .map(([date, values]: [string, any]) => ({
+      .map(([date, values]: [string, Record<string, string>]) => ({
         date,
         close: parseFloat(values["4. close"]),
       }))
@@ -175,7 +175,7 @@ async function fetchFromYahooFinance(symbol: string, fundName?: string): Promise
     const historicalData = timestamps.map((ts: number, index: number) => ({
       date: new Date(ts * 1000).toISOString().split("T")[0],
       close: adjClose[index] ?? quotes.close?.[index] ?? null,
-    })).filter((d: any) => d.close !== null);
+    })).filter((d: { date: string; close: number | null }) => d.close !== null);
 
     if (historicalData.length === 0) {
       console.log(`No historical data from Yahoo for ${yahooSymbol}`);

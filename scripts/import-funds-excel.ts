@@ -9,7 +9,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
-import fs from 'fs';
 
 // ============================================================
 // CONFIGURACIÓN
@@ -164,8 +163,9 @@ async function importFundsFromExcel(filePath: string): Promise<void> {
             created++;
           }
         }
-      } catch (error: any) {
-        console.error(`❌ Error procesando fondo:`, error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Error procesando fondo:`, errorMessage);
         errors++;
       }
     }
@@ -330,8 +330,9 @@ async function main() {
   
   try {
     await importFundsFromExcel(filePath);
-  } catch (error: any) {
-    console.error('💥 Error fatal:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('💥 Error fatal:', errorMessage);
     process.exit(1);
   }
 }

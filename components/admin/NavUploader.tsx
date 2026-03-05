@@ -60,10 +60,10 @@ export function NavUploader() {
           message: data.error || "Error en la importación",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setResult({
         success: false,
-        message: error.message || "Error al subir el archivo",
+        message: error instanceof Error ? error.message : "Error al subir el archivo",
       });
     } finally {
       setUploading(false);

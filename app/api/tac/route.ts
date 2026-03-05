@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
+interface TacExcelRow {
+  fo_run?: string | number;
+  FO_RUN?: string | number;
+  forun?: string | number;
+  fm_serie?: string | number;
+  FM_SERIE?: string | number;
+  serie?: string | number;
+  tac_sintetica?: string | number;
+  TAC_SINTETICA?: string | number;
+  tac?: string | number;
+}
+
+interface FondoMutuo {
+  id: string;
+  fo_run: number;
+  fm_serie: string;
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -49,8 +67,9 @@ export async function POST(request: NextRequest) {
     // Extraer todos los fo_run-fm_serie únicos del Excel
     const fondosKeys = new Set<string>();
     for (const row of data) {
-      const fo_run = (row as any).fo_run || (row as any).FO_RUN || (row as any).forun;
-      const fm_serie = ((row as any).fm_serie || (row as any).FM_SERIE || (row as any).serie)?.toString().trim().toUpperCase();
+      const typedRow = row as TacExcelRow;
+      const fo_run = typedRow.fo_run || typedRow.FO_RUN || typedRow.forun;
+      const fm_serie = (typedRow.fm_serie || typedRow.FM_SERIE || typedRow.serie)?.toString().trim().toUpperCase();
       if (fo_run && fm_serie) {
         fondosKeys.add(`${fo_run}-${fm_serie}`);
       }
@@ -73,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear mapa de fondos
-    fondos?.forEach((fondo: any) => {
+    fondos?.forEach((fondo: FondoMutuo) => {
       const key = `${fondo.fo_run}-${fondo.fm_serie}`;
       fondosMap.set(key, fondo.id);
     });
@@ -86,9 +105,10 @@ export async function POST(request: NextRequest) {
     
     for (const row of data) {
       try {
-        const fo_run = parseInt((row as any).fo_run || (row as any).FO_RUN || (row as any).forun);
-        const fm_serie = ((row as any).fm_serie || (row as any).FM_SERIE || (row as any).serie)?.toString().trim().toUpperCase();
-        const tac_sintetica = parseFloat((row as any).tac_sintetica || (row as any).TAC_SINTETICA || (row as any).tac);
+        const typedRow = row as TacExcelRow;
+        const fo_run = parseInt(String(typedRow.fo_run || typedRow.FO_RUN || typedRow.forun));
+        const fm_serie = (typedRow.fm_serie || typedRow.FM_SERIE || typedRow.serie)?.toString().trim().toUpperCase();
+        const tac_sintetica = parseFloat(String(typedRow.tac_sintetica || typedRow.TAC_SINTETICA || typedRow.tac));
         
         if (!fo_run || !fm_serie || isNaN(tac_sintetica)) {
           errores++;
@@ -110,7 +130,7 @@ export async function POST(request: NextRequest) {
           fm_serie,
           tac_sintetica
         });
-      } catch (error) {
+      } catch (_error) {
         errores++;
       }
     }
@@ -172,10 +192,11 @@ export async function POST(request: NextRequest) {
       tiempo_segundos: parseFloat(totalTime)
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Error en API tac POST:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: error.message },
+      { success: false, error: 'Error interno del servidor', details: errorMessage },
       { status: 500 }
     );
   }

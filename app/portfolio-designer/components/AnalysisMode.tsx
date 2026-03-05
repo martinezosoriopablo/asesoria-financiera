@@ -82,7 +82,7 @@ const SAMPLE_FUNDS = [
 function generateHistoricalData(funds: typeof SAMPLE_FUNDS) {
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   return months.map((month, idx) => {
-    const dataPoint: Record<string, any> = { month };
+    const dataPoint: Record<string, string | number> = { month };
     funds.forEach((fund) => {
       // Simular crecimiento acumulado con algo de volatilidad
       const baseGrowth = (fund.returns["1y"] / 12) * (idx + 1);

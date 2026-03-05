@@ -270,7 +270,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as 'grafico' | 'tabla' | 'volatilidad' | 'metricas' | 'comparar')}
               style={{
                 padding: '12px 16px',
                 border: 'none',

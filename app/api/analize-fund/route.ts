@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
+interface ClaudeContentBlock {
+  type: string;
+  text?: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -132,7 +137,7 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     let fundData;
     try {
       // Claude might return text content
-      const textContent = data.content.find((c: any) => c.type === "text")?.text || "";
+      const textContent = data.content.find((c: ClaudeContentBlock) => c.type === "text")?.text || "";
       
       // Remove markdown code blocks if present
       let jsonText = textContent.trim();
@@ -156,11 +161,12 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     }
 
     return NextResponse.json(fundData);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in analyze-fund API:", error);
+    const message = error instanceof Error ? error.message : "Error al analizar el fondo";
     return NextResponse.json(
       {
-        error: error.message || "Error al analizar el fondo",
+        error: message,
         details: "Verifica que el PDF sea un factsheet válido",
       },
       { status: 500 }

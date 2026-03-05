@@ -314,7 +314,7 @@ export function getETFData(ticker: string) {
 // Helper function para buscar ETFs por categoría
 export function getETFsByCategory(category: string) {
   return Object.entries(ETF_DATABASE)
-    .filter(([_, data]) => data.category === category)
+    .filter(([, data]) => data.category === category)
     .map(([ticker, data]) => ({ ticker, ...data }));
 }
 

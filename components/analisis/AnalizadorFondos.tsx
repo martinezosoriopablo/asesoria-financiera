@@ -15,8 +15,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -112,8 +110,8 @@ export default function AnalizadorFondos() {
 
       const data = await response.json();
       setFundData(data);
-    } catch (err: any) {
-      setError(err.message || "Error al procesar el archivo");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al procesar el archivo");
     } finally {
       setLoading(false);
     }

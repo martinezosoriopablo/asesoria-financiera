@@ -4,6 +4,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+interface ComiteReportStatus {
+  id: string;
+  type: string;
+  filename: string;
+  uploaded_at: string;
+  updated_at: string;
+}
+
 export async function GET() {
   try {
     const supabase = await createSupabaseServerClient();
@@ -35,7 +43,7 @@ export async function GET() {
     }
 
     // Agrupar por tipo (solo el más reciente de cada uno)
-    const latestByType = new Map<string, any>();
+    const latestByType = new Map<string, ComiteReportStatus>();
     for (const report of reports || []) {
       if (!latestByType.has(report.type)) {
         latestByType.set(report.type, report);
@@ -57,10 +65,11 @@ export async function GET() {
       reports: latestReports,
       lastUpdate,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in comite status:", error);
+    const message = error instanceof Error ? error.message : "Error interno";
     return NextResponse.json(
-      { success: false, error: error.message || "Error interno" },
+      { success: false, error: message },
       { status: 500 }
     );
   }

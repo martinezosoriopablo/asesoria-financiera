@@ -71,7 +71,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
 
     const timeSeries = historicalData[timeSeriesKey];
     const historicalPoints = Object.entries(timeSeries)
-      .map(([date, values]: [string, any]) => ({
+      .map(([date, values]: [string, Record<string, string>]) => ({
         date,
         value: parseFloat(values["4. close"]),
       }))
@@ -164,11 +164,12 @@ export async function GET(request: NextRequest, context: RouteParams) {
 
     return NextResponse.json(response);
 
-  } catch (error: any) {
-    console.error("❌ ERROR:", error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Error al obtener datos";
+    console.error("❌ ERROR:", errorMessage);
     return NextResponse.json(
-      { 
-        error: error.message || "Error al obtener datos",
+      {
+        error: errorMessage,
         ticker: (await context.params).ticker,
       },
       { status: 500 }
