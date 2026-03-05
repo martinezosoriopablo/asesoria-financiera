@@ -1585,8 +1585,12 @@ export default function ComparisonMode() {
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 10, fill: "#6b7280" }}
-                    tickFormatter={(d) => new Date(d).toLocaleDateString("es-CL", { month: "short", day: "numeric" })}
+                    tickFormatter={(d) => {
+                      const date = new Date(d);
+                      return date.toLocaleDateString("es-CL", { month: "short", year: "2-digit" });
+                    }}
                     interval="preserveStartEnd"
+                    minTickGap={30}
                   />
                   <YAxis
                     tick={{ fontSize: 10, fill: "#6b7280" }}
