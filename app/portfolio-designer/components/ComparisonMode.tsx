@@ -45,6 +45,12 @@ interface PortfolioHolding {
   percent?: number;
   type?: string;
   assetClass?: string;
+  fundName?: string;
+  securityId?: string;
+  costBasis?: number;
+  marketValue?: number;
+  unrealizedGainLoss?: number;
+  marketPrice?: number;
 }
 
 interface Client {
@@ -327,10 +333,38 @@ export default function ComparisonMode() {
     assetClass?: string;
     region?: string;
   }
+  interface CarteraPosition {
+    clase: string;
+    ticker: string;
+    nombre: string;
+    descripcionSimple?: string;
+    porcentaje: number;
+    justificacion: string;
+  }
+  interface CarteraData {
+    contextoPerfil?: string;
+    resumenEjecutivo: string;
+    cartera: CarteraPosition[];
+    cambiosSugeridos?: Array<{
+      tipo: "vender" | "reducir" | "mantener" | "aumentar" | "comprar";
+      instrumento: string;
+      razon: string;
+    }>;
+    riesgos: string[];
+    proximosMonitorear: string[];
+  }
+  interface ClienteInfo {
+    nombre: string;
+    perfil: string;
+    puntaje: number;
+    monto?: number;
+  }
   interface CarteraIA {
-    items?: CarteraIAItem[];
-    allocations?: CarteraIAItem[];
-    [key: string]: unknown;
+    success: boolean;
+    cliente?: ClienteInfo;
+    recomendacion?: CarteraData;
+    generadoEn?: string;
+    error?: string;
   }
   const [carteraIA, setCarteraIA] = useState<CarteraIA | null>(null);
   const [showCarteraIA, setShowCarteraIA] = useState(false);
@@ -1676,7 +1710,7 @@ export default function ComparisonMode() {
         )}
 
       {/* Modal Cartera IA */}
-      {showCarteraIA && carteraIA && (
+      {showCarteraIA && carteraIA && carteraIA.cliente && carteraIA.recomendacion && carteraIA.generadoEn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto my-8">
             <CarteraRecomendada
@@ -1686,7 +1720,7 @@ export default function ComparisonMode() {
               onCerrar={() => setShowCarteraIA(false)}
               aplicando={applyingCartera}
               onAplicar={async () => {
-                if (!client || !carteraIA) return;
+                if (!client || !carteraIA || !carteraIA.recomendacion) return;
 
                 setApplyingCartera(true);
                 try {
@@ -1873,7 +1907,7 @@ export default function ComparisonMode() {
                     return_6m?: number;
                     return_1y?: number;
                     return_ytd?: number;
-                    historicalData?: { date: string; value: number }[];
+                    historicalData?: { date: string; close: number }[];
                   }
 
                   // Separate holdings by asset class
@@ -1937,7 +1971,7 @@ export default function ComparisonMode() {
 
                       // Create current fund - fetch historical data from Yahoo Finance if available
                       let currentFund = null;
-                      if (matchingHolding) {
+                      if (matchingHolding && matchingHolding.fundName && matchingHolding.securityId) {
                         // Try to get Yahoo Finance data for the current fund
                         const yahooData = await fetchCurrentFundData(matchingHolding.fundName, matchingHolding.securityId);
 
@@ -1966,7 +2000,7 @@ export default function ComparisonMode() {
                             changePercent: null,
                             currency: yahooData.currency,
                           } : {
-                            current: matchingHolding.marketPrice,
+                            current: matchingHolding.marketPrice ?? null,
                             previousClose: null,
                             changePercent: null,
                             currency: "USD",

@@ -81,9 +81,9 @@ async function fetchFromAlphaVantage(symbol: string): Promise<FundProfile | null
     }
 
     // Process historical data
-    const weeklyTimeSeries = weeklyData["Weekly Time Series"] || {};
+    const weeklyTimeSeries = (weeklyData["Weekly Time Series"] || {}) as Record<string, Record<string, string>>;
     const historicalData = Object.entries(weeklyTimeSeries)
-      .map(([date, values]: [string, Record<string, string>]) => ({
+      .map(([date, values]) => ({
         date,
         close: parseFloat(values["4. close"]),
       }))

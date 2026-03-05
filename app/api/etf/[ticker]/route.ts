@@ -69,9 +69,9 @@ export async function GET(request: NextRequest, context: RouteParams) {
       throw new Error("No se pudieron obtener datos históricos");
     }
 
-    const timeSeries = historicalData[timeSeriesKey];
+    const timeSeries = historicalData[timeSeriesKey] as Record<string, Record<string, string>>;
     const historicalPoints = Object.entries(timeSeries)
-      .map(([date, values]: [string, Record<string, string>]) => ({
+      .map(([date, values]) => ({
         date,
         value: parseFloat(values["4. close"]),
       }))

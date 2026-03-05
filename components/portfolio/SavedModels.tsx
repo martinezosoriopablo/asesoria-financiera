@@ -6,9 +6,11 @@ import React, { useState, useEffect } from "react";
 import { History, Download, Trash2, Calendar, TrendingUp, Shield, Landmark, X } from "lucide-react";
 
 interface BlockData {
+  block_id: string;
   label: string;
   model_weight: number;
   neutral_weight: number;
+  selected_fund_id: string | null;
 }
 
 interface SavedModel {
@@ -33,7 +35,7 @@ interface SavedModel {
 interface SavedModelsProps {
   clientId: string;
   clientEmail: string;
-  onLoadModel: (model: SavedModel) => void;
+  onLoadModel: (model: SavedModel) => void | Promise<void>;
   onClose: () => void;
 }
 

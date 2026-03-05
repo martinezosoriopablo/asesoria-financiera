@@ -125,22 +125,26 @@ export function FundSelector({
         const localResult = await localResponse.json();
 
         if (localResult.success && localResult.funds) {
-          const localFunds: Fund[] = localResult.funds.map((f: Record<string, unknown>) => ({
-            id: f.id,
-            symbol: f.symbol || f.name?.substring(0, 6).toUpperCase(),
-            isin: f.isin,
-            name: f.name,
-            ticker: f.symbol,
-            type: f.type === "external" ? "international" as const : "chilean" as const,
-            fundType: f.asset_class,
-            provider: f.provider,
-            total_expense_ratio: f.total_expense_ratio,
-            return_1y: f.return_1y,
-            return_3y: f.return_3y,
-            return_5y: f.return_5y,
-            currency: f.currency || "CLP",
-            source: "local",
-          }));
+          const localFunds: Fund[] = localResult.funds.map((f: Record<string, unknown>) => {
+            const name = f.name as string | undefined;
+            const symbol = f.symbol as string | undefined;
+            return {
+              id: f.id,
+              symbol: symbol || (name ? name.substring(0, 6).toUpperCase() : undefined),
+              isin: f.isin,
+              name: name,
+              ticker: symbol,
+              type: f.type === "external" ? "international" as const : "chilean" as const,
+              fundType: f.asset_class,
+              provider: f.provider,
+              total_expense_ratio: f.total_expense_ratio,
+              return_1y: f.return_1y,
+              return_3y: f.return_3y,
+              return_5y: f.return_5y,
+              currency: (f.currency as string) || "CLP",
+              source: "local",
+            };
+          });
           allFunds.push(...localFunds);
         }
       } catch (localErr) {

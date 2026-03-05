@@ -28,9 +28,9 @@ export async function POST(request: NextRequest) {
     console.log("🎨 Renderizando componente PDF...");
     
     // Generar PDF
-    const pdfBuffer = await renderToBuffer(
-      React.createElement(PortfolioComparisonPDF, { data }) as React.ReactElement
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfElement = React.createElement(PortfolioComparisonPDF, { data }) as any;
+    const pdfBuffer = await renderToBuffer(pdfElement);
 
     console.log("✅ PDF generado exitosamente");
 

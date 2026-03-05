@@ -173,9 +173,9 @@ export async function GET(request: NextRequest) {
       : null;
 
     // Procesar datos históricos para calcular retornos
-    const weeklyTimeSeries = weeklyData["Weekly Time Series"] || {};
+    const weeklyTimeSeries = (weeklyData["Weekly Time Series"] || {}) as Record<string, Record<string, string>>;
     const historicalData: HistoricalData[] = Object.entries(weeklyTimeSeries)
-      .map(([date, values]: [string, Record<string, string>]) => ({
+      .map(([date, values]) => ({
         date,
         close: parseFloat(values["4. close"]),
       }))

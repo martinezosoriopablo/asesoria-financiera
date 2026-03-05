@@ -337,7 +337,7 @@ export default function ComparisonModeV2() {
         marketValue: h.marketValue || 0,
         costBasis: h.costBasis || 0,
         unrealizedGainLoss: h.unrealizedGainLoss || 0,
-        percentOfPortfolio: h.percentOfPortfolio || ((h.marketValue / totalValue) * 100) || 0,
+        percentOfPortfolio: h.percentOfPortfolio || (((h.marketValue ?? 0) / totalValue) * 100) || 0,
       }));
 
       setCurrentHoldings(mappedHoldings);

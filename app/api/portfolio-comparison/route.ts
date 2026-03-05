@@ -10,9 +10,9 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
 
     // Generar PDF
-    const pdfBuffer = await renderToBuffer(
-      React.createElement(PortfolioComparisonPDF, { data }) as React.ReactElement
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfElement = React.createElement(PortfolioComparisonPDF, { data }) as any;
+    const pdfBuffer = await renderToBuffer(pdfElement);
 
     // Retornar PDF como respuesta
     return new NextResponse(new Uint8Array(pdfBuffer), {
