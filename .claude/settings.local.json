@@ -25,7 +25,19 @@
       "Bash(npx vercel --prod)",
       "Bash(npm install:*)",
       "Bash(npm run lint)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(Get-Content \"C:\\\\Users\\\\marti\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-marti-onedrive-documentos-asesoria-financiera\\\\tasks\\\\b922ea1.output\" -Tail 50)",
+      "Bash(netstat:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx next lint:*)",
+      "Bash(npm run lint:*)",
+      "Bash(git reset:*)",
+      "Bash(echo:*)",
+      "Bash(Remove-Item -Recurse -Force \".next\" -ErrorAction SilentlyContinue)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(claude:*)",
+      "Bash(npx @anthropic-ai/claude-code:*)"
     ]
   }
 }

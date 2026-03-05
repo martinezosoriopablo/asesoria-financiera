@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ETF_DATABASE } from "@/lib/ETF_DATABASE";
 
-const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY ?? "";
+// API key se lee dentro de la función para asegurar que se obtiene en runtime
 
 interface RouteParams {
   params: Promise<{
@@ -15,20 +15,39 @@ export async function GET(request: NextRequest, context: RouteParams) {
     const ticker = resolvedParams.ticker.toUpperCase();
     const period = request.nextUrl.searchParams.get("period") || "5y";
 
+    // Debug: verificar API key
+    const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+    console.log(`API Key exists: ${!!apiKey}, length: ${apiKey?.length || 0}, starts with: ${apiKey?.substring(0, 4) || 'N/A'}`);
+
+    if (!apiKey) {
+      throw new Error("ALPHA_VANTAGE_API_KEY no está configurada en el servidor");
+    }
+
     console.log(`Fetching ${ticker} - Period: ${period}`);
 
     // 1. Precio actual
-    const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
     const quoteResponse = await fetch(quoteUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
     const quoteData = await quoteResponse.json();
-    console.log("Quote data:", JSON.stringify(quoteData).substring(0, 200));
-    
+    console.log("Quote data:", JSON.stringify(quoteData).substring(0, 500));
+
+    // Verificar errores específicos de Alpha Vantage
+    if (quoteData.Note) {
+      throw new Error(`Alpha Vantage rate limit: ${quoteData.Note}`);
+    }
+    if (quoteData.Information) {
+      throw new Error(`Alpha Vantage: ${quoteData.Information}`);
+    }
+    if (quoteData["Error Message"]) {
+      throw new Error(`Alpha Vantage error: ${quoteData["Error Message"]}`);
+    }
+
     if (!quoteData["Global Quote"] || Object.keys(quoteData["Global Quote"]).length === 0) {
-      throw new Error("No se pudo obtener precio actual del ETF");
+      throw new Error(`No se pudo obtener precio actual del ETF. Respuesta: ${JSON.stringify(quoteData).substring(0, 200)}`);
     }
 
     const currentPrice = parseFloat(quoteData["Global Quote"]["05. price"]);
@@ -42,7 +61,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
     const outputSize = period === "1y" ? "compact" : "full";
     const timeFunction = period === "1y" ? "TIME_SERIES_DAILY" : "TIME_SERIES_WEEKLY";
     
-    const historicalUrl = `https://www.alphavantage.co/query?function=${timeFunction}&symbol=${ticker}&outputsize=${outputSize}&apikey=${ALPHA_VANTAGE_API_KEY}`;
+    const historicalUrl = `https://www.alphavantage.co/query?function=${timeFunction}&symbol=${ticker}&outputsize=${outputSize}&apikey=${apiKey}`;
     const historicalResponse = await fetch(historicalUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
