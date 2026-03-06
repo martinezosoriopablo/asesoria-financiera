@@ -130,6 +130,9 @@ export default function AdminAdvisorsPage() {
       if (data.success) {
         setShowModal(false);
         loadAdvisors();
+        if (data.message) {
+          alert(data.message);
+        }
       } else {
         alert(data.error || "Error al guardar");
       }

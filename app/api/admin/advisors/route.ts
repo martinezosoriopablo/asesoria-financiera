@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar que el email no exista
+    // Verificar que el email no exista en advisors
     const { data: existingAdvisor } = await supabase
       .from("advisors")
       .select("id")
@@ -78,10 +78,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Crear el asesor como subordinado del admin actual
+    // 1. Crear usuario en Supabase Auth con invitación por email
+    const { data: authUser, error: authError2 } = await supabase.auth.admin.inviteUserByEmail(
+      body.email,
+      {
+        data: {
+          nombre: body.nombre,
+          apellido: body.apellido,
+          rol: body.rol || 'advisor',
+        },
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://asesoria-financiera.vercel.app'}/login`,
+      }
+    );
+
+    if (authError2) {
+      console.error("Error creando usuario en Auth:", authError2);
+      return NextResponse.json(
+        { success: false, error: `Error al enviar invitación: ${authError2.message}` },
+        { status: 500 }
+      );
+    }
+
+    // 2. Crear el asesor en la tabla advisors
     const { data: newAdvisor, error } = await supabase
       .from("advisors")
       .insert({
+        id: authUser.user.id, // Usar el mismo ID que el usuario de Auth
         email: body.email,
         nombre: body.nombre,
         apellido: body.apellido,
@@ -95,11 +117,17 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Si falla crear el advisor, intentar eliminar el usuario de Auth
+      console.error("Error creando advisor, limpiando usuario de Auth:", error);
+      await supabase.auth.admin.deleteUser(authUser.user.id);
+      throw error;
+    }
 
     return NextResponse.json({
       success: true,
       advisor: newAdvisor,
+      message: `Invitación enviada a ${body.email}. El asesor recibirá un email para crear su contraseña.`,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al crear asesor";
