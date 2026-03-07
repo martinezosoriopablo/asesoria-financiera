@@ -7,11 +7,12 @@ import React, { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { BarChart3, User, Zap, TrendingUp, Loader } from "lucide-react";
+import { BarChart3, User, Zap, TrendingUp, Briefcase, Loader } from "lucide-react";
 import ComparisonMode from "./components/ComparisonModeV2";
 import ModelMode from "./components/ModelMode";
 import QuickMode from "./components/QuickMode";
 import AnalysisMode from "./components/AnalysisMode";
+import DirectMode from "@/app/direct-portfolio/components/DirectMode";
 
 // ============================================================
 // TAB NAVIGATION
@@ -30,6 +31,7 @@ const TABS: TabConfig[] = [
   { id: "model", label: "Modelo Cliente", icon: User, description: "Crear modelo" },
   { id: "quick", label: "Quick Build", icon: Zap, description: "Plantillas" },
   { id: "analysis", label: "Análisis", icon: TrendingUp, description: "Comparar fondos" },
+  { id: "direct", label: "Directo", icon: Briefcase, description: "Acciones y Bonos" },
 ];
 
 function TabNavigation({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
@@ -132,6 +134,7 @@ function PortfolioDesignerContent() {
         {activeTab === "model" && <ModelMode />}
         {activeTab === "quick" && <QuickMode />}
         {activeTab === "analysis" && <AnalysisMode />}
+        {activeTab === "direct" && <DirectMode />}
       </div>
     </div>
   );
