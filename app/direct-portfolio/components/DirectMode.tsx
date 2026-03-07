@@ -3,15 +3,13 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
   Save,
   Loader,
   RefreshCw,
-  Download,
   User,
-  Briefcase,
 } from "lucide-react";
 import HoldingsTable from "./HoldingsTable";
 import AddStockModal from "./AddStockModal";
@@ -22,7 +20,6 @@ import type {
   DirectPortfolio,
   DirectPortfolioHolding,
   RiskProfile,
-  SecurityQuote,
 } from "@/lib/direct-portfolio/types";
 import { formatCurrency, getAssetClass } from "@/lib/direct-portfolio/types";
 
@@ -65,6 +62,15 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
   // Precios actuales
   const [pricesLoading, setPricesLoading] = useState(false);
 
+  // Ref para evitar condiciones de carrera
+  const isRefreshingRef = useRef(false);
+  const holdingsRef = useRef<DirectPortfolioHolding[]>([]);
+
+  // Mantener ref actualizado
+  useEffect(() => {
+    holdingsRef.current = holdings;
+  }, [holdings]);
+
   // Cargar clientes
   useEffect(() => {
     async function fetchClients() {
@@ -96,11 +102,16 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
           setNombre(data.portfolio.nombre);
           setPerfilRiesgo(data.portfolio.perfil_riesgo);
           setSelectedClientId(data.portfolio.client_id);
-          setHoldings(data.portfolio.direct_portfolio_holdings || []);
+          const loadedHoldings = data.portfolio.direct_portfolio_holdings || [];
+          setHoldings(loadedHoldings);
+          // Actualizar precios después de cargar
+          if (loadedHoldings.length > 0) {
+            refreshPricesForHoldings(loadedHoldings);
+          }
         } else {
           setError(data.error);
         }
-      } catch (err) {
+      } catch {
         setError("Error cargando portafolio");
       } finally {
         setLoading(false);
@@ -109,16 +120,18 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
     fetchPortfolio();
   }, [portfolioId]);
 
-  // Actualizar precios de todos los holdings
-  const refreshAllPrices = useCallback(async () => {
-    if (holdings.length === 0) return;
+  // Función para actualizar precios de una lista de holdings
+  const refreshPricesForHoldings = async (holdingsToUpdate: DirectPortfolioHolding[]) => {
+    if (holdingsToUpdate.length === 0 || isRefreshingRef.current) return;
 
+    isRefreshingRef.current = true;
     setPricesLoading(true);
-    const updatedHoldings = [...holdings];
+
+    const updatedHoldings = [...holdingsToUpdate];
 
     for (let i = 0; i < updatedHoldings.length; i++) {
       const holding = updatedHoldings[i];
-      if (holding.tipo === "bond") continue; // Bonos no tienen precio en tiempo real
+      if (holding.tipo === "bond") continue;
 
       if (holding.ticker) {
         try {
@@ -152,9 +165,23 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
       });
     }
 
-    setHoldings(updatedHoldings);
+    // Usar functional update para obtener el estado más reciente
+    setHoldings(currentHoldings => {
+      // Merge: mantener holdings actuales y actualizar solo los que coinciden
+      return currentHoldings.map(h => {
+        const updated = updatedHoldings.find(u => u.id === h.id);
+        return updated || h;
+      });
+    });
+
     setPricesLoading(false);
-  }, [holdings]);
+    isRefreshingRef.current = false;
+  };
+
+  // Actualizar precios de todos los holdings
+  const refreshAllPrices = useCallback(() => {
+    refreshPricesForHoldings(holdingsRef.current);
+  }, []);
 
   // Actualizar precio de un holding específico
   const refreshHoldingPrice = async (holding: DirectPortfolioHolding) => {
@@ -167,28 +194,30 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
       const data = await response.json();
 
       if (data.success && data.quote) {
-        const updatedHoldings = holdings.map((h) => {
-          if (h.id === holding.id) {
-            return {
-              ...h,
-              precio_actual: data.quote.price,
-              valor_mercado: h.cantidad * data.quote.price,
-            };
-          }
-          return h;
+        setHoldings(currentHoldings => {
+          const updated = currentHoldings.map((h) => {
+            if (h.id === holding.id) {
+              return {
+                ...h,
+                precio_actual: data.quote.price,
+                valor_mercado: h.cantidad * data.quote.price,
+              };
+            }
+            return h;
+          });
+
+          // Recalcular pesos
+          const totalValue = updated.reduce(
+            (sum, h) => sum + (h.valor_mercado || 0),
+            0
+          );
+
+          updated.forEach((h) => {
+            h.peso_portafolio = totalValue > 0 ? ((h.valor_mercado || 0) / totalValue) * 100 : 0;
+          });
+
+          return updated;
         });
-
-        // Recalcular pesos
-        const totalValue = updatedHoldings.reduce(
-          (sum, h) => sum + (h.valor_mercado || 0),
-          0
-        );
-
-        updatedHoldings.forEach((h) => {
-          h.peso_portafolio = totalValue > 0 ? ((h.valor_mercado || 0) / totalValue) * 100 : 0;
-        });
-
-        setHoldings(updatedHoldings);
       }
     } catch (err) {
       console.error("Error refreshing price:", err);
@@ -209,14 +238,12 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
 
       let response;
       if (portfolio?.id) {
-        // Actualizar existente
         response = await fetch(`/api/direct-portfolio/${portfolio.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
-        // Crear nuevo
         response = await fetch("/api/direct-portfolio", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -243,7 +270,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
 
       if (data.success) {
         setPortfolio(data.portfolio);
-        // Actualizar la URL si es nuevo
         if (!portfolio?.id && data.portfolio.id) {
           window.history.replaceState(
             {},
@@ -254,7 +280,7 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
       } else {
         setError(data.error);
       }
-    } catch (err) {
+    } catch {
       setError("Error guardando portafolio");
     } finally {
       setSaving(false);
@@ -278,13 +304,16 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
       }
 
       if (holdingData.id) {
-        // Actualizar existente
-        setHoldings(
-          holdings.map((h) => (h.id === holdingData.id ? { ...h, ...data.holding } : h))
+        setHoldings(current =>
+          current.map((h) => (h.id === holdingData.id ? { ...h, ...data.holding } : h))
         );
       } else {
-        // Agregar nuevo
-        setHoldings([...holdings, data.holding]);
+        const newHolding = data.holding;
+        setHoldings(current => [...current, newHolding]);
+        // Actualizar precio del nuevo holding
+        if (newHolding.ticker && newHolding.tipo !== "bond") {
+          setTimeout(() => refreshHoldingPrice(newHolding), 100);
+        }
       }
     } else {
       // Portafolio no guardado aún, mantener en estado local
@@ -306,14 +335,15 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
       };
 
       if (holdingData.id) {
-        setHoldings(holdings.map((h) => (h.id === holdingData.id ? newHolding : h)));
+        setHoldings(current => current.map((h) => (h.id === holdingData.id ? newHolding : h)));
       } else {
-        setHoldings([...holdings, newHolding]);
+        setHoldings(current => [...current, newHolding]);
+        // Actualizar precio del nuevo holding
+        if (newHolding.ticker && newHolding.tipo !== "bond") {
+          setTimeout(() => refreshHoldingPrice(newHolding), 100);
+        }
       }
     }
-
-    // Actualizar precios después de agregar
-    setTimeout(() => refreshAllPrices(), 500);
   };
 
   // Eliminar holding
@@ -331,7 +361,7 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
       }
     }
 
-    setHoldings(holdings.filter((h) => h.id !== holdingId));
+    setHoldings(current => current.filter((h) => h.id !== holdingId));
   };
 
   // Editar holding
@@ -347,14 +377,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
   // Calcular totales
   const totalValue = holdings.reduce((sum, h) => sum + (h.valor_mercado || 0), 0);
   const selectedClient = clients.find((c) => c.id === selectedClientId);
-
-  // Actualizar precios al cargar holdings
-  useEffect(() => {
-    if (holdings.length > 0 && !pricesLoading) {
-      refreshAllPrices();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [holdings.length]);
 
   if (loading) {
     return (
@@ -378,7 +400,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
               placeholder="Nombre del Portafolio"
             />
             <div className="flex items-center gap-4 mt-2">
-              {/* Selector de cliente */}
               <div className="flex items-center gap-2">
                 <User size={16} className="text-gray-400" />
                 <select
@@ -395,7 +416,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
                 </select>
               </div>
 
-              {/* Mostrar perfil del cliente si existe */}
               {selectedClient?.perfil_riesgo && (
                 <span className="text-sm text-gray-500">
                   Perfil cliente: {selectedClient.perfil_riesgo}
@@ -404,7 +424,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
             </div>
           </div>
 
-          {/* Acciones */}
           <div className="flex items-center gap-2">
             <button
               onClick={refreshAllPrices}
@@ -432,7 +451,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
           </div>
         </div>
 
-        {/* Resumen rápido */}
         <div className="mt-4 pt-4 border-t grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-sm text-gray-500">Valor Total</p>
@@ -479,7 +497,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
           {error}
@@ -492,7 +509,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
         </div>
       )}
 
-      {/* Botones para agregar */}
       <div className="flex gap-3">
         <button
           onClick={() => {
@@ -516,7 +532,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
         </button>
       </div>
 
-      {/* Tabla de holdings */}
       <HoldingsTable
         holdings={holdings}
         onDelete={handleDeleteHolding}
@@ -525,7 +540,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
         loading={pricesLoading}
       />
 
-      {/* Gráficos y análisis */}
       {holdings.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AllocationChart holdings={holdings} />
@@ -537,7 +551,6 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
         </div>
       )}
 
-      {/* Modales */}
       <AddStockModal
         isOpen={showAddStockModal}
         onClose={() => {
