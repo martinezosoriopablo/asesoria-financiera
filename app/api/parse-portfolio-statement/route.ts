@@ -2,6 +2,69 @@ import { NextRequest, NextResponse } from "next/server";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
+// AGFs chilenos conocidos
+const CHILEAN_AGFS = [
+  "banchile", "btg", "larrainvial", "santander", "security", "sura",
+  "itau", "principal", "bice", "credicorp", "scotia", "compass",
+  "moneda", "euroamerica", "nevasa", "renta4", "vector", "tanner"
+];
+
+// Detectar moneda basado en heurísticas
+function detectCurrency(parsed: {
+  holdings?: Array<{ marketValue?: number }>;
+  endingValue?: number;
+  clientName?: string;
+}, rawText?: string): { currency: "USD" | "CLP"; confidence: "high" | "medium" | "low"; reason: string } {
+
+  // Calcular valor total
+  const totalValue = parsed.endingValue ||
+    (parsed.holdings?.reduce((sum, h) => sum + (h.marketValue || 0), 0) || 0);
+
+  // Buscar indicadores en el texto
+  const textLower = (rawText || "").toLowerCase();
+  const clientLower = (parsed.clientName || "").toLowerCase();
+
+  // Indicadores fuertes de USD
+  if (textLower.includes("usd") || textLower.includes("us$") || textLower.includes("u.s. dollar")) {
+    return { currency: "USD", confidence: "high", reason: "Texto menciona USD explícitamente" };
+  }
+
+  // Indicadores fuertes de CLP
+  if (textLower.includes("clp") || textLower.includes("pesos chilenos") || textLower.includes("peso chileno")) {
+    return { currency: "CLP", confidence: "high", reason: "Texto menciona CLP explícitamente" };
+  }
+
+  // Verificar si es AGF chileno
+  const isChileanAGF = CHILEAN_AGFS.some(agf =>
+    textLower.includes(agf) || clientLower.includes(agf)
+  );
+
+  // Heurística principal: valor total
+  // Portfolios en CLP típicamente son millones (ej: $50.000.000 CLP = ~$55,000 USD)
+  // Portfolios en USD típicamente son miles o cientos de miles
+  if (totalValue > 1_000_000) {
+    // Valores muy altos sugieren CLP
+    if (isChileanAGF) {
+      return { currency: "CLP", confidence: "high", reason: `Valor ${totalValue.toLocaleString()} con AGF chileno` };
+    }
+    return { currency: "CLP", confidence: "medium", reason: `Valor alto: ${totalValue.toLocaleString()}` };
+  } else if (totalValue > 0) {
+    // Valores menores a 1 millón sugieren USD
+    if (isChileanAGF) {
+      // AGF chileno pero valor bajo - podría ser cuenta en USD
+      return { currency: "USD", confidence: "medium", reason: `Valor ${totalValue.toLocaleString()} (bajo para CLP)` };
+    }
+    return { currency: "USD", confidence: "medium", reason: `Valor ${totalValue.toLocaleString()} sugiere USD` };
+  }
+
+  // Default basado en AGF
+  if (isChileanAGF) {
+    return { currency: "CLP", confidence: "low", reason: "AGF chileno detectado" };
+  }
+
+  return { currency: "USD", confidence: "low", reason: "Default USD (sin indicadores claros)" };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -115,7 +178,16 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
       throw new Error("Error al procesar respuesta de Claude");
     }
 
-    return NextResponse.json(parsed);
+    // Detectar moneda
+    const textContent = data.content.find((c: { type: string; text?: string }) => c.type === "text")?.text || "";
+    const currencyDetection = detectCurrency(parsed, textContent);
+
+    return NextResponse.json({
+      ...parsed,
+      detectedCurrency: currencyDetection.currency,
+      currencyConfidence: currencyDetection.confidence,
+      currencyReason: currencyDetection.reason,
+    });
   } catch (error: unknown) {
     console.error("Error in parse-portfolio-statement API:", error);
     return NextResponse.json(

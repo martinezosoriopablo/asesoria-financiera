@@ -42,6 +42,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import ClientSelector, { type ClientOption } from "@/components/shared/ClientSelector";
+import CurrencyConfirmModal from "@/components/shared/CurrencyConfirmModal";
 
 interface ParsedStatement {
   clientName: string;
@@ -52,6 +53,7 @@ interface ParsedStatement {
   fees: number;
   cashBalance: number;
   holdings: ParsedHolding[];
+  currency?: "USD" | "CLP";
 }
 
 interface ManualPosition {
@@ -152,6 +154,30 @@ function AnalisisCartolaContent() {
   const [savingCartola, setSavingCartola] = useState(false);
   const [viewMode, setViewMode] = useState<"consolidado" | "detalle">("consolidado");
   const [expandedCartola, setExpandedCartola] = useState<string | null>(null);
+
+  // Currency confirmation state
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [pendingStatement, setPendingStatement] = useState<ParsedStatement | null>(null);
+  const [detectedCurrency, setDetectedCurrency] = useState<"USD" | "CLP">("USD");
+  const [currencyConfidence, setCurrencyConfidence] = useState<"high" | "medium" | "low">("medium");
+  const [currencyReason, setCurrencyReason] = useState("");
+  const [exchangeRate, setExchangeRate] = useState(950);
+
+  // Fetch exchange rate on mount
+  useEffect(() => {
+    async function fetchExchangeRate() {
+      try {
+        const res = await fetch("/api/exchange-rates");
+        const data = await res.json();
+        if (data.success && data.rates?.USD) {
+          setExchangeRate(data.rates.USD);
+        }
+      } catch (err) {
+        console.error("Error fetching exchange rate:", err);
+      }
+    }
+    fetchExchangeRate();
+  }, []);
 
   // Fetch cartolas when client changes
   async function fetchCartolas(clientId: string) {
@@ -327,16 +353,39 @@ function AnalisisCartolaContent() {
         const err = await res.json();
         throw new Error(err.error || "Error al procesar el PDF");
       }
-      const data: ParsedStatement = await res.json();
-      const comp = classifyPortfolio(data.holdings, data.cashBalance);
-      setStatement(data);
-      setComposition(comp);
-      // No guardamos automáticamente - el usuario debe seleccionar AGF y guardar
+      const data = await res.json();
+
+      // Extraer datos de moneda detectada
+      const { detectedCurrency: currency, currencyConfidence: confidence, currencyReason: reason, ...statementData } = data;
+
+      // Guardar statement pendiente y mostrar modal de confirmación
+      setPendingStatement(statementData as ParsedStatement);
+      setDetectedCurrency(currency || "USD");
+      setCurrencyConfidence(confidence || "medium");
+      setCurrencyReason(reason || "");
+      setShowCurrencyModal(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Error desconocido");
     } finally {
       setLoading(false);
     }
+  }
+
+  // Handle currency confirmation
+  function handleCurrencyConfirm(currency: "USD" | "CLP", convertedData?: ParsedStatement) {
+    const finalStatement = convertedData || pendingStatement;
+    if (finalStatement) {
+      // Agregar la moneda al statement
+      const statementWithCurrency = {
+        ...finalStatement,
+        currency,
+      };
+      const comp = classifyPortfolio(statementWithCurrency.holdings, statementWithCurrency.cashBalance);
+      setStatement(statementWithCurrency);
+      setComposition(comp);
+    }
+    setShowCurrencyModal(false);
+    setPendingStatement(null);
   }
 
   function handleDrag(e: DragEvent) {
@@ -453,6 +502,23 @@ function AnalisisCartolaContent() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {advisor && (
         <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
+      )}
+
+      {/* Currency Confirmation Modal */}
+      {pendingStatement && (
+        <CurrencyConfirmModal
+          isOpen={showCurrencyModal}
+          onClose={() => {
+            setShowCurrencyModal(false);
+            setPendingStatement(null);
+          }}
+          onConfirm={handleCurrencyConfirm}
+          statement={pendingStatement}
+          detectedCurrency={detectedCurrency}
+          confidence={currencyConfidence}
+          reason={currencyReason}
+          exchangeRate={exchangeRate}
+        />
       )}
 
       <div className="max-w-6xl mx-auto px-5 py-8">
