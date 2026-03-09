@@ -1,16 +1,26 @@
 // app/direct-portfolio/components/AddBondModal.tsx
-// Modal para agregar bonos corporativos con entrada manual
+// Modal para agregar bonos corporativos con búsqueda OpenFIGI
 
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Loader, Info } from "lucide-react";
+import { X, Loader, Info, Search } from "lucide-react";
 import type { DirectPortfolioHolding } from "@/lib/direct-portfolio/types";
 import {
   formatCurrency,
   calculateYTM,
   calculateDuration,
 } from "@/lib/direct-portfolio/types";
+
+interface BondSearchResult {
+  figi: string;
+  cusip?: string;
+  isin?: string;
+  name: string;
+  ticker?: string;
+  securityType: string;
+  marketSector: string;
+}
 
 interface AddBondModalProps {
   isOpen: boolean;
@@ -25,6 +35,13 @@ export default function AddBondModal({
   onAdd,
   editHolding,
 }: AddBondModalProps) {
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<BondSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+
+  // Form state
   const [nombre, setNombre] = useState("");
   const [cusip, setCusip] = useState("");
   const [isin, setIsin] = useState("");
@@ -63,9 +80,50 @@ export default function AddBondModal({
         setVencimiento("");
         setFechaCompra(new Date().toISOString().split("T")[0]);
       }
+      setSearchQuery("");
+      setSearchResults([]);
+      setShowResults(false);
       setError(null);
     }
   }, [isOpen, editHolding]);
+
+  // Search bonds with debounce
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await fetch(
+          `/api/securities/bonds/search?q=${encodeURIComponent(searchQuery)}`
+        );
+        const data = await response.json();
+        if (data.success) {
+          setSearchResults(data.results || []);
+          setShowResults(true);
+        }
+      } catch (err) {
+        console.error("Bond search error:", err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Select a bond from search results
+  const handleSelectBond = (bond: BondSearchResult) => {
+    setNombre(bond.name);
+    if (bond.cusip) setCusip(bond.cusip);
+    if (bond.isin) setIsin(bond.isin);
+    setSearchQuery("");
+    setShowResults(false);
+    setSearchResults([]);
+  };
 
   // Calcular métricas del bono
   const bondMetrics = useMemo(() => {
@@ -170,7 +228,7 @@ export default function AddBondModal({
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+        <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
           <h2 className="text-lg font-semibold text-gray-900">
             {editHolding ? "Editar Bono" : "Agregar Bono Corporativo"}
           </h2>
@@ -184,12 +242,73 @@ export default function AddBondModal({
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Bond Search */}
+          {!editHolding && (
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Buscar Bono (CUSIP, ISIN o nombre)
+              </label>
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Ej: 037833100, US0378331005, Apple"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searching && (
+                  <Loader size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {showResults && searchResults.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {searchResults.map((bond) => (
+                    <button
+                      key={bond.figi}
+                      type="button"
+                      onClick={() => handleSelectBond(bond)}
+                      className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-900 text-sm">
+                        {bond.name}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        {bond.cusip && (
+                          <span className="text-xs text-gray-500">
+                            CUSIP: <span className="font-mono">{bond.cusip}</span>
+                          </span>
+                        )}
+                        {bond.isin && (
+                          <span className="text-xs text-gray-500">
+                            ISIN: <span className="font-mono">{bond.isin}</span>
+                          </span>
+                        )}
+                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                          {bond.marketSector}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {showResults && searchResults.length === 0 && searchQuery.length >= 2 && !searching && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
+                  No se encontraron bonos. Ingrese los datos manualmente.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Info */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
-            <Info size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-800">
-              Los bonos corporativos requieren entrada manual. Ingrese los datos
-              del prospecto o su estado de cuenta.
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-2">
+            <Info size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-blue-800">
+              Busque por CUSIP, ISIN o nombre del emisor. Los campos de cupón, vencimiento y precio
+              deben ingresarse manualmente desde el prospecto o estado de cuenta.
             </p>
           </div>
 
