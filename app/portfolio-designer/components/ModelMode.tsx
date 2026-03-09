@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { CommentaryPanel, CommentaryBrief } from "@/components/portfolio/CommentaryPanel";
 import { SavedModels } from "@/components/portfolio/SavedModels";
+import ClientSelector, { type ClientOption } from "@/components/shared/ClientSelector";
 
 // -------------------- Tipos auxiliares --------------------
 
@@ -713,18 +714,22 @@ export default function ModelMode() {
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gb-dark mb-2">
-                  Correo del cliente
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="cliente@ejemplo.com"
-                  className="w-full border border-gb-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-gb-accent transition-all"
-                />
-              </div>
+              <ClientSelector
+                value={client?.id || null}
+                onChange={(selectedClient: ClientOption | null) => {
+                  if (selectedClient) {
+                    setEmail(selectedClient.email);
+                  } else {
+                    setEmail("");
+                    setClient(null);
+                    setProfile(null);
+                    setAllocation(null);
+                  }
+                }}
+                label="Cliente"
+                placeholder="Seleccionar cliente..."
+                showRiskProfile={true}
+              />
 
               <div>
                 <label className="block text-xs font-medium text-gb-dark mb-2">

@@ -41,6 +41,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import ClientSelector, { type ClientOption } from "@/components/shared/ClientSelector";
 
 interface ParsedStatement {
   clientName: string;
@@ -462,16 +463,27 @@ function AnalisisCartolaContent() {
           </p>
         </div>
 
-        {/* Email + questionnaire */}
+        {/* Client selector + questionnaire */}
         <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 mb-6 shadow-sm">
           <h2 className="text-sm font-semibold text-gb-black mb-3">Cliente</h2>
           <div className="flex items-center gap-3">
-            <input
-              type="email"
-              placeholder="Email del cliente"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setQuestionnaireSent(false); }}
-              className="flex-1 max-w-sm px-3 py-2 border border-gb-border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            <ClientSelector
+              value={clientProfile?.id || null}
+              onChange={(client: ClientOption | null) => {
+                if (client) {
+                  setEmail(client.email);
+                  setQuestionnaireSent(false);
+                } else {
+                  setEmail("");
+                  setClientProfile(null);
+                  setRecommendedAllocation(null);
+                  setCartolas([]);
+                  setConsolidado(null);
+                }
+              }}
+              placeholder="Seleccionar cliente..."
+              className="flex-1 max-w-sm"
+              showRiskProfile={true}
             />
             {loadingProfile && <Loader className="w-4 h-4 animate-spin text-blue-500" />}
             <button

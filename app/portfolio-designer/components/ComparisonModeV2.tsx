@@ -41,6 +41,7 @@ import {
 import { GenerarCarteraButton } from "@/components/comite/CarteraRecomendada";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
 import * as XLSX from "xlsx";
+import ClientSelector, { type ClientOption } from "@/components/shared/ClientSelector";
 
 // ============================================================
 // INTERFACES
@@ -1019,29 +1020,34 @@ export default function ComparisonModeV2() {
       {/* CLIENT SEARCH */}
       {/* ============================================================ */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Email del Cliente
-        </label>
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="email"
-              value={clientEmail}
-              onChange={(e) => { setClientEmail(e.target.value); setClientNotFound(false); }}
-              onKeyDown={(e) => e.key === "Enter" && searchClient()}
-              placeholder="cliente@email.com"
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            />
-          </div>
-          <button
-            onClick={searchClient}
-            disabled={searchingClient || !clientEmail.trim()}
-            className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {searchingClient ? <Loader className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {searchingClient ? "Buscando..." : "Buscar"}
-          </button>
+        <div className="flex gap-3 items-end">
+          <ClientSelector
+            value={client?.id || null}
+            onChange={(selectedClient: ClientOption | null) => {
+              if (selectedClient) {
+                setClientEmail(selectedClient.email);
+                setClientNotFound(false);
+                // Trigger search after state update
+                setTimeout(() => searchClient(), 100);
+              } else {
+                setClientEmail("");
+                setClient(null);
+                setRiskProfile(null);
+                setCurrentHoldings([]);
+                setProposedPositions([]);
+                setTotalInvestment(0);
+              }
+            }}
+            label="Cliente"
+            placeholder="Seleccionar cliente..."
+            className="flex-1"
+            showRiskProfile={true}
+          />
+          {searchingClient && (
+            <div className="pb-2.5">
+              <Loader className="w-5 h-5 animate-spin text-gray-400" />
+            </div>
+          )}
         </div>
 
         {clientNotFound && (
