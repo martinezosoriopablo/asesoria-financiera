@@ -1,9 +1,23 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { X, Upload, FileSpreadsheet, Edit3, Loader, AlertTriangle } from "lucide-react";
+import { X, Upload, FileSpreadsheet, Edit3, Loader, AlertTriangle, Plus, Trash2, Building2 } from "lucide-react";
 import ManualEntryForm from "./ManualEntryForm";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
+
+interface ParsedHolding {
+  fundName: string;
+  securityId?: string | null;
+  quantity?: number;
+  unitCost?: number;
+  costBasis?: number;
+  marketPrice?: number;
+  marketValue: number;
+  unrealizedGainLoss?: number;
+  assetClass?: string;
+  currency?: string;
+  source?: string; // Custodian/source name
+}
 
 interface ParsedData {
   clientName?: string;
@@ -12,20 +26,18 @@ interface ParsedData {
   beginningValue?: number;
   endingValue?: number;
   totalValue?: number;
-  holdings?: Array<{
-    fundName: string;
-    securityId?: string | null;
-    quantity?: number;
-    unitCost?: number;
-    costBasis?: number;
-    marketPrice?: number;
-    marketValue: number;
-    unrealizedGainLoss?: number;
-    assetClass?: string;
-  }>;
+  holdings?: ParsedHolding[];
   detectedCurrency?: string;
   currencyConfidence?: string;
   currencyReason?: string;
+}
+
+interface UploadedFile {
+  id: string;
+  fileName: string;
+  source: string; // Custodian name (e.g., "BCI", "Stonex", "LarrainVial")
+  type: "pdf" | "excel";
+  data: ParsedData;
 }
 
 interface Props {
@@ -34,26 +46,50 @@ interface Props {
   onSuccess: () => void;
 }
 
-type Mode = "select" | "pdf" | "excel" | "manual" | "review";
+type Mode = "select" | "upload" | "manual" | "review";
+
+const CUSTODIAN_OPTIONS = [
+  "BCI",
+  "BTG Pactual",
+  "LarrainVial",
+  "Santander",
+  "Itaú",
+  "Scotiabank",
+  "Credicorp",
+  "Stonex",
+  "Pershing",
+  "Sura",
+  "Principal",
+  "Security",
+  "Bice",
+  "Otro",
+];
 
 export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props) {
   const [mode, setMode] = useState<Mode>("select");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [parsedData, setParsedData] = useState<ParsedData | null>(null);
-  const [uploadSource, setUploadSource] = useState<"pdf" | "excel">("pdf");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [currentSource, setCurrentSource] = useState("");
+  const [customSource, setCustomSource] = useState("");
+  const [uploadType, setUploadType] = useState<"pdf" | "excel">("pdf");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (file: File, type: "pdf" | "excel") => {
+    const sourceName = currentSource === "Otro" ? customSource : currentSource;
+
+    if (!sourceName) {
+      setError("Selecciona o ingresa el nombre de la administradora/custodio");
+      return;
+    }
+
     setUploading(true);
     setError(null);
-    setUploadSource(type);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      // Parse the file
       const parseEndpoint = type === "pdf"
         ? "/api/parse-portfolio-statement"
         : "/api/parse-portfolio-excel";
@@ -65,31 +101,43 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
 
       const parseResult = await parseRes.json();
 
-      // Handle error responses
       if (parseResult.error) {
         setError(parseResult.error || `Error al procesar archivo ${type.toUpperCase()}`);
         return;
       }
 
-      // Extract data from parsed result
-      // PDF parser returns data directly, Excel parser wraps in { success, data }
       const data = parseResult.data || parseResult;
 
-      // Validate we got something useful
       const totalValue = data.totalValue || data.endingValue ||
         (data.holdings?.reduce((sum: number, h: { marketValue?: number }) => sum + (h.marketValue || 0), 0) || 0);
 
       if (!totalValue || totalValue === 0) {
-        setError("No se pudo extraer el valor total del archivo. Verifica que el archivo contenga información de posiciones.");
+        setError("No se pudo extraer el valor total del archivo.");
         return;
       }
 
-      // Store parsed data and show review modal
-      setParsedData({
-        ...data,
-        totalValue,
-      });
-      setMode("review");
+      // Add source to each holding
+      const holdingsWithSource = (data.holdings || []).map((h: ParsedHolding) => ({
+        ...h,
+        source: sourceName,
+      }));
+
+      const newFile: UploadedFile = {
+        id: crypto.randomUUID(),
+        fileName: file.name,
+        source: sourceName,
+        type,
+        data: {
+          ...data,
+          totalValue,
+          holdings: holdingsWithSource,
+        },
+      };
+
+      setUploadedFiles([...uploadedFiles, newFile]);
+      setCurrentSource("");
+      setCustomSource("");
+      setError(null);
 
     } catch (err) {
       console.error("Error uploading file:", err);
@@ -102,42 +150,57 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const fileType = mode === "pdf" ? "pdf" : "excel";
-    handleFileUpload(file, fileType);
+    handleFileUpload(file, uploadType);
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
-  const triggerFileSelect = () => {
-    fileInputRef.current?.click();
+  const triggerFileSelect = (type: "pdf" | "excel") => {
+    setUploadType(type);
+    setTimeout(() => fileInputRef.current?.click(), 0);
+  };
+
+  const removeFile = (id: string) => {
+    setUploadedFiles(uploadedFiles.filter(f => f.id !== id));
   };
 
   const handleReviewClose = () => {
-    setParsedData(null);
+    setUploadedFiles([]);
     setMode("select");
   };
 
-  // Show review modal if we have parsed data
-  if (mode === "review" && parsedData) {
+  // Consolidate all holdings from uploaded files
+  const consolidatedData: ParsedData = {
+    holdings: uploadedFiles.flatMap(f => f.data.holdings || []),
+    totalValue: uploadedFiles.reduce((sum, f) => sum + (f.data.totalValue || 0), 0),
+    period: uploadedFiles[0]?.data.period,
+    detectedCurrency: uploadedFiles[0]?.data.detectedCurrency,
+  };
+
+  // Show review modal if we're in review mode
+  if (mode === "review" && uploadedFiles.length > 0) {
     return (
       <ReviewSnapshotModal
         clientId={clientId}
-        parsedData={parsedData}
-        source={uploadSource}
+        parsedData={consolidatedData}
+        sources={uploadedFiles.map(f => f.source)}
         onClose={handleReviewClose}
         onSuccess={onSuccess}
+        onAddMore={() => setMode("upload")}
       />
     );
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gb-black">
             {mode === "select" && "Agregar Cartola"}
-            {mode === "pdf" && "Subir PDF"}
-            {mode === "excel" && "Subir Excel"}
+            {mode === "upload" && "Subir Archivos"}
             {mode === "manual" && "Entrada Manual"}
           </h3>
           <button
@@ -163,34 +226,18 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
               Selecciona cómo deseas agregar la información de la cartola:
             </p>
 
-            {/* PDF option */}
+            {/* Upload option */}
             <button
-              onClick={() => setMode("pdf")}
+              onClick={() => setMode("upload")}
               className="w-full flex items-center gap-4 p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
             >
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <Upload className="w-6 h-6 text-red-600" />
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <Upload className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <p className="font-medium text-gb-black">Subir PDF</p>
+                <p className="font-medium text-gb-black">Subir Archivos</p>
                 <p className="text-sm text-gb-gray">
-                  Cargar estado de cuenta en PDF para análisis automático con IA
-                </p>
-              </div>
-            </button>
-
-            {/* Excel option */}
-            <button
-              onClick={() => setMode("excel")}
-              className="w-full flex items-center gap-4 p-4 border border-slate-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-left"
-            >
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                <FileSpreadsheet className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gb-black">Subir Excel</p>
-                <p className="text-sm text-gb-gray">
-                  Cargar archivo Excel con posiciones (formato BCI/AGF)
+                  Cargar PDF o Excel de una o múltiples administradoras
                 </p>
               </div>
             </button>
@@ -213,95 +260,150 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
           </div>
         )}
 
-        {/* PDF upload mode */}
-        {mode === "pdf" && (
+        {/* Upload mode */}
+        {mode === "upload" && (
           <div className="space-y-4">
             <button
-              onClick={() => setMode("select")}
+              onClick={() => {
+                if (uploadedFiles.length === 0) {
+                  setMode("select");
+                } else {
+                  setMode("review");
+                }
+              }}
               className="text-sm text-blue-600 hover:underline"
             >
-              &larr; Volver
+              &larr; {uploadedFiles.length > 0 ? "Continuar a revisión" : "Volver"}
             </button>
 
+            {/* Info */}
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-700">
-                Sube el PDF y luego podrás revisar y ajustar los datos antes de guardar.
+                Puedes subir archivos de múltiples administradoras (BCI, Stonex, etc.)
+                y se consolidarán en un solo snapshot.
               </p>
             </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
+            {/* Uploaded files list */}
+            {uploadedFiles.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-gb-black">
+                  Archivos cargados ({uploadedFiles.length})
+                </h4>
+                {uploadedFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Building2 className="w-5 h-5 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-green-800">{file.source}</p>
+                        <p className="text-xs text-green-600">{file.fileName}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-green-800">
+                        {file.data.holdings?.length || 0} posiciones
+                      </span>
+                      <button
+                        onClick={() => removeFile(file.id)}
+                        className="p-1 text-red-500 hover:bg-red-100 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            <button
-              onClick={triggerFileSelect}
-              disabled={uploading}
-              className="w-full flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
-            >
-              {uploading ? (
-                <>
-                  <Loader className="w-8 h-8 text-blue-600 animate-spin" />
-                  <p className="text-sm text-gb-gray">Analizando PDF con IA...</p>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-8 h-8 text-gb-gray" />
-                  <p className="text-sm text-gb-gray">
-                    Haz clic para seleccionar un archivo PDF
-                  </p>
-                </>
+            {/* Add new file */}
+            <div className="border border-slate-200 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gb-black flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Agregar archivo
+              </h4>
+
+              {/* Source selection */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Administradora / Custodio
+                </label>
+                <select
+                  value={currentSource}
+                  onChange={(e) => setCurrentSource(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar...</option>
+                  {CUSTODIAN_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+
+              {currentSource === "Otro" && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Nombre de la administradora
+                  </label>
+                  <input
+                    type="text"
+                    value={customSource}
+                    onChange={(e) => setCustomSource(e.target.value)}
+                    placeholder="Ej: Mi Corredora"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               )}
-            </button>
-          </div>
-        )}
 
-        {/* Excel upload mode */}
-        {mode === "excel" && (
-          <div className="space-y-4">
-            <button
-              onClick={() => setMode("select")}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              &larr; Volver
-            </button>
+              {/* File input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={uploadType === "pdf" ? ".pdf" : ".xlsx,.xls,.csv"}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
 
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-700">
-                Sube el Excel y luego podrás revisar y ajustar los datos antes de guardar.
-              </p>
+              {/* Upload buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => triggerFileSelect("pdf")}
+                  disabled={uploading || (!currentSource || (currentSource === "Otro" && !customSource))}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 rounded-lg hover:border-red-400 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading && uploadType === "pdf" ? (
+                    <Loader className="w-5 h-5 text-red-600 animate-spin" />
+                  ) : (
+                    <Upload className="w-5 h-5 text-red-600" />
+                  )}
+                  <span className="text-sm font-medium text-slate-700">PDF</span>
+                </button>
+                <button
+                  onClick={() => triggerFileSelect("excel")}
+                  disabled={uploading || (!currentSource || (currentSource === "Otro" && !customSource))}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading && uploadType === "excel" ? (
+                    <Loader className="w-5 h-5 text-green-600 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                  )}
+                  <span className="text-sm font-medium text-slate-700">Excel</span>
+                </button>
+              </div>
             </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-
-            <button
-              onClick={triggerFileSelect}
-              disabled={uploading}
-              className="w-full flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed border-slate-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-colors"
-            >
-              {uploading ? (
-                <>
-                  <Loader className="w-8 h-8 text-green-600 animate-spin" />
-                  <p className="text-sm text-gb-gray">Procesando Excel...</p>
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="w-8 h-8 text-gb-gray" />
-                  <p className="text-sm text-gb-gray">
-                    Haz clic para seleccionar un archivo Excel (.xlsx, .xls, .csv)
-                  </p>
-                </>
-              )}
-            </button>
+            {/* Continue button */}
+            {uploadedFiles.length > 0 && (
+              <button
+                onClick={() => setMode("review")}
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Continuar a revisión ({uploadedFiles.length} archivo{uploadedFiles.length > 1 ? "s" : ""})
+              </button>
+            )}
           </div>
         )}
 

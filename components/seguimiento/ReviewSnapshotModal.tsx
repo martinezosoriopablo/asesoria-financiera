@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw } from "lucide-react";
+import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus, TrendingUp, TrendingDown, Building2 } from "lucide-react";
 
 interface Holding {
   fundName: string;
@@ -14,6 +14,7 @@ interface Holding {
   unrealizedGainLoss?: number;
   assetClass?: string;
   currency?: string;
+  source?: string; // Custodian name
 }
 
 interface ParsedData {
@@ -32,15 +33,16 @@ interface ParsedData {
 interface Props {
   clientId: string;
   parsedData: ParsedData;
-  source: "pdf" | "excel";
+  sources?: string[]; // List of custodians
   onClose: () => void;
   onSuccess: () => void;
+  onAddMore?: () => void; // Callback to add more files
 }
 
 interface ExchangeRates {
-  usd: number; // CLP per USD
-  eur: number; // CLP per EUR
-  uf: number;  // CLP per UF
+  usd: number;
+  eur: number;
+  uf: number;
 }
 
 const ASSET_CLASS_OPTIONS = [
@@ -58,49 +60,33 @@ const CURRENCY_OPTIONS = [
   { value: "UF", label: "UF", shortLabel: "UF" },
 ];
 
-// Heurísticas para detectar moneda del nombre del fondo
 function detectCurrencyFromName(fundName: string): string {
   const name = fundName.toLowerCase();
-
-  // USD indicators
   if (name.includes("usd") || name.includes("dollar") || name.includes("dolar") ||
       name.includes("us ") || name.includes("(us)") || name.includes("eeuu") ||
       name.includes("usa") || name.includes("global") || name.includes("international")) {
     return "USD";
   }
-
-  // EUR indicators
   if (name.includes("eur") || name.includes("euro") || name.includes("europa") ||
       name.includes("european")) {
     return "EUR";
   }
-
-  // UF indicators (Chilean)
   if (name.includes(" uf") || name.includes("(uf)") || name.includes("uf ")) {
     return "UF";
   }
-
-  // CLP indicators or default for Chilean funds
   if (name.includes("clp") || name.includes("peso") || name.includes("chile") ||
       name.includes("local") || name.includes("nacional")) {
     return "CLP";
   }
-
-  // Default based on detected currency or USD
   return "USD";
 }
 
-// Heurísticas para clasificar fondos
 function classifyFund(fundName: string): string {
   const name = fundName.toLowerCase();
-
-  // Money Market / Cash
   if (name.includes("money market") || name.includes("mm ") || name.includes("liquidez") ||
       name.includes("efectivo") || name.includes("cash") || name.includes("disponible")) {
     return "cash";
   }
-
-  // Fixed Income / Renta Fija
   if (name.includes("renta fija") || name.includes("fixed income") || name.includes("bond") ||
       name.includes("bono") || name.includes("deuda") || name.includes("corporate") ||
       name.includes("soberan") || name.includes("high yield") || name.includes("investment grade") ||
@@ -108,38 +94,33 @@ function classifyFund(fundName: string): string {
       name.includes("deposito") || name.includes("depósito") || name.includes("pacto")) {
     return "fixedIncome";
   }
-
-  // Balanced / Balanceado
   if (name.includes("balanced") || name.includes("balanceado") || name.includes("mixto") ||
       name.includes("multi-asset") || name.includes("multiactivo") || name.includes("allocation") ||
       name.includes("moderate") || name.includes("moderado")) {
     return "balanced";
   }
-
-  // Alternatives
   if (name.includes("alternativ") || name.includes("real estate") || name.includes("inmobiliario") ||
       name.includes("private equity") || name.includes("hedge") || name.includes("commodity") ||
       name.includes("infraestruct") || name.includes("real asset")) {
     return "alternatives";
   }
-
-  // Default: Equity / Renta Variable
   return "equity";
 }
 
 export default function ReviewSnapshotModal({
   clientId,
   parsedData,
-  source,
+  sources = [],
   onClose,
   onSuccess,
+  onAddMore,
 }: Props) {
   // Exchange rates state
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [loadingRates, setLoadingRates] = useState(true);
   const [ratesError, setRatesError] = useState<string | null>(null);
 
-  // Initialize holdings with currency per fund
+  // Initialize holdings with currency and classification
   const initialHoldings = (parsedData.holdings || []).map((h) => ({
     ...h,
     assetClass: h.assetClass || classifyFund(h.fundName),
@@ -151,6 +132,13 @@ export default function ReviewSnapshotModal({
     parsedData.period ? parseDate(parsedData.period) : new Date().toISOString().split("T")[0]
   );
   const [consolidationCurrency, setConsolidationCurrency] = useState("CLP");
+
+  // Cash flows state
+  const [deposits, setDeposits] = useState(0);
+  const [withdrawals, setWithdrawals] = useState(0);
+  const [depositsCurrency, setDepositsCurrency] = useState("CLP");
+  const [withdrawalsCurrency, setWithdrawalsCurrency] = useState("CLP");
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,7 +149,6 @@ export default function ReviewSnapshotModal({
       try {
         const res = await fetch("/api/exchange-rates");
         const data = await res.json();
-
         if (data.success) {
           setExchangeRates({
             usd: data.usd || 980,
@@ -170,7 +157,6 @@ export default function ReviewSnapshotModal({
           });
         } else {
           setRatesError("Error al obtener tipos de cambio");
-          // Use fallback rates
           setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
         }
       } catch {
@@ -183,7 +169,6 @@ export default function ReviewSnapshotModal({
     fetchRates();
   }, []);
 
-  // Try to parse period string to date
   function parseDate(period: string): string {
     try {
       const date = new Date(period);
@@ -196,7 +181,6 @@ export default function ReviewSnapshotModal({
     return new Date().toISOString().split("T")[0];
   }
 
-  // Convert value to CLP
   const toCLP = (value: number, currency: string): number => {
     if (!exchangeRates) return value;
     switch (currency) {
@@ -208,7 +192,6 @@ export default function ReviewSnapshotModal({
     }
   };
 
-  // Convert CLP to target currency
   const fromCLP = (clpValue: number, targetCurrency: string): number => {
     if (!exchangeRates) return clpValue;
     switch (targetCurrency) {
@@ -220,7 +203,7 @@ export default function ReviewSnapshotModal({
     }
   };
 
-  // Calculate totals by currency and consolidated total
+  // Calculate totals
   const { totalsByCurrency, consolidatedTotal, totalInCLP } = useMemo(() => {
     const totals: Record<string, number> = { USD: 0, CLP: 0, EUR: 0, UF: 0 };
     let clpTotal = 0;
@@ -238,7 +221,14 @@ export default function ReviewSnapshotModal({
     };
   }, [holdings, exchangeRates, consolidationCurrency]);
 
-  // Calculate composition from holdings (using CLP values for percentages)
+  // Calculate net cash flows in CLP
+  const netCashFlowCLP = useMemo(() => {
+    const depositsCLP = toCLP(deposits, depositsCurrency);
+    const withdrawalsCLP = toCLP(withdrawals, withdrawalsCurrency);
+    return depositsCLP - withdrawalsCLP;
+  }, [deposits, withdrawals, depositsCurrency, withdrawalsCurrency, exchangeRates]);
+
+  // Calculate composition
   const composition = useMemo(() => {
     const comp: Record<string, { value: number; percent: number }> = {
       equity: { value: 0, percent: 0 },
@@ -269,6 +259,12 @@ export default function ReviewSnapshotModal({
     return comp;
   }, [holdings, totalInCLP]);
 
+  // Get unique sources
+  const uniqueSources = useMemo(() => {
+    const holdingSources = holdings.map(h => h.source).filter(Boolean);
+    return [...new Set([...sources, ...holdingSources])];
+  }, [holdings, sources]);
+
   const handleAssetClassChange = (index: number, newClass: string) => {
     const updated = [...holdings];
     updated[index] = { ...updated[index], assetClass: newClass };
@@ -298,7 +294,7 @@ export default function ReviewSnapshotModal({
         body: JSON.stringify({
           clientId,
           snapshotDate: fechaCartola,
-          totalValue: totalInCLP, // Store in CLP
+          totalValue: totalInCLP,
           composition: {
             equity: composition.equity,
             fixedIncome: composition.fixedIncome,
@@ -309,9 +305,15 @@ export default function ReviewSnapshotModal({
             ...h,
             marketValueCLP: toCLP(h.marketValue || 0, h.currency || "USD"),
           })),
-          source,
-          currency: "CLP", // Base currency for storage
+          sources: uniqueSources,
+          currency: "CLP",
           exchangeRates,
+          // Cash flows for TWR calculation
+          cashFlows: {
+            deposits: toCLP(deposits, depositsCurrency),
+            withdrawals: toCLP(withdrawals, withdrawalsCurrency),
+            netFlow: netCashFlowCLP,
+          },
         }),
       });
 
@@ -330,38 +332,26 @@ export default function ReviewSnapshotModal({
     }
   };
 
-  // Manual Chilean format: dots for thousands, commas for decimals
+  // Manual Chilean format
   const formatNumber = (value: number, decimals: number = 0): string => {
     const fixed = value.toFixed(decimals);
     const [intPart, decPart] = fixed.split(".");
-
-    // Add thousand separators (dots)
     const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
-    // Return with comma for decimals if needed
     return decPart ? `${withThousands},${decPart}` : withThousands;
   };
 
   const formatCurrency = (value: number, currency: string) => {
     switch (currency) {
-      case "CLP":
-        return `$${formatNumber(value, 0)}`;
-      case "USD":
-        return `US$${formatNumber(value, 0)}`;
-      case "EUR":
-        return `€${formatNumber(value, 0)}`;
-      case "UF":
-        return `UF ${formatNumber(value, 2)}`;
-      default:
-        return `${currency} ${formatNumber(value, 0)}`;
+      case "CLP": return `$${formatNumber(value, 0)}`;
+      case "USD": return `US$${formatNumber(value, 0)}`;
+      case "EUR": return `€${formatNumber(value, 0)}`;
+      case "UF": return `UF ${formatNumber(value, 2)}`;
+      default: return `${currency} ${formatNumber(value, 0)}`;
     }
   };
 
-  const formatRate = (rate: number) => {
-    return formatNumber(rate, 2);
-  };
+  const formatRate = (rate: number) => formatNumber(rate, 2);
 
-  // Get currencies that have holdings
   const activeCurrencies = Object.entries(totalsByCurrency)
     .filter(([, value]) => value > 0)
     .map(([currency]) => currency);
@@ -373,7 +363,14 @@ export default function ReviewSnapshotModal({
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-semibold text-gb-black">Revisar y Confirmar</h3>
-            <p className="text-sm text-gb-gray">Verifica y ajusta los datos antes de guardar</p>
+            <p className="text-sm text-gb-gray">
+              {uniqueSources.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <Building2 className="w-3 h-3" />
+                  {uniqueSources.join(", ")}
+                </span>
+              )}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -396,7 +393,7 @@ export default function ReviewSnapshotModal({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800">Tipos de Cambio</span>
+              <span className="text-sm font-medium text-blue-800">Tipos de Cambio (BCCH)</span>
             </div>
             {loadingRates ? (
               <Loader className="w-4 h-4 text-blue-600 animate-spin" />
@@ -419,22 +416,84 @@ export default function ReviewSnapshotModal({
           )}
         </div>
 
-        {/* Date */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
-            <Calendar className="w-4 h-4" />
-            Fecha de la Cartola
-          </label>
-          <input
-            type="date"
-            value={fechaCartola}
-            onChange={(e) => setFechaCartola(e.target.value)}
-            className="w-48 px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          {parsedData.period && (
-            <p className="text-xs text-gb-gray mt-1">Período detectado: {parsedData.period}</p>
-          )}
+        {/* Date and Cash Flows */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+              <Calendar className="w-4 h-4" />
+              Fecha de la Cartola
+            </label>
+            <input
+              type="date"
+              value={fechaCartola}
+              onChange={(e) => setFechaCartola(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Deposits */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+              <TrendingUp className="w-4 h-4 text-green-600" />
+              Aportes del Período
+            </label>
+            <div className="flex gap-1">
+              <input
+                type="number"
+                value={deposits || ""}
+                onChange={(e) => setDeposits(parseFloat(e.target.value) || 0)}
+                placeholder="0"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-l-md focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={depositsCurrency}
+                onChange={(e) => setDepositsCurrency(e.target.value)}
+                className="w-20 px-2 py-2 border border-l-0 border-slate-300 rounded-r-md bg-slate-50"
+              >
+                {CURRENCY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.value}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Withdrawals */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+              <TrendingDown className="w-4 h-4 text-red-600" />
+              Retiros del Período
+            </label>
+            <div className="flex gap-1">
+              <input
+                type="number"
+                value={withdrawals || ""}
+                onChange={(e) => setWithdrawals(parseFloat(e.target.value) || 0)}
+                placeholder="0"
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-l-md focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={withdrawalsCurrency}
+                onChange={(e) => setWithdrawalsCurrency(e.target.value)}
+                className="w-20 px-2 py-2 border border-l-0 border-slate-300 rounded-r-md bg-slate-50"
+              >
+                {CURRENCY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.value}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
+
+        {/* Net Cash Flow indicator */}
+        {(deposits > 0 || withdrawals > 0) && (
+          <div className="mb-4 p-2 bg-slate-100 rounded-lg flex items-center justify-between">
+            <span className="text-sm text-slate-600">Flujo Neto del Período:</span>
+            <span className={`text-sm font-semibold ${netCashFlowCLP >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {netCashFlowCLP >= 0 ? "+" : ""}{formatCurrency(netCashFlowCLP, "CLP")}
+            </span>
+          </div>
+        )}
 
         {/* Totals by Currency */}
         <div className="mb-6 p-4 bg-slate-50 rounded-lg">
@@ -454,7 +513,6 @@ export default function ReviewSnapshotModal({
             </div>
           </div>
 
-          {/* Subtotals by currency */}
           <div className="grid grid-cols-4 gap-2 mb-3">
             {activeCurrencies.map((curr) => (
               <div key={curr} className="p-2 bg-white rounded border border-slate-200 text-center">
@@ -466,7 +524,6 @@ export default function ReviewSnapshotModal({
             ))}
           </div>
 
-          {/* Consolidated total */}
           <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-700">Total Consolidado</span>
             <span className="text-2xl font-bold text-gb-black">
@@ -521,6 +578,9 @@ export default function ReviewSnapshotModal({
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Instrumento</th>
+                  {uniqueSources.length > 1 && (
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-24">Custodio</th>
+                  )}
                   <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-20">Moneda</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-32">Valor</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-28">En CLP</th>
@@ -538,6 +598,13 @@ export default function ReviewSnapshotModal({
                         <p className="text-xs text-gb-gray">{holding.securityId}</p>
                       )}
                     </td>
+                    {uniqueSources.length > 1 && (
+                      <td className="px-3 py-2 text-center">
+                        <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600">
+                          {holding.source || "-"}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-center">
                       <select
                         value={holding.currency || "USD"}
@@ -581,31 +648,44 @@ export default function ReviewSnapshotModal({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 justify-end pt-4 border-t border-slate-200">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2 text-sm font-medium border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || holdings.length === 0 || loadingRates}
-            className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-          >
-            {saving ? (
-              <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4" />
-                Confirmar y Guardar
-              </>
+        <div className="flex gap-3 justify-between pt-4 border-t border-slate-200">
+          <div>
+            {onAddMore && (
+              <button
+                onClick={onAddMore}
+                className="px-4 py-2 text-sm font-medium border border-blue-300 text-blue-600 rounded-md hover:bg-blue-50 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar otra cartola
+              </button>
             )}
-          </button>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium border border-slate-300 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || holdings.length === 0 || loadingRates}
+              className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  Confirmar y Guardar
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
