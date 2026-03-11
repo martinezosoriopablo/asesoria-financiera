@@ -10,6 +10,7 @@ const BCCH_PASSWORD = process.env.BCCH_API_PASSWORD || "";
 // Series del Banco Central
 const SERIES = {
   dolar_obs: "F073.TCO.PRE.Z.D", // Dólar observado (pesos por dólar)
+  euro: "F072.CLP.EUR.N.O.D",    // Euro (pesos por euro)
   uf: "F073.UFF.PRE.Z.D",        // UF diaria (pesos por UF)
 };
 
@@ -26,7 +27,7 @@ interface BCCHResponse {
 
 // Cache simple en memoria (5 minutos)
 let cache: {
-  data: { usd: number; uf: number; timestamp: string } | null;
+  data: { usd: number; eur: number; uf: number; timestamp: string } | null;
   expiry: number;
 } = { data: null, expiry: 0 };
 
@@ -108,23 +109,26 @@ export async function GET() {
       return NextResponse.json({
         success: true,
         usd: 980,
+        eur: 1060,
         uf: 38500,
         timestamp: new Date().toISOString(),
         fallback: true,
       });
     }
 
-    // Obtener ambas series en paralelo
-    const [usdValue, ufValue] = await Promise.all([
+    // Obtener todas las series en paralelo
+    const [usdValue, eurValue, ufValue] = await Promise.all([
       fetchSeriesValue(SERIES.dolar_obs),
+      fetchSeriesValue(SERIES.euro),
       fetchSeriesValue(SERIES.uf),
     ]);
 
     const result = {
       usd: usdValue || 980,    // Fallback si falla
+      eur: eurValue || 1060,   // Fallback si falla
       uf: ufValue || 38500,    // Fallback si falla
       timestamp: new Date().toISOString(),
-      fallback: !usdValue || !ufValue,
+      fallback: !usdValue || !eurValue || !ufValue,
     };
 
     // Guardar en cache
@@ -144,6 +148,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       usd: 980,
+      eur: 1060,
       uf: 38500,
       timestamp: new Date().toISOString(),
       fallback: true,

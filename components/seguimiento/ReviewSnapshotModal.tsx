@@ -163,21 +163,19 @@ export default function ReviewSnapshotModal({
         const data = await res.json();
 
         if (data.success) {
-          // Calculate EUR from USD (approximate EUR/USD rate of 1.08)
-          const eurUsdRate = 1.08;
           setExchangeRates({
             usd: data.usd || 980,
-            eur: (data.usd || 980) * eurUsdRate,
+            eur: data.eur || 1060,
             uf: data.uf || 38500,
           });
         } else {
           setRatesError("Error al obtener tipos de cambio");
           // Use fallback rates
-          setExchangeRates({ usd: 980, eur: 1058, uf: 38500 });
+          setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
         }
       } catch {
         setRatesError("Error de conexión");
-        setExchangeRates({ usd: 980, eur: 1058, uf: 38500 });
+        setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
       } finally {
         setLoadingRates(false);
       }
