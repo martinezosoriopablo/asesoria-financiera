@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { X, Loader, AlertTriangle, Check, DollarSign, Calendar } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw } from "lucide-react";
 
 interface Holding {
   fundName: string;
@@ -13,6 +13,7 @@ interface Holding {
   marketValue: number;
   unrealizedGainLoss?: number;
   assetClass?: string;
+  currency?: string;
 }
 
 interface ParsedData {
@@ -36,6 +37,12 @@ interface Props {
   onSuccess: () => void;
 }
 
+interface ExchangeRates {
+  usd: number; // CLP per USD
+  eur: number; // CLP per EUR
+  uf: number;  // CLP per UF
+}
+
 const ASSET_CLASS_OPTIONS = [
   { value: "equity", label: "Renta Variable", color: "bg-blue-100 text-blue-800" },
   { value: "fixedIncome", label: "Renta Fija", color: "bg-green-100 text-green-800" },
@@ -45,11 +52,43 @@ const ASSET_CLASS_OPTIONS = [
 ];
 
 const CURRENCY_OPTIONS = [
-  { value: "USD", label: "USD (Dólares)" },
-  { value: "CLP", label: "CLP (Pesos Chilenos)" },
-  { value: "EUR", label: "EUR (Euros)" },
-  { value: "UF", label: "UF" },
+  { value: "USD", label: "USD", shortLabel: "$" },
+  { value: "CLP", label: "CLP", shortLabel: "$" },
+  { value: "EUR", label: "EUR", shortLabel: "€" },
+  { value: "UF", label: "UF", shortLabel: "UF" },
 ];
+
+// Heurísticas para detectar moneda del nombre del fondo
+function detectCurrencyFromName(fundName: string): string {
+  const name = fundName.toLowerCase();
+
+  // USD indicators
+  if (name.includes("usd") || name.includes("dollar") || name.includes("dolar") ||
+      name.includes("us ") || name.includes("(us)") || name.includes("eeuu") ||
+      name.includes("usa") || name.includes("global") || name.includes("international")) {
+    return "USD";
+  }
+
+  // EUR indicators
+  if (name.includes("eur") || name.includes("euro") || name.includes("europa") ||
+      name.includes("european")) {
+    return "EUR";
+  }
+
+  // UF indicators (Chilean)
+  if (name.includes(" uf") || name.includes("(uf)") || name.includes("uf ")) {
+    return "UF";
+  }
+
+  // CLP indicators or default for Chilean funds
+  if (name.includes("clp") || name.includes("peso") || name.includes("chile") ||
+      name.includes("local") || name.includes("nacional")) {
+    return "CLP";
+  }
+
+  // Default based on detected currency or USD
+  return "USD";
+}
 
 // Heurísticas para clasificar fondos
 function classifyFund(fundName: string): string {
@@ -95,28 +134,60 @@ export default function ReviewSnapshotModal({
   onClose,
   onSuccess,
 }: Props) {
-  // Initialize state from parsed data
+  // Exchange rates state
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+  const [loadingRates, setLoadingRates] = useState(true);
+  const [ratesError, setRatesError] = useState<string | null>(null);
+
+  // Initialize holdings with currency per fund
   const initialHoldings = (parsedData.holdings || []).map((h) => ({
     ...h,
     assetClass: h.assetClass || classifyFund(h.fundName),
+    currency: h.currency || parsedData.detectedCurrency || detectCurrencyFromName(h.fundName),
   }));
 
   const [holdings, setHoldings] = useState<Holding[]>(initialHoldings);
   const [fechaCartola, setFechaCartola] = useState(
     parsedData.period ? parseDate(parsedData.period) : new Date().toISOString().split("T")[0]
   );
-  const [currency, setCurrency] = useState(parsedData.detectedCurrency || "USD");
-  const [totalValue, setTotalValue] = useState(
-    parsedData.totalValue || parsedData.endingValue ||
-    initialHoldings.reduce((sum, h) => sum + (h.marketValue || 0), 0)
-  );
+  const [consolidationCurrency, setConsolidationCurrency] = useState("CLP");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch exchange rates on mount
+  useEffect(() => {
+    async function fetchRates() {
+      setLoadingRates(true);
+      try {
+        const res = await fetch("/api/exchange-rates");
+        const data = await res.json();
+
+        if (data.success) {
+          // Calculate EUR from USD (approximate EUR/USD rate of 1.08)
+          const eurUsdRate = 1.08;
+          setExchangeRates({
+            usd: data.usd || 980,
+            eur: (data.usd || 980) * eurUsdRate,
+            uf: data.uf || 38500,
+          });
+        } else {
+          setRatesError("Error al obtener tipos de cambio");
+          // Use fallback rates
+          setExchangeRates({ usd: 980, eur: 1058, uf: 38500 });
+        }
+      } catch {
+        setRatesError("Error de conexión");
+        setExchangeRates({ usd: 980, eur: 1058, uf: 38500 });
+      } finally {
+        setLoadingRates(false);
+      }
+    }
+    fetchRates();
+  }, []);
 
   // Try to parse period string to date
   function parseDate(period: string): string {
     try {
-      // Try common formats
       const date = new Date(period);
       if (!isNaN(date.getTime())) {
         return date.toISOString().split("T")[0];
@@ -127,7 +198,49 @@ export default function ReviewSnapshotModal({
     return new Date().toISOString().split("T")[0];
   }
 
-  // Calculate composition from holdings
+  // Convert value to CLP
+  const toCLP = (value: number, currency: string): number => {
+    if (!exchangeRates) return value;
+    switch (currency) {
+      case "USD": return value * exchangeRates.usd;
+      case "EUR": return value * exchangeRates.eur;
+      case "UF": return value * exchangeRates.uf;
+      case "CLP": return value;
+      default: return value;
+    }
+  };
+
+  // Convert CLP to target currency
+  const fromCLP = (clpValue: number, targetCurrency: string): number => {
+    if (!exchangeRates) return clpValue;
+    switch (targetCurrency) {
+      case "USD": return clpValue / exchangeRates.usd;
+      case "EUR": return clpValue / exchangeRates.eur;
+      case "UF": return clpValue / exchangeRates.uf;
+      case "CLP": return clpValue;
+      default: return clpValue;
+    }
+  };
+
+  // Calculate totals by currency and consolidated total
+  const { totalsByCurrency, consolidatedTotal, totalInCLP } = useMemo(() => {
+    const totals: Record<string, number> = { USD: 0, CLP: 0, EUR: 0, UF: 0 };
+    let clpTotal = 0;
+
+    holdings.forEach((h) => {
+      const curr = h.currency || "USD";
+      totals[curr] = (totals[curr] || 0) + (h.marketValue || 0);
+      clpTotal += toCLP(h.marketValue || 0, curr);
+    });
+
+    return {
+      totalsByCurrency: totals,
+      totalInCLP: clpTotal,
+      consolidatedTotal: fromCLP(clpTotal, consolidationCurrency),
+    };
+  }, [holdings, exchangeRates, consolidationCurrency]);
+
+  // Calculate composition from holdings (using CLP values for percentages)
   const composition = useMemo(() => {
     const comp: Record<string, { value: number; percent: number }> = {
       equity: { value: 0, percent: 0 },
@@ -137,30 +250,26 @@ export default function ReviewSnapshotModal({
       cash: { value: 0, percent: 0 },
     };
 
-    let total = 0;
     holdings.forEach((h) => {
-      const value = h.marketValue || 0;
+      const clpValue = toCLP(h.marketValue || 0, h.currency || "USD");
       const assetClass = h.assetClass || "equity";
 
-      // Balanced se divide 50/50 entre equity y fixed income
       if (assetClass === "balanced") {
-        comp.equity.value += value * 0.5;
-        comp.fixedIncome.value += value * 0.5;
+        comp.equity.value += clpValue * 0.5;
+        comp.fixedIncome.value += clpValue * 0.5;
       } else {
-        comp[assetClass].value += value;
+        comp[assetClass].value += clpValue;
       }
-      total += value;
     });
 
-    // Calculate percentages
-    if (total > 0) {
+    if (totalInCLP > 0) {
       Object.keys(comp).forEach((key) => {
-        comp[key].percent = (comp[key].value / total) * 100;
+        comp[key].percent = (comp[key].value / totalInCLP) * 100;
       });
     }
 
     return comp;
-  }, [holdings]);
+  }, [holdings, totalInCLP]);
 
   const handleAssetClassChange = (index: number, newClass: string) => {
     const updated = [...holdings];
@@ -172,10 +281,12 @@ export default function ReviewSnapshotModal({
     const updated = [...holdings];
     updated[index] = { ...updated[index], marketValue: newValue };
     setHoldings(updated);
+  };
 
-    // Recalculate total
-    const newTotal = updated.reduce((sum, h) => sum + (h.marketValue || 0), 0);
-    setTotalValue(newTotal);
+  const handleCurrencyChange = (index: number, newCurrency: string) => {
+    const updated = [...holdings];
+    updated[index] = { ...updated[index], currency: newCurrency };
+    setHoldings(updated);
   };
 
   const handleSave = async () => {
@@ -189,7 +300,7 @@ export default function ReviewSnapshotModal({
         body: JSON.stringify({
           clientId,
           snapshotDate: fechaCartola,
-          totalValue,
+          totalValue: totalInCLP, // Store in CLP
           composition: {
             equity: composition.equity,
             fixedIncome: composition.fixedIncome,
@@ -198,10 +309,11 @@ export default function ReviewSnapshotModal({
           },
           holdings: holdings.map((h) => ({
             ...h,
-            currency,
+            marketValueCLP: toCLP(h.marketValue || 0, h.currency || "USD"),
           })),
           source,
-          currency,
+          currency: "CLP", // Base currency for storage
+          exchangeRates,
         }),
       });
 
@@ -220,24 +332,44 @@ export default function ReviewSnapshotModal({
     }
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number, currency: string) => {
     if (currency === "CLP") {
       return new Intl.NumberFormat("es-CL", {
         style: "currency",
         currency: "CLP",
         minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
       }).format(value);
+    }
+    if (currency === "UF") {
+      return `UF ${new Intl.NumberFormat("es-CL", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value)}`;
     }
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency,
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(value);
   };
 
+  const formatRate = (rate: number) => {
+    return new Intl.NumberFormat("es-CL", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(rate);
+  };
+
+  // Get currencies that have holdings
+  const activeCurrencies = Object.entries(totalsByCurrency)
+    .filter(([, value]) => value > 0)
+    .map(([currency]) => currency);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg p-6 max-w-5xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -260,56 +392,93 @@ export default function ReviewSnapshotModal({
           </div>
         )}
 
-        {/* Currency warning */}
-        {parsedData.currencyConfidence && parsedData.currencyConfidence !== "high" && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-            <p className="text-sm text-amber-700">
-              <AlertTriangle className="w-4 h-4 inline mr-1" />
-              Moneda detectada con baja confianza: {parsedData.currencyReason}
-            </p>
-          </div>
-        )}
-
-        {/* Date and Currency */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              Fecha de la Cartola
-            </label>
-            <input
-              type="date"
-              value={fechaCartola}
-              onChange={(e) => setFechaCartola(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-            {parsedData.period && (
-              <p className="text-xs text-gb-gray mt-1">Período detectado: {parsedData.period}</p>
+        {/* Exchange Rates Info */}
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">Tipos de Cambio</span>
+            </div>
+            {loadingRates ? (
+              <Loader className="w-4 h-4 text-blue-600 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4 text-blue-400" />
             )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
-              <DollarSign className="w-4 h-4" />
-              Moneda
-            </label>
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              {CURRENCY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
+          {exchangeRates && (
+            <div className="mt-2 flex gap-4 text-xs text-blue-700">
+              <span>USD/CLP: {formatRate(exchangeRates.usd)}</span>
+              <span>EUR/CLP: {formatRate(exchangeRates.eur)}</span>
+              <span>UF: {formatRate(exchangeRates.uf)}</span>
+            </div>
+          )}
+          {ratesError && (
+            <p className="mt-1 text-xs text-amber-600">
+              <AlertTriangle className="w-3 h-3 inline mr-1" />
+              {ratesError} - usando valores aproximados
+            </p>
+          )}
         </div>
 
-        {/* Total Value */}
+        {/* Date */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
+            <Calendar className="w-4 h-4" />
+            Fecha de la Cartola
+          </label>
+          <input
+            type="date"
+            value={fechaCartola}
+            onChange={(e) => setFechaCartola(e.target.value)}
+            className="w-48 px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          {parsedData.period && (
+            <p className="text-xs text-gb-gray mt-1">Período detectado: {parsedData.period}</p>
+          )}
+        </div>
+
+        {/* Totals by Currency */}
         <div className="mb-6 p-4 bg-slate-50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">Valor Total</span>
-            <span className="text-2xl font-bold text-gb-black">{formatCurrency(totalValue)}</span>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-slate-700">Totales por Moneda</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Consolidar en:</span>
+              <select
+                value={consolidationCurrency}
+                onChange={(e) => setConsolidationCurrency(e.target.value)}
+                className="px-2 py-1 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-500"
+              >
+                {CURRENCY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {/* Subtotals by currency */}
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {activeCurrencies.map((curr) => (
+              <div key={curr} className="p-2 bg-white rounded border border-slate-200 text-center">
+                <p className="text-xs text-slate-500">{curr}</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {formatCurrency(totalsByCurrency[curr], curr)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Consolidated total */}
+          <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-700">Total Consolidado</span>
+            <span className="text-2xl font-bold text-gb-black">
+              {formatCurrency(consolidatedTotal, consolidationCurrency)}
+            </span>
+          </div>
+          {consolidationCurrency !== "CLP" && (
+            <p className="text-xs text-slate-500 text-right mt-1">
+              ({formatCurrency(totalInCLP, "CLP")})
+            </p>
+          )}
         </div>
 
         {/* Composition Summary */}
@@ -353,8 +522,10 @@ export default function ReviewSnapshotModal({
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Instrumento</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Valor</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600">Clasificación</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-20">Moneda</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-32">Valor</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-28">En CLP</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-32">Clasificación</th>
                 </tr>
               </thead>
               <tbody>
@@ -368,6 +539,17 @@ export default function ReviewSnapshotModal({
                         <p className="text-xs text-gb-gray">{holding.securityId}</p>
                       )}
                     </td>
+                    <td className="px-3 py-2 text-center">
+                      <select
+                        value={holding.currency || "USD"}
+                        onChange={(e) => handleCurrencyChange(index, e.target.value)}
+                        className="w-16 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
+                      >
+                        {CURRENCY_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.value}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <input
                         type="number"
@@ -375,6 +557,9 @@ export default function ReviewSnapshotModal({
                         onChange={(e) => handleValueChange(index, parseFloat(e.target.value) || 0)}
                         className="w-28 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:ring-1 focus:ring-blue-500"
                       />
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs text-slate-500">
+                      {formatCurrency(toCLP(holding.marketValue || 0, holding.currency || "USD"), "CLP")}
                     </td>
                     <td className="px-3 py-2 text-center">
                       <select
@@ -407,7 +592,7 @@ export default function ReviewSnapshotModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || holdings.length === 0}
+            disabled={saving || holdings.length === 0 || loadingRates}
             className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {saving ? (
