@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus, TrendingUp, TrendingDown, Building2 } from "lucide-react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus, TrendingUp, TrendingDown, Building2, Search } from "lucide-react";
 
 interface Holding {
   fundName: string;
@@ -328,6 +328,98 @@ export default function ReviewSnapshotModal({
     setHoldings(updated);
   };
 
+  const handleQuantityChange = (index: number, newQuantity: number) => {
+    const updated = [...holdings];
+    const holding = updated[index];
+    const price = holding.marketPrice || 0;
+    updated[index] = {
+      ...holding,
+      quantity: newQuantity,
+      marketValue: price > 0 ? newQuantity * price : holding.marketValue,
+    };
+    setHoldings(updated);
+  };
+
+  const handlePriceChange = (index: number, newPrice: number) => {
+    const updated = [...holdings];
+    const holding = updated[index];
+    const quantity = holding.quantity || 0;
+    updated[index] = {
+      ...holding,
+      marketPrice: newPrice,
+      marketValue: quantity > 0 ? quantity * newPrice : holding.marketValue,
+    };
+    setHoldings(updated);
+  };
+
+  // State for fund/stock search
+  const [searchingIndex, setSearchingIndex] = useState<number | null>(null);
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    type: "fund" | "stock";
+    fo_run?: number;
+    serie?: string;
+    nombre: string;
+    agf?: string;
+    exchange?: string;
+    moneda: string;
+    valor_cuota: number | null;
+    fecha_precio: string | null;
+  }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // Search for fund price in database
+  const searchFundPrice = useCallback(async (index: number, fundName: string) => {
+    setSearchingIndex(index);
+    setSearchLoading(true);
+    setSearchResults([]);
+
+    try {
+      // Extract meaningful search terms (first few words)
+      const searchTerm = fundName
+        .split(/\s+/)
+        .slice(0, 3)
+        .join(" ")
+        .substring(0, 40);
+
+      const res = await fetch(`/api/fondos/search-price?q=${encodeURIComponent(searchTerm)}`);
+      const data = await res.json();
+
+      if (data.success && data.results) {
+        setSearchResults(data.results);
+      }
+    } catch (err) {
+      console.error("Error searching fund price:", err);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  // Apply selected fund/stock price
+  const applyFundPrice = (index: number, result: typeof searchResults[0]) => {
+    const updated = [...holdings];
+    updated[index] = {
+      ...updated[index],
+      marketPrice: result.valor_cuota || updated[index].marketPrice,
+      securityId: result.type === "stock"
+        ? result.id.replace("stock-", "")
+        : result.fo_run?.toString() || updated[index].securityId,
+      currency: result.moneda || updated[index].currency,
+    };
+    // Recalculate market value if we have quantity and price
+    if (updated[index].quantity && updated[index].quantity > 0 && result.valor_cuota) {
+      updated[index].marketValue = updated[index].quantity * result.valor_cuota;
+    }
+    setHoldings(updated);
+    setSearchingIndex(null);
+    setSearchResults([]);
+  };
+
+  const closeSearch = () => {
+    setSearchingIndex(null);
+    setSearchResults([]);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -625,28 +717,40 @@ export default function ReviewSnapshotModal({
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Instrumento</th>
                   {uniqueSources.length > 1 && (
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-24">Custodio</th>
+                    <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-20">Custodio</th>
                   )}
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-20">Moneda</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-32">Valor</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-28">En CLP</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-32">Clasificación</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-16">Moneda</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-24">Cantidad</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-28">Precio</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-32">Valor Total</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-28">Clase</th>
                 </tr>
               </thead>
               <tbody>
                 {holdings.map((holding, index) => (
                   <tr key={index} className="border-t border-slate-100 hover:bg-slate-50">
                     <td className="px-3 py-2">
-                      <p className="font-medium text-gb-black truncate max-w-xs" title={holding.fundName}>
-                        {holding.fundName}
-                      </p>
-                      {holding.securityId && (
-                        <p className="text-xs text-gb-gray">{holding.securityId}</p>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gb-black truncate" title={holding.fundName}>
+                            {holding.fundName}
+                          </p>
+                          {holding.securityId && (
+                            <p className="text-xs text-gb-gray">{holding.securityId}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => searchFundPrice(index, holding.fundName)}
+                          className="p-1 text-blue-500 hover:bg-blue-50 rounded shrink-0"
+                          title="Buscar precio en base de datos"
+                        >
+                          <Search className="w-3 h-3" />
+                        </button>
+                      </div>
                     </td>
                     {uniqueSources.length > 1 && (
                       <td className="px-3 py-2 text-center">
-                        <span className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600">
+                        <span className="text-xs px-1 py-0.5 bg-slate-100 rounded text-slate-600">
                           {holding.source || "-"}
                         </span>
                       </td>
@@ -655,7 +759,7 @@ export default function ReviewSnapshotModal({
                       <select
                         value={holding.currency || "USD"}
                         onChange={(e) => handleCurrencyChange(index, e.target.value)}
-                        className="w-16 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
+                        className="w-14 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
                       >
                         {CURRENCY_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.value}</option>
@@ -665,13 +769,29 @@ export default function ReviewSnapshotModal({
                     <td className="px-3 py-2 text-right">
                       <input
                         type="number"
+                        value={holding.quantity || ""}
+                        onChange={(e) => handleQuantityChange(index, parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-20 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        value={holding.marketPrice || ""}
+                        onChange={(e) => handlePriceChange(index, parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        step="0.0001"
+                        className="w-24 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        type="number"
                         value={holding.marketValue}
                         onChange={(e) => handleValueChange(index, parseFloat(e.target.value) || 0)}
                         className="w-28 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:ring-1 focus:ring-blue-500"
                       />
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs text-slate-500">
-                      {formatCurrency(toCLP(holding.marketValue || 0, holding.currency || "USD"), "CLP")}
                     </td>
                     <td className="px-3 py-2 text-center">
                       <select
@@ -691,6 +811,78 @@ export default function ReviewSnapshotModal({
               </tbody>
             </table>
           </div>
+
+          {/* Search Results Popup */}
+          {searchingIndex !== null && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-800">
+                  Buscando precio para: {holdings[searchingIndex]?.fundName.substring(0, 40)}...
+                </span>
+                <button
+                  onClick={closeSearch}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {searchLoading ? (
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Buscando fondos y acciones...
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="space-y-2">
+                  {searchResults.map((result) => (
+                    <div
+                      key={result.id}
+                      className={`flex items-center justify-between p-2 bg-white rounded border cursor-pointer ${
+                        result.type === "stock"
+                          ? "border-purple-100 hover:border-purple-300"
+                          : "border-blue-100 hover:border-blue-300"
+                      }`}
+                      onClick={() => applyFundPrice(searchingIndex, result)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                            result.type === "stock"
+                              ? "bg-purple-100 text-purple-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}>
+                            {result.type === "stock" ? "Acción" : "Fondo"}
+                          </span>
+                          <p className="text-sm font-medium text-gb-black truncate">{result.nombre}</p>
+                        </div>
+                        <p className="text-xs text-gb-gray">
+                          {result.type === "stock"
+                            ? result.exchange || "Bolsa"
+                            : `${result.agf} - Serie ${result.serie}`}
+                        </p>
+                      </div>
+                      <div className="text-right ml-3">
+                        {result.valor_cuota ? (
+                          <>
+                            <p className="text-sm font-semibold text-green-600">
+                              {result.type === "stock"
+                                ? formatNumber(result.valor_cuota, 2)
+                                : formatNumber(result.valor_cuota, 4)}
+                            </p>
+                            <p className="text-xs text-gb-gray">{result.moneda}</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-amber-600">Sin precio</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-blue-600">No se encontraron fondos ni acciones</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Actions */}
