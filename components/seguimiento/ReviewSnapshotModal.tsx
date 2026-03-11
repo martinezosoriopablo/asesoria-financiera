@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus, TrendingUp, TrendingDown, Building2, Search } from "lucide-react";
+import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus, TrendingUp, TrendingDown, Building2, Search, Sparkles, CheckCircle2 } from "lucide-react";
 
 interface Holding {
   fundName: string;
@@ -43,6 +43,20 @@ interface ExchangeRates {
   usd: number;
   eur: number;
   uf: number;
+}
+
+interface MatchSuggestion {
+  index: number;
+  matched: boolean;
+  matchType?: "fund" | "stock";
+  confidence: "high" | "medium" | "low";
+  matchedName?: string;
+  matchedId?: string;
+  price?: number;
+  currency?: string;
+  source?: string;
+  applied?: boolean;
+  dismissed?: boolean;
 }
 
 const ASSET_CLASS_OPTIONS = [
@@ -142,6 +156,11 @@ export default function ReviewSnapshotModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-match state
+  const [matchSuggestions, setMatchSuggestions] = useState<MatchSuggestion[]>([]);
+  const [autoMatchLoading, setAutoMatchLoading] = useState(false);
+  const [autoMatchComplete, setAutoMatchComplete] = useState(false);
+
   // Fetch exchange rates on mount
   useEffect(() => {
     async function fetchRates() {
@@ -168,6 +187,45 @@ export default function ReviewSnapshotModal({
     }
     fetchRates();
   }, []);
+
+  // Auto-match holdings on mount
+  useEffect(() => {
+    async function autoMatchHoldings() {
+      if (holdings.length === 0) return;
+
+      setAutoMatchLoading(true);
+      try {
+        const res = await fetch("/api/fondos/match-holdings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            holdings: holdings.map((h) => ({
+              fundName: h.fundName,
+              securityId: h.securityId,
+              quantity: h.quantity,
+              marketValue: h.marketValue,
+            })),
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.matches) {
+          // Filter to only show matches with prices and medium/high confidence
+          const relevantMatches = data.matches.filter(
+            (m: MatchSuggestion) => m.matched && m.price && m.confidence !== "low"
+          );
+          setMatchSuggestions(relevantMatches);
+        }
+      } catch (err) {
+        console.error("Error auto-matching holdings:", err);
+      } finally {
+        setAutoMatchLoading(false);
+        setAutoMatchComplete(true);
+      }
+    }
+
+    autoMatchHoldings();
+  }, []); // Only run once on mount
 
   function parseDate(period: string): string {
     if (!period) return new Date().toISOString().split("T")[0];
@@ -420,6 +478,79 @@ export default function ReviewSnapshotModal({
     setSearchResults([]);
   };
 
+  // Apply a match suggestion
+  const applyMatchSuggestion = (suggestion: MatchSuggestion) => {
+    const updated = [...holdings];
+    const holding = updated[suggestion.index];
+
+    updated[suggestion.index] = {
+      ...holding,
+      marketPrice: suggestion.price || holding.marketPrice,
+      securityId: suggestion.matchedId || holding.securityId,
+      currency: suggestion.currency || holding.currency,
+    };
+
+    // Recalculate market value if we have quantity and price
+    if (holding.quantity && holding.quantity > 0 && suggestion.price) {
+      updated[suggestion.index].marketValue = holding.quantity * suggestion.price;
+    }
+
+    setHoldings(updated);
+
+    // Mark suggestion as applied
+    setMatchSuggestions((prev) =>
+      prev.map((s) =>
+        s.index === suggestion.index ? { ...s, applied: true } : s
+      )
+    );
+  };
+
+  // Dismiss a match suggestion
+  const dismissMatchSuggestion = (index: number) => {
+    setMatchSuggestions((prev) =>
+      prev.map((s) =>
+        s.index === index ? { ...s, dismissed: true } : s
+      )
+    );
+  };
+
+  // Apply all high-confidence suggestions
+  const applyAllSuggestions = () => {
+    const toApply = matchSuggestions.filter(
+      (s) => !s.applied && !s.dismissed && s.confidence === "high"
+    );
+
+    const updated = [...holdings];
+    for (const suggestion of toApply) {
+      const holding = updated[suggestion.index];
+      updated[suggestion.index] = {
+        ...holding,
+        marketPrice: suggestion.price || holding.marketPrice,
+        securityId: suggestion.matchedId || holding.securityId,
+        currency: suggestion.currency || holding.currency,
+      };
+
+      if (holding.quantity && holding.quantity > 0 && suggestion.price) {
+        updated[suggestion.index].marketValue = holding.quantity * suggestion.price;
+      }
+    }
+
+    setHoldings(updated);
+    setMatchSuggestions((prev) =>
+      prev.map((s) =>
+        toApply.some((t) => t.index === s.index) ? { ...s, applied: true } : s
+      )
+    );
+  };
+
+  // Get pending suggestions count
+  const pendingSuggestions = matchSuggestions.filter(
+    (s) => !s.applied && !s.dismissed
+  );
+  const highConfidenceSuggestions = pendingSuggestions.filter(
+    (s) => s.confidence === "high"
+  );
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -553,6 +684,106 @@ export default function ReviewSnapshotModal({
             </p>
           )}
         </div>
+
+        {/* Auto-Match Suggestions */}
+        {(autoMatchLoading || pendingSuggestions.length > 0) && (
+          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium text-purple-800">
+                  Precios Sugeridos
+                </span>
+              </div>
+              {autoMatchLoading ? (
+                <div className="flex items-center gap-2 text-xs text-purple-600">
+                  <Loader className="w-3 h-3 animate-spin" />
+                  Buscando coincidencias...
+                </div>
+              ) : pendingSuggestions.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-purple-600">
+                    {pendingSuggestions.length} sugerencia{pendingSuggestions.length !== 1 ? "s" : ""}
+                  </span>
+                  {highConfidenceSuggestions.length > 0 && (
+                    <button
+                      onClick={applyAllSuggestions}
+                      className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                    >
+                      Aplicar todas ({highConfidenceSuggestions.length})
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {!autoMatchLoading && pendingSuggestions.length > 0 && (
+              <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                {pendingSuggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.index}
+                    className="flex items-center justify-between p-2 bg-white rounded border border-purple-100"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                          suggestion.matchType === "stock"
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {suggestion.matchType === "stock" ? "Acción" : "Fondo"}
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          suggestion.confidence === "high"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {suggestion.confidence === "high" ? "Alta" : "Media"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gb-black mt-1 truncate">
+                        <strong>{holdings[suggestion.index]?.fundName.substring(0, 30)}</strong>
+                        {" → "}
+                        {suggestion.matchedName?.substring(0, 30)}
+                      </p>
+                      <p className="text-[10px] text-gb-gray">{suggestion.source}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-green-600">
+                          {formatNumber(suggestion.price || 0, suggestion.matchType === "stock" ? 2 : 4)}
+                        </p>
+                        <p className="text-[10px] text-gb-gray">{suggestion.currency}</p>
+                      </div>
+                      <button
+                        onClick={() => applyMatchSuggestion(suggestion)}
+                        className="p-1 text-green-600 hover:bg-green-50 rounded"
+                        title="Aplicar"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => dismissMatchSuggestion(suggestion.index)}
+                        className="p-1 text-slate-400 hover:bg-slate-50 rounded"
+                        title="Ignorar"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {autoMatchComplete && pendingSuggestions.length === 0 && !autoMatchLoading && (
+              <p className="mt-2 text-xs text-purple-600">
+                {matchSuggestions.filter(s => s.applied).length > 0
+                  ? `✓ ${matchSuggestions.filter(s => s.applied).length} precios aplicados`
+                  : "No se encontraron coincidencias de alta confianza"}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Date and Cash Flows */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
