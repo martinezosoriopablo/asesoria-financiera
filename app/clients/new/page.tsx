@@ -20,17 +20,6 @@ export default function NewClientPage() {
   const { advisor, loading: authLoading } = useAdvisor();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
-      </div>
-    );
-  }
-
-  if (!advisor) return null;
-  
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -47,6 +36,16 @@ export default function NewClientPage() {
     tolerancia_perdida: "",
     notas: "",
   });
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
+      </div>
+    );
+  }
+
+  if (!advisor) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({

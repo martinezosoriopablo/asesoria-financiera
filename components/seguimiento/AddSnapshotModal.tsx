@@ -3,6 +3,30 @@
 import React, { useState, useRef } from "react";
 import { X, Upload, FileSpreadsheet, Edit3, Loader, AlertTriangle } from "lucide-react";
 import ManualEntryForm from "./ManualEntryForm";
+import ReviewSnapshotModal from "./ReviewSnapshotModal";
+
+interface ParsedData {
+  clientName?: string;
+  accountNumber?: string;
+  period?: string;
+  beginningValue?: number;
+  endingValue?: number;
+  totalValue?: number;
+  holdings?: Array<{
+    fundName: string;
+    securityId?: string | null;
+    quantity?: number;
+    unitCost?: number;
+    costBasis?: number;
+    marketPrice?: number;
+    marketValue: number;
+    unrealizedGainLoss?: number;
+    assetClass?: string;
+  }>;
+  detectedCurrency?: string;
+  currencyConfidence?: string;
+  currencyReason?: string;
+}
 
 interface Props {
   clientId: string;
@@ -10,18 +34,20 @@ interface Props {
   onSuccess: () => void;
 }
 
-type Mode = "select" | "pdf" | "excel" | "manual";
+type Mode = "select" | "pdf" | "excel" | "manual" | "review";
 
 export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props) {
   const [mode, setMode] = useState<Mode>("select");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fechaCartola, setFechaCartola] = useState(new Date().toISOString().split("T")[0]);
+  const [parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const [uploadSource, setUploadSource] = useState<"pdf" | "excel">("pdf");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (file: File, type: "pdf" | "excel") => {
     setUploading(true);
     setError(null);
+    setUploadSource(type);
 
     try {
       const formData = new FormData();
@@ -39,43 +65,32 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
 
       const parseResult = await parseRes.json();
 
-      if (!parseResult.success) {
+      // Handle error responses
+      if (parseResult.error) {
         setError(parseResult.error || `Error al procesar archivo ${type.toUpperCase()}`);
         return;
       }
 
       // Extract data from parsed result
-      const parsedData = parseResult.data;
-      const totalValue = parsedData.totalValue || parsedData.statement?.endingValue || 0;
+      // PDF parser returns data directly, Excel parser wraps in { success, data }
+      const data = parseResult.data || parseResult;
 
-      // Create snapshot with parsed data
-      const composition = parsedData.composition?.byAssetClass || parsedData.byAssetClass || {};
+      // Validate we got something useful
+      const totalValue = data.totalValue || data.endingValue ||
+        (data.holdings?.reduce((sum: number, h: { marketValue?: number }) => sum + (h.marketValue || 0), 0) || 0);
 
-      const snapshotRes = await fetch("/api/portfolio/snapshots", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId,
-          snapshotDate: fechaCartola,
-          totalValue,
-          composition: {
-            equity: composition.Equity || composition.equity || { value: 0, percent: 0 },
-            fixedIncome: composition["Fixed Income"] || composition.fixedIncome || { value: 0, percent: 0 },
-            alternatives: composition.Alternatives || composition.alternatives || { value: 0, percent: 0 },
-            cash: composition.Cash || composition.cash || { value: 0, percent: 0 },
-          },
-          holdings: parsedData.composition?.holdings || parsedData.holdings || [],
-          source: type,
-        }),
-      });
-
-      const snapshotResult = await snapshotRes.json();
-
-      if (snapshotResult.success) {
-        onSuccess();
-      } else {
-        setError(snapshotResult.error || "Error al guardar snapshot");
+      if (!totalValue || totalValue === 0) {
+        setError("No se pudo extraer el valor total del archivo. Verifica que el archivo contenga información de posiciones.");
+        return;
       }
+
+      // Store parsed data and show review modal
+      setParsedData({
+        ...data,
+        totalValue,
+      });
+      setMode("review");
+
     } catch (err) {
       console.error("Error uploading file:", err);
       setError("Error al procesar el archivo");
@@ -95,6 +110,24 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
   const triggerFileSelect = () => {
     fileInputRef.current?.click();
   };
+
+  const handleReviewClose = () => {
+    setParsedData(null);
+    setMode("select");
+  };
+
+  // Show review modal if we have parsed data
+  if (mode === "review" && parsedData) {
+    return (
+      <ReviewSnapshotModal
+        clientId={clientId}
+        parsedData={parsedData}
+        source={uploadSource}
+        onClose={handleReviewClose}
+        onSuccess={onSuccess}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -190,16 +223,10 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
               &larr; Volver
             </button>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Fecha de la Cartola
-              </label>
-              <input
-                type="date"
-                value={fechaCartola}
-                onChange={(e) => setFechaCartola(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                Sube el PDF y luego podrás revisar y ajustar los datos antes de guardar.
+              </p>
             </div>
 
             <input
@@ -218,7 +245,7 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
               {uploading ? (
                 <>
                   <Loader className="w-8 h-8 text-blue-600 animate-spin" />
-                  <p className="text-sm text-gb-gray">Procesando PDF...</p>
+                  <p className="text-sm text-gb-gray">Analizando PDF con IA...</p>
                 </>
               ) : (
                 <>
@@ -242,16 +269,10 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
               &larr; Volver
             </button>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Fecha de la Cartola
-              </label>
-              <input
-                type="date"
-                value={fechaCartola}
-                onChange={(e) => setFechaCartola(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-700">
+                Sube el Excel y luego podrás revisar y ajustar los datos antes de guardar.
+              </p>
             </div>
 
             <input
