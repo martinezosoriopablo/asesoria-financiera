@@ -271,6 +271,19 @@ export default function CalculadoraAPV() {
   const { advisor, loading: authLoading } = useAdvisor();
   const [valorUF, setValorUF] = useState(37800);
   const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false);
+  const [rentabilidades, setRentabilidades] = useState({
+    conservador: 1.5,
+    moderado: 4.0,
+    agresivo: 7.0,
+  });
+  const [datos, setDatos] = useState<ClienteAPV>({
+    salarioBrutoMensual: 5000000,
+    montoAPVMensual: 200000,
+    edad: 48,
+    edadRetiro: 65,
+    perfilInversion: "moderado",
+  });
+  const [resultado, setResultado] = useState<ResultadoAPV | null>(null);
 
   if (authLoading) {
     return (
@@ -281,22 +294,6 @@ export default function CalculadoraAPV() {
   }
 
   if (!advisor) return null;
-
-  const [rentabilidades, setRentabilidades] = useState({
-    conservador: 1.5,
-    moderado: 4.0,
-    agresivo: 7.0,
-  });
-
-  const [datos, setDatos] = useState<ClienteAPV>({
-    salarioBrutoMensual: 5000000,
-    montoAPVMensual: 200000,
-    edad: 48,
-    edadRetiro: 65,
-    perfilInversion: "moderado",
-  });
-
-  const [resultado, setResultado] = useState<ResultadoAPV | null>(null);
 
   const perfilesInfo: Record<string, RentabilidadPerfil> = {
     conservador: {
