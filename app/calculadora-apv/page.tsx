@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
@@ -13,6 +14,7 @@ import {
   Settings,
   Sparkles,
   Loader,
+  ArrowLeft,
 } from "lucide-react";
 import {
   XAxis,
@@ -354,7 +356,7 @@ export default function CalculadoraAPV() {
   const perfil = perfilesInfo[datos.perfilInversion];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gb-light">
       <AdvisorHeader
         advisorName={advisor.name}
         advisorEmail={advisor.email}
@@ -364,20 +366,32 @@ export default function CalculadoraAPV() {
         isAdmin={advisor.isAdmin}
       />
 
-      <div className="bg-gradient-to-br from-slate-50 to-slate-100 py-8">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full mb-4">
-              <Calculator className="w-7 h-7 text-white" />
+      {/* Page Header */}
+      <div className="bg-white border-b border-gb-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <Link
+            href="/advisor"
+            className="flex items-center gap-2 text-gb-gray hover:text-gb-black transition-colors mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm font-medium">Volver al Dashboard</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <Calculator className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-2xl font-semibold text-slate-900 mb-2">
-              Calculadora APV con Proyeccion
-            </h1>
-            <p className="text-sm text-slate-600">
-              Descubre cuanto ahorraras en impuestos y cuanto tendras al jubilar
-            </p>
+            <div>
+              <h1 className="text-2xl font-semibold text-gb-black">Calculadora APV</h1>
+              <p className="text-sm text-gb-gray">
+                Descubre cuanto ahorraras en impuestos y cuanto tendras al jubilar
+              </p>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* Configuración UF y Rentabilidades */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-slate-200">
@@ -1148,7 +1162,6 @@ export default function CalculadoraAPV() {
             </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
