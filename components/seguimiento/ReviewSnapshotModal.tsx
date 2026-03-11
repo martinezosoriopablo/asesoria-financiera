@@ -332,34 +332,35 @@ export default function ReviewSnapshotModal({
     }
   };
 
+  // Manual Chilean format: dots for thousands, commas for decimals
+  const formatNumber = (value: number, decimals: number = 0): string => {
+    const fixed = value.toFixed(decimals);
+    const [intPart, decPart] = fixed.split(".");
+
+    // Add thousand separators (dots)
+    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    // Return with comma for decimals if needed
+    return decPart ? `${withThousands},${decPart}` : withThousands;
+  };
+
   const formatCurrency = (value: number, currency: string) => {
-    // Always use Chilean format: dots for thousands, commas for decimals
-    const formatter = new Intl.NumberFormat("es-CL", {
-      minimumFractionDigits: currency === "UF" ? 2 : 0,
-      maximumFractionDigits: currency === "UF" ? 2 : 0,
-    });
-
-    const formatted = formatter.format(value);
-
     switch (currency) {
       case "CLP":
-        return `$${formatted}`;
+        return `$${formatNumber(value, 0)}`;
       case "USD":
-        return `US$${formatted}`;
+        return `US$${formatNumber(value, 0)}`;
       case "EUR":
-        return `€${formatted}`;
+        return `€${formatNumber(value, 0)}`;
       case "UF":
-        return `UF ${formatted}`;
+        return `UF ${formatNumber(value, 2)}`;
       default:
-        return `${currency} ${formatted}`;
+        return `${currency} ${formatNumber(value, 0)}`;
     }
   };
 
   const formatRate = (rate: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(rate);
+    return formatNumber(rate, 2);
   };
 
   // Get currencies that have holdings
