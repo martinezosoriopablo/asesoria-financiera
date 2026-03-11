@@ -170,14 +170,59 @@ export default function ReviewSnapshotModal({
   }, []);
 
   function parseDate(period: string): string {
+    if (!period) return new Date().toISOString().split("T")[0];
+
+    const p = period.trim();
+
+    // Try ISO format first (2025-01-31)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(p)) {
+      return p;
+    }
+
+    // Chilean format dd/mm/yyyy
+    const ddmmyyyy = p.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (ddmmyyyy) {
+      const [, day, month, year] = ddmmyyyy;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    // Month Year format (Jan 2025, January 2025, Enero 2025)
+    const monthNames: Record<string, string> = {
+      jan: "01", january: "01", ene: "01", enero: "01",
+      feb: "02", february: "02", febrero: "02",
+      mar: "03", march: "03", marzo: "03",
+      apr: "04", april: "04", abr: "04", abril: "04",
+      may: "05", mayo: "05",
+      jun: "06", june: "06", junio: "06",
+      jul: "07", july: "07", julio: "07",
+      aug: "08", august: "08", ago: "08", agosto: "08",
+      sep: "09", sept: "09", september: "09", septiembre: "09",
+      oct: "10", october: "10", octubre: "10",
+      nov: "11", november: "11", noviembre: "11",
+      dec: "12", december: "12", dic: "12", diciembre: "12",
+    };
+
+    const monthYear = p.match(/^([a-zA-Z]+)\s+(\d{4})$/i);
+    if (monthYear) {
+      const [, monthStr, year] = monthYear;
+      const month = monthNames[monthStr.toLowerCase()];
+      if (month) {
+        // Use last day of month
+        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        return `${year}-${month}-${lastDay.toString().padStart(2, "0")}`;
+      }
+    }
+
+    // Try native Date parsing as fallback
     try {
-      const date = new Date(period);
+      const date = new Date(p);
       if (!isNaN(date.getTime())) {
         return date.toISOString().split("T")[0];
       }
     } catch {
       // ignore
     }
+
     return new Date().toISOString().split("T")[0];
   }
 
