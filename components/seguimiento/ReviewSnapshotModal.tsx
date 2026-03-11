@@ -332,12 +332,13 @@ export default function ReviewSnapshotModal({
     }
   };
 
-  // Manual Chilean format
+  // Formato chileno: puntos para miles, comas para decimales
   const formatNumber = (value: number, decimals: number = 0): string => {
-    const fixed = value.toFixed(decimals);
+    const fixed = Math.abs(value).toFixed(decimals);
     const [intPart, decPart] = fixed.split(".");
     const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return decPart ? `${withThousands},${decPart}` : withThousands;
+    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
+    return value < 0 ? `-${formatted}` : formatted;
   };
 
   const formatCurrency = (value: number, currency: string) => {
@@ -544,25 +545,25 @@ export default function ReviewSnapshotModal({
             {composition.equity.percent > 0 && (
               <div className="flex-1 p-2 bg-blue-50 rounded text-center">
                 <p className="text-xs text-blue-700">RV</p>
-                <p className="text-sm font-bold text-blue-800">{composition.equity.percent.toFixed(1)}%</p>
+                <p className="text-sm font-bold text-blue-800">{formatNumber(composition.equity.percent, 1)}%</p>
               </div>
             )}
             {composition.fixedIncome.percent > 0 && (
               <div className="flex-1 p-2 bg-green-50 rounded text-center">
                 <p className="text-xs text-green-700">RF</p>
-                <p className="text-sm font-bold text-green-800">{composition.fixedIncome.percent.toFixed(1)}%</p>
+                <p className="text-sm font-bold text-green-800">{formatNumber(composition.fixedIncome.percent, 1)}%</p>
               </div>
             )}
             {composition.alternatives.percent > 0 && (
               <div className="flex-1 p-2 bg-orange-50 rounded text-center">
                 <p className="text-xs text-orange-700">Alt</p>
-                <p className="text-sm font-bold text-orange-800">{composition.alternatives.percent.toFixed(1)}%</p>
+                <p className="text-sm font-bold text-orange-800">{formatNumber(composition.alternatives.percent, 1)}%</p>
               </div>
             )}
             {composition.cash.percent > 0 && (
               <div className="flex-1 p-2 bg-gray-100 rounded text-center">
                 <p className="text-xs text-gray-600">Cash</p>
-                <p className="text-sm font-bold text-gray-800">{composition.cash.percent.toFixed(1)}%</p>
+                <p className="text-sm font-bold text-gray-800">{formatNumber(composition.cash.percent, 1)}%</p>
               </div>
             )}
           </div>

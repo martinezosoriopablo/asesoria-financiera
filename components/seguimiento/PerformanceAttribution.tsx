@@ -309,18 +309,22 @@ export default function PerformanceAttribution({
   // ============================================
   // HELPER FUNCTIONS
   // ============================================
+  // Formato chileno: puntos para miles, comas para decimales
+  const formatNumber = (value: number, decimals: number = 0): string => {
+    const fixed = Math.abs(value).toFixed(decimals);
+    const [intPart, decPart] = fixed.split(".");
+    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
+    return value < 0 ? `-${formatted}` : formatted;
+  };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+    return `$${formatNumber(value, 0)}`;
   };
 
   const formatPercent = (value: number, showSign = true) => {
     const sign = showSign && value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(2)}%`;
+    return `${sign}${formatNumber(value, 2)}%`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -394,10 +398,10 @@ export default function PerformanceAttribution({
                     margin={{ left: 80, right: 20 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(v) => `${v.toFixed(1)}%`} />
+                    <XAxis type="number" tickFormatter={(v) => `${formatNumber(v, 1)}%`} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} />
                     <Tooltip
-                      formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)}%`, "Contribución"]}
+                      formatter={(value: number | undefined) => [`${formatNumber(value ?? 0, 2)}%`, "Contribución"]}
                     />
                     <ReferenceLine x={0} stroke="#000" />
                     <Bar dataKey="contribution" name="Contribución">
@@ -467,7 +471,7 @@ export default function PerformanceAttribution({
                         {index + 1}. {pos.name}
                       </p>
                       <p className="text-xs text-gb-gray">
-                        Peso: {pos.weight.toFixed(1)}% | Retorno: {formatPercent(pos.return)}
+                        Peso: {formatNumber(pos.weight, 1)}% | Retorno: {formatPercent(pos.return)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -627,7 +631,7 @@ export default function PerformanceAttribution({
                       <div>
                         <p className="text-gb-gray">Inicial</p>
                         <p className="font-medium">{formatCurrency(cls.baseValue)}</p>
-                        <p className="text-gb-gray">{cls.basePercent.toFixed(1)}%</p>
+                        <p className="text-gb-gray">{formatNumber(cls.basePercent, 1)}%</p>
                       </div>
                       <div className="text-center">
                         <p className="text-gb-gray">Cambio</p>
@@ -635,13 +639,13 @@ export default function PerformanceAttribution({
                           {cls.valueChange >= 0 ? "+" : ""}{formatCurrency(cls.valueChange)}
                         </p>
                         <p className={`${cls.percentChange >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {cls.percentChange >= 0 ? "+" : ""}{cls.percentChange.toFixed(1)}pp
+                          {cls.percentChange >= 0 ? "+" : ""}{formatNumber(cls.percentChange, 1)}pp
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-gb-gray">Actual</p>
                         <p className="font-medium">{formatCurrency(cls.currentValue)}</p>
-                        <p className="text-gb-gray">{cls.currentPercent.toFixed(1)}%</p>
+                        <p className="text-gb-gray">{formatNumber(cls.currentPercent, 1)}%</p>
                       </div>
                     </div>
                   </div>

@@ -150,18 +150,22 @@ export default function SeguimientoPage({ clientId }: Props) {
     }
   };
 
+  // Formato chileno: puntos para miles, comas para decimales
+  const formatNumber = (value: number, decimals: number = 0): string => {
+    const fixed = Math.abs(value).toFixed(decimals);
+    const [intPart, decPart] = fixed.split(".");
+    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
+    return value < 0 ? `-${formatted}` : formatted;
+  };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+    return `$${formatNumber(value, 0)}`;
   };
 
   const formatPercent = (value: number) => {
     const sign = value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(2)}%`;
+    return `${sign}${formatNumber(value, 2)}%`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -305,7 +309,7 @@ export default function SeguimientoPage({ clientId }: Props) {
             <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
               <p className="text-xs text-gb-gray font-medium uppercase mb-1">Volatilidad</p>
               <p className="text-2xl font-bold text-gb-black">
-                {metrics.volatility.toFixed(1)}%
+                {formatNumber(metrics.volatility, 1)}%
               </p>
               <p className="text-xs text-gb-gray mt-1">Anualizada</p>
             </div>
@@ -375,7 +379,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{(metrics.composition.equity || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.equity || 0, 0)}%</p>
                     </div>
                     <div className="flex-1">
                       <div className="h-24 bg-blue-100 rounded relative overflow-hidden">
@@ -385,12 +389,12 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{(recommendation.equity_percent || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(recommendation.equity_percent || 0, 0)}%</p>
                     </div>
                   </div>
                   {deviations && (
                     <p className={`text-xs font-medium ${Math.abs(deviations.equity) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.equity >= 0 ? "+" : ""}{deviations.equity.toFixed(1)}%
+                      {deviations.equity >= 0 ? "+" : ""}{formatNumber(deviations.equity, 1)}%
                     </p>
                   )}
                 </div>
@@ -407,7 +411,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{(metrics.composition.fixedIncome || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.fixedIncome || 0, 0)}%</p>
                     </div>
                     <div className="flex-1">
                       <div className="h-24 bg-green-100 rounded relative overflow-hidden">
@@ -417,12 +421,12 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{(recommendation.fixed_income_percent || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(recommendation.fixed_income_percent || 0, 0)}%</p>
                     </div>
                   </div>
                   {deviations && (
                     <p className={`text-xs font-medium ${Math.abs(deviations.fixedIncome) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.fixedIncome >= 0 ? "+" : ""}{deviations.fixedIncome.toFixed(1)}%
+                      {deviations.fixedIncome >= 0 ? "+" : ""}{formatNumber(deviations.fixedIncome, 1)}%
                     </p>
                   )}
                 </div>
@@ -439,7 +443,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{(metrics.composition.alternatives || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.alternatives || 0, 0)}%</p>
                     </div>
                     <div className="flex-1">
                       <div className="h-24 bg-purple-100 rounded relative overflow-hidden">
@@ -449,12 +453,12 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{(recommendation.alternatives_percent || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(recommendation.alternatives_percent || 0, 0)}%</p>
                     </div>
                   </div>
                   {deviations && (
                     <p className={`text-xs font-medium ${Math.abs(deviations.alternatives) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.alternatives >= 0 ? "+" : ""}{deviations.alternatives.toFixed(1)}%
+                      {deviations.alternatives >= 0 ? "+" : ""}{formatNumber(deviations.alternatives, 1)}%
                     </p>
                   )}
                 </div>
@@ -471,7 +475,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{(metrics.composition.cash || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.cash || 0, 0)}%</p>
                     </div>
                     <div className="flex-1">
                       <div className="h-24 bg-gray-100 rounded relative overflow-hidden">
@@ -481,12 +485,12 @@ export default function SeguimientoPage({ clientId }: Props) {
                         />
                       </div>
                       <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{(recommendation.cash_percent || 0).toFixed(0)}%</p>
+                      <p className="text-sm font-semibold">{formatNumber(recommendation.cash_percent || 0, 0)}%</p>
                     </div>
                   </div>
                   {deviations && (
                     <p className={`text-xs font-medium ${Math.abs(deviations.cash) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.cash >= 0 ? "+" : ""}{deviations.cash.toFixed(1)}%
+                      {deviations.cash >= 0 ? "+" : ""}{formatNumber(deviations.cash, 1)}%
                     </p>
                   )}
                 </div>

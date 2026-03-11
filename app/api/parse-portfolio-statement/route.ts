@@ -133,14 +133,21 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
   ]
 }
 
-REGLAS IMPORTANTES PARA NÚMEROS:
+REGLAS CRÍTICAS PARA NÚMEROS (MUY IMPORTANTE):
 - TODOS los números deben ser valores numéricos puros SIN formato
-- Documentos chilenos usan PUNTOS para separar miles y COMAS para decimales
-  Ejemplo: "113.179.528" en Chile = 113179528 (ciento trece millones)
-  Ejemplo: "1.234,56" en Chile = 1234.56
-- Documentos USA usan COMAS para miles y PUNTOS para decimales
-  Ejemplo: "113,179,528" en USA = 113179528
+- FORMATO CHILENO (el más común en estos documentos):
+  * Los PUNTOS son separadores de MILES, NO decimales
+  * Las COMAS son separadores de decimales
+  * Ejemplo: "113.179.528" = 113179528 (ciento trece millones, NO ciento trece con decimales)
+  * Ejemplo: "50.000.000" = 50000000 (cincuenta millones)
+  * Ejemplo: "1.234.567" = 1234567 (un millón doscientos treinta y cuatro mil)
+  * Ejemplo: "1.234,56" = 1234.56 (mil doscientos treinta y cuatro con 56 centavos)
+- FORMATO USA:
+  * Las COMAS son separadores de miles
+  * Los PUNTOS son decimales
+  * Ejemplo: "113,179,528" = 113179528
 - ELIMINA todos los separadores de miles y convierte comas decimales a puntos
+- Si un valor tiene solo puntos y ninguna coma, los puntos son separadores de miles (formato chileno)
 - Si un campo no se encuentra, usa null para strings y 0 para números
 - unrealizedGainLoss puede ser negativo
 

@@ -20,6 +20,15 @@ interface FormData {
 }
 
 export default function EditSnapshotModal({ snapshot, onClose, onSuccess }: Props) {
+  // Formato chileno: puntos para miles, comas para decimales
+  const formatNumber = (value: number, decimals: number = 0): string => {
+    const fixed = Math.abs(value).toFixed(decimals);
+    const [intPart, decPart] = fixed.split(".");
+    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
+    return value < 0 ? `-${formatted}` : formatted;
+  };
+
   const [formData, setFormData] = useState<FormData>({
     snapshot_date: snapshot.snapshot_date,
     total_value: snapshot.total_value.toString(),
@@ -208,11 +217,11 @@ export default function EditSnapshotModal({ snapshot, onClose, onSuccess }: Prop
             </div>
             <div className="mt-2 flex items-center justify-between">
               <p className="text-xs text-slate-500">
-                Total: {usedPercent.toFixed(1)}%
+                Total: {formatNumber(usedPercent, 1)}%
               </p>
               {Math.abs(remainingPercent) > 0.01 && (
                 <p className={`text-xs ${remainingPercent > 0 ? "text-amber-600" : "text-red-600"}`}>
-                  {remainingPercent > 0 ? `Faltan ${remainingPercent.toFixed(1)}%` : `Excede por ${Math.abs(remainingPercent).toFixed(1)}%`}
+                  {remainingPercent > 0 ? `Faltan ${formatNumber(remainingPercent, 1)}%` : `Excede por ${formatNumber(Math.abs(remainingPercent), 1)}%`}
                 </p>
               )}
               {Math.abs(remainingPercent) <= 0.01 && usedPercent > 0 && (

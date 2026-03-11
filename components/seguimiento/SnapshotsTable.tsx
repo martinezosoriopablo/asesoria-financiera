@@ -11,19 +11,23 @@ interface Props {
 }
 
 export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
+  // Formato chileno: puntos para miles, comas para decimales
+  const formatNumber = (value: number, decimals: number = 0): string => {
+    const fixed = Math.abs(value).toFixed(decimals);
+    const [intPart, decPart] = fixed.split(".");
+    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
+    return value < 0 ? `-${formatted}` : formatted;
+  };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+    return `$${formatNumber(value, 0)}`;
   };
 
   const formatPercent = (value: number | null | undefined) => {
     if (value === null || value === undefined) return "-";
     const sign = value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(2)}%`;
+    return `${sign}${formatNumber(value, 2)}%`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -126,22 +130,22 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
               </td>
               <td className="px-4 py-3 text-center">
                 <span className="text-sm text-gb-black">
-                  {snapshot.equity_percent?.toFixed(0) || 0}%
+                  {formatNumber(snapshot.equity_percent || 0, 0)}%
                 </span>
               </td>
               <td className="px-4 py-3 text-center">
                 <span className="text-sm text-gb-black">
-                  {snapshot.fixed_income_percent?.toFixed(0) || 0}%
+                  {formatNumber(snapshot.fixed_income_percent || 0, 0)}%
                 </span>
               </td>
               <td className="px-4 py-3 text-center">
                 <span className="text-sm text-gb-black">
-                  {snapshot.alternatives_percent?.toFixed(0) || 0}%
+                  {formatNumber(snapshot.alternatives_percent || 0, 0)}%
                 </span>
               </td>
               <td className="px-4 py-3 text-center">
                 <span className="text-sm text-gb-black">
-                  {snapshot.cash_percent?.toFixed(0) || 0}%
+                  {formatNumber(snapshot.cash_percent || 0, 0)}%
                 </span>
               </td>
               <td className="px-4 py-3 text-center">

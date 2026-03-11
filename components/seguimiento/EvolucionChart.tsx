@@ -17,13 +17,17 @@ interface Props {
 }
 
 export default function EvolucionChart({ snapshots }: Props) {
+  // Formato chileno: puntos para miles, comas para decimales
+  const formatNumber = (value: number, decimals: number = 0): string => {
+    const fixed = Math.abs(value).toFixed(decimals);
+    const [intPart, decPart] = fixed.split(".");
+    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
+    return value < 0 ? `-${formatted}` : formatted;
+  };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+    return `$${formatNumber(value, 0)}`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -65,7 +69,7 @@ export default function EvolucionChart({ snapshots }: Props) {
             tickLine={false}
           />
           <YAxis
-            tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+            tickFormatter={(v) => `$${formatNumber(v / 1000, 0)}k`}
             tick={{ fontSize: 11, fill: "#666" }}
             tickLine={false}
             axisLine={false}
