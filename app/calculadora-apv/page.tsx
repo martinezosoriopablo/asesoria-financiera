@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import AdvisorHeader from "@/components/shared/AdvisorHeader";
+import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   Calculator,
   TrendingUp,
@@ -10,6 +12,7 @@ import {
   AlertCircle,
   Settings,
   Sparkles,
+  Loader,
 } from "lucide-react";
 import {
   XAxis,
@@ -263,8 +266,19 @@ function calcularTodo(
 // ============================================================
 
 export default function CalculadoraAPV() {
+  const { advisor, loading: authLoading } = useAdvisor();
   const [valorUF, setValorUF] = useState(37800);
   const [mostrarConfiguracion, setMostrarConfiguracion] = useState(false);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
+      </div>
+    );
+  }
+
+  if (!advisor) return null;
 
   const [rentabilidades, setRentabilidades] = useState({
     conservador: 1.5,
@@ -340,20 +354,30 @@ export default function CalculadoraAPV() {
   const perfil = perfilesInfo[datos.perfilInversion];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-12">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full mb-4">
-            <Calculator className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-background">
+      <AdvisorHeader
+        advisorName={advisor.name}
+        advisorEmail={advisor.email}
+        advisorPhoto={advisor.photo}
+        advisorLogo={advisor.logo}
+        companyName={advisor.companyName}
+        isAdmin={advisor.isAdmin}
+      />
+
+      <div className="bg-gradient-to-br from-slate-50 to-slate-100 py-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full mb-4">
+              <Calculator className="w-7 h-7 text-white" />
+            </div>
+            <h1 className="text-2xl font-semibold text-slate-900 mb-2">
+              Calculadora APV con Proyeccion
+            </h1>
+            <p className="text-sm text-slate-600">
+              Descubre cuanto ahorraras en impuestos y cuanto tendras al jubilar
+            </p>
           </div>
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">
-            Calculadora APV con Proyección
-          </h1>
-          <p className="text-lg text-slate-600">
-            Descubre cuánto ahorrarás en impuestos y cuánto tendrás al jubilar
-          </p>
-        </div>
 
         {/* Configuración UF y Rentabilidades */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-slate-200">
@@ -1124,6 +1148,7 @@ export default function CalculadoraAPV() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

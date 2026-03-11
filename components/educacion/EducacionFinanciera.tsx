@@ -169,17 +169,17 @@ export default function EducacionFinanciera() {
   ];
 
   return (
-    <div className="min-h-screen bg-gb-light py-12">
+    <div className="bg-gb-light py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gb-black rounded-full mb-4">
-            <GraduationCap className="w-8 h-8 text-white" />
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-gb-black rounded-full mb-4">
+            <GraduationCap className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-gb-black mb-2">
+          <h1 className="text-2xl font-semibold text-gb-black mb-2">
             Educacion Financiera
           </h1>
-          <p className="text-lg text-gb-gray">
+          <p className="text-sm text-gb-gray">
             Aprende los conceptos clave para invertir con confianza
           </p>
         </div>

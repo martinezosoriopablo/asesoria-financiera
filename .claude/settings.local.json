@@ -37,7 +37,17 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(claude:*)",
-      "Bash(npx @anthropic-ai/claude-code:*)"
+      "Bash(npx @anthropic-ai/claude-code:*)",
+      "WebFetch(domain:marketplace.bolsadesantiago.com)",
+      "WebFetch(domain:api-braindata.bolsadesantiago.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git restore:*)",
+      "WebFetch(domain:www.finra.org)",
+      "WebFetch(domain:finnhub.io)",
+      "WebFetch(domain:www.openfigi.com)",
+      "mcp__massive__search_endpoints",
+      "mcp__massive__call_api"
     ]
   }
 }

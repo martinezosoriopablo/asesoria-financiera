@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import AdvisorHeader from "@/components/shared/AdvisorHeader";
+import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   ArrowLeft,
   User,
@@ -15,8 +17,19 @@ import {
 
 export default function NewClientPage() {
   const router = useRouter();
+  const { advisor, loading: authLoading } = useAdvisor();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
+      </div>
+    );
+  }
+
+  if (!advisor) return null;
   
   const [formData, setFormData] = useState({
     nombre: "",
@@ -93,23 +106,32 @@ export default function NewClientPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+    <div className="min-h-screen bg-background">
+      <AdvisorHeader
+        advisorName={advisor.name}
+        advisorEmail={advisor.email}
+        advisorPhoto={advisor.photo}
+        advisorLogo={advisor.logo}
+        companyName={advisor.companyName}
+        isAdmin={advisor.isAdmin}
+      />
+
+      {/* Page Header */}
+      <div className="bg-white border-b border-gb-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Link
             href="/clients"
-            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors mb-6"
+            className="flex items-center gap-2 text-gb-gray hover:text-gb-black transition-colors mb-4"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             <span className="text-sm font-medium">Volver a Clientes</span>
           </Link>
 
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <User className="w-8 h-8 text-blue-600" />
+          <h1 className="text-2xl font-semibold text-gb-black flex items-center gap-3">
+            <User className="w-6 h-6 text-gb-accent" />
             Nuevo Cliente
           </h1>
-          <p className="text-slate-600 mt-1">
+          <p className="text-sm text-gb-gray mt-1">
             Completa la información del nuevo cliente
           </p>
         </div>
