@@ -8,6 +8,7 @@ import EvolucionChart from "./EvolucionChart";
 import SnapshotsTable from "./SnapshotsTable";
 import AddSnapshotModal from "./AddSnapshotModal";
 import EditSnapshotModal from "./EditSnapshotModal";
+import PerformanceAttribution from "./PerformanceAttribution";
 import {
   ArrowLeft,
   Loader,
@@ -492,6 +493,15 @@ export default function SeguimientoPage({ clientId }: Props) {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Performance Attribution */}
+        {snapshots.length >= 2 && (
+          <PerformanceAttribution
+            snapshots={snapshots}
+            recommendation={recommendation}
+            previousPortfolio={null}
+          />
         )}
 
         {/* Snapshots table */}
