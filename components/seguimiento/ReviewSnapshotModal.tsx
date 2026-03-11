@@ -333,26 +333,26 @@ export default function ReviewSnapshotModal({
   };
 
   const formatCurrency = (value: number, currency: string) => {
-    if (currency === "CLP") {
-      return new Intl.NumberFormat("es-CL", {
-        style: "currency",
-        currency: "CLP",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(value);
+    // Always use Chilean format: dots for thousands, commas for decimals
+    const formatter = new Intl.NumberFormat("es-CL", {
+      minimumFractionDigits: currency === "UF" ? 2 : 0,
+      maximumFractionDigits: currency === "UF" ? 2 : 0,
+    });
+
+    const formatted = formatter.format(value);
+
+    switch (currency) {
+      case "CLP":
+        return `$${formatted}`;
+      case "USD":
+        return `US$${formatted}`;
+      case "EUR":
+        return `€${formatted}`;
+      case "UF":
+        return `UF ${formatted}`;
+      default:
+        return `${currency} ${formatted}`;
     }
-    if (currency === "UF") {
-      return `UF ${new Intl.NumberFormat("es-CL", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(value)}`;
-    }
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const formatRate = (rate: number) => {
