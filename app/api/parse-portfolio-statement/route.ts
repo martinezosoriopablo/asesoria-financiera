@@ -114,7 +114,7 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
 {
   "clientName": "string",
   "accountNumber": "string",
-  "period": "string (ej: 'Jan 2025')",
+  "period": "string (ej: 'Jan 2025' o '31/01/2025')",
   "beginningValue": number,
   "endingValue": number,
   "fees": number,
@@ -133,11 +133,19 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
   ]
 }
 
-REGLAS:
-- Extrae TODOS los holdings/posiciones listados en el estado de cuenta
-- Los números deben ser planos, sin símbolos de moneda ni comas
+REGLAS IMPORTANTES PARA NÚMEROS:
+- TODOS los números deben ser valores numéricos puros SIN formato
+- Documentos chilenos usan PUNTOS para separar miles y COMAS para decimales
+  Ejemplo: "113.179.528" en Chile = 113179528 (ciento trece millones)
+  Ejemplo: "1.234,56" en Chile = 1234.56
+- Documentos USA usan COMAS para miles y PUNTOS para decimales
+  Ejemplo: "113,179,528" en USA = 113179528
+- ELIMINA todos los separadores de miles y convierte comas decimales a puntos
 - Si un campo no se encuentra, usa null para strings y 0 para números
 - unrealizedGainLoss puede ser negativo
+
+OTRAS REGLAS:
+- Extrae TODOS los holdings/posiciones listados
 - Busca secciones como "Portfolio Holdings", "Investment Positions", "Asset Detail", "Detalle de Inversiones", "Posiciones", etc.
 - El documento puede ser de cualquier institución: Pershing, Banchile, BTG Pactual, LarrainVial, Credicorp, Itaú, Scotiabank, u otra
 
