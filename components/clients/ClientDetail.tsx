@@ -32,6 +32,7 @@ interface Client {
   email: string;
   telefono: string;
   rut: string;
+  fecha_nacimiento?: string;
   patrimonio_estimado: number;
   ingreso_mensual: number;
   objetivo_inversion: string;
@@ -114,6 +115,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     email: "",
     telefono: "",
     rut: "",
+    fecha_nacimiento: "",
     patrimonio_estimado: "",
     notas: "",
   });
@@ -201,6 +203,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       email: client.email || "",
       telefono: client.telefono || "",
       rut: client.rut || "",
+      fecha_nacimiento: client.fecha_nacimiento || "",
       patrimonio_estimado: client.patrimonio_estimado?.toString() || "",
       notas: client.notas || "",
     });
@@ -437,6 +440,15 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                       placeholder="12.345.678-9"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Nacimiento</label>
+                  <input
+                    type="date"
+                    value={editForm.fecha_nacimiento}
+                    onChange={(e) => setEditForm({ ...editForm, fecha_nacimiento: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Patrimonio Estimado (CLP)</label>

@@ -4,7 +4,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { User, Loader, ChevronDown, Search } from "lucide-react";
+import { User, Loader, ChevronDown, Search, Mail, Plus } from "lucide-react";
 
 export interface ClientOption {
   id: string;
@@ -24,6 +24,8 @@ interface ClientSelectorProps {
   filterStatus?: string;
   className?: string;
   label?: string;
+  allowNewEmail?: boolean; // Permite escribir un email nuevo (para enviar cuestionario a prospectos)
+  onNewEmail?: (email: string) => void; // Callback cuando se ingresa un email nuevo
 }
 
 export default function ClientSelector({
@@ -35,11 +37,15 @@ export default function ClientSelector({
   filterStatus = "activo",
   className = "",
   label,
+  allowNewEmail = false,
+  onNewEmail,
 }: ClientSelectorProps) {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [newEmailMode, setNewEmailMode] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
 
   // Cargar clientes al montar
   useEffect(() => {
@@ -109,12 +115,21 @@ export default function ClientSelector({
         `}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <User size={16} className="text-gray-400 flex-shrink-0" />
+          {newEmailMode ? (
+            <Mail size={16} className="text-blue-500 flex-shrink-0" />
+          ) : (
+            <User size={16} className="text-gray-400 flex-shrink-0" />
+          )}
           {loading ? (
             <span className="text-gray-400 flex items-center gap-2">
               <Loader size={14} className="animate-spin" />
               Cargando...
             </span>
+          ) : newEmailMode && newEmail ? (
+            <div className="min-w-0 flex-1">
+              <span className="text-gray-900 truncate block">{newEmail}</span>
+              <span className="text-xs text-blue-500 truncate block">Nuevo prospecto</span>
+            </div>
           ) : selectedClient ? (
             <div className="min-w-0 flex-1">
               <span className="text-gray-900 truncate block">
@@ -163,54 +178,111 @@ export default function ClientSelector({
             {/* Options */}
             <div className="max-h-60 overflow-y-auto">
               {/* Clear option */}
-              {value && (
+              {(value || newEmailMode) && (
                 <button
-                  onClick={handleClear}
+                  onClick={() => {
+                    handleClear();
+                    setNewEmailMode(false);
+                    setNewEmail("");
+                  }}
                   className="w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100"
                 >
                   Sin cliente asignado
                 </button>
               )}
 
-              {filteredClients.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-gray-500 text-center">
-                  {searchTerm ? "No se encontraron clientes" : "No hay clientes disponibles"}
+              {/* New email option */}
+              {allowNewEmail && (
+                <button
+                  onClick={() => {
+                    setNewEmailMode(true);
+                    setSearchTerm("");
+                  }}
+                  className="w-full px-3 py-2.5 text-left hover:bg-green-50 transition-colors border-b border-gray-100 flex items-center gap-2"
+                >
+                  <Plus size={14} className="text-green-600" />
+                  <div>
+                    <div className="font-medium text-green-700 text-sm">Enviar a nuevo email</div>
+                    <div className="text-xs text-green-600">Prospecto sin cuenta</div>
+                  </div>
+                </button>
+              )}
+
+              {/* New email input mode */}
+              {newEmailMode && allowNewEmail && (
+                <div className="p-3 border-b border-gray-100 bg-green-50">
+                  <label className="text-xs text-green-700 font-medium mb-1 block">
+                    Email del prospecto
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="prospecto@email.com"
+                      className="flex-1 px-3 py-1.5 text-sm border border-green-200 rounded focus:outline-none focus:ring-1 focus:ring-green-500"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newEmail && newEmail.includes("@")) {
+                          onNewEmail?.(newEmail);
+                          setIsOpen(false);
+                        }
+                      }}
+                      disabled={!newEmail || !newEmail.includes("@")}
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-40"
+                    >
+                      Usar
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                filteredClients.map((client) => (
-                  <button
-                    key={client.id}
-                    onClick={() => handleSelect(client)}
-                    className={`
-                      w-full px-3 py-2.5 text-left hover:bg-blue-50 transition-colors
-                      ${client.id === value ? "bg-blue-50" : ""}
-                    `}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-gray-900 text-sm">
-                          {client.nombre} {client.apellido}
-                        </div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {client.email}
-                        </div>
-                      </div>
-                      {showRiskProfile && client.perfil_riesgo && (
-                        <span className={`
-                          text-xs px-2 py-0.5 rounded-full flex-shrink-0
-                          ${client.perfil_riesgo === "conservador" || client.perfil_riesgo === "defensivo"
-                            ? "bg-blue-100 text-blue-700"
-                            : client.perfil_riesgo === "moderado"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-green-100 text-green-700"
-                          }
-                        `}>
-                          {client.perfil_riesgo}
-                        </span>
-                      )}
+              )}
+
+              {!newEmailMode && (
+                <>
+                  {filteredClients.length === 0 ? (
+                    <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                      {searchTerm ? "No se encontraron clientes" : "No hay clientes disponibles"}
                     </div>
-                  </button>
-                ))
+                  ) : (
+                    filteredClients.map((client) => (
+                      <button
+                        key={client.id}
+                        onClick={() => handleSelect(client)}
+                        className={`
+                          w-full px-3 py-2.5 text-left hover:bg-blue-50 transition-colors
+                          ${client.id === value ? "bg-blue-50" : ""}
+                        `}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-gray-900 text-sm">
+                              {client.nombre} {client.apellido}
+                            </div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {client.email}
+                            </div>
+                          </div>
+                          {showRiskProfile && client.perfil_riesgo && (
+                            <span className={`
+                              text-xs px-2 py-0.5 rounded-full flex-shrink-0
+                              ${client.perfil_riesgo === "conservador" || client.perfil_riesgo === "defensivo"
+                                ? "bg-blue-100 text-blue-700"
+                                : client.perfil_riesgo === "moderado"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-green-100 text-green-700"
+                              }
+                            `}>
+                              {client.perfil_riesgo}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </>
               )}
             </div>
           </div>

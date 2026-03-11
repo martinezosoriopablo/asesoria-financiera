@@ -11,6 +11,7 @@ export interface Advisor {
   foto_url?: string | null;
   logo_url?: string | null;
   company_name?: string | null;
+  linkedin_url?: string | null;
   rol: AdvisorRole;  // Usando 'rol' (columna existente en DB)
   parent_advisor_id?: string | null;
   activo: boolean;   // Usando 'activo' (columna existente en DB)
@@ -49,6 +50,7 @@ export interface UpdateAdvisorInput {
   foto_url?: string;
   logo_url?: string;
   company_name?: string;
+  linkedin_url?: string;
   rol?: AdvisorRole;
   parent_advisor_id?: string | null;
   activo?: boolean;

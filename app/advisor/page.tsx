@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import WeeklyCalendar from "@/components/dashboard/WeeklyCalendar";
 import NewMeetingForm from "@/components/dashboard/NewMeetingForm";
+import GoogleCalendarConnect from "@/components/dashboard/GoogleCalendarConnect";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   Users,
@@ -182,6 +183,11 @@ export default function AdvisorDashboard() {
                 onSuccess={() => fetchData()}
               />
             )}
+
+            {/* Google Calendar Integration */}
+            <div className="mt-4">
+              <GoogleCalendarConnect />
+            </div>
 
             {/* Advisor Workflow */}
             <div className="mt-6">

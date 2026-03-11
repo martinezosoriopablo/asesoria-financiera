@@ -14,7 +14,7 @@ export async function GET(_request: NextRequest) {
   try {
     let query = supabase
       .from("advisors")
-      .select("id, email, nombre, apellido, foto_url, logo_url, company_name, rol, parent_advisor_id, activo, created_at")
+      .select("id, email, nombre, apellido, foto_url, logo_url, company_name, linkedin_url, rol, parent_advisor_id, activo, created_at")
       .order("created_at", { ascending: false });
 
     // Si es admin, puede ver sus subordinados + él mismo
@@ -189,6 +189,7 @@ export async function PUT(request: NextRequest) {
     if (body.nombre) updateData.nombre = body.nombre;
     if (body.apellido) updateData.apellido = body.apellido;
     if (body.foto_url !== undefined) updateData.foto_url = body.foto_url;
+    if (body.linkedin_url !== undefined) updateData.linkedin_url = body.linkedin_url;
 
     // Campos que solo admin puede actualizar
     if (isAdmin) {

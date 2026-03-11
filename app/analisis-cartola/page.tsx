@@ -550,6 +550,15 @@ function AnalisisCartolaContent() {
               placeholder="Seleccionar cliente..."
               className="flex-1 max-w-sm"
               showRiskProfile={true}
+              allowNewEmail={true}
+              onNewEmail={(newEmail: string) => {
+                setEmail(newEmail);
+                setClientProfile(null);
+                setRecommendedAllocation(null);
+                setCartolas([]);
+                setConsolidado(null);
+                setQuestionnaireSent(false);
+              }}
             />
             {loadingProfile && <Loader className="w-4 h-4 animate-spin text-blue-500" />}
             <button

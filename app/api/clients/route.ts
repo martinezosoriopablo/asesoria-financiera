@@ -138,6 +138,7 @@ export async function POST(request: NextRequest) {
           email: body.email,
           telefono: body.telefono || null,
           rut: body.rut || null,
+          fecha_nacimiento: body.fecha_nacimiento || null,
           patrimonio_estimado: body.patrimonio_estimado || null,
           ingreso_mensual: body.ingreso_mensual || null,
           objetivo_inversion: body.objetivo_inversion || null,

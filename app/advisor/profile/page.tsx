@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { User, Mail, Phone, Briefcase, Camera, ArrowLeft, Save, Loader } from "lucide-react";
+import { User, Mail, Phone, Briefcase, Camera, ArrowLeft, Save, Loader, Linkedin } from "lucide-react";
 
 interface AdvisorProfile {
   id: string;
@@ -14,6 +14,7 @@ interface AdvisorProfile {
   telefono: string;
   especialidad: string;
   bio?: string;
+  linkedin_url?: string;
 }
 
 export default function AdvisorProfilePage() {
@@ -74,6 +75,7 @@ export default function AdvisorProfilePage() {
           telefono: profile.telefono,
           especialidad: profile.especialidad,
           bio: profile.bio,
+          linkedin_url: profile.linkedin_url,
         }),
       });
       const data = await res.json();
@@ -256,6 +258,21 @@ export default function AdvisorProfilePage() {
                   value={profile.especialidad || ""}
                   onChange={(e) => setProfile({ ...profile, especialidad: e.target.value })}
                   placeholder="Ej: Wealth Management, Planificación Financiera"
+                  className="w-full pl-9 pr-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                  disabled={saving}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gb-dark mb-1.5">LinkedIn</label>
+              <div className="relative">
+                <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
+                <input
+                  type="url"
+                  value={profile.linkedin_url || ""}
+                  onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
+                  placeholder="https://www.linkedin.com/in/tu-perfil"
                   className="w-full pl-9 pr-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
                   disabled={saving}
                 />

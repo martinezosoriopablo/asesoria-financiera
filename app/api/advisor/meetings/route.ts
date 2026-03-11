@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { syncMeetingToGoogle, type Meeting } from "@/lib/google/calendar-client";
 
 // GET - Obtener reuniones del asesor autenticado
 export async function GET(request: NextRequest) {
@@ -164,9 +165,40 @@ export async function POST(request: NextRequest) {
       },
     ]);
 
+    // Sincronizar con Google Calendar si está conectado
+    try {
+      // Obtener datos del cliente para el evento
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("nombre, apellido, email")
+        .eq("id", body.client_id)
+        .single();
+
+      const meetingForSync: Meeting = {
+        ...newMeeting,
+        clients: clientData || undefined,
+      };
+
+      const googleEventId = await syncMeetingToGoogle(advisor!.id, meetingForSync);
+
+      // Si se creó el evento en Google, guardar el ID
+      if (googleEventId && googleEventId !== newMeeting.google_event_id) {
+        await supabase
+          .from("meetings")
+          .update({ google_event_id: googleEventId })
+          .eq("id", newMeeting.id);
+
+        newMeeting.google_event_id = googleEventId;
+      }
+    } catch (syncError) {
+      // No fallar si la sincronización falla, solo loggear
+      console.error("Error sincronizando con Google Calendar:", syncError);
+    }
+
     return NextResponse.json({
       success: true,
       meeting: newMeeting,
+      googleSynced: !!newMeeting.google_event_id,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al crear reunión";

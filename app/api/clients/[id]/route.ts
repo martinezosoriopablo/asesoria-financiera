@@ -174,7 +174,7 @@ export async function PUT(
 
     // Campos permitidos para actualización (whitelist)
     const allowedFields = [
-      'nombre', 'apellido', 'email', 'telefono', 'rut',
+      'nombre', 'apellido', 'email', 'telefono', 'rut', 'fecha_nacimiento',
       'patrimonio_estimado', 'ingreso_mensual', 'objetivo_inversion',
       'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo', 'parent_client_id',
       'tolerancia_perdida', 'tiene_portfolio', 'portfolio_data',
