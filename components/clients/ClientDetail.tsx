@@ -744,6 +744,13 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
               <h2 className="text-sm font-semibold text-gb-black mb-3">Acciones</h2>
               <div className="space-y-1">
                 <Link
+                  href={`/clients/${client.id}/seguimiento`}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  <LineChart className="w-4 h-4" />
+                  Seguimiento de Cartolas
+                </Link>
+                <Link
                   href={`/analisis-cartola?client=${client.email}`}
                   className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
                 >
