@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Edit, Trash2, Eye, TrendingUp, TrendingDown } from "lucide-react";
+import { Edit, Trash2, TrendingUp, TrendingDown, Plus, Minus } from "lucide-react";
 import type { Snapshot } from "./SeguimientoPage";
 
 interface Props {
@@ -74,6 +74,9 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
             <th className="px-4 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
               Cambio
             </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+              Cuotas
+            </th>
             <th className="px-4 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
               Equity
             </th>
@@ -124,6 +127,32 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
                     )}
                     {formatPercent(snapshot.periodReturn)}
                   </span>
+                ) : (
+                  <span className="text-sm text-gb-gray">-</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-right">
+                {snapshot.total_cuotas ? (
+                  <div>
+                    <span className="text-sm text-gb-black">
+                      {formatNumber(snapshot.total_cuotas, 2)}
+                    </span>
+                    {snapshot.cuotas_change !== undefined && snapshot.cuotas_change !== 0 && (
+                      <span
+                        className={`ml-1 inline-flex items-center text-xs ${
+                          snapshot.cuotas_change > 0 ? "text-green-600" : "text-amber-600"
+                        }`}
+                        title={snapshot.cuotas_change > 0 ? "Compra de cuotas" : "Venta de cuotas"}
+                      >
+                        {snapshot.cuotas_change > 0 ? (
+                          <Plus className="w-3 h-3" />
+                        ) : (
+                          <Minus className="w-3 h-3" />
+                        )}
+                        {formatNumber(Math.abs(snapshot.cuotas_change), 2)}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-sm text-gb-gray">-</span>
                 )}

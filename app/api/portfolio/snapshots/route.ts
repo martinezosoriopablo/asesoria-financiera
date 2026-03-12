@@ -4,6 +4,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+interface HoldingData {
+  fundName: string;
+  quantity?: number;
+  marketPrice?: number;
+  marketValue: number;
+  [key: string]: unknown;
+}
+
 interface SnapshotData {
   clientId: string;
   snapshotDate?: string;
@@ -15,7 +23,7 @@ interface SnapshotData {
     alternatives?: { value: number; percent: number };
     cash?: { value: number; percent: number };
   };
-  holdings?: unknown[];
+  holdings?: HoldingData[];
   source?: string;
   cashFlows?: {
     deposits: number;
@@ -128,10 +136,13 @@ export async function POST(request: NextRequest) {
 
     const date = snapshotDate || new Date().toISOString().split("T")[0];
 
-    // Obtener snapshot anterior para calcular retorno diario
+    // Calculate total cuotas from holdings
+    const totalCuotas = (holdings || []).reduce((sum, h) => sum + (h.quantity || 0), 0);
+
+    // Obtener snapshot anterior para calcular retorno diario y cambio de cuotas
     const { data: prevSnapshot } = await supabase
       .from("portfolio_snapshots")
-      .select("total_value, cumulative_return, twr_cumulative")
+      .select("total_value, cumulative_return, twr_cumulative, total_cuotas")
       .eq("client_id", clientId)
       .lt("snapshot_date", date)
       .order("snapshot_date", { ascending: false })
@@ -182,6 +193,10 @@ export async function POST(request: NextRequest) {
     // Calcular ganancia/pérdida no realizada
     const unrealizedGainLoss = totalCostBasis ? totalValue - totalCostBasis : null;
 
+    // Calculate cuotas change from previous snapshot
+    const prevCuotas = prevSnapshot?.total_cuotas || 0;
+    const cuotasChange = totalCuotas - prevCuotas;
+
     // Insertar o actualizar snapshot
     const { data: snapshot, error } = await supabase
       .from("portfolio_snapshots")
@@ -209,6 +224,9 @@ export async function POST(request: NextRequest) {
         // TWR metrics
         twr_period: twrPeriod,
         twr_cumulative: twrCumulative,
+        // Cuotas tracking
+        total_cuotas: totalCuotas,
+        cuotas_change: cuotasChange,
         source,
       }, {
         onConflict: "client_id,snapshot_date",
@@ -245,6 +263,8 @@ interface SnapshotRecord {
   net_cash_flow?: number;
   twr_period?: number;
   twr_cumulative?: number;
+  total_cuotas?: number;
+  cuotas_change?: number;
 }
 
 interface PortfolioMetrics {

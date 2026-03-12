@@ -31,6 +31,8 @@ interface SnapshotRecord {
   net_cash_flow?: number;
   twr_period?: number;
   twr_cumulative?: number;
+  total_cuotas?: number;
+  cuotas_change?: number;
   source: string;
   created_at: string;
 }

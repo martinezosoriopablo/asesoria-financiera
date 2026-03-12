@@ -52,6 +52,8 @@ export interface Snapshot {
   holdings: unknown[] | null;
   daily_return: number;
   cumulative_return: number;
+  total_cuotas?: number;
+  cuotas_change?: number;
   source: string;
   created_at: string;
 }
