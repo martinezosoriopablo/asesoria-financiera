@@ -1,52 +1,156 @@
 // app/api/parse-portfolio-excel/route.ts
 // Parser para archivos Excel de cartolas de AGF/corredoras chilenas
+// Returns same format as PDF parser for consistency
 
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 interface Holding {
   fundName: string;
-  securityId: string | null;
-  quantity: number;
-  unitCost: number;
-  costBasis: number;
-  marketPrice: number;
+  securityId?: string | null;
+  quantity?: number;
+  unitCost?: number;
+  costBasis?: number;
+  marketPrice?: number;
   marketValue: number;
-  unrealizedGainLoss: number;
+  unrealizedGainLoss?: number;
   assetClass?: string;
 }
 
-interface ParsedData {
-  success: boolean;
-  data?: {
-    clientName: string | null;
-    accountNumber: string | null;
-    period: string | null;
-    totalValue: number;
-    holdings: Holding[];
-    byAssetClass: {
-      Equity?: { value: number; percent: number };
-      "Fixed Income"?: { value: number; percent: number };
-      Alternatives?: { value: number; percent: number };
-      Cash?: { value: number; percent: number };
-    };
-  };
+// Same response format as PDF parser
+interface ParsedResponse {
+  clientName?: string;
+  accountNumber?: string;
+  period?: string;
+  beginningValue?: number;
+  endingValue?: number;
+  totalValue?: number;
+  cashBalance?: number;
+  holdings: Holding[];
+  detectedCurrency: "USD" | "CLP";
+  currencyConfidence: "high" | "medium" | "low";
+  currencyReason: string;
+  source?: string;
   error?: string;
 }
 
-// Función para limpiar y convertir a número
-function parseNumber(value: unknown): number {
+// Column name mappings for different Chilean institutions
+const COLUMN_MAPPINGS = {
+  fundName: [
+    "nombre", "fondo", "nombre fondo", "nombre del fondo", "instrumento",
+    "security", "security name", "description", "descripcion", "descripción",
+    "fund name", "fund", "asset", "activo", "titulo", "título", "nemotecnico",
+    "nemotécnico", "serie", "nombre serie"
+  ],
+  quantity: [
+    "cuotas", "cantidad", "qty", "quantity", "shares", "units", "unidades",
+    "numero cuotas", "número cuotas", "n° cuotas", "nro cuotas", "acciones",
+    "cantidad cuotas", "cuotas totales", "participacion", "participación"
+  ],
+  marketValue: [
+    "valor total", "total", "market value", "valor mercado", "monto",
+    "valor actual", "current value", "saldo", "balance", "valorización",
+    "valorizacion", "valor", "monto total", "valor posicion", "valor posición",
+    "valorizado"
+  ],
+  marketPrice: [
+    "valor cuota", "precio", "price", "market price", "precio mercado",
+    "precio actual", "current price", "unit price", "precio unitario",
+    "valor unitario", "precio cierre", "ultimo precio", "último precio",
+    "nav", "cotizacion", "cotización"
+  ],
+  costBasis: [
+    "costo total", "total cost", "cost basis", "inversion", "inversión",
+    "monto invertido", "valor libro", "book value", "costo", "cost",
+    "precio compra", "base"
+  ],
+  securityId: [
+    "ticker", "cusip", "isin", "simbolo", "símbolo", "codigo", "código",
+    "id", "rut", "security id", "identificador", "nemotecnico", "nemotécnico"
+  ]
+};
+
+// Chilean AGFs and brokers for source detection
+const CHILEAN_SOURCES: Record<string, string[]> = {
+  "BCI": ["bci", "banchile"],
+  "BTG Pactual": ["btg", "pactual"],
+  "LarrainVial": ["larrainvial", "larrain vial", "lv"],
+  "Santander": ["santander"],
+  "Security": ["security"],
+  "Sura": ["sura"],
+  "Itaú": ["itau", "itaú"],
+  "Principal": ["principal"],
+  "BICE": ["bice"],
+  "Credicorp": ["credicorp"],
+  "Scotia": ["scotia", "scotiabank"],
+  "Compass": ["compass"],
+  "Moneda": ["moneda"],
+  "Euroamerica": ["euroamerica", "euroamérica"],
+  "Nevasa": ["nevasa"],
+  "Renta4": ["renta4", "renta 4"],
+  "Vector": ["vector"],
+  "Tanner": ["tanner"],
+  "Pershing": ["pershing"],
+};
+
+// Parse Chilean number format (dots for thousands, commas for decimals)
+function parseChileanNumber(value: unknown): number {
   if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    // Remover caracteres no numéricos excepto punto, coma y signo negativo
-    const cleaned = value
-      .replace(/[^0-9.,-]/g, "")
-      .replace(/\./g, "") // Quitar puntos de miles
-      .replace(",", "."); // Convertir coma decimal a punto
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? 0 : num;
+  if (value === null || value === undefined || value === "") return 0;
+
+  let str = String(value).trim();
+
+  // Remove currency symbols and whitespace
+  str = str.replace(/[$€CLP\s]/gi, "");
+
+  // Handle parentheses as negative
+  if (str.startsWith("(") && str.endsWith(")")) {
+    str = "-" + str.slice(1, -1);
   }
-  return 0;
+
+  // Handle percentage
+  if (str.endsWith("%")) {
+    str = str.slice(0, -1);
+  }
+
+  // Detect format based on separators
+  const hasComma = str.includes(",");
+  const hasDot = str.includes(".");
+
+  if (hasComma && hasDot) {
+    // Both present - determine which is decimal
+    const lastComma = str.lastIndexOf(",");
+    const lastDot = str.lastIndexOf(".");
+
+    if (lastComma > lastDot) {
+      // Comma is decimal (Chilean: 1.234,56)
+      str = str.replace(/\./g, "").replace(",", ".");
+    } else {
+      // Dot is decimal (US: 1,234.56)
+      str = str.replace(/,/g, "");
+    }
+  } else if (hasComma && !hasDot) {
+    // Only commas - check if it's a decimal or thousand separator
+    const parts = str.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) {
+      // Likely decimal: 1234,56
+      str = str.replace(",", ".");
+    } else {
+      // Likely thousands: 1,234,567
+      str = str.replace(/,/g, "");
+    }
+  } else if (hasDot && !hasComma) {
+    // Only dots - check if it's decimal or thousands
+    const parts = str.split(".");
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+      // Multiple dots or 3 digits after dot = thousands (Chilean: 1.234.567)
+      str = str.replace(/\./g, "");
+    }
+    // Otherwise keep as decimal (1234.56)
+  }
+
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
 }
 
 // Función para detectar tipo de activo basado en el nombre
@@ -97,113 +201,211 @@ function detectAssetClass(fundName: string): string {
   return "Equity";
 }
 
-// Función para encontrar columnas por nombre
+// Normalize text for matching
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .trim();
+}
+
+// Find column index using mappings
 function findColumnIndex(
   headers: unknown[],
-  possibleNames: string[]
+  fieldType: keyof typeof COLUMN_MAPPINGS
 ): number {
-  for (let i = 0; i < headers.length; i++) {
-    const header = String(headers[i] || "").toLowerCase().trim();
-    for (const name of possibleNames) {
-      if (header.includes(name.toLowerCase())) {
-        return i;
-      }
-    }
+  const possibleNames = COLUMN_MAPPINGS[fieldType];
+  const normalizedHeaders = headers.map(h => normalizeText(String(h || "")));
+
+  for (const name of possibleNames) {
+    const normalizedName = normalizeText(name);
+    const index = normalizedHeaders.findIndex(h =>
+      h === normalizedName || h.includes(normalizedName) || normalizedName.includes(h)
+    );
+    if (index !== -1) return index;
   }
   return -1;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<ParsedData>> {
+// Detect source from sheet content
+function detectSource(workbook: XLSX.WorkBook, data: unknown[][]): string {
+  const sheetNames = workbook.SheetNames.join(" ").toLowerCase();
+  const content = data.slice(0, 10).flat().filter(Boolean).join(" ").toLowerCase();
+
+  for (const [name, keywords] of Object.entries(CHILEAN_SOURCES)) {
+    if (keywords.some(k => sheetNames.includes(k) || content.includes(k))) {
+      return name;
+    }
+  }
+  return "Excel";
+}
+
+// Detect currency based on values
+function detectCurrency(holdings: Holding[], totalValue: number): {
+  currency: "USD" | "CLP";
+  confidence: "high" | "medium" | "low";
+  reason: string;
+} {
+  if (totalValue > 1_000_000) {
+    return {
+      currency: "CLP",
+      confidence: "high",
+      reason: `Valor total ${totalValue.toLocaleString()} sugiere CLP`
+    };
+  }
+
+  const avgValue = holdings.length > 0
+    ? holdings.reduce((sum, h) => sum + h.marketValue, 0) / holdings.length
+    : 0;
+
+  if (avgValue > 100_000) {
+    return {
+      currency: "CLP",
+      confidence: "medium",
+      reason: `Valor promedio por posición ${avgValue.toLocaleString()} sugiere CLP`
+    };
+  }
+
+  return {
+    currency: "USD",
+    confidence: "low",
+    reason: "Valores sugieren USD o moneda extranjera"
+  };
+}
+
+// Extract metadata from rows above the header
+function extractMetadata(data: unknown[][], headerRowIndex: number): {
+  clientName?: string;
+  accountNumber?: string;
+  period?: string;
+} {
+  const metadata: { clientName?: string; accountNumber?: string; period?: string } = {};
+
+  for (let i = 0; i < headerRowIndex; i++) {
+    const row = data[i];
+    if (!row) continue;
+
+    const rowText = row.map(c => String(c || "")).join(" ").toLowerCase();
+
+    // Look for client/account patterns
+    if (rowText.includes("cliente") || rowText.includes("nombre")) {
+      const match = row.find(c => {
+        const s = String(c || "");
+        return s.length > 3 && !s.toLowerCase().includes("cliente") && !s.toLowerCase().includes("nombre");
+      });
+      if (match) metadata.clientName = String(match).trim();
+    }
+
+    if (rowText.includes("cuenta") || rowText.includes("rut")) {
+      const match = row.find(c => {
+        const s = String(c || "");
+        return /[\d-]+/.test(s) && s.length > 3;
+      });
+      if (match) metadata.accountNumber = String(match).trim();
+    }
+
+    // Look for date patterns
+    if (rowText.includes("fecha") || rowText.includes("periodo") || rowText.includes("al ")) {
+      const dateCell = row.find(c => {
+        const s = String(c || "");
+        return /\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(s) ||
+               /\d{4}[\/\-\.]\d{1,2}/.test(s) ||
+               /(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i.test(s);
+      });
+      if (dateCell) metadata.period = String(dateCell).trim();
+    }
+  }
+
+  return metadata;
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse<ParsedResponse>> {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
     if (!file) {
       return NextResponse.json({
-        success: false,
+        holdings: [],
+        detectedCurrency: "CLP",
+        currencyConfidence: "low",
+        currencyReason: "No file",
         error: "No se proporcionó archivo",
-      });
+      }, { status: 400 });
     }
 
-    // Verificar extensión
+    // Verify extension
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".csv")) {
       return NextResponse.json({
-        success: false,
+        holdings: [],
+        detectedCurrency: "CLP",
+        currencyConfidence: "low",
+        currencyReason: "Invalid format",
         error: "Formato de archivo no soportado. Use .xlsx, .xls o .csv",
-      });
+      }, { status: 400 });
     }
 
-    // Leer archivo
+    // Read file
     const bytes = await file.arrayBuffer();
     const workbook = XLSX.read(bytes, { type: "array" });
 
-    // Obtener la primera hoja
+    // Get first sheet
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
-    // Convertir a JSON
+    // Convert to array of arrays
     const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
 
     if (data.length < 2) {
       return NextResponse.json({
-        success: false,
+        holdings: [],
+        detectedCurrency: "CLP",
+        currencyConfidence: "low",
+        currencyReason: "Empty file",
         error: "El archivo está vacío o no tiene datos suficientes",
-      });
+      }, { status: 400 });
     }
 
-    // Buscar la fila de encabezados (primera fila con datos útiles)
+    // Find header row (first row with recognizable column names)
     let headerRowIndex = 0;
-    for (let i = 0; i < Math.min(10, data.length); i++) {
+    for (let i = 0; i < Math.min(20, data.length); i++) {
       const row = data[i];
-      if (row && row.some((cell) => {
-        const cellStr = String(cell || "").toLowerCase();
-        return (
-          cellStr.includes("nombre") ||
-          cellStr.includes("fondo") ||
-          cellStr.includes("instrumento") ||
-          cellStr.includes("security") ||
-          cellStr.includes("ticker") ||
-          cellStr.includes("monto") ||
-          cellStr.includes("valor")
-        );
-      })) {
+      if (!row || row.length < 2) continue;
+
+      const headers = row.map(c => String(c || ""));
+      const nameCol = findColumnIndex(headers, "fundName");
+      const valueCol = findColumnIndex(headers, "marketValue");
+
+      if (nameCol !== -1 && valueCol !== -1) {
         headerRowIndex = i;
         break;
       }
     }
 
-    const headers = data[headerRowIndex] || [];
+    const headers = (data[headerRowIndex] || []).map(c => String(c || ""));
 
-    // Encontrar índices de columnas
-    const nameCol = findColumnIndex(headers, [
-      "nombre", "fondo", "instrumento", "security", "name", "descripcion", "descripción"
-    ]);
-    const tickerCol = findColumnIndex(headers, [
-      "ticker", "cusip", "isin", "simbolo", "símbolo", "codigo", "código", "id"
-    ]);
-    const quantityCol = findColumnIndex(headers, [
-      "cantidad", "cuotas", "participacion", "participación", "quantity", "shares", "unidades"
-    ]);
-    const marketValueCol = findColumnIndex(headers, [
-      "valor mercado", "market value", "valor", "monto", "saldo", "total", "valorizado"
-    ]);
-    const costCol = findColumnIndex(headers, [
-      "costo", "cost", "precio compra", "base"
-    ]);
-    const priceCol = findColumnIndex(headers, [
-      "precio", "price", "valor cuota", "nav", "cotizacion", "cotización"
-    ]);
+    // Find column indices
+    const nameCol = findColumnIndex(headers, "fundName");
+    const valueCol = findColumnIndex(headers, "marketValue");
+    const quantityCol = findColumnIndex(headers, "quantity");
+    const priceCol = findColumnIndex(headers, "marketPrice");
+    const costCol = findColumnIndex(headers, "costBasis");
+    const tickerCol = findColumnIndex(headers, "securityId");
 
-    // Validar que al menos tenemos nombre y valor
-    if (nameCol === -1 || marketValueCol === -1) {
+    // Validate minimum columns
+    if (nameCol === -1 || valueCol === -1) {
       return NextResponse.json({
-        success: false,
+        holdings: [],
+        detectedCurrency: "CLP",
+        currencyConfidence: "low",
+        currencyReason: "Missing columns",
         error: "No se encontraron las columnas requeridas (nombre del instrumento y valor de mercado)",
-      });
+      }, { status: 400 });
     }
 
-    // Parsear holdings
+    // Parse holdings
     const holdings: Holding[] = [];
     let totalValue = 0;
 
@@ -212,27 +414,47 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedDat
       if (!row || row.length === 0) continue;
 
       const fundName = String(row[nameCol] || "").trim();
-      if (!fundName || fundName.toLowerCase() === "total" || fundName.toLowerCase() === "subtotal") {
+
+      // Skip empty rows or totals
+      if (!fundName ||
+          fundName.toLowerCase() === "total" ||
+          fundName.toLowerCase() === "subtotal" ||
+          fundName.toLowerCase() === "suma" ||
+          fundName.toLowerCase() === "saldo final") {
         continue;
       }
 
-      const marketValue = parseNumber(row[marketValueCol]);
+      const marketValue = parseChileanNumber(row[valueCol]);
       if (marketValue === 0) continue;
 
       const holding: Holding = {
         fundName,
-        securityId: tickerCol !== -1 ? String(row[tickerCol] || "").trim() || null : null,
-        quantity: quantityCol !== -1 ? parseNumber(row[quantityCol]) : 0,
-        unitCost: costCol !== -1 ? parseNumber(row[costCol]) : 0,
-        costBasis: costCol !== -1 ? parseNumber(row[costCol]) * (quantityCol !== -1 ? parseNumber(row[quantityCol]) : 1) : 0,
-        marketPrice: priceCol !== -1 ? parseNumber(row[priceCol]) : 0,
         marketValue,
-        unrealizedGainLoss: 0,
         assetClass: detectAssetClass(fundName),
       };
 
-      // Calcular ganancia/pérdida si tenemos costo base
-      if (holding.costBasis > 0) {
+      // Optional fields
+      if (tickerCol !== -1 && row[tickerCol]) {
+        holding.securityId = String(row[tickerCol]).trim() || null;
+      }
+      if (quantityCol !== -1) {
+        holding.quantity = parseChileanNumber(row[quantityCol]);
+      }
+      if (priceCol !== -1) {
+        holding.marketPrice = parseChileanNumber(row[priceCol]);
+      }
+      if (costCol !== -1) {
+        const cost = parseChileanNumber(row[costCol]);
+        if (cost > 0) {
+          holding.costBasis = cost;
+        }
+      }
+
+      // Calculate missing fields
+      if (!holding.marketPrice && holding.quantity && holding.marketValue && holding.quantity > 0) {
+        holding.marketPrice = holding.marketValue / holding.quantity;
+      }
+      if (holding.costBasis && holding.marketValue) {
         holding.unrealizedGainLoss = holding.marketValue - holding.costBasis;
       }
 
@@ -242,44 +464,47 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedDat
 
     if (holdings.length === 0) {
       return NextResponse.json({
-        success: false,
+        holdings: [],
+        detectedCurrency: "CLP",
+        currencyConfidence: "low",
+        currencyReason: "No holdings found",
         error: "No se encontraron posiciones válidas en el archivo",
-      });
+      }, { status: 400 });
     }
 
-    // Calcular composición por clase de activo
-    const byAssetClass: Record<string, { value: number; percent: number }> = {};
-    for (const holding of holdings) {
-      const assetClass = holding.assetClass || "Equity";
-      if (!byAssetClass[assetClass]) {
-        byAssetClass[assetClass] = { value: 0, percent: 0 };
-      }
-      byAssetClass[assetClass].value += holding.marketValue;
-    }
+    // Extract metadata
+    const metadata = extractMetadata(data, headerRowIndex);
 
-    // Calcular porcentajes
-    for (const key of Object.keys(byAssetClass)) {
-      byAssetClass[key].percent = totalValue > 0
-        ? (byAssetClass[key].value / totalValue) * 100
-        : 0;
-    }
+    // Detect currency
+    const currencyInfo = detectCurrency(holdings, totalValue);
+
+    // Detect source
+    const source = detectSource(workbook, data);
+
+    // Calculate total cost if available
+    const totalCost = holdings.reduce((sum, h) => sum + (h.costBasis || 0), 0);
+
+    console.log(`Excel parsed: ${holdings.length} holdings, total ${totalValue}, source: ${source}`);
 
     return NextResponse.json({
-      success: true,
-      data: {
-        clientName: null,
-        accountNumber: null,
-        period: null,
-        totalValue,
-        holdings,
-        byAssetClass,
-      },
+      ...metadata,
+      endingValue: totalValue,
+      totalValue: totalValue,
+      beginningValue: totalCost > 0 ? totalCost : undefined,
+      holdings,
+      detectedCurrency: currencyInfo.currency,
+      currencyConfidence: currencyInfo.confidence,
+      currencyReason: currencyInfo.reason,
+      source,
     });
   } catch (error) {
     console.error("Error parsing Excel file:", error);
     return NextResponse.json({
-      success: false,
+      holdings: [],
+      detectedCurrency: "CLP",
+      currencyConfidence: "low",
+      currencyReason: "Parse error",
       error: error instanceof Error ? error.message : "Error al procesar el archivo Excel",
-    });
+    }, { status: 500 });
   }
 }
