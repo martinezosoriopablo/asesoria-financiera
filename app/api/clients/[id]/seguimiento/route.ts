@@ -26,6 +26,11 @@ interface SnapshotRecord {
   holdings: unknown[] | null;
   daily_return: number;
   cumulative_return: number;
+  deposits?: number;
+  withdrawals?: number;
+  net_cash_flow?: number;
+  twr_period?: number;
+  twr_cumulative?: number;
   source: string;
   created_at: string;
 }
@@ -33,6 +38,8 @@ interface SnapshotRecord {
 interface PortfolioMetrics {
   totalReturn: number;
   annualizedReturn: number;
+  twr: number;
+  twrAnnualized: number;
   volatility: number;
   maxDrawdown: number;
   sharpeRatio: number;
@@ -41,6 +48,9 @@ interface PortfolioMetrics {
   dataPoints: number;
   unrealizedGainLoss?: number | null;
   periodDays?: number;
+  totalDeposits?: number;
+  totalWithdrawals?: number;
+  netCashFlow?: number;
   composition?: {
     equity: number;
     fixedIncome: number;
@@ -161,13 +171,15 @@ export async function GET(
   }
 }
 
-// Función para calcular métricas de rendimiento
+// Función para calcular métricas de rendimiento incluyendo TWR
 function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
   if (snapshots.length < 2) {
     const latestSnapshot = snapshots[snapshots.length - 1];
     return {
       totalReturn: 0,
       annualizedReturn: 0,
+      twr: 0,
+      twrAnnualized: 0,
       volatility: 0,
       maxDrawdown: 0,
       sharpeRatio: 0,
@@ -188,41 +200,74 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
 
   const firstValue = snapshots[0].total_value;
   const lastValue = snapshots[snapshots.length - 1].total_value;
+  const latestSnapshot = snapshots[snapshots.length - 1];
 
-  // Retorno total
+  // Retorno total simple
   const totalReturn = ((lastValue - firstValue) / firstValue) * 100;
 
-  // Calcular retornos diarios para volatilidad
-  const dailyReturns: number[] = [];
+  // TWR (Time-Weighted Return) - use stored value if available, otherwise calculate
+  let twr = latestSnapshot.twr_cumulative || 0;
+
+  // If no stored TWR, calculate it from scratch using sub-period returns
+  if (!twr && snapshots.length >= 2) {
+    let twrFactor = 1;
+    for (let i = 1; i < snapshots.length; i++) {
+      const prevValue = snapshots[i - 1].total_value;
+      const currValue = snapshots[i].total_value;
+      const netFlow = snapshots[i].net_cash_flow || 0;
+
+      if (prevValue > 0) {
+        // Sub-period return adjusted for cash flows
+        const adjustedEndValue = currValue - netFlow;
+        const subPeriodReturn = adjustedEndValue / prevValue;
+        twrFactor *= subPeriodReturn;
+      }
+    }
+    twr = (twrFactor - 1) * 100;
+  }
+
+  // Calculate TWR-based daily returns for volatility
+  const twrDailyReturns: number[] = [];
   for (let i = 1; i < snapshots.length; i++) {
     const prevValue = snapshots[i - 1].total_value;
     const currValue = snapshots[i].total_value;
+    const netFlow = snapshots[i].net_cash_flow || 0;
+
     if (prevValue > 0) {
-      dailyReturns.push((currValue - prevValue) / prevValue);
+      const adjustedEndValue = currValue - netFlow;
+      twrDailyReturns.push((adjustedEndValue / prevValue) - 1);
     }
   }
 
-  // Volatilidad (desviación estándar de retornos diarios anualizada)
+  // Volatilidad (desviación estándar de retornos TWR anualizada)
   let annualizedVol = 0;
-  if (dailyReturns.length > 0) {
-    const avgReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
+  if (twrDailyReturns.length > 0) {
+    const avgReturn = twrDailyReturns.reduce((a, b) => a + b, 0) / twrDailyReturns.length;
     const variance =
-      dailyReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
-      dailyReturns.length;
+      twrDailyReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+      twrDailyReturns.length;
     const dailyVol = Math.sqrt(variance);
     annualizedVol = dailyVol * Math.sqrt(252) * 100; // 252 trading days
   }
 
-  // Retorno anualizado
+  // Period calculation
   const daysDiff =
     (new Date(snapshots[snapshots.length - 1].snapshot_date).getTime() -
       new Date(snapshots[0].snapshot_date).getTime()) /
     (1000 * 60 * 60 * 24);
   const yearsElapsed = daysDiff / 365;
+
+  // Retorno anualizado simple
   const annualizedReturn =
     yearsElapsed > 0
       ? (Math.pow(lastValue / firstValue, 1 / yearsElapsed) - 1) * 100
       : totalReturn;
+
+  // TWR anualizado
+  const twrAnnualized =
+    yearsElapsed > 0
+      ? (Math.pow(1 + twr / 100, 1 / yearsElapsed) - 1) * 100
+      : twr;
 
   // Max Drawdown
   let maxDrawdown = 0;
@@ -238,17 +283,21 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     }
   }
 
-  // Sharpe Ratio (asumiendo tasa libre de riesgo de 4%)
+  // Sharpe Ratio usando TWR (asumiendo tasa libre de riesgo de 4%)
   const riskFreeRate = 4;
-  const excessReturn = annualizedReturn - riskFreeRate;
+  const excessReturn = twrAnnualized - riskFreeRate;
   const sharpeRatio = annualizedVol > 0 ? excessReturn / annualizedVol : 0;
 
-  // Composición actual
-  const latestSnapshot = snapshots[snapshots.length - 1];
+  // Total cash flows
+  const totalDeposits = snapshots.reduce((sum, s) => sum + (s.deposits || 0), 0);
+  const totalWithdrawals = snapshots.reduce((sum, s) => sum + (s.withdrawals || 0), 0);
+  const netCashFlow = totalDeposits - totalWithdrawals;
 
   return {
     totalReturn: Math.round(totalReturn * 100) / 100,
     annualizedReturn: Math.round(annualizedReturn * 100) / 100,
+    twr: Math.round(twr * 100) / 100,
+    twrAnnualized: Math.round(twrAnnualized * 100) / 100,
     volatility: Math.round(annualizedVol * 100) / 100,
     maxDrawdown: Math.round(maxDrawdown * 100) / 100,
     sharpeRatio: Math.round(sharpeRatio * 100) / 100,
@@ -257,6 +306,9 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     unrealizedGainLoss: latestSnapshot.unrealized_gain_loss,
     dataPoints: snapshots.length,
     periodDays: Math.round(daysDiff),
+    totalDeposits: Math.round(totalDeposits),
+    totalWithdrawals: Math.round(totalWithdrawals),
+    netCashFlow: Math.round(netCashFlow),
     composition: {
       equity: latestSnapshot.equity_percent || 0,
       fixedIncome: latestSnapshot.fixed_income_percent || 0,

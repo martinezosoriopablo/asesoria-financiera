@@ -59,6 +59,8 @@ export interface Snapshot {
 interface Metrics {
   totalReturn: number;
   annualizedReturn: number;
+  twr: number;
+  twrAnnualized: number;
   volatility: number;
   maxDrawdown: number;
   sharpeRatio: number;
@@ -67,6 +69,9 @@ interface Metrics {
   unrealizedGainLoss: number | null;
   dataPoints: number;
   periodDays: number;
+  totalDeposits?: number;
+  totalWithdrawals?: number;
+  netCashFlow?: number;
   composition: {
     equity: number;
     fixedIncome: number;
@@ -294,14 +299,19 @@ export default function SeguimientoPage({ clientId }: Props) {
               )}
             </div>
 
-            {/* Period return */}
+            {/* Period return - TWR */}
             <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
-              <p className="text-xs text-gb-gray font-medium uppercase mb-1">Rentabilidad</p>
-              <p className={`text-2xl font-bold ${metrics.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatPercent(metrics.totalReturn)}
+              <p className="text-xs text-gb-gray font-medium uppercase mb-1">TWR</p>
+              <p className={`text-2xl font-bold ${(metrics.twr || metrics.totalReturn) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatPercent(metrics.twr || metrics.totalReturn)}
               </p>
               <p className="text-xs text-gb-gray mt-1">
                 {metrics.periodDays > 0 ? `${metrics.periodDays} días` : "Sin período"}
+                {metrics.netCashFlow && metrics.netCashFlow !== 0 && (
+                  <span className="ml-1">
+                    (Flujo: {metrics.netCashFlow >= 0 ? "+" : ""}{formatCurrency(metrics.netCashFlow)})
+                  </span>
+                )}
               </p>
             </div>
 
