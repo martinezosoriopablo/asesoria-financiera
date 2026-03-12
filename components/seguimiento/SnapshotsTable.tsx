@@ -43,37 +43,45 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
     (a, b) => new Date(b.snapshot_date).getTime() - new Date(a.snapshot_date).getTime()
   );
 
-  // Calculate period returns (change from previous snapshot)
-  // For mutual funds: use cuota value change (price return), not total value change
+  // Calculate unit value and period returns
   const snapshotsWithReturns = sortedSnapshots.map((snapshot, index) => {
     const prevSnapshot = sortedSnapshots[index + 1];
+    const currentCuotas = snapshot.total_cuotas || 0;
+
+    // Calculate current unit value (valor cuota)
+    const unitValue = currentCuotas > 0 ? snapshot.total_value / currentCuotas : null;
 
     if (!prevSnapshot) {
-      return { ...snapshot, periodReturn: null, priceReturn: null };
+      return {
+        ...snapshot,
+        periodReturn: null,
+        unitValue,
+        prevUnitValue: null,
+      };
     }
 
-    // Calculate cuota value (NAV) for both periods
-    const currentCuotas = snapshot.total_cuotas || 0;
     const prevCuotas = prevSnapshot.total_cuotas || 0;
+    const prevUnitValue = prevCuotas > 0 ? prevSnapshot.total_value / prevCuotas : null;
 
-    let priceReturn: number | null = null;
+    let periodReturn: number | null = null;
 
-    // If we have cuotas data, calculate price-based return (true performance)
-    if (currentCuotas > 0 && prevCuotas > 0) {
-      const currentUnitValue = snapshot.total_value / currentCuotas;
-      const prevUnitValue = prevSnapshot.total_value / prevCuotas;
-      priceReturn = ((currentUnitValue - prevUnitValue) / prevUnitValue) * 100;
+    // If we have unit values, calculate price-based return (true performance)
+    if (unitValue !== null && prevUnitValue !== null) {
+      periodReturn = ((unitValue - prevUnitValue) / prevUnitValue) * 100;
+    } else if (snapshot.twr_period !== undefined && snapshot.twr_period !== 0) {
+      // Use stored TWR if available
+      periodReturn = snapshot.twr_period;
+    } else {
+      // Fallback to simple return (less accurate)
+      periodReturn = ((snapshot.total_value - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
     }
 
-    // Use stored TWR if available, otherwise use price return, otherwise simple return
-    const periodReturn =
-      snapshot.twr_period !== undefined && snapshot.twr_period !== 0
-        ? snapshot.twr_period  // Use stored TWR
-        : priceReturn !== null
-          ? priceReturn  // Use cuota-based return
-          : ((snapshot.total_value - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;  // Fallback
-
-    return { ...snapshot, periodReturn, priceReturn };
+    return {
+      ...snapshot,
+      periodReturn,
+      unitValue,
+      prevUnitValue,
+    };
   });
 
   if (snapshots.length === 0) {
@@ -89,35 +97,38 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
       <table className="w-full">
         <thead>
           <tr className="border-b border-gb-border bg-slate-50">
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-3 py-3 text-left text-xs font-semibold text-gb-gray uppercase">
               Fecha
             </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-3 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
               Valor Total
             </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
-              Cambio
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-3 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
               Cuotas
             </th>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
-              Equity
+            <th className="px-3 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+              Valor Cuota
             </th>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-3 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+              Rentab.
+            </th>
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
+              RV
+            </th>
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
               RF
             </th>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
               Alt
             </th>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
               Cash
             </th>
-            <th className="px-4 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
               Fuente
             </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
-              Acciones
+            <th className="px-2 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+
             </th>
           </tr>
         </thead>
@@ -127,35 +138,22 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
               key={snapshot.id}
               className="border-b border-gb-border hover:bg-blue-50 transition-colors"
             >
-              <td className="px-4 py-3">
+              {/* Fecha */}
+              <td className="px-3 py-3">
                 <span className="text-sm font-medium text-gb-black">
                   {formatDate(snapshot.snapshot_date)}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right">
+
+              {/* Valor Total */}
+              <td className="px-3 py-3 text-right">
                 <span className="text-sm font-semibold text-gb-black">
                   {formatCurrency(snapshot.total_value)}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right">
-                {snapshot.periodReturn !== null ? (
-                  <span
-                    className={`inline-flex items-center gap-1 text-sm font-medium ${
-                      snapshot.periodReturn >= 0 ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    {snapshot.periodReturn >= 0 ? (
-                      <TrendingUp className="w-3 h-3" />
-                    ) : (
-                      <TrendingDown className="w-3 h-3" />
-                    )}
-                    {formatPercent(snapshot.periodReturn)}
-                  </span>
-                ) : (
-                  <span className="text-sm text-gb-gray">-</span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-right">
+
+              {/* Cuotas */}
+              <td className="px-3 py-3 text-right">
                 {snapshot.total_cuotas ? (
                   <div>
                     <span className="text-sm text-gb-black">
@@ -181,46 +179,90 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
                   <span className="text-sm text-gb-gray">-</span>
                 )}
               </td>
-              <td className="px-4 py-3 text-center">
-                <span className="text-sm text-gb-black">
+
+              {/* Valor Cuota */}
+              <td className="px-3 py-3 text-right">
+                {snapshot.unitValue !== null ? (
+                  <div>
+                    <span className="text-sm font-medium text-gb-black">
+                      {formatNumber(snapshot.unitValue, 2)}
+                    </span>
+                    {snapshot.prevUnitValue !== null && (
+                      <p className="text-xs text-gb-gray">
+                        ant: {formatNumber(snapshot.prevUnitValue, 2)}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-sm text-gb-gray">-</span>
+                )}
+              </td>
+
+              {/* Rentabilidad */}
+              <td className="px-3 py-3 text-right">
+                {snapshot.periodReturn !== null ? (
+                  <span
+                    className={`inline-flex items-center gap-1 text-sm font-semibold ${
+                      snapshot.periodReturn >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {snapshot.periodReturn >= 0 ? (
+                      <TrendingUp className="w-3 h-3" />
+                    ) : (
+                      <TrendingDown className="w-3 h-3" />
+                    )}
+                    {formatPercent(snapshot.periodReturn)}
+                  </span>
+                ) : (
+                  <span className="text-sm text-gb-gray">-</span>
+                )}
+              </td>
+
+              {/* Composición */}
+              <td className="px-2 py-3 text-center">
+                <span className="text-xs text-gb-black">
                   {formatNumber(snapshot.equity_percent || 0, 0)}%
                 </span>
               </td>
-              <td className="px-4 py-3 text-center">
-                <span className="text-sm text-gb-black">
+              <td className="px-2 py-3 text-center">
+                <span className="text-xs text-gb-black">
                   {formatNumber(snapshot.fixed_income_percent || 0, 0)}%
                 </span>
               </td>
-              <td className="px-4 py-3 text-center">
-                <span className="text-sm text-gb-black">
+              <td className="px-2 py-3 text-center">
+                <span className="text-xs text-gb-black">
                   {formatNumber(snapshot.alternatives_percent || 0, 0)}%
                 </span>
               </td>
-              <td className="px-4 py-3 text-center">
-                <span className="text-sm text-gb-black">
+              <td className="px-2 py-3 text-center">
+                <span className="text-xs text-gb-black">
                   {formatNumber(snapshot.cash_percent || 0, 0)}%
                 </span>
               </td>
-              <td className="px-4 py-3 text-center">
-                <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded font-medium">
+
+              {/* Fuente */}
+              <td className="px-2 py-3 text-center">
+                <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium">
                   {snapshot.source || "manual"}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right">
-                <div className="flex items-center justify-end gap-1">
+
+              {/* Acciones */}
+              <td className="px-2 py-3 text-right">
+                <div className="flex items-center justify-end gap-0.5">
                   <button
                     onClick={() => onEdit(snapshot)}
-                    className="p-1.5 text-gb-gray hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    className="p-1 text-gb-gray hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                     title="Editar"
                   >
-                    <Edit className="w-4 h-4" />
+                    <Edit className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => onDelete(snapshot.id)}
-                    className="p-1.5 text-gb-gray hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    className="p-1 text-gb-gray hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                     title="Eliminar"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </td>
