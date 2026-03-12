@@ -30,6 +30,15 @@ interface ParsedData {
   currencyReason?: string;
 }
 
+interface ExistingSnapshot {
+  id: string;
+  snapshot_date: string;
+  total_value: number;
+  holdings?: Holding[];
+  deposits?: number;
+  withdrawals?: number;
+}
+
 interface Props {
   clientId: string;
   parsedData: ParsedData;
@@ -37,6 +46,8 @@ interface Props {
   onClose: () => void;
   onSuccess: () => void;
   onAddMore?: () => void; // Callback to add more files
+  editMode?: boolean; // If true, we're editing an existing snapshot
+  existingSnapshot?: ExistingSnapshot; // Existing snapshot data for edit mode
 }
 
 interface ExchangeRates {
@@ -128,28 +139,38 @@ export default function ReviewSnapshotModal({
   onClose,
   onSuccess,
   onAddMore,
+  editMode = false,
+  existingSnapshot,
 }: Props) {
   // Exchange rates state
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [loadingRates, setLoadingRates] = useState(true);
   const [ratesError, setRatesError] = useState<string | null>(null);
 
-  // Initialize holdings with currency and classification
-  const initialHoldings = (parsedData.holdings || []).map((h) => ({
-    ...h,
-    assetClass: h.assetClass || classifyFund(h.fundName),
-    currency: h.currency || parsedData.detectedCurrency || detectCurrencyFromName(h.fundName),
-  }));
+  // Initialize holdings - use existingSnapshot in edit mode, otherwise parsed data
+  const getInitialHoldings = (): Holding[] => {
+    const sourceHoldings = editMode && existingSnapshot?.holdings
+      ? existingSnapshot.holdings
+      : parsedData.holdings || [];
 
-  const [holdings, setHoldings] = useState<Holding[]>(initialHoldings);
+    return sourceHoldings.map((h) => ({
+      ...h,
+      assetClass: h.assetClass || classifyFund(h.fundName),
+      currency: h.currency || parsedData.detectedCurrency || detectCurrencyFromName(h.fundName),
+    }));
+  };
+
+  const [holdings, setHoldings] = useState<Holding[]>(getInitialHoldings());
   const [fechaCartola, setFechaCartola] = useState(
-    parsedData.period ? parseDate(parsedData.period) : new Date().toISOString().split("T")[0]
+    editMode && existingSnapshot?.snapshot_date
+      ? existingSnapshot.snapshot_date
+      : parsedData.period ? parseDate(parsedData.period) : new Date().toISOString().split("T")[0]
   );
   const [consolidationCurrency, setConsolidationCurrency] = useState("CLP");
 
-  // Cash flows state
-  const [deposits, setDeposits] = useState(0);
-  const [withdrawals, setWithdrawals] = useState(0);
+  // Cash flows state - use existing values in edit mode
+  const [deposits, setDeposits] = useState(editMode && existingSnapshot?.deposits ? existingSnapshot.deposits : 0);
+  const [withdrawals, setWithdrawals] = useState(editMode && existingSnapshot?.withdrawals ? existingSnapshot.withdrawals : 0);
   const [depositsCurrency, setDepositsCurrency] = useState("CLP");
   const [withdrawalsCurrency, setWithdrawalsCurrency] = useState("CLP");
 
@@ -556,8 +577,14 @@ export default function ReviewSnapshotModal({
     setError(null);
 
     try {
-      const res = await fetch("/api/portfolio/snapshots", {
-        method: "POST",
+      // Use PUT for edit mode, POST for new snapshots
+      const url = editMode && existingSnapshot?.id
+        ? `/api/portfolio/snapshots/${existingSnapshot.id}`
+        : "/api/portfolio/snapshots";
+      const method = editMode && existingSnapshot?.id ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
@@ -631,7 +658,9 @@ export default function ReviewSnapshotModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-gb-black">Revisar y Confirmar</h3>
+            <h3 className="text-lg font-semibold text-gb-black">
+              {editMode ? "Editar Snapshot" : "Revisar y Confirmar"}
+            </h3>
             <p className="text-sm text-gb-gray">
               {uniqueSources.length > 0 && (
                 <span className="flex items-center gap-1">
@@ -963,7 +992,7 @@ export default function ReviewSnapshotModal({
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gb-black truncate" title={holding.fundName}>
+                          <p className="text-xs font-medium text-gb-black truncate" title={holding.fundName}>
                             {holding.fundName}
                           </p>
                           {holding.securityId && (
@@ -1150,7 +1179,7 @@ export default function ReviewSnapshotModal({
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  Confirmar y Guardar
+                  {editMode ? "Guardar Cambios" : "Confirmar y Guardar"}
                 </>
               )}
             </button>

@@ -7,7 +7,7 @@ import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import EvolucionChart from "./EvolucionChart";
 import SnapshotsTable from "./SnapshotsTable";
 import AddSnapshotModal from "./AddSnapshotModal";
-import EditSnapshotModal from "./EditSnapshotModal";
+import ReviewSnapshotModal from "./ReviewSnapshotModal";
 import PerformanceAttribution from "./PerformanceAttribution";
 import {
   ArrowLeft,
@@ -562,8 +562,32 @@ export default function SeguimientoPage({ clientId }: Props) {
 
       {/* Edit snapshot modal */}
       {editingSnapshot && (
-        <EditSnapshotModal
-          snapshot={editingSnapshot}
+        <ReviewSnapshotModal
+          clientId={clientId}
+          parsedData={{
+            holdings: (editingSnapshot.holdings as Array<{
+              fundName: string;
+              quantity?: number;
+              marketPrice?: number;
+              marketValue: number;
+              assetClass?: string;
+              currency?: string;
+            }>) || [],
+          }}
+          editMode={true}
+          existingSnapshot={{
+            id: editingSnapshot.id,
+            snapshot_date: editingSnapshot.snapshot_date,
+            total_value: editingSnapshot.total_value,
+            holdings: (editingSnapshot.holdings as Array<{
+              fundName: string;
+              quantity?: number;
+              marketPrice?: number;
+              marketValue: number;
+              assetClass?: string;
+              currency?: string;
+            }>) || [],
+          }}
           onClose={() => setEditingSnapshot(null)}
           onSuccess={handleSnapshotUpdated}
         />
