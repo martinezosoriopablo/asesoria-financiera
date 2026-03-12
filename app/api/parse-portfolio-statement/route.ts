@@ -223,23 +223,28 @@ REGLAS PARA "period" (FECHA) - MUY IMPORTANTE:
 - SIEMPRE incluye el campo period con la fecha encontrada, NO lo dejes null
 - Formato de salida preferido: "DD/MM/YYYY" o el formato original del documento
 
-REGLAS CRÍTICAS PARA NÚMEROS - LEE CON ATENCIÓN:
-- TODOS los números deben ser valores numéricos puros SIN separadores
-- Este es un documento CHILENO, usa FORMATO CHILENO:
-  * Los PUNTOS (.) son separadores de MILES, NO son decimales
-  * Las COMAS (,) son separadores decimales (solo para centavos)
-  * "113.800.300" = 113800300 (ciento trece millones ochocientos mil trescientos pesos)
-  * "50.000.000" = 50000000 (cincuenta millones de pesos)
-  * "1.234.567" = 1234567 (un millón doscientos treinta y cuatro mil)
-  * "25.500" = 25500 (veinticinco mil quinientos, NO veinticinco con decimales)
-  * "1.234,56" = 1234.56 (mil doscientos treinta y cuatro pesos con 56 centavos)
-- IMPORTANTE: Los valores en pesos chilenos son GRANDES (millones)
-  * Un portafolio típico vale entre $10.000.000 y $500.000.000 CLP
-  * Si ves "113.800.300" NO es 113.8, son 113 MILLONES
-  * Si ves múltiples puntos como "113.800.300", TODOS son separadores de miles
-- Para USD: los valores son más pequeños (miles o cientos de miles)
-- Si un campo no se encuentra, usa null para strings y 0 para números
-- unrealizedGainLoss puede ser negativo
+REGLAS CRÍTICAS PARA NÚMEROS - FORMATO CHILENO:
+En Chile y España, el formato de números es OPUESTO al de USA:
+- PUNTO (.) = separador de MILES (como la coma en USA)
+- COMA (,) = separador DECIMAL (como el punto en USA)
+
+CONVERSIÓN OBLIGATORIA:
+| En el PDF (Chile)  | En el JSON (número) |
+| "113.800.300"      | 113800300           |
+| "50.000.000"       | 50000000            |
+| "1.234.567"        | 1234567             |
+| "25.500"           | 25500               |
+| "1.234,56"         | 1234.56             |
+| "99,5"             | 99.5                |
+
+PROCESO: Elimina TODOS los puntos (son miles), luego cambia la coma por punto decimal.
+
+CONTEXTO: Los portfolios chilenos valen MILLONES de pesos.
+- $113.800.300 = ciento trece millones (NO es 113.8)
+- $25.500 = veinticinco mil quinientos (NO es 25.5)
+
+Si un campo no se encuentra, usa null para strings y 0 para números.
+unrealizedGainLoss puede ser negativo.
 
 OTRAS REGLAS:
 - Extrae TODOS los holdings/posiciones listados
