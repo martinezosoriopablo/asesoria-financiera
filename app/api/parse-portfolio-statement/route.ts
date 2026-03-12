@@ -65,6 +65,81 @@ function detectCurrency(parsed: {
   return { currency: "USD", confidence: "low", reason: "Default USD (sin indicadores claros)" };
 }
 
+// Post-procesar números que pueden haber sido mal parseados
+// Ej: "113.800.300" parseado como 113.8003 en lugar de 113800300
+function fixChileanNumbers(parsed: {
+  holdings?: Array<{
+    marketValue?: number;
+    costBasis?: number;
+    quantity?: number;
+    marketPrice?: number;
+    [key: string]: unknown;
+  }>;
+  endingValue?: number;
+  beginningValue?: number;
+  [key: string]: unknown;
+}): void {
+  // Función para detectar y corregir un número
+  const fixNumber = (value: number | undefined): number | undefined => {
+    if (value === undefined || value === null || value === 0) return value;
+
+    // Si el número tiene muchos decimales (ej: 113.800300), probablemente
+    // los puntos fueron interpretados como decimales en lugar de miles
+    const strValue = value.toString();
+
+    // Detectar patrón de número mal parseado: tiene decimales con 3+ dígitos
+    // Ej: 113.800300 (debería ser 113800300) o 25.500 (debería ser 25500)
+    if (strValue.includes('.')) {
+      const parts = strValue.split('.');
+      const decimalPart = parts[1] || '';
+
+      // Si la parte decimal tiene 3+ dígitos o parece un grupo de miles
+      // Ej: 113.800 -> decimal tiene 3 dígitos exactos (patrón de miles)
+      if (decimalPart.length === 3 || decimalPart.length === 6) {
+        // Probablemente mal parseado - remover los puntos
+        const fixed = parseFloat(strValue.replace(/\./g, ''));
+        if (!isNaN(fixed)) {
+          console.log(`Fixed number: ${value} -> ${fixed}`);
+          return fixed;
+        }
+      }
+
+      // Si el valor es muy pequeño para ser pesos chilenos pero tiene decimales
+      // y parece un patrón de miles mal parseado
+      if (value < 1000 && decimalPart.length >= 3) {
+        const fixed = parseFloat(strValue.replace(/\./g, ''));
+        if (!isNaN(fixed) && fixed > 10000) {
+          console.log(`Fixed small number: ${value} -> ${fixed}`);
+          return fixed;
+        }
+      }
+    }
+
+    return value;
+  };
+
+  // Corregir valores principales
+  if (parsed.endingValue) {
+    parsed.endingValue = fixNumber(parsed.endingValue) ?? parsed.endingValue;
+  }
+  if (parsed.beginningValue) {
+    parsed.beginningValue = fixNumber(parsed.beginningValue) ?? parsed.beginningValue;
+  }
+
+  // Corregir holdings
+  if (parsed.holdings && Array.isArray(parsed.holdings)) {
+    for (const holding of parsed.holdings) {
+      if (holding.marketValue) {
+        holding.marketValue = fixNumber(holding.marketValue) ?? holding.marketValue;
+      }
+      if (holding.costBasis) {
+        holding.costBasis = fixNumber(holding.costBasis) ?? holding.costBasis;
+      }
+      // quantity y marketPrice pueden tener decimales legítimos, no los corregimos
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -148,16 +223,21 @@ REGLAS PARA "period" (FECHA) - MUY IMPORTANTE:
 - SIEMPRE incluye el campo period con la fecha encontrada, NO lo dejes null
 - Formato de salida preferido: "DD/MM/YYYY" o el formato original del documento
 
-REGLAS CRÍTICAS PARA NÚMEROS (MUY IMPORTANTE):
-- TODOS los números deben ser valores numéricos puros SIN formato
-- FORMATO CHILENO (el más común en estos documentos):
-  * Los PUNTOS son separadores de MILES, NO decimales
-  * Las COMAS son separadores de decimales
-  * Ejemplo: "113.179.528" = 113179528 (ciento trece millones)
-  * Ejemplo: "1.234,56" = 1234.56 (mil doscientos treinta y cuatro con 56 centavos)
-- FORMATO USA:
-  * Las COMAS son separadores de miles, Los PUNTOS son decimales
-  * Ejemplo: "113,179,528" = 113179528
+REGLAS CRÍTICAS PARA NÚMEROS - LEE CON ATENCIÓN:
+- TODOS los números deben ser valores numéricos puros SIN separadores
+- Este es un documento CHILENO, usa FORMATO CHILENO:
+  * Los PUNTOS (.) son separadores de MILES, NO son decimales
+  * Las COMAS (,) son separadores decimales (solo para centavos)
+  * "113.800.300" = 113800300 (ciento trece millones ochocientos mil trescientos pesos)
+  * "50.000.000" = 50000000 (cincuenta millones de pesos)
+  * "1.234.567" = 1234567 (un millón doscientos treinta y cuatro mil)
+  * "25.500" = 25500 (veinticinco mil quinientos, NO veinticinco con decimales)
+  * "1.234,56" = 1234.56 (mil doscientos treinta y cuatro pesos con 56 centavos)
+- IMPORTANTE: Los valores en pesos chilenos son GRANDES (millones)
+  * Un portafolio típico vale entre $10.000.000 y $500.000.000 CLP
+  * Si ves "113.800.300" NO es 113.8, son 113 MILLONES
+  * Si ves múltiples puntos como "113.800.300", TODOS son separadores de miles
+- Para USD: los valores son más pequeños (miles o cientos de miles)
 - Si un campo no se encuentra, usa null para strings y 0 para números
 - unrealizedGainLoss puede ser negativo
 
@@ -196,6 +276,9 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
 
       parsed = JSON.parse(jsonText);
       console.log("Portfolio statement parsed successfully");
+
+      // Post-procesar para corregir números mal parseados (formato chileno)
+      fixChileanNumbers(parsed);
     } catch (parseError) {
       console.error("Error parsing JSON from Claude:", parseError);
       console.log("Raw response:", data.content);
