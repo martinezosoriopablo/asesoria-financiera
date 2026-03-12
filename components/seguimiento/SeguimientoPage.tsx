@@ -9,15 +9,14 @@ import SnapshotsTable from "./SnapshotsTable";
 import AddSnapshotModal from "./AddSnapshotModal";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
 import PerformanceAttribution from "./PerformanceAttribution";
+import ComparacionBar from "./ComparacionBar";
 import {
   ArrowLeft,
   Loader,
   Plus,
   TrendingUp,
-  TrendingDown,
   Calendar,
   RefreshCw,
-  Target,
   AlertTriangle,
 } from "lucide-react";
 
@@ -183,24 +182,6 @@ export default function SeguimientoPage({ clientId }: Props) {
     });
   };
 
-  // Calculate deviations from recommendation
-  const getDeviations = () => {
-    if (!data?.metrics?.composition || !data?.recommendation) return null;
-
-    const actual = data.metrics.composition;
-    const rec = data.recommendation;
-
-    return {
-      equity: (actual.equity || 0) - (rec.equity_percent || 0),
-      fixedIncome: (actual.fixedIncome || 0) - (rec.fixed_income_percent || 0),
-      alternatives: (actual.alternatives || 0) - (rec.alternatives_percent || 0),
-      cash: (actual.cash || 0) - (rec.cash_percent || 0),
-    };
-  };
-
-  const deviations = getDeviations();
-  const hasSignificantDeviation = deviations && Object.values(deviations).some(d => Math.abs(d) > 5);
-
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -364,150 +345,12 @@ export default function SeguimientoPage({ clientId }: Props) {
 
         {/* Comparison with recommendation */}
         {recommendation && metrics?.composition && (
-          <div className="bg-white rounded-lg border border-gb-border shadow-sm mb-6">
-            <div className="px-6 py-4 border-b border-gb-border flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gb-black flex items-center gap-2">
-                <Target className="w-4 h-4 text-blue-500" />
-                Comparación con Recomendación
-              </h2>
-              {hasSignificantDeviation && (
-                <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                  <AlertTriangle className="w-3 h-3" />
-                  Desviación significativa
-                </span>
-              )}
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-4 gap-4">
-                {/* Equity */}
-                <div className="text-center">
-                  <p className="text-xs text-gb-gray font-medium mb-2">Renta Variable</p>
-                  <div className="flex gap-2 justify-center mb-2">
-                    <div className="flex-1">
-                      <div className="h-24 bg-blue-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-blue-500 transition-all"
-                          style={{ height: `${metrics.composition.equity || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.equity || 0, 0)}%</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-24 bg-blue-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-blue-300 transition-all"
-                          style={{ height: `${recommendation.equity_percent || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{formatNumber(recommendation.equity_percent || 0, 0)}%</p>
-                    </div>
-                  </div>
-                  {deviations && (
-                    <p className={`text-xs font-medium ${Math.abs(deviations.equity) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.equity >= 0 ? "+" : ""}{formatNumber(deviations.equity, 1)}%
-                    </p>
-                  )}
-                </div>
-
-                {/* Fixed Income */}
-                <div className="text-center">
-                  <p className="text-xs text-gb-gray font-medium mb-2">Renta Fija</p>
-                  <div className="flex gap-2 justify-center mb-2">
-                    <div className="flex-1">
-                      <div className="h-24 bg-green-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-green-500 transition-all"
-                          style={{ height: `${metrics.composition.fixedIncome || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.fixedIncome || 0, 0)}%</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-24 bg-green-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-green-300 transition-all"
-                          style={{ height: `${recommendation.fixed_income_percent || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{formatNumber(recommendation.fixed_income_percent || 0, 0)}%</p>
-                    </div>
-                  </div>
-                  {deviations && (
-                    <p className={`text-xs font-medium ${Math.abs(deviations.fixedIncome) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.fixedIncome >= 0 ? "+" : ""}{formatNumber(deviations.fixedIncome, 1)}%
-                    </p>
-                  )}
-                </div>
-
-                {/* Alternatives */}
-                <div className="text-center">
-                  <p className="text-xs text-gb-gray font-medium mb-2">Alternativos</p>
-                  <div className="flex gap-2 justify-center mb-2">
-                    <div className="flex-1">
-                      <div className="h-24 bg-purple-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-purple-500 transition-all"
-                          style={{ height: `${metrics.composition.alternatives || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.alternatives || 0, 0)}%</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-24 bg-purple-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-purple-300 transition-all"
-                          style={{ height: `${recommendation.alternatives_percent || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{formatNumber(recommendation.alternatives_percent || 0, 0)}%</p>
-                    </div>
-                  </div>
-                  {deviations && (
-                    <p className={`text-xs font-medium ${Math.abs(deviations.alternatives) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.alternatives >= 0 ? "+" : ""}{formatNumber(deviations.alternatives, 1)}%
-                    </p>
-                  )}
-                </div>
-
-                {/* Cash */}
-                <div className="text-center">
-                  <p className="text-xs text-gb-gray font-medium mb-2">Cash</p>
-                  <div className="flex gap-2 justify-center mb-2">
-                    <div className="flex-1">
-                      <div className="h-24 bg-gray-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-gray-500 transition-all"
-                          style={{ height: `${metrics.composition.cash || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Actual</p>
-                      <p className="text-sm font-semibold">{formatNumber(metrics.composition.cash || 0, 0)}%</p>
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-24 bg-gray-100 rounded relative overflow-hidden">
-                        <div
-                          className="absolute bottom-0 w-full bg-gray-300 transition-all"
-                          style={{ height: `${recommendation.cash_percent || 0}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gb-gray mt-1">Rec.</p>
-                      <p className="text-sm font-semibold">{formatNumber(recommendation.cash_percent || 0, 0)}%</p>
-                    </div>
-                  </div>
-                  {deviations && (
-                    <p className={`text-xs font-medium ${Math.abs(deviations.cash) > 5 ? "text-amber-600" : "text-gb-gray"}`}>
-                      {deviations.cash >= 0 ? "+" : ""}{formatNumber(deviations.cash, 1)}%
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div className="mb-6">
+            <ComparacionBar
+              recommendation={recommendation}
+              actual={metrics.composition}
+              totalValue={metrics.currentValue}
+            />
           </div>
         )}
 
