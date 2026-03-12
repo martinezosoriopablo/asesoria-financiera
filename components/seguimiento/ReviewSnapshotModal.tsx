@@ -971,8 +971,8 @@ export default function ReviewSnapshotModal({
           <h4 className="text-sm font-semibold text-gb-black mb-3">
             Posiciones ({holdings.length})
           </h4>
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="border border-slate-200 rounded-lg overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px]">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Instrumento</th>
