@@ -47,7 +47,9 @@
       "WebFetch(domain:finnhub.io)",
       "WebFetch(domain:www.openfigi.com)",
       "mcp__massive__search_endpoints",
-      "mcp__massive__call_api"
+      "mcp__massive__call_api",
+      "Bash(start http://localhost:3007/clients)",
+      "Bash(npm ls:*)"
     ]
   }
 }

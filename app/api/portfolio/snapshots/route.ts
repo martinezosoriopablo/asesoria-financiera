@@ -174,35 +174,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Helper to clamp values to prevent database overflow
+    // DECIMAL(10,4) can hold max 999999.9999, we use ±9999.99 as reasonable bounds for percentages
+    const clampPercent = (value: number): number => {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(-9999.99, Math.min(9999.99, value));
+    };
+
     // Calcular retornos
     let dailyReturn = 0;
     let cumulativeReturn = 0;
     let twrPeriod = 0;
     let twrCumulative = 0;
 
-    if (prevSnapshot) {
+    if (prevSnapshot && prevSnapshot.total_value > 0) {
       // Simple return (for backwards compatibility)
-      dailyReturn = ((totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
+      dailyReturn = clampPercent(((totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100);
 
       // TWR (Time-Weighted Return) calculation
       // For mutual funds: use cuota value change (most accurate)
       // Formula: (Current Unit Value / Previous Unit Value) - 1
-      if (totalCuotas > 0 && prevCuotas > 0) {
+      // Only use cuota-based calc if we have meaningful cuota values (> 0.001)
+      if (totalCuotas > 0.001 && prevCuotas > 0.001) {
         const currentUnitValue = totalValue / totalCuotas;
         const prevUnitValue = prevSnapshot.total_value / prevCuotas;
-        twrPeriod = ((currentUnitValue / prevUnitValue) - 1) * 100;
+        // Sanity check: unit values should be positive and finite
+        if (Number.isFinite(currentUnitValue) && Number.isFinite(prevUnitValue) && prevUnitValue > 0) {
+          twrPeriod = clampPercent(((currentUnitValue / prevUnitValue) - 1) * 100);
+        }
       } else if (prevSnapshot.total_value > 0) {
         // Fallback: use cash flow adjusted formula
         // (End Value - Net Flow) / Beginning Value - 1
         const adjustedEndValue = totalValue - estimatedNetFlow;
-        twrPeriod = ((adjustedEndValue / prevSnapshot.total_value) - 1) * 100;
+        twrPeriod = clampPercent(((adjustedEndValue / prevSnapshot.total_value) - 1) * 100);
       }
 
       // Cumulative TWR using geometric linking
       // (1 + TWR_cumulative_new) = (1 + TWR_cumulative_prev) * (1 + TWR_period)
       const prevTwrFactor = 1 + ((prevSnapshot.twr_cumulative || 0) / 100);
       const periodTwrFactor = 1 + (twrPeriod / 100);
-      twrCumulative = (prevTwrFactor * periodTwrFactor - 1) * 100;
+      twrCumulative = clampPercent((prevTwrFactor * periodTwrFactor - 1) * 100);
 
       // Obtener primer snapshot para calcular retorno acumulado simple
       const { data: firstSnapshot } = await supabase
@@ -213,46 +224,61 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .maybeSingle();
 
-      if (firstSnapshot) {
-        cumulativeReturn = ((totalValue - firstSnapshot.total_value) / firstSnapshot.total_value) * 100;
+      if (firstSnapshot && firstSnapshot.total_value > 0) {
+        cumulativeReturn = clampPercent(((totalValue - firstSnapshot.total_value) / firstSnapshot.total_value) * 100);
       }
     }
 
     // Calcular ganancia/pérdida no realizada
     const unrealizedGainLoss = totalCostBasis ? totalValue - totalCostBasis : null;
 
+    // Helper to clamp monetary values (DECIMAL(18,2) max ~10^16)
+    const clampMoney = (value: number): number => {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(-9999999999999999, Math.min(9999999999999999, Math.round(value * 100) / 100));
+    };
+
+    // Helper to clamp cuotas (DECIMAL(18,6) max ~10^12 integer part)
+    const clampCuotas = (value: number): number => {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(-999999999999, Math.min(999999999999, Math.round(value * 1000000) / 1000000));
+    };
+
+    // Prepare data with clamped values
+    const snapshotData = {
+      client_id: clientId,
+      snapshot_date: date,
+      total_value: clampMoney(totalValue),
+      total_cost_basis: totalCostBasis ? clampMoney(totalCostBasis) : null,
+      unrealized_gain_loss: unrealizedGainLoss ? clampMoney(unrealizedGainLoss) : null,
+      equity_percent: clampPercent(composition.equity?.percent || 0),
+      fixed_income_percent: clampPercent(composition.fixedIncome?.percent || 0),
+      alternatives_percent: clampPercent(composition.alternatives?.percent || 0),
+      cash_percent: clampPercent(composition.cash?.percent || 0),
+      equity_value: clampMoney(composition.equity?.value || 0),
+      fixed_income_value: clampMoney(composition.fixedIncome?.value || 0),
+      alternatives_value: clampMoney(composition.alternatives?.value || 0),
+      cash_value: clampMoney(composition.cash?.value || 0),
+      holdings: holdings || null,
+      daily_return: clampPercent(dailyReturn),
+      cumulative_return: clampPercent(cumulativeReturn),
+      // Cash flows for TWR calculation
+      deposits: clampMoney(estimatedDeposits),
+      withdrawals: clampMoney(estimatedWithdrawals),
+      net_cash_flow: clampMoney(estimatedNetFlow),
+      // TWR metrics
+      twr_period: clampPercent(twrPeriod),
+      twr_cumulative: clampPercent(twrCumulative),
+      // Cuotas tracking
+      total_cuotas: clampCuotas(totalCuotas),
+      cuotas_change: clampCuotas(cuotasChange),
+      source,
+    };
+
     // Insertar o actualizar snapshot
     const { data: snapshot, error } = await supabase
       .from("portfolio_snapshots")
-      .upsert({
-        client_id: clientId,
-        snapshot_date: date,
-        total_value: totalValue,
-        total_cost_basis: totalCostBasis,
-        unrealized_gain_loss: unrealizedGainLoss,
-        equity_percent: composition.equity?.percent || 0,
-        fixed_income_percent: composition.fixedIncome?.percent || 0,
-        alternatives_percent: composition.alternatives?.percent || 0,
-        cash_percent: composition.cash?.percent || 0,
-        equity_value: composition.equity?.value || 0,
-        fixed_income_value: composition.fixedIncome?.value || 0,
-        alternatives_value: composition.alternatives?.value || 0,
-        cash_value: composition.cash?.value || 0,
-        holdings: holdings || null,
-        daily_return: dailyReturn,
-        cumulative_return: cumulativeReturn,
-        // Cash flows for TWR calculation
-        deposits: estimatedDeposits,
-        withdrawals: estimatedWithdrawals,
-        net_cash_flow: estimatedNetFlow,
-        // TWR metrics
-        twr_period: twrPeriod,
-        twr_cumulative: twrCumulative,
-        // Cuotas tracking
-        total_cuotas: totalCuotas,
-        cuotas_change: cuotasChange,
-        source,
-      }, {
+      .upsert(snapshotData, {
         onConflict: "client_id,snapshot_date",
       })
       .select()
@@ -260,6 +286,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error("Error creating snapshot:", error);
+      console.error("Snapshot data that failed:", JSON.stringify(snapshotData, null, 2));
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 

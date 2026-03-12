@@ -1,95 +1,26 @@
 // app/api/exchange-rates/route.ts
-// Obtiene tasas de cambio desde el Banco Central de Chile
+// Obtiene tasas de cambio desde mindicador.cl (API gratuita)
 
 import { NextResponse } from "next/server";
 
-const BCCH_API_URL = "https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx";
-const BCCH_USER = process.env.BCCH_API_USER || "";
-const BCCH_PASSWORD = process.env.BCCH_API_PASSWORD || "";
+const MINDICADOR_API = "https://mindicador.cl/api";
 
-// Series del Banco Central
-const SERIES = {
-  dolar_obs: "F073.TCO.PRE.Z.D", // Dólar observado (pesos por dólar)
-  euro: "F072.CLP.EUR.N.O.D",    // Euro (pesos por euro)
-  uf: "F073.UFF.PRE.Z.D",        // UF diaria (pesos por UF)
-};
-
-interface BCCHResponse {
-  Series?: {
-    Obs?: Array<{
-      value: string;
-      statusCode: string;
-    }>;
-  };
-  Codigo?: number;
-  Descripcion?: string;
+interface MindicadorResponse {
+  version: string;
+  autor: string;
+  fecha: string;
+  dolar?: { valor: number };
+  euro?: { valor: number };
+  uf?: { valor: number };
 }
 
-// Cache simple en memoria (5 minutos)
+// Cache simple en memoria (10 minutos)
 let cache: {
   data: { usd: number; eur: number; uf: number; timestamp: string } | null;
   expiry: number;
 } = { data: null, expiry: 0 };
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
-
-async function fetchSeriesValue(seriesId: string): Promise<number | null> {
-  try {
-    // Usar fecha de hoy y ayer para asegurar obtener el último valor
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 5); // 5 días atrás por si hay feriados
-
-    const formatDate = (d: Date) => d.toISOString().split("T")[0];
-
-    const params = new URLSearchParams({
-      user: BCCH_USER,
-      pass: BCCH_PASSWORD,
-      function: "GetSeries",
-      timeseries: seriesId,
-      firstdate: formatDate(yesterday),
-      lastdate: formatDate(today),
-    });
-
-    const response = await fetch(`${BCCH_API_URL}?${params.toString()}`, {
-      headers: {
-        "Accept": "application/json",
-      },
-      next: { revalidate: 300 }, // Cache por 5 minutos
-    });
-
-    if (!response.ok) {
-      console.error(`BCCH API error: ${response.status}`);
-      return null;
-    }
-
-    const data: BCCHResponse = await response.json();
-
-    if (data.Codigo && data.Codigo !== 0) {
-      console.error(`BCCH API error: ${data.Descripcion}`);
-      return null;
-    }
-
-    // Obtener el último valor disponible
-    const observations = data.Series?.Obs;
-    if (!observations || observations.length === 0) {
-      console.error(`No observations for series ${seriesId}`);
-      return null;
-    }
-
-    // Buscar el último valor válido (statusCode OK)
-    for (let i = observations.length - 1; i >= 0; i--) {
-      if (observations[i].statusCode === "OK" && observations[i].value) {
-        return parseFloat(observations[i].value);
-      }
-    }
-
-    return null;
-  } catch (error) {
-    console.error(`Error fetching series ${seriesId}:`, error);
-    return null;
-  }
-}
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
 
 export async function GET() {
   try {
@@ -102,33 +33,27 @@ export async function GET() {
       });
     }
 
-    // Verificar credenciales
-    if (!BCCH_USER || !BCCH_PASSWORD) {
-      console.error("BCCH credentials not configured");
-      // Retornar valores por defecto si no hay credenciales
-      return NextResponse.json({
-        success: true,
-        usd: 980,
-        eur: 1060,
-        uf: 38500,
-        timestamp: new Date().toISOString(),
-        fallback: true,
-      });
+    // Obtener datos de mindicador.cl
+    const response = await fetch(MINDICADOR_API, {
+      headers: {
+        "Accept": "application/json",
+      },
+      next: { revalidate: 600 }, // Cache por 10 minutos
+    });
+
+    if (!response.ok) {
+      console.error(`mindicador.cl API error: ${response.status}`);
+      throw new Error("API error");
     }
 
-    // Obtener todas las series en paralelo
-    const [usdValue, eurValue, ufValue] = await Promise.all([
-      fetchSeriesValue(SERIES.dolar_obs),
-      fetchSeriesValue(SERIES.euro),
-      fetchSeriesValue(SERIES.uf),
-    ]);
+    const data: MindicadorResponse = await response.json();
 
     const result = {
-      usd: usdValue || 980,    // Fallback si falla
-      eur: eurValue || 1060,   // Fallback si falla
-      uf: ufValue || 38500,    // Fallback si falla
-      timestamp: new Date().toISOString(),
-      fallback: !usdValue || !eurValue || !ufValue,
+      usd: data.dolar?.valor || 950,
+      eur: data.euro?.valor || 1020,
+      uf: data.uf?.valor || 38000,
+      timestamp: data.fecha || new Date().toISOString(),
+      source: "mindicador.cl",
     };
 
     // Guardar en cache
@@ -137,6 +62,8 @@ export async function GET() {
       expiry: Date.now() + CACHE_DURATION,
     };
 
+    console.log(`Exchange rates updated: USD=${result.usd}, EUR=${result.eur}, UF=${result.uf}`);
+
     return NextResponse.json({
       success: true,
       ...result,
@@ -144,12 +71,22 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching exchange rates:", error);
 
-    // Retornar valores por defecto en caso de error
+    // Si hay cache expirado, usarlo
+    if (cache.data) {
+      return NextResponse.json({
+        success: true,
+        ...cache.data,
+        cached: true,
+        stale: true,
+      });
+    }
+
+    // Valores de fallback actualizados (marzo 2026)
     return NextResponse.json({
       success: true,
-      usd: 980,
-      eur: 1060,
-      uf: 38500,
+      usd: 950,
+      eur: 1020,
+      uf: 38000,
       timestamp: new Date().toISOString(),
       fallback: true,
       error: "Using fallback values",

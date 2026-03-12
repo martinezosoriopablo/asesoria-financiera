@@ -114,7 +114,7 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
 {
   "clientName": "string",
   "accountNumber": "string",
-  "period": "string (ej: 'Jan 2025' o '31/01/2025')",
+  "period": "string - LA FECHA ES MUY IMPORTANTE",
   "beginningValue": number,
   "endingValue": number,
   "fees": number,
@@ -133,28 +133,37 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
   ]
 }
 
+REGLAS PARA "period" (FECHA) - MUY IMPORTANTE:
+- BUSCA la fecha del documento en estas ubicaciones típicas:
+  * Encabezado: "Fecha:", "Date:", "Al:", "As of:", "Statement Date:", "Periodo:", "Cierre:"
+  * Título: "Cartola al 31/01/2025", "Estado de Cuenta Enero 2025"
+  * Pie de página o marca de agua con fecha
+- Formatos comunes de fecha a buscar:
+  * "al 31/01/2025" o "al 31-01-2025" o "al 31.01.2025"
+  * "31 de enero de 2025" o "31 de Enero 2025"
+  * "Enero 2025" o "Febrero 2026" (usar último día del mes)
+  * "01/31/2025" o "2025-01-31" (formato ISO)
+  * "Jan 31, 2025" o "January 2025"
+- Si encuentras múltiples fechas, usa la fecha de CIERRE o la más reciente
+- SIEMPRE incluye el campo period con la fecha encontrada, NO lo dejes null
+- Formato de salida preferido: "DD/MM/YYYY" o el formato original del documento
+
 REGLAS CRÍTICAS PARA NÚMEROS (MUY IMPORTANTE):
 - TODOS los números deben ser valores numéricos puros SIN formato
 - FORMATO CHILENO (el más común en estos documentos):
   * Los PUNTOS son separadores de MILES, NO decimales
   * Las COMAS son separadores de decimales
-  * Ejemplo: "113.179.528" = 113179528 (ciento trece millones, NO ciento trece con decimales)
-  * Ejemplo: "50.000.000" = 50000000 (cincuenta millones)
-  * Ejemplo: "1.234.567" = 1234567 (un millón doscientos treinta y cuatro mil)
+  * Ejemplo: "113.179.528" = 113179528 (ciento trece millones)
   * Ejemplo: "1.234,56" = 1234.56 (mil doscientos treinta y cuatro con 56 centavos)
 - FORMATO USA:
-  * Las COMAS son separadores de miles
-  * Los PUNTOS son decimales
+  * Las COMAS son separadores de miles, Los PUNTOS son decimales
   * Ejemplo: "113,179,528" = 113179528
-- ELIMINA todos los separadores de miles y convierte comas decimales a puntos
-- Si un valor tiene solo puntos y ninguna coma, los puntos son separadores de miles (formato chileno)
 - Si un campo no se encuentra, usa null para strings y 0 para números
 - unrealizedGainLoss puede ser negativo
 
 OTRAS REGLAS:
 - Extrae TODOS los holdings/posiciones listados
 - Busca secciones como "Portfolio Holdings", "Investment Positions", "Asset Detail", "Detalle de Inversiones", "Posiciones", etc.
-- El documento puede ser de cualquier institución: Pershing, Banchile, BTG Pactual, LarrainVial, Credicorp, Itaú, Scotiabank, u otra
 
 RESPONDE SOLO CON EL JSON, NADA MÁS.`,
               },
@@ -196,6 +205,33 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     // Detectar moneda
     const textContent = data.content.find((c: { type: string; text?: string }) => c.type === "text")?.text || "";
     const currencyDetection = detectCurrency(parsed, textContent);
+
+    // Si no se encontró fecha, intentar extraerla del texto de Claude
+    if (!parsed.period) {
+      const datePatterns = [
+        // "al DD/MM/YYYY" format
+        /al\s+(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i,
+        // DD/MM/YYYY or DD-MM-YYYY
+        /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/,
+        // YYYY-MM-DD
+        /(\d{4})-(\d{2})-(\d{2})/,
+        // Month Year (Spanish)
+        /(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(?:de\s+)?(\d{4})/i,
+        // Month Year (English)
+        /(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})/i,
+      ];
+
+      for (const pattern of datePatterns) {
+        const match = textContent.match(pattern);
+        if (match) {
+          parsed.period = match[0];
+          console.log(`Extracted period from response text: ${parsed.period}`);
+          break;
+        }
+      }
+    }
+
+    console.log(`PDF parsed - period: ${parsed.period || "not found"}, holdings: ${parsed.holdings?.length || 0}`);
 
     return NextResponse.json({
       ...parsed,

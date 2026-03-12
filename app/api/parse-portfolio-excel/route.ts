@@ -281,8 +281,12 @@ function extractMetadata(data: unknown[][], headerRowIndex: number): {
   period?: string;
 } {
   const metadata: { clientName?: string; accountNumber?: string; period?: string } = {};
+  const foundDates: string[] = [];
 
-  for (let i = 0; i < headerRowIndex; i++) {
+  // Scan rows for metadata (before header and a few rows after for context)
+  const scanLimit = Math.min(Math.max(headerRowIndex + 5, 15), data.length);
+
+  for (let i = 0; i < scanLimit; i++) {
     const row = data[i];
     if (!row) continue;
 
@@ -305,15 +309,56 @@ function extractMetadata(data: unknown[][], headerRowIndex: number): {
       if (match) metadata.accountNumber = String(match).trim();
     }
 
-    // Look for date patterns
-    if (rowText.includes("fecha") || rowText.includes("periodo") || rowText.includes("al ")) {
-      const dateCell = row.find(c => {
-        const s = String(c || "");
-        return /\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(s) ||
-               /\d{4}[\/\-\.]\d{1,2}/.test(s) ||
-               /(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i.test(s);
-      });
-      if (dateCell) metadata.period = String(dateCell).trim();
+    // Look for dates in all cells
+    for (const cell of row) {
+      if (cell === null || cell === undefined) continue;
+
+      // Handle Excel serial dates (numbers that represent dates)
+      if (typeof cell === "number" && cell > 30000 && cell < 50000) {
+        // Excel serial date - convert to date string
+        const excelEpoch = new Date(1899, 11, 30);
+        const date = new Date(excelEpoch.getTime() + cell * 24 * 60 * 60 * 1000);
+        if (!isNaN(date.getTime())) {
+          const dateStr = date.toISOString().split("T")[0];
+          foundDates.push(dateStr);
+          continue;
+        }
+      }
+
+      const cellStr = String(cell);
+
+      // Date patterns
+      const datePatterns = [
+        // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+        /(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/,
+        // YYYY-MM-DD
+        /(\d{4})-(\d{1,2})-(\d{1,2})/,
+        // Month names (Spanish/English)
+        /(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s,]+(\d{4})/i,
+        // "al DD/MM/YYYY" pattern common in Chilean docs
+        /al\s+(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i,
+      ];
+
+      for (const pattern of datePatterns) {
+        const match = cellStr.match(pattern);
+        if (match) {
+          foundDates.push(cellStr.trim());
+          break;
+        }
+      }
+    }
+  }
+
+  // Pick the best date found (prefer later rows which usually have the statement date)
+  if (foundDates.length > 0) {
+    // Try to find a date that looks like an end-of-period date
+    // Usually the last date found is the statement date
+    metadata.period = foundDates[foundDates.length - 1];
+
+    // But prefer dates with "al" prefix if found (common in Chilean docs)
+    const alDate = foundDates.find(d => d.toLowerCase().includes("al "));
+    if (alDate) {
+      metadata.period = alDate;
     }
   }
 
@@ -475,6 +520,62 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
     // Extract metadata
     const metadata = extractMetadata(data, headerRowIndex);
 
+    // If no period found, try to extract from filename
+    if (!metadata.period) {
+      const fileNameLower = fileName.toLowerCase();
+
+      // Try common filename patterns
+      // cartola_2025-01-31.xlsx, cartola_31-01-2025.xlsx, etc.
+      const datePatterns = [
+        /(\d{4})-(\d{2})-(\d{2})/, // 2025-01-31
+        /(\d{2})-(\d{2})-(\d{4})/, // 31-01-2025
+        /(\d{2})_(\d{2})_(\d{4})/, // 31_01_2025
+        /(\d{4})(\d{2})(\d{2})/,   // 20250131
+      ];
+
+      for (const pattern of datePatterns) {
+        const match = fileNameLower.match(pattern);
+        if (match) {
+          const [, p1, p2, p3] = match;
+          // Determine if it's YYYY-MM-DD or DD-MM-YYYY
+          if (parseInt(p1) > 1900) {
+            // YYYY-MM-DD format
+            metadata.period = `${p1}-${p2}-${p3}`;
+          } else {
+            // DD-MM-YYYY format
+            metadata.period = `${p3}-${p2}-${p1}`;
+          }
+          console.log(`Extracted period from filename: ${metadata.period}`);
+          break;
+        }
+      }
+
+      // Try month names in filename
+      const monthNames: Record<string, string> = {
+        enero: "01", febrero: "02", marzo: "03", abril: "04",
+        mayo: "05", junio: "06", julio: "07", agosto: "08",
+        septiembre: "09", octubre: "10", noviembre: "11", diciembre: "12",
+        jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+        jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+      };
+
+      if (!metadata.period) {
+        for (const [monthName, monthNum] of Object.entries(monthNames)) {
+          if (fileNameLower.includes(monthName)) {
+            // Find year near the month name
+            const yearMatch = fileNameLower.match(/20\d{2}/);
+            if (yearMatch) {
+              const year = yearMatch[0];
+              const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+              metadata.period = `${year}-${monthNum}-${lastDay.toString().padStart(2, "0")}`;
+              console.log(`Extracted period from filename (month): ${metadata.period}`);
+              break;
+            }
+          }
+        }
+      }
+    }
+
     // Detect currency
     const currencyInfo = detectCurrency(holdings, totalValue);
 
@@ -484,7 +585,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
     // Calculate total cost if available
     const totalCost = holdings.reduce((sum, h) => sum + (h.costBasis || 0), 0);
 
-    console.log(`Excel parsed: ${holdings.length} holdings, total ${totalValue}, source: ${source}`);
+    console.log(`Excel parsed: ${holdings.length} holdings, total ${totalValue}, source: ${source}, period: ${metadata.period || "not found"}`);
 
     return NextResponse.json({
       ...metadata,

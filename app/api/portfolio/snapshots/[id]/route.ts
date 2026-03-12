@@ -106,6 +106,17 @@ export async function PUT(
       );
     }
 
+    // Helper functions to prevent database overflow
+    const clampPercent = (value: number): number => {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(-9999.99, Math.min(9999.99, value));
+    };
+
+    const clampMoney = (value: number): number => {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(-9999999999999999, Math.min(9999999999999999, Math.round(value * 100) / 100));
+    };
+
     // Preparar datos de actualización
     const updateData: Record<string, unknown> = {};
 
@@ -114,25 +125,25 @@ export async function PUT(
     }
 
     if (body.totalValue !== undefined) {
-      updateData.total_value = body.totalValue;
+      updateData.total_value = clampMoney(body.totalValue);
     }
 
     if (body.totalCostBasis !== undefined) {
-      updateData.total_cost_basis = body.totalCostBasis;
+      updateData.total_cost_basis = clampMoney(body.totalCostBasis);
       updateData.unrealized_gain_loss = body.totalValue
-        ? body.totalValue - body.totalCostBasis
+        ? clampMoney(body.totalValue - body.totalCostBasis)
         : null;
     }
 
     if (body.composition) {
-      updateData.equity_percent = body.composition.equity?.percent || 0;
-      updateData.fixed_income_percent = body.composition.fixedIncome?.percent || 0;
-      updateData.alternatives_percent = body.composition.alternatives?.percent || 0;
-      updateData.cash_percent = body.composition.cash?.percent || 0;
-      updateData.equity_value = body.composition.equity?.value || 0;
-      updateData.fixed_income_value = body.composition.fixedIncome?.value || 0;
-      updateData.alternatives_value = body.composition.alternatives?.value || 0;
-      updateData.cash_value = body.composition.cash?.value || 0;
+      updateData.equity_percent = clampPercent(body.composition.equity?.percent || 0);
+      updateData.fixed_income_percent = clampPercent(body.composition.fixedIncome?.percent || 0);
+      updateData.alternatives_percent = clampPercent(body.composition.alternatives?.percent || 0);
+      updateData.cash_percent = clampPercent(body.composition.cash?.percent || 0);
+      updateData.equity_value = clampMoney(body.composition.equity?.value || 0);
+      updateData.fixed_income_value = clampMoney(body.composition.fixedIncome?.value || 0);
+      updateData.alternatives_value = clampMoney(body.composition.alternatives?.value || 0);
+      updateData.cash_value = clampMoney(body.composition.cash?.value || 0);
     }
 
     if (body.holdings) {
@@ -154,9 +165,10 @@ export async function PUT(
         .limit(1)
         .maybeSingle();
 
-      if (prevSnapshot) {
-        updateData.daily_return =
-          ((body.totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
+      if (prevSnapshot && prevSnapshot.total_value > 0) {
+        updateData.daily_return = clampPercent(
+          ((body.totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100
+        );
       }
 
       // Obtener primer snapshot para calcular retorno acumulado
@@ -168,9 +180,10 @@ export async function PUT(
         .limit(1)
         .maybeSingle();
 
-      if (firstSnapshot) {
-        updateData.cumulative_return =
-          ((body.totalValue - firstSnapshot.total_value) / firstSnapshot.total_value) * 100;
+      if (firstSnapshot && firstSnapshot.total_value > 0) {
+        updateData.cumulative_return = clampPercent(
+          ((body.totalValue - firstSnapshot.total_value) / firstSnapshot.total_value) * 100
+        );
       }
     }
 

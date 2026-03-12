@@ -161,11 +161,25 @@ export default function ReviewSnapshotModal({
   };
 
   const [holdings, setHoldings] = useState<Holding[]>(getInitialHoldings());
-  const [fechaCartola, setFechaCartola] = useState(
-    editMode && existingSnapshot?.snapshot_date
-      ? existingSnapshot.snapshot_date
-      : parsedData.period ? parseDate(parsedData.period) : new Date().toISOString().split("T")[0]
-  );
+
+  // Debug: log parsed period
+  console.log("ReviewSnapshotModal - parsedData.period:", parsedData.period);
+  console.log("ReviewSnapshotModal - editMode:", editMode);
+  console.log("ReviewSnapshotModal - existingSnapshot?.snapshot_date:", existingSnapshot?.snapshot_date);
+
+  const [fechaCartola, setFechaCartola] = useState(() => {
+    if (editMode && existingSnapshot?.snapshot_date) {
+      console.log("Using existingSnapshot date:", existingSnapshot.snapshot_date);
+      return existingSnapshot.snapshot_date;
+    }
+    if (parsedData.period) {
+      const parsed = parseDate(parsedData.period);
+      console.log("Parsed period:", parsedData.period, "->", parsed);
+      return parsed;
+    }
+    console.log("Using today's date as fallback");
+    return new Date().toISOString().split("T")[0];
+  });
   const [consolidationCurrency, setConsolidationCurrency] = useState("CLP");
 
   // Cash flows state - use existing values in edit mode
@@ -258,10 +272,17 @@ export default function ReviewSnapshotModal({
       return p;
     }
 
-    // Chilean format dd/mm/yyyy
-    const ddmmyyyy = p.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    // Chilean format dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy
+    const ddmmyyyy = p.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
     if (ddmmyyyy) {
       const [, day, month, year] = ddmmyyyy;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    // "al DD/MM/YYYY" format common in Chilean docs
+    const alDate = p.match(/al\s+(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i);
+    if (alDate) {
+      const [, day, month, year] = alDate;
       return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     }
 
@@ -281,7 +302,8 @@ export default function ReviewSnapshotModal({
       dec: "12", december: "12", dic: "12", diciembre: "12",
     };
 
-    const monthYear = p.match(/^([a-zA-Z]+)\s+(\d{4})$/i);
+    // "Month YYYY" or "Month de YYYY"
+    const monthYear = p.match(/([a-zA-Z]+)(?:\s+de)?\s+(\d{4})/i);
     if (monthYear) {
       const [, monthStr, year] = monthYear;
       const month = monthNames[monthStr.toLowerCase()];
@@ -289,6 +311,16 @@ export default function ReviewSnapshotModal({
         // Use last day of month
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         return `${year}-${month}-${lastDay.toString().padStart(2, "0")}`;
+      }
+    }
+
+    // "DD de Month de YYYY" format
+    const fullDateSpanish = p.match(/(\d{1,2})\s+de\s+([a-zA-Z]+)\s+de\s+(\d{4})/i);
+    if (fullDateSpanish) {
+      const [, day, monthStr, year] = fullDateSpanish;
+      const month = monthNames[monthStr.toLowerCase()];
+      if (month) {
+        return `${year}-${month}-${day.padStart(2, "0")}`;
       }
     }
 
@@ -821,13 +853,23 @@ export default function ReviewSnapshotModal({
             <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
               <Calendar className="w-4 h-4" />
               Fecha de la Cartola
+              {!parsedData.period && (
+                <span className="text-amber-600 text-xs font-normal ml-1">(no detectada)</span>
+              )}
             </label>
             <input
               type="date"
               value={fechaCartola}
               onChange={(e) => setFechaCartola(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                !parsedData.period ? "border-amber-400 bg-amber-50" : "border-slate-300"
+              }`}
             />
+            {!parsedData.period && (
+              <p className="text-xs text-amber-600 mt-1">
+                No se detectó la fecha automáticamente. Por favor verifica o ingresa la fecha correcta.
+              </p>
+            )}
           </div>
 
           {/* Deposits */}
