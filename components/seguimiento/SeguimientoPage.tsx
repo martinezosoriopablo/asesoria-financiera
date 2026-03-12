@@ -51,6 +51,11 @@ export interface Snapshot {
   holdings: unknown[] | null;
   daily_return: number;
   cumulative_return: number;
+  deposits?: number;
+  withdrawals?: number;
+  net_cash_flow?: number;
+  twr_period?: number;
+  twr_cumulative?: number;
   total_cuotas?: number;
   cuotas_change?: number;
   source: string;

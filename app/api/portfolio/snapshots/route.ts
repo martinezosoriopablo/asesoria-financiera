@@ -149,24 +149,52 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    // Calculate cuotas change from previous snapshot
+    const prevCuotas = prevSnapshot?.total_cuotas || 0;
+    const cuotasChange = totalCuotas - prevCuotas;
+
+    // Estimate cash flows from cuota changes if not provided
+    // If cuotas increased, the value of new cuotas is a deposit
+    // If cuotas decreased, the value of sold cuotas is a withdrawal
+    let estimatedNetFlow = cashFlows?.netFlow || 0;
+    let estimatedDeposits = cashFlows?.deposits || 0;
+    let estimatedWithdrawals = cashFlows?.withdrawals || 0;
+
+    if (!cashFlows && prevSnapshot && prevCuotas > 0 && cuotasChange !== 0) {
+      // Use the previous unit value to estimate cash flows
+      const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+      if (cuotasChange > 0) {
+        // Bought more cuotas = deposit
+        estimatedDeposits = cuotasChange * prevUnitValue;
+        estimatedNetFlow = estimatedDeposits;
+      } else {
+        // Sold cuotas = withdrawal
+        estimatedWithdrawals = Math.abs(cuotasChange) * prevUnitValue;
+        estimatedNetFlow = -estimatedWithdrawals;
+      }
+    }
+
     // Calcular retornos
     let dailyReturn = 0;
     let cumulativeReturn = 0;
     let twrPeriod = 0;
     let twrCumulative = 0;
 
-    // Net flow for this period (deposits - withdrawals)
-    const netFlow = cashFlows?.netFlow || 0;
-
     if (prevSnapshot) {
       // Simple return (for backwards compatibility)
       dailyReturn = ((totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
 
       // TWR (Time-Weighted Return) calculation
-      // Formula: (End Value - Net Flow) / Beginning Value - 1
-      // This removes the effect of cash flows
-      const adjustedEndValue = totalValue - netFlow;
-      if (prevSnapshot.total_value > 0) {
+      // For mutual funds: use cuota value change (most accurate)
+      // Formula: (Current Unit Value / Previous Unit Value) - 1
+      if (totalCuotas > 0 && prevCuotas > 0) {
+        const currentUnitValue = totalValue / totalCuotas;
+        const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+        twrPeriod = ((currentUnitValue / prevUnitValue) - 1) * 100;
+      } else if (prevSnapshot.total_value > 0) {
+        // Fallback: use cash flow adjusted formula
+        // (End Value - Net Flow) / Beginning Value - 1
+        const adjustedEndValue = totalValue - estimatedNetFlow;
         twrPeriod = ((adjustedEndValue / prevSnapshot.total_value) - 1) * 100;
       }
 
@@ -193,10 +221,6 @@ export async function POST(request: NextRequest) {
     // Calcular ganancia/pérdida no realizada
     const unrealizedGainLoss = totalCostBasis ? totalValue - totalCostBasis : null;
 
-    // Calculate cuotas change from previous snapshot
-    const prevCuotas = prevSnapshot?.total_cuotas || 0;
-    const cuotasChange = totalCuotas - prevCuotas;
-
     // Insertar o actualizar snapshot
     const { data: snapshot, error } = await supabase
       .from("portfolio_snapshots")
@@ -218,9 +242,9 @@ export async function POST(request: NextRequest) {
         daily_return: dailyReturn,
         cumulative_return: cumulativeReturn,
         // Cash flows for TWR calculation
-        deposits: cashFlows?.deposits || 0,
-        withdrawals: cashFlows?.withdrawals || 0,
-        net_cash_flow: netFlow,
+        deposits: estimatedDeposits,
+        withdrawals: estimatedWithdrawals,
+        net_cash_flow: estimatedNetFlow,
         // TWR metrics
         twr_period: twrPeriod,
         twr_cumulative: twrCumulative,

@@ -44,12 +44,36 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
   );
 
   // Calculate period returns (change from previous snapshot)
+  // For mutual funds: use cuota value change (price return), not total value change
   const snapshotsWithReturns = sortedSnapshots.map((snapshot, index) => {
     const prevSnapshot = sortedSnapshots[index + 1];
-    const periodReturn = prevSnapshot
-      ? ((snapshot.total_value - prevSnapshot.total_value) / prevSnapshot.total_value) * 100
-      : null;
-    return { ...snapshot, periodReturn };
+
+    if (!prevSnapshot) {
+      return { ...snapshot, periodReturn: null, priceReturn: null };
+    }
+
+    // Calculate cuota value (NAV) for both periods
+    const currentCuotas = snapshot.total_cuotas || 0;
+    const prevCuotas = prevSnapshot.total_cuotas || 0;
+
+    let priceReturn: number | null = null;
+
+    // If we have cuotas data, calculate price-based return (true performance)
+    if (currentCuotas > 0 && prevCuotas > 0) {
+      const currentUnitValue = snapshot.total_value / currentCuotas;
+      const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+      priceReturn = ((currentUnitValue - prevUnitValue) / prevUnitValue) * 100;
+    }
+
+    // Use stored TWR if available, otherwise use price return, otherwise simple return
+    const periodReturn =
+      snapshot.twr_period !== undefined && snapshot.twr_period !== 0
+        ? snapshot.twr_period  // Use stored TWR
+        : priceReturn !== null
+          ? priceReturn  // Use cuota-based return
+          : ((snapshot.total_value - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;  // Fallback
+
+    return { ...snapshot, periodReturn, priceReturn };
   });
 
   if (snapshots.length === 0) {

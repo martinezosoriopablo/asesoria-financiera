@@ -210,46 +210,52 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
   // TWR (Time-Weighted Return) - use stored value if available, otherwise calculate
   let twr = latestSnapshot.twr_cumulative || 0;
 
-  // If no stored TWR, calculate it from scratch using sub-period returns
+  // If no stored TWR, calculate it from scratch using cuota-based returns
   if (!twr && snapshots.length >= 2) {
     let twrFactor = 1;
     for (let i = 1; i < snapshots.length; i++) {
-      const prevValue = snapshots[i - 1].total_value;
-      const currValue = snapshots[i].total_value;
-      const netFlow = snapshots[i].net_cash_flow || 0;
+      const prevSnapshot = snapshots[i - 1];
+      const currSnapshot = snapshots[i];
+      const prevCuotas = prevSnapshot.total_cuotas || 0;
+      const currCuotas = currSnapshot.total_cuotas || 0;
 
-      if (prevValue > 0) {
-        // Sub-period return adjusted for cash flows
-        const adjustedEndValue = currValue - netFlow;
-        const subPeriodReturn = adjustedEndValue / prevValue;
-        twrFactor *= subPeriodReturn;
+      let subPeriodReturn = 1;
+
+      // Use cuota value (NAV) change for most accurate TWR
+      if (prevCuotas > 0 && currCuotas > 0) {
+        const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+        const currUnitValue = currSnapshot.total_value / currCuotas;
+        subPeriodReturn = currUnitValue / prevUnitValue;
+      } else if (prevSnapshot.total_value > 0) {
+        // Fallback: use cash flow adjusted formula
+        const netFlow = currSnapshot.net_cash_flow || 0;
+        const adjustedEndValue = currSnapshot.total_value - netFlow;
+        subPeriodReturn = adjustedEndValue / prevSnapshot.total_value;
       }
+
+      twrFactor *= subPeriodReturn;
     }
     twr = (twrFactor - 1) * 100;
   }
 
-  // Calculate TWR-based daily returns for volatility
-  const twrDailyReturns: number[] = [];
+  // Calculate TWR-based period returns for volatility
+  const twrPeriodReturns: number[] = [];
   for (let i = 1; i < snapshots.length; i++) {
-    const prevValue = snapshots[i - 1].total_value;
-    const currValue = snapshots[i].total_value;
-    const netFlow = snapshots[i].net_cash_flow || 0;
+    const prevSnapshot = snapshots[i - 1];
+    const currSnapshot = snapshots[i];
+    const prevCuotas = prevSnapshot.total_cuotas || 0;
+    const currCuotas = currSnapshot.total_cuotas || 0;
 
-    if (prevValue > 0) {
-      const adjustedEndValue = currValue - netFlow;
-      twrDailyReturns.push((adjustedEndValue / prevValue) - 1);
+    // Use cuota value change for accurate return calculation
+    if (prevCuotas > 0 && currCuotas > 0) {
+      const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+      const currUnitValue = currSnapshot.total_value / currCuotas;
+      twrPeriodReturns.push((currUnitValue / prevUnitValue) - 1);
+    } else if (prevSnapshot.total_value > 0) {
+      const netFlow = currSnapshot.net_cash_flow || 0;
+      const adjustedEndValue = currSnapshot.total_value - netFlow;
+      twrPeriodReturns.push((adjustedEndValue / prevSnapshot.total_value) - 1);
     }
-  }
-
-  // Volatilidad (desviación estándar de retornos TWR anualizada)
-  let annualizedVol = 0;
-  if (twrDailyReturns.length > 0) {
-    const avgReturn = twrDailyReturns.reduce((a, b) => a + b, 0) / twrDailyReturns.length;
-    const variance =
-      twrDailyReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
-      twrDailyReturns.length;
-    const dailyVol = Math.sqrt(variance);
-    annualizedVol = dailyVol * Math.sqrt(252) * 100; // 252 trading days
   }
 
   // Period calculation
@@ -257,6 +263,21 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     (new Date(snapshots[snapshots.length - 1].snapshot_date).getTime() -
       new Date(snapshots[0].snapshot_date).getTime()) /
     (1000 * 60 * 60 * 24);
+
+  // Volatilidad (desviación estándar de retornos TWR anualizada)
+  let annualizedVol = 0;
+  if (twrPeriodReturns.length > 0) {
+    const avgReturn = twrPeriodReturns.reduce((a, b) => a + b, 0) / twrPeriodReturns.length;
+    const variance =
+      twrPeriodReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+      twrPeriodReturns.length;
+    const periodVol = Math.sqrt(variance);
+    // Annualize based on number of periods per year
+    // If we have daily data, use 252; otherwise estimate from data frequency
+    const avgDaysBetweenSnapshots = daysDiff / (snapshots.length - 1);
+    const periodsPerYear = avgDaysBetweenSnapshots > 0 ? 365 / avgDaysBetweenSnapshots : 12;
+    annualizedVol = periodVol * Math.sqrt(Math.min(periodsPerYear, 252)) * 100;
+  }
   const yearsElapsed = daysDiff / 365;
 
   // Retorno anualizado simple
