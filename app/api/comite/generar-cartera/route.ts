@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -80,6 +81,9 @@ interface CarteraRecomendada {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "generar-cartera", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     if (!ANTHROPIC_API_KEY) {
       return NextResponse.json(
@@ -167,8 +171,6 @@ export async function POST(request: NextRequest) {
     const prompt = buildPrompt(client, reports, montoInversion);
 
     // 4. Llamar a Claude
-    console.log("Calling Claude to generate portfolio recommendation...");
-
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {

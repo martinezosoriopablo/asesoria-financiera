@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdvisor, requireAdmin, createAdminClient } from '@/lib/auth/api-auth';
 import * as XLSX from 'xlsx';
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // Interfaces for Excel data processing
 interface ExcelRow {
@@ -14,18 +15,19 @@ interface RentabilidadRegistro {
   rent_diaria: number | null;
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "rentabilidades-diarias", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     // Leer headers
     const fo_run = request.headers.get('x-fo-run');
     const fm_serie = request.headers.get('x-fm-serie');
-
-    console.log('🔍 GET rentabilidades-diarias:', { fo_run, fm_serie });
 
     if (!fo_run || !fm_serie) {
       return NextResponse.json(
@@ -43,14 +45,11 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (fondoError || !fondo) {
-      console.log('❌ Fondo no encontrado:', { fo_run, fm_serie });
       return NextResponse.json(
         { success: false, error: 'Fondo no encontrado' },
         { status: 404 }
       );
     }
-
-    console.log('🔍 Fondo encontrado:', { id: fondo.id, nombre: fondo.nombre_fondo });
 
     // ✅ FIX LÍMITE 1000: Ordenar descendente + reversar
     // Esto trae los MÁS RECIENTES si hay límite de Supabase
@@ -62,7 +61,6 @@ export async function GET(request: NextRequest) {
       .limit(10000);
     
     if (datosError) {
-      console.log('❌ Error al obtener datos:', datosError);
       return NextResponse.json(
         { success: false, error: datosError.message },
         { status: 500 }
@@ -72,13 +70,6 @@ export async function GET(request: NextRequest) {
     // Reversar para orden cronológico
     const datos = datosDesc ? [...datosDesc].reverse() : [];
     
-    console.log('🔍 Datos obtenidos:', {
-      total: datos.length,
-      primeraFecha: datos[0]?.fecha,
-      ultimaFecha: datos[datos.length - 1]?.fecha
-    });
-
-    console.log('✅ Retornando datos exitosamente');
     return NextResponse.json({
       success: true,
       datos: datos,
@@ -95,14 +86,20 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "rentabilidades-diarias-post", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError2 } = await requireAdmin();
+  if (authError2) return authError2;
+
+  const supabase = createAdminClient();
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fo_run = formData.get('fo_run') as string;
     const fm_serie = formData.get('fm_serie') as string;
     const modo = formData.get('modo') as string || 'agregar';
-
-    console.log('📤 POST rentabilidades-diarias:', { fo_run, fm_serie, modo, fileName: file?.name });
 
     if (!file || !fo_run || !fm_serie) {
       return NextResponse.json(
@@ -120,14 +117,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fondoError || !fondo) {
-      console.log('❌ Fondo no encontrado:', { fo_run, fm_serie });
       return NextResponse.json(
         { success: false, error: 'Fondo no encontrado' },
         { status: 404 }
       );
     }
-
-    console.log('✅ Fondo encontrado:', fondo.id);
 
     // Leer Excel
     const arrayBuffer = await file.arrayBuffer();
@@ -137,12 +131,6 @@ export async function POST(request: NextRequest) {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(sheet);
-
-    console.log('📊 Excel procesado:', { 
-      totalFilas: data.length, 
-      primeraFila: data[0],
-      columnasDisponibles: data.length > 0 ? Object.keys(data[0] as object) : []
-    });
 
     if (data.length === 0) {
       return NextResponse.json(
@@ -155,8 +143,6 @@ export async function POST(request: NextRequest) {
     const primeraFila = data[0] as ExcelRow;
     const columnasDisponibles = Object.keys(primeraFila);
     
-    console.log('🔍 Columnas disponibles:', columnasDisponibles);
-
     // Función para encontrar columna (case-insensitive, con variantes)
     const findColumn = (row: ExcelRow, variants: string[]): string | number | Date | null | undefined => {
       for (const key of Object.keys(row)) {
@@ -211,17 +197,6 @@ export async function POST(request: NextRequest) {
 
       return null;
     };
-
-    // ✅ NUEVO: Log de ejemplo de conversión de fecha
-    if (data.length > 0) {
-      const primeraFechaRaw = findColumn(data[0] as ExcelRow, ['fecha', 'Fecha', 'FECHA', 'date', 'Date', 'DATE']);
-      const primeraFechaConvertida = convertirFechaExcel(primeraFechaRaw);
-      console.log('🔄 Conversión fecha ejemplo:', { 
-        fechaRaw: primeraFechaRaw, 
-        fechaConvertida: primeraFechaConvertida,
-        tipo: typeof primeraFechaRaw
-      });
-    }
 
     // Preparar registros con búsqueda flexible
     const registros: RentabilidadRegistro[] = [];
@@ -285,12 +260,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('📝 Registros preparados:', { 
-      total: registros.length, 
-      errores,
-      primerosErrores: erroresDetalle.slice(0, 3)
-    });
-
     if (registros.length === 0) {
       const errorMsg = `No se pudieron procesar registros válidos. Errores: ${erroresDetalle.slice(0, 5).join('; ')}`;
       console.error('❌', errorMsg);
@@ -307,7 +276,6 @@ export async function POST(request: NextRequest) {
 
     // Si modo es reemplazar, borrar datos existentes
     if (modo === 'reemplazar') {
-      console.log('🗑️ Borrando datos existentes del fondo...');
       const { error: deleteError } = await supabase
         .from('fondos_rentabilidades_diarias')
         .delete()
@@ -319,7 +287,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Insertar nuevos registros
-    console.log('💾 Insertando nuevos registros...');
     const { error: insertError, data: insertData } = await supabase
       .from('fondos_rentabilidades_diarias')
       .insert(registros)
@@ -333,19 +300,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('✅ Datos insertados exitosamente');
-    console.log('📊 Verificando inserción:', { 
-      registrosEnviados: registros.length,
-      registrosInsertados: insertData?.length 
-    });
-
     // ✅ NUEVO: Verificar que realmente se insertaron
     const { count: verificacionCount } = await supabase
       .from('fondos_rentabilidades_diarias')
       .select('*', { count: 'exact', head: true })
       .eq('fondo_id', fondo.id);
-
-    console.log('🔍 Total registros en BD después de insertar:', verificacionCount);
 
     return NextResponse.json({
       success: true,
@@ -366,11 +325,17 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const blocked = applyRateLimit(request, "rentabilidades-diarias-delete", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError3 } = await requireAdmin();
+  if (authError3) return authError3;
+
+  const supabase = createAdminClient();
+
   try {
     const body = await request.json();
     const { fo_run, fm_serie } = body;
-
-    console.log('🗑️ DELETE rentabilidades-diarias:', { fo_run, fm_serie });
 
     if (!fo_run || !fm_serie) {
       return NextResponse.json(
@@ -408,7 +373,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    console.log('✅ Datos eliminados exitosamente');
     return NextResponse.json({ success: true });
 
   } catch (error: unknown) {

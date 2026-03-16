@@ -74,9 +74,7 @@ CREATE TRIGGER update_direct_portfolio_holdings_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- RLS (Row Level Security) - opcional si ya tienen políticas globales
--- ALTER TABLE direct_portfolios ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE direct_portfolio_holdings ENABLE ROW LEVEL SECURITY;
+-- RLS habilitado en migración 20260316_enable_rls_sensitive_tables.sql
 
 -- Comentarios para documentación
 COMMENT ON TABLE direct_portfolios IS 'Portafolios directos de acciones y bonos individuales';

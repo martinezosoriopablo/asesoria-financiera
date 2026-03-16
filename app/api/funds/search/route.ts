@@ -1,13 +1,18 @@
 // app/api/funds/search/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { sanitizeSearchInput } from "@/lib/sanitize";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const blocked = applyRateLimit(request, "funds-search", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
     const { searchParams } = new URL(request.url);
@@ -17,13 +22,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, funds: [] });
     }
 
+    const sanitized = sanitizeSearchInput(query);
+
     // Buscar en tabla funds (incluye chilenos y externos/importados)
     const { data, error } = await supabase
       .from("funds")
       .select("*")
       .eq("is_active", true)
       .or(
-        `name.ilike.%${query}%,provider.ilike.%${query}%,symbol.ilike.%${query}%,isin.ilike.%${query}%`
+        `name.ilike.%${sanitized}%,provider.ilike.%${sanitized}%,symbol.ilike.%${sanitized}%,isin.ilike.%${sanitized}%`
       )
       .order("name")
       .limit(30);

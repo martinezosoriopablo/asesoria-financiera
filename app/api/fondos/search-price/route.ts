@@ -2,13 +2,10 @@
 // Search for fund/stock and get latest price (valor_cuota or stock price)
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // Detect if query looks like a stock ticker
 function looksLikeTicker(q: string): boolean {
@@ -94,6 +91,14 @@ async function fetchBolsaSantiagoQuote(ticker: string): Promise<{
 }
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "fondos-search-price", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const q = searchParams.get("q");
@@ -117,47 +122,79 @@ export async function GET(request: NextRequest) {
       moneda: string;
       valor_cuota: number | null;
       fecha_precio: string | null;
+      fintual_id?: string; // For fetching real-time prices from Fintual API
     }> = [];
 
     // Search mutual funds (unless type=stock)
     if (type !== "stock") {
-      const { data: fondos, error: fondosError } = await supabase
-        .from("fondos_mutuos")
-        .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
-        .or(`nombre_fondo.ilike.%${q}%,nombre_agf.ilike.%${q}%`)
-        .limit(8);
+      // Search in fintual_funds first (has 5000+ funds)
+      const { data: fintualFunds, error: fintualError } = await supabase
+        .from("fintual_funds")
+        .select("id, fintual_id, run, serie_name, fund_name, provider_name, currency, last_price, last_price_date")
+        .or(`fund_name.ilike.%${sanitizeSearchInput(q)}%,provider_name.ilike.%${sanitizeSearchInput(q)}%,run.ilike.%${sanitizeSearchInput(q)}%`)
+        .limit(10);
 
-      if (!fondosError && fondos && fondos.length > 0) {
-        const fondoIds = fondos.map((f) => f.id);
-
-        const { data: prices } = await supabase
-          .from("fondos_rentabilidades_diarias")
-          .select("fondo_id, fecha, valor_cuota")
-          .in("fondo_id", fondoIds)
-          .order("fecha", { ascending: false });
-
-        const latestPrices: Record<string, { fecha: string; valor_cuota: number }> = {};
-        if (prices) {
-          for (const p of prices) {
-            if (!latestPrices[p.fondo_id]) {
-              latestPrices[p.fondo_id] = { fecha: p.fecha, valor_cuota: p.valor_cuota };
-            }
-          }
-        }
-
-        fondos.forEach((f) => {
+      if (!fintualError && fintualFunds && fintualFunds.length > 0) {
+        fintualFunds.forEach((f) => {
           results.push({
             id: f.id,
             type: "fund",
-            fo_run: f.fo_run,
-            serie: f.fm_serie,
-            nombre: f.nombre_fondo,
-            agf: f.nombre_agf,
-            moneda: f.moneda_funcional || "CLP",
-            valor_cuota: latestPrices[f.id]?.valor_cuota || null,
-            fecha_precio: latestPrices[f.id]?.fecha || null,
+            fo_run: f.run ? parseInt(f.run) : undefined,
+            serie: f.serie_name,
+            nombre: f.fund_name,
+            agf: f.provider_name,
+            moneda: f.currency || "CLP",
+            valor_cuota: f.last_price,
+            fecha_precio: f.last_price_date,
+            fintual_id: f.fintual_id, // Add fintual_id for price fetching
           });
         });
+      }
+
+      // Also search in fondos_mutuos (legacy table) if few results
+      if (results.length < 5) {
+        const { data: fondos, error: fondosError } = await supabase
+          .from("fondos_mutuos")
+          .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+          .or(`nombre_fondo.ilike.%${sanitizeSearchInput(q)}%,nombre_agf.ilike.%${sanitizeSearchInput(q)}%`)
+          .limit(5);
+
+        if (!fondosError && fondos && fondos.length > 0) {
+          const fondoIds = fondos.map((f) => f.id);
+
+          const { data: prices } = await supabase
+            .from("fondos_rentabilidades_diarias")
+            .select("fondo_id, fecha, valor_cuota")
+            .in("fondo_id", fondoIds)
+            .order("fecha", { ascending: false });
+
+          const latestPrices: Record<string, { fecha: string; valor_cuota: number }> = {};
+          if (prices) {
+            for (const p of prices) {
+              if (!latestPrices[p.fondo_id]) {
+                latestPrices[p.fondo_id] = { fecha: p.fecha, valor_cuota: p.valor_cuota };
+              }
+            }
+          }
+
+          fondos.forEach((f) => {
+            // Avoid duplicates (check by RUN)
+            const exists = results.some(r => r.fo_run === f.fo_run);
+            if (!exists) {
+              results.push({
+                id: f.id,
+                type: "fund",
+                fo_run: f.fo_run,
+                serie: f.fm_serie,
+                nombre: f.nombre_fondo,
+                agf: f.nombre_agf,
+                moneda: f.moneda_funcional || "CLP",
+                valor_cuota: latestPrices[f.id]?.valor_cuota || null,
+                fecha_precio: latestPrices[f.id]?.fecha || null,
+              });
+            }
+          });
+        }
       }
     }
 

@@ -2,16 +2,20 @@
 // Obtiene y almacena precios de fondos desde Fintual
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { getSeriesPrices, calculateReturns } from "@/lib/fintual-api";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { getSeriesPrices, calculateReturns, DividendAdjustment } from "@/lib/fintual-api";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET: Obtener precios de un fondo
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "fintual-prices", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const { searchParams } = new URL(request.url);
     const fintualId = searchParams.get("fintual_id");
@@ -19,6 +23,19 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get("from_date");
     const toDate = searchParams.get("to_date") || new Date().toISOString().split("T")[0];
     const days = parseInt(searchParams.get("days") || "30");
+
+    // Parámetros opcionales para ajuste de dividendos
+    const hasDividend = searchParams.get("has_dividend") === "true";
+    const dividendYield = searchParams.get("dividend_yield");
+    const dividendDate = searchParams.get("dividend_date");
+
+    const dividendAdjustment: DividendAdjustment | undefined = hasDividend
+      ? {
+          has_dividend: true,
+          dividend_yield: dividendYield ? parseFloat(dividendYield) : undefined,
+          dividend_date: dividendDate || undefined,
+        }
+      : undefined;
 
     if (!fintualId && !fundId) {
       return NextResponse.json(
@@ -66,8 +83,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Calcular rentabilidades
-    const returns = calculateReturns(prices);
+    // Calcular rentabilidades (con ajuste de dividendos si se proporciona)
+    const returns = calculateReturns(prices, dividendAdjustment);
 
     // Formatear datos
     const formattedPrices = prices.map((p) => ({
@@ -85,6 +102,7 @@ export async function GET(request: NextRequest) {
         prices: formattedPrices,
         returns,
         latestPrice: formattedPrices[0],
+        dividendAdjustment: dividendAdjustment || null,
       },
     });
   } catch (error) {
@@ -101,6 +119,14 @@ export async function GET(request: NextRequest) {
 
 // POST: Sincronizar precios de uno o varios fondos
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "fintual-prices-sync", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError2 } = await requireAdvisor();
+  if (authError2) return authError2;
+
+  const supabase = createAdminClient();
+
   try {
     const body = await request.json();
     const { fintual_ids, days = 365 } = body;
@@ -135,8 +161,6 @@ export async function POST(request: NextRequest) {
 
     for (const fintualId of body.fintual_ids) {
       try {
-        console.log(`Syncing prices for ${fintualId}...`);
-
         const prices = await getSeriesPrices(fintualId, fromDate, toDate);
 
         if (prices.length === 0) {

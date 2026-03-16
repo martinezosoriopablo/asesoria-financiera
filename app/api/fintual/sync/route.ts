@@ -2,19 +2,13 @@
 // Sincroniza datos de fondos mutuos desde la API de Fintual
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import {
   getProviders,
   getProviderFunds,
   getFundSeries,
-  FintualProvider,
-  FintualRealAsset,
 } from "@/lib/fintual-api";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface SyncResult {
   providers: number;
@@ -25,6 +19,14 @@ interface SyncResult {
 
 // POST: Sincronizar catálogo completo de fondos
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "sync-fintual", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdmin();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const { searchParams } = new URL(request.url);
     const providerId = searchParams.get("provider_id");
@@ -37,12 +39,9 @@ export async function POST(request: NextRequest) {
       errors: [],
     };
 
-    console.log("Starting Fintual sync...");
-
     // Obtener proveedores
     const providers = await getProviders();
     result.providers = providers.length;
-    console.log(`Found ${providers.length} providers`);
 
     // Filtrar proveedores chilenos de fondos mutuos (excluir ETFs internacionales, etc.)
     const chileanProviders = providers.filter((p) => {
@@ -73,8 +72,6 @@ export async function POST(request: NextRequest) {
       );
     });
 
-    console.log(`Filtered to ${chileanProviders.length} Chilean providers`);
-
     // Si se especifica un proveedor, solo sincronizar ese
     const providersToSync = providerId
       ? chileanProviders.filter((p) => p.id === providerId)
@@ -84,8 +81,6 @@ export async function POST(request: NextRequest) {
 
     for (const provider of providersToSync) {
       try {
-        console.log(`Syncing provider: ${provider.attributes.name}`);
-
         // Guardar/actualizar proveedor
         await supabase.from("fintual_providers").upsert(
           {
@@ -98,7 +93,6 @@ export async function POST(request: NextRequest) {
 
         // Obtener fondos del proveedor
         const funds = await getProviderFunds(provider.id);
-        console.log(`  Found ${funds.length} funds`);
 
         for (const fund of funds) {
           try {
@@ -149,8 +143,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log("Sync completed:", result);
-
     return NextResponse.json({
       success: true,
       message: "Sincronización completada",
@@ -169,7 +161,15 @@ export async function POST(request: NextRequest) {
 }
 
 // GET: Obtener estado de la sincronización
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "fintual-sync-status", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     // Contar registros
     const { count: providersCount } = await supabase

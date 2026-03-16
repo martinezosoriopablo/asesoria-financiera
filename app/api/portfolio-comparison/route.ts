@@ -1,11 +1,19 @@
-// app/api/generate-pdf/route.ts
+// app/api/portfolio-comparison/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdvisor } from "@/lib/auth/api-auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PortfolioComparisonPDF } from "@/components/pdf/PortfolioComparisonPDF";
 import React from "react";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "portfolio-comparison", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   try {
     const data = await request.json();
 

@@ -1,11 +1,15 @@
 // app/api/google/disconnect/route.ts
 // Desconecta Google Calendar del advisor
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { revokeGoogleAccess } from "@/lib/google/calendar-client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "google-disconnect", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;

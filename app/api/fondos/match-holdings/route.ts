@@ -2,13 +2,10 @@
 // Batch match holdings to funds/stocks and get prices
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface HoldingInput {
   fundName: string;
@@ -140,6 +137,14 @@ function isChileanTicker(ticker: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "match-holdings", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const { holdings } = await request.json() as { holdings: HoldingInput[] };
 
@@ -213,7 +218,7 @@ export async function POST(request: NextRequest) {
             const { data: fondos } = await supabase
               .from("fondos_mutuos")
               .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
-              .or(`nombre_fondo.ilike.%${searchTerms[0]}%`)
+              .or(`nombre_fondo.ilike.%${sanitizeSearchInput(searchTerms[0])}%`)
               .limit(5);
 
             if (fondos && fondos.length > 0) {

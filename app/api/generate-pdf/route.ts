@@ -1,20 +1,21 @@
 // app/api/generate-pdf/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdvisor } from "@/lib/auth/api-auth";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PortfolioComparisonPDF } from "@/components/pdf/PortfolioComparisonPDF";
 import React from "react";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "generate-pdf", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   try {
-    console.log("📄 Iniciando generación de PDF...");
-    
     const data = await request.json();
-    console.log("📦 Datos recibidos:", {
-      clientName: data.clientName,
-      totalInvestment: data.totalInvestment,
-      assetClassesCount: data.assetClasses?.length,
-    });
 
     // Validar datos mínimos
     if (!data.assetClasses || data.assetClasses.length === 0) {
@@ -25,14 +26,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("🎨 Renderizando componente PDF...");
-    
     // Generar PDF
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfElement = React.createElement(PortfolioComparisonPDF, { data }) as any;
     const pdfBuffer = await renderToBuffer(pdfElement);
-
-    console.log("✅ PDF generado exitosamente");
 
     // Retornar PDF como respuesta
     return new NextResponse(new Uint8Array(pdfBuffer), {

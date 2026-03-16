@@ -63,3 +63,36 @@ export function getClientIp(request: Request): string {
   if (forwarded) return forwarded.split(",")[0].trim();
   return "unknown";
 }
+
+/**
+ * Apply rate limiting to an API route. Returns a 429 response if limit exceeded, null otherwise.
+ *
+ * @example
+ * const blocked = applyRateLimit(request, "fondos-search", { limit: 30 });
+ * if (blocked) return blocked;
+ */
+export function applyRateLimit(
+  request: Request,
+  routeKey: string,
+  options: RateLimitOptions = {}
+): Response | null {
+  const ip = getClientIp(request);
+  const { allowed, remaining, resetAt } = rateLimit(`${routeKey}:${ip}`, options);
+
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ success: false, error: "Demasiadas solicitudes. Intente de nuevo más tarde." }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(Math.ceil(resetAt / 1000)),
+          "Retry-After": String(Math.ceil((resetAt - Date.now()) / 1000)),
+        },
+      }
+    );
+  }
+
+  return null;
+}

@@ -1,11 +1,15 @@
 // app/api/google/status/route.ts
 // Verifica el estado de conexión con Google Calendar
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { isGoogleCalendarConfigured } from "@/lib/google/calendar-client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "google-status", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;

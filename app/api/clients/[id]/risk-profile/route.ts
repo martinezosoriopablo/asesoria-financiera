@@ -2,12 +2,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener perfil de riesgo del cliente
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const blocked = applyRateLimit(request, "client-risk-profile", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;

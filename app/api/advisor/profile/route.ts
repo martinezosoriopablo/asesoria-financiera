@@ -2,9 +2,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener perfil del asesor autenticado
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "advisor-profile", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación - el email viene del usuario autenticado
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
@@ -17,6 +21,9 @@ export async function GET() {
 
 // PUT - Actualizar perfil del asesor autenticado
 export async function PUT(request: NextRequest) {
+  const blocked = applyRateLimit(request, "advisor-profile-put", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;

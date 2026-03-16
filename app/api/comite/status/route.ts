@@ -1,8 +1,9 @@
 // app/api/comite/status/route.ts
 // Obtiene el estado actual de los reportes del comité
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface ComiteReportStatus {
   id: string;
@@ -12,7 +13,10 @@ interface ComiteReportStatus {
   updated_at: string;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "comite-status", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const supabase = await createSupabaseServerClient();
 

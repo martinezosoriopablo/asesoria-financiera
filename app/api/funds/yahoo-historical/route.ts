@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface YahooChartResult {
   chart?: {
@@ -33,7 +34,10 @@ interface YahooChartResult {
   };
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "funds-yahoo-historical", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { searchParams } = new URL(request.url);
   let symbol = searchParams.get("symbol");
   const fundName = searchParams.get("name");

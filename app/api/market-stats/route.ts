@@ -1,15 +1,20 @@
 // app/api/market-stats/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { NextRequest } from "next/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
+import { successResponse, handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const blocked = applyRateLimit(request, "market-stats", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
 
-  try {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
+  return handleApiError("market-stats", async () => {
     const { searchParams } = new URL(request.url);
     const assetClass = searchParams.get("asset_class") || "equity";
 
@@ -116,20 +121,6 @@ export async function GET(request: NextRequest) {
     // Ordenar por cantidad de fondos (mayor a menor)
     providersArray.sort((a, b) => b.count - a.count);
 
-    return NextResponse.json({
-      success: true,
-      assetClass,
-      providers: providersArray,
-      marketAverage,
-    });
-  } catch (error: unknown) {
-    console.error("Error obteniendo estadísticas:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error al obtener estadísticas",
-      },
-      { status: 500 }
-    );
-  }
+    return successResponse({ assetClass, providers: providersArray, marketAverage });
+  });
 }

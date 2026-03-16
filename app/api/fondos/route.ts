@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { requireAdvisor, createAdminClient } from '@/lib/auth/api-auth';
+import { sanitizeSearchInput } from '@/lib/sanitize';
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // Interface for rentabilidades agregadas record
 interface RentabilidadesRecord {
@@ -44,6 +41,14 @@ function getCategoriaSimple(familia: string | null): string {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "fondos-post", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const body = await request.json();
     const { action, familia, clase, busqueda, ordenar, direccion, pagina, solo_con_datos_diarios } = body;
@@ -57,8 +62,6 @@ export async function POST(request: NextRequest) {
       let fondosIdsConDatos: string[] = [];
       
       if (solo_con_datos_diarios === true) {
-        console.log('🔍 Comparador: Buscando fondos con datos diarios...');
-        
         // Obtener IDs únicos de fondos que tienen datos (con paginación para evitar límite 1000)
         const allFondosIds = new Set<string>();
         let currentPage = 0;
@@ -81,17 +84,14 @@ export async function POST(request: NextRequest) {
           
           // Seguridad: no hacer más de 10 páginas (10,000 registros)
           if (currentPage >= 10) {
-            console.log('⚠️ Límite de paginación alcanzado (10 páginas)');
             hasMore = false;
           }
         }
         
         fondosIdsConDatos = Array.from(allFondosIds);
-        console.log(`✅ Encontrados ${fondosIdsConDatos.length} fondos únicos con datos diarios (${currentPage} páginas consultadas)`);
-        
+
         // Si no hay fondos con datos, retornar vacío inmediatamente
         if (fondosIdsConDatos.length === 0) {
-          console.log('⚠️ No se encontraron fondos con datos diarios');
           return NextResponse.json({
             success: true,
             fondos: [],
@@ -123,7 +123,6 @@ export async function POST(request: NextRequest) {
       // ✅ NUEVO: Si solo queremos fondos con datos, filtrar por los IDs encontrados
       if (solo_con_datos_diarios === true && fondosIdsConDatos.length > 0) {
         query = query.in('id', fondosIdsConDatos);
-        console.log(`🎯 Filtrando query por ${fondosIdsConDatos.length} fondos con datos`);
       }
       
       // Aplicar filtros
@@ -145,7 +144,8 @@ export async function POST(request: NextRequest) {
       }
       
       if (busqueda) {
-        query = query.or(`nombre_fondo.ilike.%${busqueda}%,nombre_agf.ilike.%${busqueda}%`);
+        const sanitized = sanitizeSearchInput(busqueda);
+        query = query.or(`nombre_fondo.ilike.%${sanitized}%,nombre_agf.ilike.%${sanitized}%`);
       }
       
       // Ordenar
@@ -170,15 +170,11 @@ export async function POST(request: NextRequest) {
       // Obtener conteo de datos diarios para cada fondo
       const fondosIds = data?.map(f => f.id) || [];
       
-      console.log('🔍 API Fondos - Contando datos diarios para', fondosIds.length, 'fondos');
-      
       const dailyDataCounts: { [key: string]: number } = {};
       const rentabilidadesAgregadas: { [key: string]: RentabilidadesRecord } = {};
       
       if (fondosIds.length > 0) {
         // ✅ NUEVO: Usar COUNT individual por fondo (evita límite 1000)
-        console.log('📊 Usando COUNT individual por fondo para evitar límite...');
-        
         try {
           // Hacer todas las queries COUNT en paralelo
           const countPromises = fondosIds.map(async (fondoId) => {
@@ -200,8 +196,6 @@ export async function POST(request: NextRequest) {
             }
           });
           
-          console.log('✅ Conteos completados:', Object.keys(dailyDataCounts).length, 'fondos con datos');
-          console.log('📊 Conteos por fondo:', dailyDataCounts);
         } catch (error) {
           console.error('❌ Error contando datos diarios:', error);
         }
@@ -241,14 +235,6 @@ export async function POST(request: NextRequest) {
           patrimonio_mm: rentabilidadesAgregadas[fondo.id].patrimonio_mm
         })
       }));
-      
-      // Log de fondos con sus contadores
-      if (fondosConCategoria && fondosConCategoria.length > 0) {
-        console.log('📋 Ejemplo de fondos retornados:');
-        fondosConCategoria.slice(0, 3).forEach(f => {
-          console.log(`  - ${f.fo_run}-${f.fm_serie}: ${f.datos_diarios_count} datos diarios`);
-        });
-      }
       
       return NextResponse.json({
         success: true,

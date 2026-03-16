@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
 
@@ -10,6 +11,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ type: string }> }
 ) {
+  const blocked = applyRateLimit(request, "comite-report", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const { type } = await params;
 

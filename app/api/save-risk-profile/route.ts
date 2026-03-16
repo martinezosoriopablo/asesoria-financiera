@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
 export async function POST(req: NextRequest) {
+  const blocked = applyRateLimit(req, "save-risk-profile", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const { email, scores, responses, retirementData, projection, advisorEmail: advisorEmailFromClient } = await req.json();
 
@@ -19,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
-    const supabase = getServiceClient();
+    const supabase = createAdminClient();
 
     // Look up advisor ID from email if provided
     let advisorId: string | null = null;
@@ -170,8 +167,6 @@ export async function POST(req: NextRequest) {
         advisorEmail = firstAdvisor?.email || null;
       }
 
-      console.log("Notification lookup:", { clientId, asesor_id: client?.asesor_id, advisorEmail });
-
       if (advisorEmail) {
         const clientName = client?.nombre ? `${client.nombre} ${client.apellido || ""}`.trim() : email;
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
@@ -209,11 +204,7 @@ export async function POST(req: NextRequest) {
         });
         if (emailError) {
           console.error("Resend error:", JSON.stringify(emailError));
-        } else {
-          console.log("Advisor notification sent to:", advisorEmail, "id:", emailResult?.id);
         }
-      } else {
-        console.log("No advisor email found, skipping notification");
       }
     } catch (notifyError) {
       console.error("Error sending advisor notification:", notifyError);

@@ -3,7 +3,9 @@
 // Returns same format as PDF parser for consistency
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdvisor } from "@/lib/auth/api-auth";
 import * as XLSX from "xlsx";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface Holding {
   fundName: string;
@@ -366,6 +368,12 @@ function extractMetadata(data: unknown[][], headerRowIndex: number): {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<ParsedResponse>> {
+  const blocked = applyRateLimit(request, "parse-excel", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked as NextResponse<ParsedResponse>;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError as NextResponse<ParsedResponse>;
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -545,7 +553,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
             // DD-MM-YYYY format
             metadata.period = `${p3}-${p2}-${p1}`;
           }
-          console.log(`Extracted period from filename: ${metadata.period}`);
           break;
         }
       }
@@ -568,7 +575,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
               const year = yearMatch[0];
               const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
               metadata.period = `${year}-${monthNum}-${lastDay.toString().padStart(2, "0")}`;
-              console.log(`Extracted period from filename (month): ${metadata.period}`);
               break;
             }
           }
@@ -584,8 +590,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
 
     // Calculate total cost if available
     const totalCost = holdings.reduce((sum, h) => sum + (h.costBasis || 0), 0);
-
-    console.log(`Excel parsed: ${holdings.length} holdings, total ${totalValue}, source: ${source}, period: ${metadata.period || "not found"}`);
 
     return NextResponse.json({
       ...metadata,

@@ -2,14 +2,19 @@
 // Búsqueda de fondos mutuos en el catálogo de Fintual
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { sanitizeSearchInput } from "@/lib/sanitize";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "fintual-search", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
@@ -24,14 +29,16 @@ export async function GET(request: NextRequest) {
 
     // Filtrar por búsqueda de texto
     if (query) {
+      const sanitized = sanitizeSearchInput(query);
       dbQuery = dbQuery.or(
-        `fund_name.ilike.%${query}%,provider_name.ilike.%${query}%,run.ilike.%${query}%,symbol.ilike.%${query}%`
+        `fund_name.ilike.%${sanitized}%,provider_name.ilike.%${sanitized}%,run.ilike.%${sanitized}%,symbol.ilike.%${sanitized}%`
       );
     }
 
     // Filtrar por proveedor
     if (provider) {
-      dbQuery = dbQuery.ilike("provider_name", `%${provider}%`);
+      const sanitizedProvider = sanitizeSearchInput(provider);
+      dbQuery = dbQuery.ilike("provider_name", `%${sanitizedProvider}%`);
     }
 
     const { data: funds, error } = await dbQuery;

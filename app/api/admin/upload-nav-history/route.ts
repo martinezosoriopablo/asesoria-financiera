@@ -1,14 +1,11 @@
 // app/api/admin/upload-nav-history/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { parse } from "csv-parse/sync";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface NavRecord {
   date: string;
@@ -30,40 +27,35 @@ interface ExcelRow {
 }
 
 export async function POST(request: NextRequest) {
-  console.log("=== INICIO UPLOAD NAV HISTORY ===");
+  const blocked = applyRateLimit(request, "upload-nav-history", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdmin();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
 
   try {
-    console.log("1. Obteniendo formData...");
     const formData = await request.formData();
 
-    console.log("2. Obteniendo archivo...");
     const file = formData.get("file") as File;
 
     if (!file) {
-      console.log("ERROR: No se proporcionó archivo");
       return NextResponse.json(
         { error: "No se proporcionó un archivo" },
         { status: 400 }
       );
     }
 
-    console.log(`3. Archivo recibido: ${file.name}, tamaño: ${file.size} bytes`);
-
     // Extraer identificador del fondo desde el nombre del archivo
     const fundIdentifier = extractFundIdentifier(file.name);
-    console.log(`4. Fund identifier: ${fundIdentifier}`);
 
     // Leer archivo
-    console.log("5. Leyendo arrayBuffer...");
     const arrayBuffer = await file.arrayBuffer();
-    console.log(`6. ArrayBuffer size: ${arrayBuffer.byteLength}`);
 
     const buffer = Buffer.from(arrayBuffer);
-    console.log(`7. Buffer size: ${buffer.length}`);
 
-    console.log("8. Parseando archivo...");
     const records = parseFile(buffer, file.name, fundIdentifier);
-    console.log(`9. Registros parseados: ${records.length}`);
 
     if (records.length === 0) {
       return NextResponse.json(
@@ -87,7 +79,7 @@ export async function POST(request: NextRequest) {
     for (const [fundCode, navRecords] of Object.entries(byFund)) {
       try {
         // Buscar fondo por múltiples campos
-        const fund = await findFund(fundCode);
+        const fund = await findFund(supabase, fundCode);
 
         if (!fund) {
           notFound++;
@@ -124,12 +116,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Calcular rentabilidades
-        console.log(`Calculando rentabilidades para fund_id: ${fund.id}`);
         const { data: returns, error: returnsError } = await supabase
           .rpc("calculate_fund_returns", { p_fund_id: fund.id });
-
-        console.log("RPC returns:", JSON.stringify(returns));
-        console.log("RPC error:", returnsError ? JSON.stringify(returnsError) : "none");
 
         if (returnsError) {
           console.error("Error calculating returns:", returnsError);
@@ -141,7 +129,6 @@ export async function POST(request: NextRequest) {
 
         // Actualizar fondo con rentabilidades (si se calcularon)
         if (returnsData && (returnsData.return_1y !== null || returnsData.return_3y !== null)) {
-          console.log("Updating fund with returns:", JSON.stringify(returnsData));
           const { error: updateError } = await supabase
             .from("funds")
             .update({
@@ -161,8 +148,6 @@ export async function POST(request: NextRequest) {
 
           // Guardar para devolver al frontend
           lastCalculatedReturns = returnsData;
-        } else {
-          console.log("No returns calculated (possibly not enough historical data)");
         }
 
         updated++;
@@ -171,8 +156,6 @@ export async function POST(request: NextRequest) {
         errors++;
       }
     }
-
-    console.log("Returning calculated returns:", JSON.stringify(lastCalculatedReturns));
 
     return NextResponse.json({
       success: true,
@@ -211,7 +194,8 @@ function extractFundIdentifier(filename: string): string {
 }
 
 // Buscar fondo por múltiples campos, o crear si no existe
-async function findFund(identifier: string, autoCreate: boolean = true): Promise<{ id: string } | null> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findFund(supabase: SupabaseClient<any, any, any>, identifier: string, autoCreate: boolean = true): Promise<{ id: string } | null> {
   const searchValue = identifier.trim().toUpperCase();
 
   // Buscar por símbolo/ticker (exacto)
@@ -262,7 +246,6 @@ async function findFund(identifier: string, autoCreate: boolean = true): Promise
       return null;
     }
 
-    console.log(`Fondo externo creado: ${searchValue} (ID: ${newFund.id})`);
     return newFund;
   }
 
@@ -294,8 +277,6 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
   const ext = filename?.split(".")?.pop()?.toLowerCase() || "";
   let rawRecords: ExcelRow[] = [];
 
-  console.log(`Parseando archivo: ${filename}, extensión: ${ext}, fundIdentifier: ${fundIdentifier}`);
-
   try {
     if (ext === "csv") {
       rawRecords = parse(buffer, {
@@ -318,7 +299,6 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
       }
 
       const sheetName = workbook.SheetNames[0];
-      console.log(`Hoja encontrada: ${sheetName}`);
       const worksheet = workbook.Sheets[sheetName];
 
       if (!worksheet) {
@@ -330,11 +310,6 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
         raw: true, // Mantener valores crudos (números de serie para fechas)
       });
 
-      console.log(`Registros crudos: ${rawRecords.length}`);
-      if (rawRecords.length > 0) {
-        console.log(`Primera fila keys: ${Object.keys(rawRecords[0] || {}).join(", ")}`);
-        console.log(`Primera fila: ${JSON.stringify(rawRecords[0])}`);
-      }
     } else {
       throw new Error(`Formato de archivo no soportado: ${ext}`);
     }
@@ -397,7 +372,6 @@ function parseFile(buffer: Buffer, filename: string, fundIdentifier?: string): N
     }
   }
 
-  console.log(`Registros parseados: ${parsedRecords.length}`);
   return parsedRecords;
 }
 

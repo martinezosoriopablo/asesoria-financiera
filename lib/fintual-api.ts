@@ -180,9 +180,17 @@ export function calculateReturn(
   return ((endPrice - startPrice) / startPrice) * 100;
 }
 
+// Opciones para ajuste de dividendos
+export interface DividendAdjustment {
+  has_dividend: boolean;
+  dividend_yield?: number; // Porcentaje anual
+  dividend_date?: string; // Fecha del último dividendo
+}
+
 // Calcular rentabilidades para múltiples períodos
 export function calculateReturns(
-  prices: FintualDayData[]
+  prices: FintualDayData[],
+  dividendAdjustment?: DividendAdjustment
 ): {
   rent_1d?: number;
   rent_7d?: number;
@@ -190,6 +198,8 @@ export function calculateReturns(
   rent_90d?: number;
   rent_365d?: number;
   rent_ytd?: number;
+  dividend_yield?: number;
+  total_return_365d?: number; // Rentabilidad precio + dividendo
 } {
   if (prices.length < 2) return {};
 
@@ -230,6 +240,8 @@ export function calculateReturns(
     rent_90d?: number;
     rent_365d?: number;
     rent_ytd?: number;
+    dividend_yield?: number;
+    total_return_365d?: number;
   } = {};
 
   const price1d = findPriceAtDaysAgo(1);
@@ -245,6 +257,16 @@ export function calculateReturns(
   if (price90d) results.rent_90d = calculateReturn(price90d, latestPrice);
   if (price365d) results.rent_365d = calculateReturn(price365d, latestPrice);
   if (priceYTD) results.rent_ytd = calculateReturn(priceYTD, latestPrice);
+
+  // Ajuste por dividendos si se proporciona
+  if (dividendAdjustment?.has_dividend && dividendAdjustment.dividend_yield) {
+    results.dividend_yield = dividendAdjustment.dividend_yield;
+
+    // Calcular rentabilidad total = precio + dividendo (para período anual)
+    if (results.rent_365d !== undefined) {
+      results.total_return_365d = results.rent_365d + dividendAdjustment.dividend_yield;
+    }
+  }
 
   return results;
 }

@@ -1,7 +1,8 @@
 // app/api/exchange-rates/route.ts
 // Obtiene tasas de cambio desde mindicador.cl (API gratuita)
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const MINDICADOR_API = "https://mindicador.cl/api";
 
@@ -22,7 +23,10 @@ let cache: {
 
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "exchange-rates", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     // Verificar cache
     if (cache.data && Date.now() < cache.expiry) {
@@ -61,8 +65,6 @@ export async function GET() {
       data: result,
       expiry: Date.now() + CACHE_DURATION,
     };
-
-    console.log(`Exchange rates updated: USD=${result.usd}, EUR=${result.eur}, UF=${result.uf}`);
 
     return NextResponse.json({
       success: true,

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface YahooChartResult {
   chart: {
@@ -165,6 +166,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
+  const blocked = applyRateLimit(request, "securities-quote", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;

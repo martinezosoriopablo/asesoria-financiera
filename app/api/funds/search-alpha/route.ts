@@ -2,6 +2,7 @@
 // Busca ETFs y fondos mutuos internacionales usando Alpha Vantage
 
 import { NextRequest, NextResponse } from "next/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
@@ -24,6 +25,9 @@ interface AlphaVantageSearchResponse {
 }
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "funds-search-alpha", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   if (!ALPHA_VANTAGE_API_KEY) {
     return NextResponse.json(
       { success: false, error: "Alpha Vantage API key not configured" },
@@ -46,9 +50,6 @@ export async function GET(request: NextRequest) {
     const response = await fetch(url);
     const data: AlphaVantageSearchResponse = await response.json();
 
-    // Log para debug
-    console.log("Alpha Vantage response for query:", query, JSON.stringify(data).substring(0, 500));
-
     // Verificar límite de API - solo si el mensaje contiene palabras clave de rate limit
     const message = data.Note || data.Information || "";
     const isRateLimited = message.toLowerCase().includes("rate limit") ||
@@ -63,11 +64,6 @@ export async function GET(request: NextRequest) {
         error: "Límite de API alcanzado. Intenta en unos segundos.",
         rateLimited: true,
       });
-    }
-
-    // Si hay un mensaje pero no es rate limit, loguear pero continuar
-    if (message && !data.bestMatches) {
-      console.log("Alpha Vantage message (not rate limit):", message);
     }
 
     if (!data.bestMatches) {
@@ -91,9 +87,6 @@ export async function GET(request: NextRequest) {
       // "all" - mostrar todos los resultados (ETFs, fondos mutuos, y acciones)
       // No filtramos para no perder resultados útiles
     }
-
-    console.log(`Found ${matches.length} matches for "${query}" (original: ${originalMatches.length})`);
-    console.log("Types found:", [...new Set(matches.map(m => m["3. type"]))]);
 
     // Transformar a formato consistente
     const funds = matches.map((match) => ({

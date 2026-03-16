@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { searchChileanStocks } from "@/lib/bolsa-santiago/client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface YahooQuote {
   symbol: string;
@@ -148,6 +149,9 @@ async function searchBolsaSantiagoYahoo(query: string): Promise<SecuritySearchRe
 }
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "securities-search", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;

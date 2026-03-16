@@ -3,9 +3,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener lista de asesores
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "admin-advisors", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
@@ -48,6 +52,9 @@ export async function GET(_request: NextRequest) {
 
 // POST - Crear nuevo asesor (solo admins)
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "admin-advisors-post", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdmin();
   if (authError) return authError;
 
@@ -140,6 +147,9 @@ export async function POST(request: NextRequest) {
 
 // PUT - Actualizar asesor (solo admins pueden actualizar subordinados)
 export async function PUT(request: NextRequest) {
+  const blocked = applyRateLimit(request, "admin-advisors-put", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
@@ -229,6 +239,9 @@ export async function PUT(request: NextRequest) {
 
 // DELETE - Desactivar asesor (solo admins)
 export async function DELETE(request: NextRequest) {
+  const blocked = applyRateLimit(request, "admin-advisors-delete", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdmin();
   if (authError) return authError;
 

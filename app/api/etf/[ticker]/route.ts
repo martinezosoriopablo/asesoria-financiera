@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ETF_DATABASE } from "@/lib/ETF_DATABASE";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // API key se lee dentro de la función para asegurar que se obtiene en runtime
 
@@ -10,20 +11,19 @@ interface RouteParams {
 }
 
 export async function GET(request: NextRequest, context: RouteParams) {
+  const blocked = applyRateLimit(request, "etf-data", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const resolvedParams = await context.params;
     const ticker = resolvedParams.ticker.toUpperCase();
     const period = request.nextUrl.searchParams.get("period") || "5y";
 
-    // Debug: verificar API key
     const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
-    console.log(`API Key exists: ${!!apiKey}, length: ${apiKey?.length || 0}, starts with: ${apiKey?.substring(0, 4) || 'N/A'}`);
 
     if (!apiKey) {
       throw new Error("ALPHA_VANTAGE_API_KEY no está configurada en el servidor");
     }
-
-    console.log(`Fetching ${ticker} - Period: ${period}`);
 
     // 1. Precio actual
     const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
@@ -33,7 +33,6 @@ export async function GET(request: NextRequest, context: RouteParams) {
       }
     });
     const quoteData = await quoteResponse.json();
-    console.log("Quote data:", JSON.stringify(quoteData).substring(0, 500));
 
     // Verificar errores específicos de Alpha Vantage
     if (quoteData.Note) {
@@ -51,10 +50,8 @@ export async function GET(request: NextRequest, context: RouteParams) {
     }
 
     const currentPrice = parseFloat(quoteData["Global Quote"]["05. price"]);
-    console.log(`Precio: $${currentPrice}`);
 
     // Esperar 12 segundos para evitar rate limit (5 requests/minuto = 1 cada 12 seg)
-    console.log("Esperando 12s para evitar rate limit...");
     await new Promise(resolve => setTimeout(resolve, 12000));
 
     // 2. Datos históricos
@@ -68,8 +65,7 @@ export async function GET(request: NextRequest, context: RouteParams) {
       }
     });
     const historicalData = await historicalResponse.json();
-    console.log("Historical data keys:", Object.keys(historicalData));
-    
+
     const timeSeriesKey = period === "1y" ? "Time Series (Daily)" : "Weekly Time Series";
     
     // Verificar si hay un mensaje de error o rate limit
@@ -96,8 +92,6 @@ export async function GET(request: NextRequest, context: RouteParams) {
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    console.log(`Puntos históricos: ${historicalPoints.length}`);
-
     // Filtrar según período
     const now = new Date();
     let filteredHistorical = historicalPoints;
@@ -123,8 +117,6 @@ export async function GET(request: NextRequest, context: RouteParams) {
     } else if (period === "max") {
       filteredHistorical = historicalPoints;
     }
-
-    console.log(`Puntos filtrados: ${filteredHistorical.length}`);
 
     // Calcular retornos
     const calculate1YReturn = () => {
@@ -157,9 +149,6 @@ export async function GET(request: NextRequest, context: RouteParams) {
     const return1Y = calculate1YReturn();
     const return5Y = calculate5YReturn();
 
-    console.log(`Retorno 1Y: ${return1Y.toFixed(2)}%`);
-    console.log(`Retorno 5Y: ${return5Y.toFixed(2)}%`);
-
     // 3. Datos del ETF desde la base de datos central (70 ETFs)
     const etfEntry = ETF_DATABASE[ticker];
     const etfInfo = etfEntry
@@ -178,8 +167,6 @@ export async function GET(request: NextRequest, context: RouteParams) {
       historical: filteredHistorical,
       dataPoints: filteredHistorical.length,
     };
-
-    console.log(`✅ Success! Sending ${response.dataPoints} data points`);
 
     return NextResponse.json(response);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdvisor, requireAdmin, createAdminClient } from '@/lib/auth/api-auth';
 import * as XLSX from 'xlsx';
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface ExcelRow {
   fo_run?: string | number;
@@ -85,12 +86,15 @@ interface RentabilidadRegistro {
   fuente: string;
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "rentabilidades-agregadas", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
 
-export async function GET() {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     // Obtener rentabilidades agregadas más recientes de cada fondo
     const { data, error } = await supabase
@@ -123,13 +127,20 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "rentabilidades-agregadas-post", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdmin();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fecha_calculo = formData.get('fecha_calculo') as string || new Date().toISOString().split('T')[0];
     const modo = formData.get('modo') as string || 'reemplazar';
 
-    console.log('📤 POST rentabilidades-agregadas:', { fileName: file?.name, fecha_calculo, modo });
     const startTime = Date.now();
 
     if (!file) {
@@ -148,9 +159,6 @@ export async function POST(request: NextRequest) {
     const sheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json<ExcelRow>(sheet);
 
-    console.log('📊 Excel procesado:', { totalFilas: data.length, primeraFila: data[0] });
-    console.log('📋 Columnas detectadas:', data[0] ? Object.keys(data[0]) : 'ninguna');
-
     if (data.length === 0) {
       return NextResponse.json(
         { success: false, error: 'El archivo Excel está vacío' },
@@ -161,8 +169,6 @@ export async function POST(request: NextRequest) {
     // ✅ OPTIMIZACIÓN 1: Obtener TODOS los fondos con paginación (Supabase limita a 1000 por query)
     const fondosMap = new Map<string, string>(); // key: "fo_run-fm_serie", value: id
     const fondosNoEncontrados: string[] = [];
-
-    console.log('🔍 Buscando fondos en batch (con paginación)...');
 
     // Paginar para obtener todos los fondos (Supabase limita a 1000 por query)
     const PAGE_SIZE = 1000;
@@ -200,8 +206,6 @@ export async function POST(request: NextRequest) {
       if (currentPage >= 10) hasMore = false;
     }
 
-    console.log('✅ Fondos cargados:', fondosMap.size, '(' + currentPage + ' páginas)');
-
     // ✅ OPTIMIZACIÓN 2: Preparar registros sin queries individuales
     const registros: RentabilidadRegistro[] = [];
     let errores = 0;
@@ -216,9 +220,6 @@ export async function POST(request: NextRequest) {
                          row.SERIE || row.Serie)?.toString().trim().toUpperCase();
         
         if (!fo_run || !fm_serie) {
-          if (errores < 3) {
-            console.log('⚠️ Fila sin fo_run o fm_serie:', { fo_run, fm_serie, row: JSON.stringify(row).substring(0, 200) });
-          }
           errores++;
           continue;
         }
@@ -277,8 +278,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('📝 Registros preparados:', { total: registros.length, errores });
-
     if (registros.length === 0) {
       return NextResponse.json(
         { 
@@ -292,7 +291,6 @@ export async function POST(request: NextRequest) {
 
     // Si modo es 'reemplazar', borrar datos de la misma fecha
     if (modo === 'reemplazar') {
-      console.log('🗑️ Borrando datos existentes de la fecha:', fecha_calculo);
       const { error: deleteError } = await supabase
         .from('fondos_rentabilidades_agregadas')
         .delete()
@@ -310,8 +308,6 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < registros.length; i += BATCH_SIZE) {
       const batch = registros.slice(i, i + BATCH_SIZE);
       
-      console.log(`💾 Insertando batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(registros.length / BATCH_SIZE)}...`);
-
       const { error: insertError } = await supabase
         .from('fondos_rentabilidades_agregadas')
         .insert(batch);
@@ -325,7 +321,6 @@ export async function POST(request: NextRequest) {
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`✅ Completado en ${totalTime}s: ${insertados} registros insertados`);
 
     return NextResponse.json({
       success: true,

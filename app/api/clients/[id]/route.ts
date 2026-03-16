@@ -2,6 +2,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
+import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -52,28 +54,25 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "client-get", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("client-get", async () => {
     const { id } = await context.params;
 
     // Verificar acceso al cliente
     const access = await verifyClientAccess(supabase, id, advisor!.id);
     if (!access.exists) {
-      return NextResponse.json(
-        { success: false, error: "Cliente no encontrado" },
-        { status: 404 }
-      );
+      return errorResponse("Cliente no encontrado", 404);
     }
     if (!access.canAccess) {
-      return NextResponse.json(
-        { success: false, error: "No tiene permiso para ver este cliente" },
-        { status: 403 }
-      );
+      return errorResponse("No tiene permiso para ver este cliente", 403);
     }
 
     // Obtener cliente con interacciones
@@ -95,9 +94,7 @@ export async function GET(
       .eq("id", id)
       .single();
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     // Ordenar interacciones por fecha (más reciente primero)
     if (client.client_interactions) {
@@ -125,19 +122,8 @@ export async function GET(
       parentClient = parent;
     }
 
-    return NextResponse.json({
-      success: true,
-      client,
-      associatedClients: associatedClients || [],
-      parentClient,
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener cliente";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+    return successResponse({ client, associatedClients: associatedClients || [], parentClient });
+  });
 }
 
 // PUT - Actualizar cliente (si pertenece al advisor o no tiene asesor)
@@ -146,28 +132,25 @@ export async function PUT(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "client-put", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("client-put", async () => {
     const { id } = await context.params;
 
     // Verificar acceso al cliente
     const access = await verifyClientAccess(supabase, id, advisor!.id);
     if (!access.exists) {
-      return NextResponse.json(
-        { success: false, error: "Cliente no encontrado" },
-        { status: 404 }
-      );
+      return errorResponse("Cliente no encontrado", 404);
     }
     if (!access.canAccess) {
-      return NextResponse.json(
-        { success: false, error: "No tiene permiso para modificar este cliente" },
-        { status: 403 }
-      );
+      return errorResponse("No tiene permiso para modificar este cliente", 403);
     }
 
     const body = await request.json();
@@ -202,10 +185,7 @@ export async function PUT(
 
     if (error) {
       if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { success: false, error: "Cliente no encontrado" },
-          { status: 404 }
-        );
+        return errorResponse("Cliente no encontrado", 404);
       }
       throw error;
     }
@@ -222,17 +202,8 @@ export async function PUT(
       },
     ]);
 
-    return NextResponse.json({
-      success: true,
-      client: updatedClient,
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al actualizar cliente";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+    return successResponse({ client: updatedClient });
+  });
 }
 
 // DELETE - Desactivar cliente (soft delete)
@@ -241,28 +212,25 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "client-delete", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("client-delete", async () => {
     const { id } = await context.params;
 
     // Verificar acceso al cliente
     const access = await verifyClientAccess(supabase, id, advisor!.id);
     if (!access.exists) {
-      return NextResponse.json(
-        { success: false, error: "Cliente no encontrado" },
-        { status: 404 }
-      );
+      return errorResponse("Cliente no encontrado", 404);
     }
     if (!access.canAccess) {
-      return NextResponse.json(
-        { success: false, error: "No tiene permiso para eliminar este cliente" },
-        { status: 403 }
-      );
+      return errorResponse("No tiene permiso para eliminar este cliente", 403);
     }
 
     // Solo soft delete (marcar como inactivo)
@@ -281,10 +249,7 @@ export async function DELETE(
 
     if (error) {
       if (error.code === "PGRST116") {
-        return NextResponse.json(
-          { success: false, error: "Cliente no encontrado" },
-          { status: 404 }
-        );
+        return errorResponse("Cliente no encontrado", 404);
       }
       throw error;
     }
@@ -301,16 +266,6 @@ export async function DELETE(
       },
     ]);
 
-    return NextResponse.json({
-      success: true,
-      message: "Cliente marcado como inactivo",
-      client,
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al eliminar cliente";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+    return successResponse({ message: "Cliente marcado como inactivo", client });
+  });
 }

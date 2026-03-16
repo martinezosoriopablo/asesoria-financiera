@@ -4,8 +4,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { smartBondSearch, type BondSearchResult } from "@/lib/openfigi/client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "bonds-search", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;

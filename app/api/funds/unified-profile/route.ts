@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 const ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query";
@@ -41,7 +42,6 @@ interface FundProfile {
 // ============================================================
 async function fetchFromAlphaVantage(symbol: string): Promise<FundProfile | null> {
   if (!ALPHA_VANTAGE_API_KEY) {
-    console.log("Alpha Vantage API key not configured");
     return null;
   }
 
@@ -67,7 +67,6 @@ async function fetchFromAlphaVantage(symbol: string): Promise<FundProfile | null
                           message.toLowerCase().includes("premium");
 
     if (isRateLimited) {
-      console.log(`Alpha Vantage rate limited for ${symbol}`);
       return null;
     }
 
@@ -76,7 +75,6 @@ async function fetchFromAlphaVantage(symbol: string): Promise<FundProfile | null
     const currentPrice = parseFloat(quote["05. price"]);
 
     if (!currentPrice || isNaN(currentPrice)) {
-      console.log(`No price data from Alpha Vantage for ${symbol}`);
       return null;
     }
 
@@ -149,20 +147,17 @@ async function fetchFromYahooFinance(symbol: string, fundName?: string): Promise
     });
 
     if (!response.ok) {
-      console.log(`Yahoo Finance returned ${response.status} for ${yahooSymbol}`);
       return null;
     }
 
     const data = await response.json();
 
     if (data.chart?.error) {
-      console.log(`Yahoo Finance error for ${yahooSymbol}:`, data.chart.error.description);
       return null;
     }
 
     const result = data.chart?.result?.[0];
     if (!result) {
-      console.log(`No Yahoo Finance data for ${yahooSymbol}`);
       return null;
     }
 
@@ -178,7 +173,6 @@ async function fetchFromYahooFinance(symbol: string, fundName?: string): Promise
     })).filter((d: { date: string; close: number | null }) => d.close !== null);
 
     if (historicalData.length === 0) {
-      console.log(`No historical data from Yahoo for ${yahooSymbol}`);
       return null;
     }
 
@@ -212,7 +206,6 @@ async function fetchFromMassive(symbol: string): Promise<FundProfile | null> {
   // Massive.com is integrated via MCP, not direct API
   // This would need to be called differently in the frontend
   // For now, return null as it's not directly accessible from API routes
-  console.log(`Massive.com fallback not available for ${symbol} in API route`);
   return null;
 }
 
@@ -321,6 +314,9 @@ function calculateReturnsFromMonthly(historicalData: { date: string; close: numb
 // MAIN API HANDLER
 // ============================================================
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "funds-unified-profile", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
   const name = searchParams.get("name");
@@ -333,47 +329,36 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  console.log(`\n=== Unified Profile Request: ${symbol} ===`);
-
   let profile: FundProfile | null = null;
   const attempts: string[] = [];
 
   // 1. Try Alpha Vantage first (unless skipped)
   if (!skipAlphaVantage) {
-    console.log(`1. Trying Alpha Vantage for ${symbol}...`);
     profile = await fetchFromAlphaVantage(symbol);
     if (profile) {
       attempts.push("alphavantage:success");
-      console.log(`   ✓ Found in Alpha Vantage`);
     } else {
       attempts.push("alphavantage:failed");
-      console.log(`   ✗ Not found in Alpha Vantage`);
     }
   }
 
   // 2. Try Yahoo Finance as fallback
   if (!profile) {
-    console.log(`2. Trying Yahoo Finance for ${symbol}...`);
     profile = await fetchFromYahooFinance(symbol, name || undefined);
     if (profile) {
       attempts.push("yahoo:success");
-      console.log(`   ✓ Found in Yahoo Finance`);
     } else {
       attempts.push("yahoo:failed");
-      console.log(`   ✗ Not found in Yahoo Finance`);
     }
   }
 
   // 3. Try Massive.com as last resort (placeholder)
   if (!profile) {
-    console.log(`3. Trying Massive.com for ${symbol}...`);
     profile = await fetchFromMassive(symbol);
     if (profile) {
       attempts.push("massive:success");
-      console.log(`   ✓ Found in Massive.com`);
     } else {
       attempts.push("massive:failed");
-      console.log(`   ✗ Not found in Massive.com`);
     }
   }
 

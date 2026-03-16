@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -99,7 +101,6 @@ function fixChileanNumbers(parsed: {
         // Probablemente mal parseado - remover los puntos
         const fixed = parseFloat(strValue.replace(/\./g, ''));
         if (!isNaN(fixed)) {
-          console.log(`Fixed number: ${value} -> ${fixed}`);
           return fixed;
         }
       }
@@ -109,7 +110,6 @@ function fixChileanNumbers(parsed: {
       if (value < 1000 && decimalPart.length >= 3) {
         const fixed = parseFloat(strValue.replace(/\./g, ''));
         if (!isNaN(fixed) && fixed > 10000) {
-          console.log(`Fixed small number: ${value} -> ${fixed}`);
           return fixed;
         }
       }
@@ -141,6 +141,12 @@ function fixChileanNumbers(parsed: {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "parse-statement", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -155,8 +161,6 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const base64 = buffer.toString("base64");
-
-    console.log("Sending portfolio statement to Claude API...");
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -265,7 +269,6 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     }
 
     const data = await response.json();
-    console.log("Claude API response received");
 
     let parsed;
     try {
@@ -280,13 +283,11 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
       }
 
       parsed = JSON.parse(jsonText);
-      console.log("Portfolio statement parsed successfully");
 
       // Post-procesar para corregir números mal parseados (formato chileno)
       fixChileanNumbers(parsed);
     } catch (parseError) {
       console.error("Error parsing JSON from Claude:", parseError);
-      console.log("Raw response:", data.content);
       throw new Error("Error al procesar respuesta de Claude");
     }
 
@@ -313,13 +314,10 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
         const match = textContent.match(pattern);
         if (match) {
           parsed.period = match[0];
-          console.log(`Extracted period from response text: ${parsed.period}`);
           break;
         }
       }
     }
-
-    console.log(`PDF parsed - period: ${parsed.period || "not found"}, holdings: ${parsed.holdings?.length || 0}`);
 
     return NextResponse.json({
       ...parsed,

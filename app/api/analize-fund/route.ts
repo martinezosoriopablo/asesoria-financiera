@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -8,6 +10,12 @@ interface ClaudeContentBlock {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "analize-fund", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   try {
     const formData = await request.formData();
     const file = formData.get("pdf") as File;
@@ -20,8 +28,6 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const base64 = buffer.toString("base64");
-
-    console.log("Sending PDF to Claude API for analysis...");
 
     // Call Claude API to extract data from PDF
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -131,7 +137,6 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     }
 
     const data = await response.json();
-    console.log("Claude API response received");
 
     // Extract JSON from Claude's response
     let fundData;
@@ -148,10 +153,8 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
       }
 
       fundData = JSON.parse(jsonText);
-      console.log("Fund data parsed successfully");
     } catch (parseError) {
       console.error("Error parsing JSON from Claude:", parseError);
-      console.log("Raw response:", data.content);
       throw new Error("Error al procesar respuesta de Claude");
     }
 

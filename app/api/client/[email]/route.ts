@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ email: string }> }
 ) {
+  const blocked = applyRateLimit(request, "client-by-email", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   try {
     const { email } = await params;
 
@@ -18,7 +22,7 @@ export async function GET(
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createAdminClient();
 
     // Buscar el cliente por email
     const { data: client, error: clientError } = await supabase
@@ -29,7 +33,7 @@ export async function GET(
 
     if (clientError || !client) {
       return NextResponse.json(
-        { error: "Client not found", details: clientError?.message },
+        { error: "Client not found" },
         { status: 404 }
       );
     }
@@ -44,7 +48,7 @@ export async function GET(
 
     if (profileError || !riskProfiles || riskProfiles.length === 0) {
       return NextResponse.json(
-        { error: "Risk profile not found for this client", details: profileError?.message },
+        { error: "Risk profile not found for this client" },
         { status: 404 }
       );
     }
@@ -61,7 +65,7 @@ export async function GET(
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(
-      { error: "Internal server error", details: error instanceof Error ? error.message : String(error) },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

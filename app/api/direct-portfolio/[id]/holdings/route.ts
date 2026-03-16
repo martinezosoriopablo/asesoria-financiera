@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // Helper para verificar permisos sobre el portafolio
 async function verifyPortfolioAccess(
@@ -38,6 +39,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const blocked = applyRateLimit(request, "portfolio-holdings", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
@@ -85,6 +89,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const blocked = applyRateLimit(request, "holdings-post", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
@@ -177,6 +184,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const blocked = applyRateLimit(request, "holdings-put", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
@@ -261,6 +271,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const blocked = applyRateLimit(request, "holdings-delete", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { requireAdmin, createAdminClient } from '@/lib/auth/api-auth';
 import * as XLSX from 'xlsx';
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface TacExcelRow {
   fo_run?: string | number;
@@ -20,19 +21,21 @@ interface FondoMutuo {
   fm_serie: string;
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "tac-post", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdmin();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fecha_actualizacion = formData.get('fecha_actualizacion') as string || new Date().toISOString().split('T')[0];
     const modo = formData.get('modo') as string || 'actualizar';
 
-    console.log('📤 POST tac:', { fileName: file?.name, fecha_actualizacion, modo });
     const startTime = Date.now();
 
     if (!file) {
@@ -50,8 +53,6 @@ export async function POST(request: NextRequest) {
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(sheet);
-
-    console.log('📊 Excel procesado:', { totalFilas: data.length });
 
     if (data.length === 0) {
       return NextResponse.json(
@@ -75,8 +76,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('🔍 Buscando fondos en batch:', fondosKeys.size);
-
     // ✅ BATCH QUERY: Obtener todos los fondos de una vez
     const { data: fondos, error: fondosError } = await supabase
       .from('fondos_mutuos')
@@ -96,8 +95,6 @@ export async function POST(request: NextRequest) {
       const key = `${fondo.fo_run}-${fondo.fm_serie}`;
       fondosMap.set(key, fondo.id);
     });
-
-    console.log('✅ Fondos encontrados:', fondosMap.size);
 
     // ✅ OPTIMIZACIÓN 2: Preparar todas las actualizaciones
     const updates: Array<{ id: string; fo_run: number; fm_serie: string; tac_sintetica: number }> = [];
@@ -135,8 +132,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('📝 Updates preparados:', updates.length);
-
     if (updates.length === 0) {
       return NextResponse.json(
         { 
@@ -155,8 +150,6 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < updates.length; i += BATCH_SIZE) {
       const batch = updates.slice(i, i + BATCH_SIZE);
       
-      console.log(`💾 Procesando batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(updates.length / BATCH_SIZE)}...`);
-
       // Usar upsert para batch update
       const { error: upsertError } = await supabase
         .from('fondos_mutuos')
@@ -180,7 +173,6 @@ export async function POST(request: NextRequest) {
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`✅ Completado en ${totalTime}s: ${actualizados} fondos actualizados`);
 
     return NextResponse.json({
       success: true,

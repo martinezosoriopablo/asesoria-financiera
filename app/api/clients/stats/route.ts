@@ -1,18 +1,31 @@
 // app/api/clients/stats/route.ts
 
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest } from "next/server";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
+import { successResponse, handleApiError } from "@/lib/api-response";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "clients-stats", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
 
-export async function GET() {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
 
-  try {
+  const supabase = createAdminClient();
+
+  return handleApiError("clients-stats", async () => {
+    // Scope to advisor's clients (admin sees subordinates too)
+    let allowedAdvisorIds: string[] = [advisor!.id];
+    if (advisor!.rol === 'admin') {
+      allowedAdvisorIds = await getSubordinateAdvisorIds(advisor!.id);
+    }
+    const idsFilter = allowedAdvisorIds.map(id => `asesor_id.eq.${id}`).join(',');
+
     const { data: clients, error } = await supabase
       .from("clients")
-      .select("*");
+      .select("*")
+      .or(`${idsFilter},asesor_id.is.null`);
 
     if (error) throw error;
 
@@ -39,22 +52,11 @@ export async function GET() {
       return new Date(client.last_interaction) < thirtyDaysAgo;
     }).length || 0;
 
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       stats: {
         ...stats,
         clientes_sin_seguimiento: clientsNeedingFollowup,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error fetching stats:", error);
-    const message = error instanceof Error ? error.message : "Error al obtener estadísticas";
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

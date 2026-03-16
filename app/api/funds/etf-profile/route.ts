@@ -2,10 +2,14 @@
 // Obtiene perfil detallado de un ETF usando Alpha Vantage
 
 import { NextRequest, NextResponse } from "next/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "funds-etf-profile", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   if (!ALPHA_VANTAGE_API_KEY) {
     return NextResponse.json(
       { success: false, error: "Alpha Vantage API key not configured" },

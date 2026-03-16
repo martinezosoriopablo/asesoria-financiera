@@ -1,11 +1,15 @@
 // app/api/securities/bonds/status/route.ts
 // API para verificar el estado de la integración con Finnhub
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { isFinnhubConfigured } from "@/lib/finnhub/bond-client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "bonds-status", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;

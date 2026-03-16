@@ -2,19 +2,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
-
-// Sanitiza string para uso en queries ILIKE (previene inyección)
-function sanitizeSearchInput(input: string): string {
-  // Limitar longitud y escapar caracteres especiales de PostgreSQL
-  return input
-    .slice(0, 100)
-    .replace(/[%_\\]/g, "\\$&");
-}
+import { sanitizeSearchInput } from "@/lib/sanitize";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener lista de clientes
 // - Advisor normal: ve sus clientes + huérfanos
 // - Admin: ve sus clientes + clientes de subordinados + huérfanos
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "clients-list", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
@@ -90,6 +87,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Crear nuevo cliente (asignado al advisor autenticado)
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "clients-post", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;

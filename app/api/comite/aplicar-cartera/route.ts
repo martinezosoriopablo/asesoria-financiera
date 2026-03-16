@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface CarteraPosition {
   clase: string;
@@ -48,6 +49,9 @@ interface AplicarCarteraRequest {
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "aplicar-cartera", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const supabase = await createSupabaseServerClient();
 

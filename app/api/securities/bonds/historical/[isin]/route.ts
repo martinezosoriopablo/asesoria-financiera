@@ -12,6 +12,7 @@ import {
   getBondProfile,
   calculateBondMetrics,
 } from "@/lib/finnhub/bond-client";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 type RangeType = "1mo" | "3mo" | "6mo" | "1y" | "2y" | "5y";
 
@@ -28,6 +29,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ isin: string }> }
 ) {
+  const blocked = applyRateLimit(request, "bonds-historical", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   // Verificar autenticación
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;

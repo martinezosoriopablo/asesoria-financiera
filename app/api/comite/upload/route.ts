@@ -3,10 +3,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
 
 export async function POST(request: NextRequest) {
+  const blocked = applyRateLimit(request, "comite-upload", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const supabase = await createSupabaseServerClient();
 

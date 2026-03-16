@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -26,6 +27,9 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "snapshot-get", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const supabase = await createSupabaseServerClient();
 
@@ -78,6 +82,9 @@ export async function PUT(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "snapshot-put", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const supabase = await createSupabaseServerClient();
 
@@ -221,6 +228,9 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "snapshot-delete", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   try {
     const supabase = await createSupabaseServerClient();
 

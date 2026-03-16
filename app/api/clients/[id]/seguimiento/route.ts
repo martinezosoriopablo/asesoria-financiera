@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -66,6 +67,9 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
+  const blocked = applyRateLimit(request, "client-seguimiento", { limit: 30, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 

@@ -2,7 +2,7 @@
 // Callback de OAuth para Google Calendar
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/auth/api-auth";
 import { exchangeCodeForTokens } from "@/lib/google/calendar-client";
 
 export async function GET(request: NextRequest) {
@@ -35,10 +35,7 @@ export async function GET(request: NextRequest) {
     const tokens = await exchangeCodeForTokens(code);
 
     // Guardar tokens en la base de datos
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const supabase = createAdminClient();
 
     // Verificar que el advisor existe
     const { data: advisor, error: advisorError } = await supabase

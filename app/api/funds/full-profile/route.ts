@@ -3,6 +3,7 @@
 // Optimizado para API pagada de Alpha Vantage (75 req/min)
 
 import { NextRequest, NextResponse } from "next/server";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 const BASE_URL = "https://www.alphavantage.co/query";
@@ -108,6 +109,9 @@ function calculateReturns(historicalData: HistoricalData[]) {
 }
 
 export async function GET(request: NextRequest) {
+  const blocked = applyRateLimit(request, "funds-full-profile", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   if (!ALPHA_VANTAGE_API_KEY) {
     return NextResponse.json(
       { success: false, error: "Alpha Vantage API key not configured" },
@@ -144,9 +148,6 @@ export async function GET(request: NextRequest) {
       overviewResponse.json(),
       etfResponse.json(),
     ]);
-
-    // Log para debug
-    console.log("Full profile for:", symbol);
 
     // Verificar rate limit - solo si contiene palabras clave específicas
     const message = quoteData.Note || quoteData.Information || "";
