@@ -89,6 +89,79 @@ export default function MarketDashboard() {
   // Estados para modales de carga masiva
   const [uploadRentAgregadasModalOpen, setUploadRentAgregadasModalOpen] = useState(false);
   const [uploadTACModalOpen, setUploadTACModalOpen] = useState(false);
+
+  // Sync Fintual
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{
+    providers: number;
+    funds: number;
+    lastUpdate: string | null;
+  } | null>(null);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+  // Cargar estado de sync Fintual
+  useEffect(() => {
+    const fetchSyncStatus = async () => {
+      try {
+        const response = await fetch('/api/fintual/sync');
+        const data = await response.json();
+        if (data.success) {
+          setSyncStatus(data.stats);
+        }
+      } catch (error) {
+        console.error('Error cargando sync status:', error);
+      }
+    };
+    fetchSyncStatus();
+  }, []);
+
+  const handleSyncFintual = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch('/api/fintual/sync?full=true', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSyncResult(`Sincronizado: ${data.result.providers} proveedores, ${data.result.funds} fondos, ${data.result.series} series`);
+        // Recargar status
+        const statusRes = await fetch('/api/fintual/sync');
+        const statusData = await statusRes.json();
+        if (statusData.success) setSyncStatus(statusData.stats);
+      } else {
+        setSyncResult(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setSyncResult('Error de conexión');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSyncPrices = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch('/api/fintual/prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fintual_ids: [], days: 30 }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSyncResult(`Precios: ${data.results.synced} fondos sincronizados, ${data.results.pricesAdded} registros`);
+      } else {
+        setSyncResult(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      setSyncResult('Error de conexión');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Cargar estadísticas
   useEffect(() => {
     const fetchStats = async () => {
@@ -237,13 +310,67 @@ export default function MarketDashboard() {
           </p>
         </div>
 
-        {/* Botones de carga masiva */}
+        {/* Botones de acción */}
         <div style={{
           display: 'flex',
           gap: '12px',
           marginBottom: '20px',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          alignItems: 'center'
         }}>
+          {/* Sync Fintual (solo admin) */}
+          {advisor?.isAdmin && (
+            <>
+              <button
+                onClick={handleSyncFintual}
+                disabled={syncing}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: syncing ? '#94a3b8' : '#f59e0b',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: syncing ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 4px rgba(245, 158, 11, 0.2)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => { if (!syncing) e.currentTarget.style.backgroundColor = '#d97706'; }}
+                onMouseOut={(e) => { if (!syncing) e.currentTarget.style.backgroundColor = '#f59e0b'; }}
+              >
+                {syncing ? 'Sincronizando...' : 'Sync Fintual (Cat\u00e1logo)'}
+              </button>
+
+              <button
+                onClick={handleSyncPrices}
+                disabled={syncing}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: syncing ? '#94a3b8' : '#0ea5e9',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: syncing ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 4px rgba(14, 165, 233, 0.2)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => { if (!syncing) e.currentTarget.style.backgroundColor = '#0284c7'; }}
+                onMouseOut={(e) => { if (!syncing) e.currentTarget.style.backgroundColor = '#0ea5e9'; }}
+              >
+                {syncing ? 'Sincronizando...' : 'Sync Precios (30d)'}
+              </button>
+            </>
+          )}
+
           <button
             onClick={() => setUploadRentAgregadasModalOpen(true)}
             style={{
@@ -264,7 +391,6 @@ export default function MarketDashboard() {
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#059669'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
           >
-            <span style={{ fontSize: '18px' }}>📊</span>
             Cargar Rentabilidades
           </button>
 
@@ -288,10 +414,40 @@ export default function MarketDashboard() {
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#4f46e5'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#6366f1'}
           >
-            <span style={{ fontSize: '18px' }}>💰</span>
             Cargar TAC
           </button>
         </div>
+
+        {/* Sync status + resultado */}
+        {(syncStatus || syncResult) && (
+          <div style={{
+            padding: '12px 16px',
+            borderRadius: '8px',
+            backgroundColor: syncResult?.startsWith('Error') ? '#fef2f2' : '#f0f9ff',
+            border: `1px solid ${syncResult?.startsWith('Error') ? '#fecaca' : '#bae6fd'}`,
+            marginBottom: '20px',
+            fontSize: '13px',
+            color: '#334155',
+            display: 'flex',
+            gap: '16px',
+            flexWrap: 'wrap',
+            alignItems: 'center'
+          }}>
+            {syncStatus && (
+              <span>
+                Fintual: <strong>{syncStatus.funds}</strong> fondos de <strong>{syncStatus.providers}</strong> proveedores
+                {syncStatus.lastUpdate && (
+                  <> &mdash; Actualizado: {new Date(syncStatus.lastUpdate).toLocaleDateString('es-CL')}</>
+                )}
+              </span>
+            )}
+            {syncResult && (
+              <span style={{ fontWeight: '600', color: syncResult.startsWith('Error') ? '#dc2626' : '#059669' }}>
+                {syncResult}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Filtros */}
         <div style={{ 
