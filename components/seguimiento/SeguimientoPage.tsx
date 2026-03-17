@@ -105,6 +105,9 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [period, setPeriod] = useState("ALL");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState<Snapshot | null>(null);
+  const [fillingPrices, setFillingPrices] = useState(false);
+  const [fillResult, setFillResult] = useState<string | null>(null);
+  const [fillDetails, setFillDetails] = useState<Array<{ name: string; securityId?: string | null; source: string; sourceId: string | null }> | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -139,6 +142,36 @@ export default function SeguimientoPage({ clientId }: Props) {
   const handleSnapshotUpdated = () => {
     setEditingSnapshot(null);
     fetchData();
+  };
+
+  const handleFillPrices = async () => {
+    if (fillingPrices) return;
+    setFillingPrices(true);
+    setFillResult(null);
+    setFillDetails(null);
+    try {
+      const res = await fetch("/api/portfolio/fill-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        const matches = result.result.holdingMatches || [];
+        const matched = matches.filter((m: { source: string }) => m.source !== "none").length;
+        setFillResult(
+          `${result.result.filled} snapshots creados (${matched}/${matches.length} holdings con precios)${result.result.errors?.length ? ` — ${result.result.errors.length} errores` : ""}`
+        );
+        setFillDetails(matches);
+        fetchData();
+      } else {
+        setFillResult(`Error: ${result.error}`);
+      }
+    } catch {
+      setFillResult("Error de conexión");
+    } finally {
+      setFillingPrices(false);
+    }
   };
 
   const handleDeleteSnapshot = async (snapshotId: string) => {
@@ -261,6 +294,14 @@ export default function SeguimientoPage({ clientId }: Props) {
               Actualizar
             </button>
             <button
+              onClick={handleFillPrices}
+              disabled={fillingPrices || snapshots.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
+              {fillingPrices ? "Llenando..." : "Llenar Precios"}
+            </button>
+            <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
@@ -269,6 +310,56 @@ export default function SeguimientoPage({ clientId }: Props) {
             </button>
           </div>
         </div>
+
+        {/* Fill prices result banner */}
+        {fillResult && (
+          <div
+            className={`mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between ${
+              fillResult.startsWith("Error")
+                ? "bg-red-50 border border-red-200 text-red-700"
+                : "bg-green-50 border border-green-200 text-green-700"
+            }`}
+          >
+            <span>{fillResult}</span>
+            <button
+              onClick={() => { setFillResult(null); setFillDetails(null); }}
+              className="text-current opacity-60 hover:opacity-100 ml-4"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
+        {/* Fill prices holding match details */}
+        {fillDetails && fillDetails.length > 0 && (
+          <div className="mb-4 bg-white border border-gb-border rounded-lg p-4 text-xs">
+            <p className="font-semibold text-gb-black mb-2">Detalle de matching de holdings:</p>
+            <div className="grid gap-1">
+              {fillDetails.map((h, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className={`inline-block w-2 h-2 rounded-full ${
+                    h.source === "fintual" ? "bg-green-500" :
+                    h.source === "yahoo" ? "bg-blue-500" :
+                    h.source === "bolsa_santiago" ? "bg-yellow-500" :
+                    h.source === "alphavantage" ? "bg-purple-500" : "bg-red-400"
+                  }`} />
+                  <span className="text-gb-black font-medium truncate max-w-[300px]">{h.name}</span>
+                  {h.securityId && <span className="text-gb-gray">({h.securityId})</span>}
+                  <span className="text-gb-gray">→</span>
+                  <span className={`font-medium ${h.source === "none" ? "text-red-600" : "text-green-700"}`}>
+                    {h.source === "none" ? "Sin fuente" : `${h.source}: ${h.sourceId}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setFillDetails(null)}
+              className="mt-2 text-gb-gray hover:text-gb-black text-xs underline"
+            >
+              Ocultar detalle
+            </button>
+          </div>
+        )}
 
         {/* Summary cards */}
         {metrics && (

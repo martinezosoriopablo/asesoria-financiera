@@ -165,6 +165,111 @@ export async function searchChileanStocks(query: string): Promise<ChileanStock[]
   }));
 }
 
+/**
+ * Obtiene precios históricos de un instrumento (Bolsa de Santiago)
+ * Endpoint: getPointHistGAT — devuelve precios de cierre diarios
+ */
+export async function getHistoricalPrices(
+  nemo: string,
+  fromDate: string,
+  toDate: string
+): Promise<Array<{ date: string; close: number; open?: number; high?: number; low?: number; volume?: number }>> {
+  // Formatear fechas a DD-MM-YYYY si vienen en YYYY-MM-DD
+  const formatDate = (d: string) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y, m, day] = d.split("-");
+      return `${day}-${m}-${y}`;
+    }
+    return d;
+  };
+
+  const data = await makeRequest<{
+    listaResult?: Array<{
+      Fecha?: string;
+      FechaString?: string;
+      PrecioCierre?: number;
+      PrecioApertura?: number;
+      PrecioMaximo?: number;
+      PrecioMinimo?: number;
+      Volumen?: number;
+      VolumenMonto?: number;
+    }>;
+  }>("/TickerOnDemand/getPointHistGAT", {
+    Nemo: nemo.toUpperCase(),
+    FechaDesde: formatDate(fromDate),
+    FechaHasta: formatDate(toDate),
+    TipoVal: "ALL",
+  });
+
+  if (!data?.listaResult) {
+    // Try alternative endpoint
+    const altData = await makeRequest<{
+      listaResult?: Array<{
+        Fecha?: string;
+        FechaString?: string;
+        PrecioCierre?: number;
+        PrecioApertura?: number;
+        PrecioMaximo?: number;
+        PrecioMinimo?: number;
+        Volumen?: number;
+      }>;
+    }>("/ClienteHistorico/getSerieHistorica", {
+      Nemo: nemo.toUpperCase(),
+      FechaDesde: formatDate(fromDate),
+      FechaHasta: formatDate(toDate),
+    });
+
+    if (!altData?.listaResult) return [];
+
+    return altData.listaResult
+      .filter((item) => item.PrecioCierre && item.PrecioCierre > 0)
+      .map((item) => ({
+        date: parseApiDate(item.FechaString || item.Fecha || ""),
+        close: item.PrecioCierre!,
+        open: item.PrecioApertura,
+        high: item.PrecioMaximo,
+        low: item.PrecioMinimo,
+        volume: item.Volumen,
+      }))
+      .filter((item) => item.date !== "");
+  }
+
+  return data.listaResult
+    .filter((item) => item.PrecioCierre && item.PrecioCierre > 0)
+    .map((item) => ({
+      date: parseApiDate(item.FechaString || item.Fecha || ""),
+      close: item.PrecioCierre!,
+      open: item.PrecioApertura,
+      high: item.PrecioMaximo,
+      low: item.PrecioMinimo,
+      volume: item.Volumen,
+    }))
+    .filter((item) => item.date !== "");
+}
+
+/**
+ * Parse date from Bolsa de Santiago format (DD-MM-YYYY or DD/MM/YYYY) to YYYY-MM-DD
+ */
+function parseApiDate(dateStr: string): string {
+  if (!dateStr) return "";
+  // Handle DD-MM-YYYY or DD/MM/YYYY
+  const match = dateStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  // Handle YYYY-MM-DD (already in correct format)
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    return dateStr.split("T")[0];
+  }
+  // Handle ISO date
+  try {
+    return new Date(dateStr).toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+}
+
 // Cache de instrumentos para evitar llamadas repetidas
 let instrumentosCache: BolsaSantiagoInstrumento[] | null = null;
 let cacheTimestamp = 0;
