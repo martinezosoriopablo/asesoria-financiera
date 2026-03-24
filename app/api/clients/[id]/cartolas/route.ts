@@ -1,11 +1,39 @@
 // app/api/clients/[id]/cartolas/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
+}
+
+/** Check if advisor can access this client (own, orphan, or subordinate's) */
+async function checkClientAccess(
+  supabase: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  advisor: { id: string; rol: string }
+) {
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id, asesor_id")
+    .eq("id", clientId)
+    .single();
+
+  if (!client) return { ok: false as const, status: 404, error: "Cliente no encontrado" };
+
+  if (client.asesor_id && client.asesor_id !== advisor.id) {
+    if (advisor.rol === "admin") {
+      const allowedIds = await getSubordinateAdvisorIds(advisor.id);
+      if (!allowedIds.includes(client.asesor_id)) {
+        return { ok: false as const, status: 403, error: "No autorizado" };
+      }
+    } else {
+      return { ok: false as const, status: 403, error: "No autorizado" };
+    }
+  }
+
+  return { ok: true as const };
 }
 
 // GET - Obtener todas las cartolas de un cliente
@@ -24,19 +52,9 @@ export async function GET(
   try {
     const { id: clientId } = await context.params;
 
-    // Verificar que el cliente pertenece al advisor
-    const { data: client } = await supabase
-      .from("clients")
-      .select("id, asesor_id")
-      .eq("id", clientId)
-      .single();
-
-    if (!client) {
-      return NextResponse.json({ success: false, error: "Cliente no encontrado" }, { status: 404 });
-    }
-
-    if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+    const access = await checkClientAccess(supabase, clientId, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     // Obtener cartolas
@@ -103,19 +121,9 @@ export async function POST(
     const { id: clientId } = await context.params;
     const body = await request.json();
 
-    // Verificar que el cliente pertenece al advisor
-    const { data: client } = await supabase
-      .from("clients")
-      .select("id, asesor_id")
-      .eq("id", clientId)
-      .single();
-
-    if (!client) {
-      return NextResponse.json({ success: false, error: "Cliente no encontrado" }, { status: 404 });
-    }
-
-    if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+    const access = await checkClientAccess(supabase, clientId, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     // Validar datos
@@ -173,19 +181,9 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "cartola_id es requerido" }, { status: 400 });
     }
 
-    // Verificar que el cliente pertenece al advisor
-    const { data: client } = await supabase
-      .from("clients")
-      .select("id, asesor_id")
-      .eq("id", clientId)
-      .single();
-
-    if (!client) {
-      return NextResponse.json({ success: false, error: "Cliente no encontrado" }, { status: 404 });
-    }
-
-    if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+    const access = await checkClientAccess(supabase, clientId, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     // Eliminar cartola

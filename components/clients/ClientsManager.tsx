@@ -10,6 +10,7 @@ import {
   Plus,
   Eye,
   Loader,
+  Trash2,
 } from "lucide-react";
 
 interface Client {
@@ -60,6 +61,7 @@ export default function ClientsManager() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPerfil, setFilterPerfil] = useState("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClients();
@@ -107,6 +109,24 @@ export default function ClientsManager() {
     if (filterStatus !== "all") filtered = filtered.filter((c) => c.status === filterStatus);
     if (filterPerfil !== "all") filtered = filtered.filter((c) => c.perfil_riesgo === filterPerfil);
     setFilteredClients(filtered);
+  };
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    if (!confirm(`¿Eliminar a ${clientName}? El cliente será marcado como inactivo.`)) return;
+    setDeletingId(clientId);
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
+      const data = await response.json();
+      if (data.success) {
+        setClients(prev => prev.filter(c => c.id !== clientId));
+      } else {
+        alert("Error: " + (data.error || "No se pudo eliminar"));
+      }
+    } catch {
+      alert("Error de conexión");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const formatCurrency = (amount: number) =>
@@ -264,13 +284,27 @@ export default function ClientsManager() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <Link
-                            href={`/clients/${client.id}`}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gb-accent hover:text-gb-black border border-gb-border rounded-md hover:bg-gb-light"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            Ver
-                          </Link>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Link
+                              href={`/clients/${client.id}`}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gb-accent hover:text-gb-black border border-gb-border rounded-md hover:bg-gb-light"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver
+                            </Link>
+                            <button
+                              onClick={() => handleDeleteClient(client.id, `${client.nombre} ${client.apellido}`)}
+                              disabled={deletingId === client.id}
+                              className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-red-500 hover:text-red-700 border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+                              title="Eliminar cliente"
+                            >
+                              {deletingId === client.id ? (
+                                <Loader className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

@@ -2,7 +2,7 @@
 // Endpoint consolidado para seguimiento de cartolas
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
@@ -95,10 +95,14 @@ export async function GET(
     }
 
     if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 403 }
-      );
+      if (advisor!.rol === "admin") {
+        const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+        if (!allowedIds.includes(client.asesor_id)) {
+          return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+      }
     }
 
     // Calcular fecha de inicio según periodo
@@ -296,17 +300,41 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
       ? (Math.pow(1 + twr / 100, 1 / yearsElapsed) - 1) * 100
       : twr;
 
-  // Max Drawdown
+  // Max Drawdown — adjusted for cash flows using cuota/unit value
   let maxDrawdown = 0;
-  let peak = snapshots[0].total_value;
+  if (snapshots.length >= 2) {
+    // Use unit value (total_value / total_cuotas) to isolate market returns from cash flows
+    const useUnitValue = snapshots.every(s => s.total_cuotas && s.total_cuotas > 0);
 
-  for (const snapshot of snapshots) {
-    if (snapshot.total_value > peak) {
-      peak = snapshot.total_value;
-    }
-    const drawdown = ((peak - snapshot.total_value) / peak) * 100;
-    if (drawdown > maxDrawdown) {
-      maxDrawdown = drawdown;
+    if (useUnitValue) {
+      let peakUnitValue = snapshots[0].total_value / snapshots[0].total_cuotas!;
+      for (const snapshot of snapshots) {
+        const unitValue = snapshot.total_value / snapshot.total_cuotas!;
+        if (unitValue > peakUnitValue) {
+          peakUnitValue = unitValue;
+        }
+        const drawdown = ((peakUnitValue - unitValue) / peakUnitValue) * 100;
+        if (drawdown > maxDrawdown) {
+          maxDrawdown = drawdown;
+        }
+      }
+    } else {
+      // Fallback: adjust peak by cumulative net cash flows
+      let peak = snapshots[0].total_value;
+      let cumulativeFlow = 0;
+      for (let i = 1; i < snapshots.length; i++) {
+        const flow = snapshots[i].net_cash_flow || 0;
+        cumulativeFlow += flow;
+        const adjustedValue = snapshots[i].total_value - cumulativeFlow;
+        const adjustedPeak = peak; // peak is already in "flow-free" terms
+        if (adjustedValue > adjustedPeak) {
+          peak = adjustedValue;
+        }
+        const drawdown = ((peak - adjustedValue) / peak) * 100;
+        if (drawdown > maxDrawdown) {
+          maxDrawdown = drawdown;
+        }
+      }
     }
   }
 

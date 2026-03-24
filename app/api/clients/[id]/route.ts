@@ -1,7 +1,7 @@
 // app/api/clients/[id]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 
@@ -21,13 +21,14 @@ interface ClientInteraction {
 }
 
 /**
- * Verifica que el cliente pertenece al advisor autenticado o no tiene asesor asignado.
- * Clientes sin asesor (huérfanos) pueden ser accedidos para asignarlos.
+ * Verifica que el cliente pertenece al advisor autenticado, a un subordinado, o no tiene asesor asignado.
+ * Admins pueden acceder a clientes de sus subordinados.
  */
 async function verifyClientAccess(
   supabase: ReturnType<typeof createAdminClient>,
   clientId: string,
-  advisorId: string
+  advisorId: string,
+  allowedAdvisorIds?: string[]
 ) {
   const { data: client, error } = await supabase
     .from("clients")
@@ -41,10 +42,13 @@ async function verifyClientAccess(
 
   const isOrphan = client.asesor_id === null;
   const isOwned = client.asesor_id === advisorId;
+  const isSubordinate = allowedAdvisorIds
+    ? allowedAdvisorIds.includes(client.asesor_id)
+    : false;
 
   return {
     exists: true,
-    canAccess: isOwned || isOrphan, // Puede acceder si es suyo o si no tiene asesor
+    canAccess: isOwned || isOrphan || isSubordinate,
     isOrphan,
   };
 }
@@ -66,8 +70,13 @@ export async function GET(
   return handleApiError("client-get", async () => {
     const { id } = await context.params;
 
+    // Admins can access clients of subordinates
+    const allowedIds = advisor!.rol === "admin"
+      ? await getSubordinateAdvisorIds(advisor!.id)
+      : undefined;
+
     // Verificar acceso al cliente
-    const access = await verifyClientAccess(supabase, id, advisor!.id);
+    const access = await verifyClientAccess(supabase, id, advisor!.id, allowedIds);
     if (!access.exists) {
       return errorResponse("Cliente no encontrado", 404);
     }
@@ -144,8 +153,12 @@ export async function PUT(
   return handleApiError("client-put", async () => {
     const { id } = await context.params;
 
+    const allowedIds = advisor!.rol === "admin"
+      ? await getSubordinateAdvisorIds(advisor!.id)
+      : undefined;
+
     // Verificar acceso al cliente
-    const access = await verifyClientAccess(supabase, id, advisor!.id);
+    const access = await verifyClientAccess(supabase, id, advisor!.id, allowedIds);
     if (!access.exists) {
       return errorResponse("Cliente no encontrado", 404);
     }
@@ -224,8 +237,12 @@ export async function DELETE(
   return handleApiError("client-delete", async () => {
     const { id } = await context.params;
 
+    const allowedIds = advisor!.rol === "admin"
+      ? await getSubordinateAdvisorIds(advisor!.id)
+      : undefined;
+
     // Verificar acceso al cliente
-    const access = await verifyClientAccess(supabase, id, advisor!.id);
+    const access = await verifyClientAccess(supabase, id, advisor!.id, allowedIds);
     if (!access.exists) {
       return errorResponse("Cliente no encontrado", 404);
     }

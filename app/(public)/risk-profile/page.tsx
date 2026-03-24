@@ -1,10 +1,16 @@
-// app/(public)/risk-profile/page.tsx
-// Redirect to canonical URL /client/risk-profile
+"use client";
 
-import { redirect } from "next/navigation";
+import { useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 
 export default function RiskProfileRedirect() {
-  // Note: In Next.js 15+, we use a simpler redirect
-  // Query params will be handled client-side by the target page
-  redirect("/client/risk-profile");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    const params = searchParams.toString();
+    router.replace(`/client/risk-profile${params ? `?${params}` : ""}`);
+  }, [searchParams, router]);
+
+  return null;
 }

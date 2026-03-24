@@ -22,15 +22,18 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import type { Snapshot } from "./SeguimientoPage";
 
 interface Holding {
   fundName: string;
   securityId?: string;
   marketValue: number;
+  marketValueCLP?: number;
   costBasis?: number;
   unrealizedGainLoss?: number;
   assetClass?: string;
+  currency?: string;
 }
 
 interface BenchmarkAllocation {
@@ -44,20 +47,49 @@ interface Props {
   snapshots: Snapshot[];
   recommendation?: BenchmarkAllocation | null;
   previousPortfolio?: Snapshot | null; // Portfolio inicial o anterior para comparar
+  twr?: number; // TWR from metrics for consistent return display
 }
 
-// Retornos por clase de activo (estimados, se pueden conectar a datos reales)
-const ASSET_CLASS_RETURNS: Record<string, number> = {
-  equity: 12.5, // Retorno anualizado estimado de equity
-  fixedIncome: 5.2,
-  alternatives: 8.0,
-  cash: 4.0,
-};
+/**
+ * Calcula retornos reales por clase de activo a partir de los snapshots.
+ * Si no hay datos suficientes, usa estimaciones conservadoras como fallback.
+ */
+function calculateAssetClassReturns(
+  first: Snapshot,
+  last: Snapshot,
+  daysDiff: number
+): Record<string, number> {
+  const classes = [
+    { key: "equity", initVal: first.equity_value, endVal: last.equity_value },
+    { key: "fixedIncome", initVal: first.fixed_income_value, endVal: last.fixed_income_value },
+    { key: "alternatives", initVal: first.alternatives_value, endVal: last.alternatives_value },
+    { key: "cash", initVal: first.cash_value, endVal: last.cash_value },
+  ];
+
+  const yearsElapsed = daysDiff / 365;
+  const result: Record<string, number> = {};
+
+  for (const cls of classes) {
+    if (cls.initVal > 0 && yearsElapsed > 0) {
+      const totalReturn = ((cls.endVal - cls.initVal) / cls.initVal);
+      // Annualize the return
+      result[cls.key] = (Math.pow(1 + totalReturn, 1 / yearsElapsed) - 1) * 100;
+    } else if (cls.initVal > 0) {
+      result[cls.key] = ((cls.endVal - cls.initVal) / cls.initVal) * 100;
+    } else {
+      // Fallback for classes with no initial value
+      result[cls.key] = 0;
+    }
+  }
+
+  return result;
+}
 
 export default function PerformanceAttribution({
   snapshots,
   recommendation,
   previousPortfolio,
+  twr,
 }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>("assetClass");
 
@@ -73,7 +105,8 @@ export default function PerformanceAttribution({
 
     const initialValue = firstSnapshot.total_value;
     const finalValue = lastSnapshot.total_value;
-    const totalReturn = ((finalValue - initialValue) / initialValue) * 100;
+    // Use TWR from metrics when available for consistency with top-level cards
+    const totalReturn = twr != null ? twr : ((finalValue - initialValue) / initialValue) * 100;
 
     // Calculate contribution from each asset class
     // Contribution = (Weight * Return) for each class
@@ -137,7 +170,7 @@ export default function PerformanceAttribution({
       initialValue,
       finalValue,
     };
-  }, [snapshots, firstSnapshot, lastSnapshot]);
+  }, [snapshots, firstSnapshot, lastSnapshot, twr]);
 
   // ============================================
   // 2. ATTRIBUTION BY INDIVIDUAL POSITION
@@ -160,11 +193,14 @@ export default function PerformanceAttribution({
       assetClass?: string;
     }>();
 
+    // Use marketValueCLP when available (handles USD funds correctly)
+    const clpValue = (h: Holding) => h.marketValueCLP ?? h.marketValue ?? 0;
+
     // Add initial holdings
     initialHoldings.forEach((h) => {
       holdingsMap.set(h.fundName, {
         name: h.fundName,
-        initialValue: h.marketValue || 0,
+        initialValue: clpValue(h),
         finalValue: 0,
         return: 0,
         contribution: 0,
@@ -176,12 +212,12 @@ export default function PerformanceAttribution({
     finalHoldings.forEach((h) => {
       const existing = holdingsMap.get(h.fundName);
       if (existing) {
-        existing.finalValue = h.marketValue || 0;
+        existing.finalValue = clpValue(h);
       } else {
         holdingsMap.set(h.fundName, {
           name: h.fundName,
           initialValue: 0,
-          finalValue: h.marketValue || 0,
+          finalValue: clpValue(h),
           return: 0,
           contribution: 0,
           assetClass: h.assetClass,
@@ -216,16 +252,23 @@ export default function PerformanceAttribution({
   // 3. BENCHMARK COMPARISON (Allocation + Selection Effect)
   // ============================================
   const benchmarkAttribution = useMemo(() => {
-    if (!recommendation || !firstSnapshot || !lastSnapshot) return null;
+    if (!recommendation || !firstSnapshot || !lastSnapshot || snapshots.length < 2) return null;
 
     const portfolioReturn = ((lastSnapshot.total_value - firstSnapshot.total_value) / firstSnapshot.total_value) * 100;
 
-    // Calculate benchmark return (what we would have gotten with recommended allocation)
+    // Calculate actual returns per asset class from real data
+    const daysDiff =
+      (new Date(lastSnapshot.snapshot_date).getTime() -
+        new Date(firstSnapshot.snapshot_date).getTime()) /
+      (1000 * 60 * 60 * 24);
+    const realReturns = calculateAssetClassReturns(firstSnapshot, lastSnapshot, daysDiff);
+
+    // Benchmark return: what we would have gotten with recommended allocation + actual class returns
     const benchmarkReturn =
-      (recommendation.equity_percent || 0) * ASSET_CLASS_RETURNS.equity / 100 +
-      (recommendation.fixed_income_percent || 0) * ASSET_CLASS_RETURNS.fixedIncome / 100 +
-      (recommendation.alternatives_percent || 0) * ASSET_CLASS_RETURNS.alternatives / 100 +
-      (recommendation.cash_percent || 0) * ASSET_CLASS_RETURNS.cash / 100;
+      (recommendation.equity_percent || 0) * realReturns.equity / 100 +
+      (recommendation.fixed_income_percent || 0) * realReturns.fixedIncome / 100 +
+      (recommendation.alternatives_percent || 0) * realReturns.alternatives / 100 +
+      (recommendation.cash_percent || 0) * realReturns.cash / 100;
 
     // Calculate effects for each asset class
     const classes = [
@@ -239,13 +282,13 @@ export default function PerformanceAttribution({
     let totalSelectionEffect = 0;
 
     const effects = classes.map((cls) => {
-      const classReturn = ASSET_CLASS_RETURNS[cls.key];
+      const classReturn = realReturns[cls.key] || 0;
       const weightDiff = (cls.actualWeight - cls.recWeight) / 100;
 
-      // Allocation effect: (Actual Weight - Benchmark Weight) * Benchmark Return
+      // Allocation effect: (Actual Weight - Benchmark Weight) * Benchmark Class Return
       const allocationEffect = weightDiff * classReturn;
 
-      // Selection effect: simplified as actual class return vs expected
+      // Selection effect: actual class return vs benchmark class return, weighted by actual weight
       const actualClassReturn = cls.actualWeight > 0 ?
         (assetClassAttribution?.contributions.find(c => c.key === cls.key)?.return || classReturn) : 0;
       const selectionEffect = (actualClassReturn - classReturn) * (cls.actualWeight / 100);
@@ -272,7 +315,7 @@ export default function PerformanceAttribution({
       interactionEffect: activeReturn - totalAllocationEffect - totalSelectionEffect,
       effects,
     };
-  }, [recommendation, firstSnapshot, lastSnapshot, assetClassAttribution]);
+  }, [recommendation, firstSnapshot, lastSnapshot, snapshots, assetClassAttribution]);
 
   // ============================================
   // 4. PREVIOUS PORTFOLIO COMPARISON
@@ -305,35 +348,6 @@ export default function PerformanceAttribution({
       comparison,
     };
   }, [previousPortfolio, firstSnapshot, lastSnapshot]);
-
-  // ============================================
-  // HELPER FUNCTIONS
-  // ============================================
-  // Formato chileno: puntos para miles, comas para decimales
-  const formatNumber = (value: number, decimals: number = 0): string => {
-    const fixed = Math.abs(value).toFixed(decimals);
-    const [intPart, decPart] = fixed.split(".");
-    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
-    return value < 0 ? `-${formatted}` : formatted;
-  };
-
-  const formatCurrency = (value: number) => {
-    return `$${formatNumber(value, 0)}`;
-  };
-
-  const formatPercent = (value: number, showSign = true) => {
-    const sign = showSign && value >= 0 ? "+" : "";
-    return `${sign}${formatNumber(value, 2)}%`;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);

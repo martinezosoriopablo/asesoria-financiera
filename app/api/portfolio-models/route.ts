@@ -1,7 +1,7 @@
 // app/api/portfolio-models/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener modelos de portafolio de un cliente
@@ -42,10 +42,14 @@ export async function GET(request: NextRequest) {
 
     // Solo puede ver clientes sin asesor o propios
     if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json(
-        { success: false, error: "No tiene permiso para ver este cliente" },
-        { status: 403 }
-      );
+      if (advisor!.rol === "admin") {
+        const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+        if (!allowedIds.includes(client.asesor_id)) {
+          return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+      }
     }
 
     // Obtener modelos del cliente
@@ -113,10 +117,14 @@ export async function POST(request: NextRequest) {
 
     // Solo puede guardar para clientes sin asesor o propios
     if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json(
-        { success: false, error: "No tiene permiso para este cliente" },
-        { status: 403 }
-      );
+      if (advisor!.rol === "admin") {
+        const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+        if (!allowedIds.includes(client.asesor_id)) {
+          return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+      }
     }
 
     // Guardar el modelo
@@ -207,10 +215,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (client.asesor_id && client.asesor_id !== advisor!.id) {
-      return NextResponse.json(
-        { success: false, error: "No tiene permiso para eliminar este modelo" },
-        { status: 403 }
-      );
+      if (advisor!.rol === "admin") {
+        const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+        if (!allowedIds.includes(client.asesor_id)) {
+          return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
+      }
     }
 
     // Eliminar el modelo

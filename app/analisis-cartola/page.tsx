@@ -324,14 +324,27 @@ function AnalisisCartolaContent() {
     setSendingQuestionnaire(true);
     setQuestionnaireSent(false);
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const res = await fetch("/api/send-questionnaire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, advisorEmail: advisor?.email }),
+        body: JSON.stringify({
+          email,
+          clientName: clientProfile ? `${clientProfile.nombre} ${clientProfile.apellido}` : undefined,
+          advisorEmail: advisor?.email,
+        }),
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error();
+      clearTimeout(timeout);
+      const data = await res.json();
+      if (!res.ok) {
+        alert("Error enviando cuestionario: " + (data.error || res.status));
+        return;
+      }
       setQuestionnaireSent(true);
-    } catch {
+    } catch (err) {
+      console.error("Send questionnaire error:", err);
       alert("Error enviando el cuestionario");
     } finally {
       setSendingQuestionnaire(false);
@@ -563,7 +576,7 @@ function AnalisisCartolaContent() {
             {loadingProfile && <Loader className="w-4 h-4 animate-spin text-blue-500" />}
             <button
               onClick={sendQuestionnaire}
-              disabled={!email || sendingQuestionnaire || !!clientProfile}
+              disabled={!email || sendingQuestionnaire}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-40 transition-colors"
             >
               {sendingQuestionnaire ? (
