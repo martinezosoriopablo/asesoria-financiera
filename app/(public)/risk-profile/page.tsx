@@ -1,16 +1,10 @@
-"use client";
-
-import { useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
+import RiskProfileRedirectClient from "./redirect";
 
 export default function RiskProfileRedirect() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
-  useEffect(() => {
-    const params = searchParams.toString();
-    router.replace(`/client/risk-profile${params ? `?${params}` : ""}`);
-  }, [searchParams, router]);
-
-  return null;
+  return (
+    <Suspense>
+      <RiskProfileRedirectClient />
+    </Suspense>
+  );
 }
