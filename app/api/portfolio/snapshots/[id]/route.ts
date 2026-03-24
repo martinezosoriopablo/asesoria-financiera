@@ -247,7 +247,7 @@ export async function DELETE(
     // Verificar que el snapshot existe
     const { data: existingSnapshot, error: fetchError } = await supabase
       .from("portfolio_snapshots")
-      .select("id")
+      .select("id, client_id, snapshot_date, source")
       .eq("id", snapshotId)
       .single();
 
@@ -258,7 +258,43 @@ export async function DELETE(
       );
     }
 
-    // Eliminar snapshot
+    const isCartola = existingSnapshot.source === "manual" ||
+      existingSnapshot.source === "statement" ||
+      existingSnapshot.source === "excel";
+
+    // If deleting a cartola, also delete api-prices snapshots that depend on it
+    // (interpolated snapshots between this cartola and the next one)
+    if (isCartola) {
+      // Find the next cartola date
+      const { data: nextCartola } = await supabase
+        .from("portfolio_snapshots")
+        .select("snapshot_date")
+        .eq("client_id", existingSnapshot.client_id)
+        .gt("snapshot_date", existingSnapshot.snapshot_date)
+        .in("source", ["manual", "statement", "excel"])
+        .order("snapshot_date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      // Delete api-prices snapshots between this cartola and the next
+      const deleteQuery = supabase
+        .from("portfolio_snapshots")
+        .delete()
+        .eq("client_id", existingSnapshot.client_id)
+        .eq("source", "api-prices")
+        .gte("snapshot_date", existingSnapshot.snapshot_date);
+
+      if (nextCartola) {
+        deleteQuery.lt("snapshot_date", nextCartola.snapshot_date);
+      }
+
+      const { error: deleteApiError } = await deleteQuery;
+      if (deleteApiError) {
+        console.error("Error deleting api-prices snapshots:", deleteApiError);
+      }
+    }
+
+    // Delete the snapshot itself
     const { error } = await supabase
       .from("portfolio_snapshots")
       .delete()
@@ -274,6 +310,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
+      deletedRelated: isCartola,
     });
   } catch (error) {
     console.error("Error in DELETE snapshot:", error);

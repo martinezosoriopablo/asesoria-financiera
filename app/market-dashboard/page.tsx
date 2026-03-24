@@ -98,6 +98,10 @@ export default function MarketDashboard() {
     lastUpdate: string | null;
   } | null>(null);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  // Sync AAFM
+  const [syncingAAFM, setSyncingAAFM] = useState(false);
+  const [aafmResult, setAafmResult] = useState<string | null>(null);
   // Cargar estado de sync Fintual
   useEffect(() => {
     const fetchSyncStatus = async () => {
@@ -159,6 +163,37 @@ export default function MarketDashboard() {
       setSyncResult('Error de conexión');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSyncAAFM = async () => {
+    if (syncingAAFM) return;
+    setSyncingAAFM(true);
+    setAafmResult(null);
+    try {
+      const response = await fetch('/api/aafm/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (data.success) {
+        const parts = [`AAFM: ${data.updated} precios actualizados`];
+        if (data.fondosMutuosUpdated) {
+          parts.push(`${data.fondosMutuosUpdated} rentabilidades actualizadas en dashboard`);
+        }
+        parts.push(`(${data.fundsInReport} fondos en reporte, fecha: ${data.date})`);
+        setAafmResult(parts.join(', '));
+        // Force reload dashboard data by toggling a state
+        setBusqueda(b => b + ' ');
+        setTimeout(() => setBusqueda(b => b.trim()), 100);
+      } else {
+        setAafmResult(`Error AAFM: ${data.error}`);
+      }
+    } catch {
+      setAafmResult('Error de conexión con AAFM');
+    } finally {
+      setSyncingAAFM(false);
     }
   };
 
@@ -372,12 +407,37 @@ export default function MarketDashboard() {
           )}
 
           <button
+            onClick={handleSyncAAFM}
+            disabled={syncingAAFM}
+            style={{
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: syncingAAFM ? '#94a3b8' : '#10b981',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: syncingAAFM ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => { if (!syncingAAFM) e.currentTarget.style.backgroundColor = '#059669'; }}
+            onMouseOut={(e) => { if (!syncingAAFM) e.currentTarget.style.backgroundColor = '#10b981'; }}
+            title="Descarga precios del día desde AAFM y actualiza la base de datos"
+          >
+            {syncingAAFM ? 'Descargando...' : 'Sync AAFM (Precios Hoy)'}
+          </button>
+
+          <button
             onClick={() => setUploadRentAgregadasModalOpen(true)}
             style={{
               padding: '12px 24px',
               borderRadius: '8px',
               border: 'none',
-              backgroundColor: '#10b981',
+              backgroundColor: '#8b5cf6',
               color: 'white',
               fontSize: '14px',
               fontWeight: '600',
@@ -385,11 +445,11 @@ export default function MarketDashboard() {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
+              boxShadow: '0 2px 4px rgba(139, 92, 246, 0.2)',
               transition: 'all 0.2s'
             }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#7c3aed'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
           >
             Cargar Rentabilidades
           </button>
@@ -417,6 +477,31 @@ export default function MarketDashboard() {
             Cargar TAC
           </button>
         </div>
+
+        {/* AAFM result banner */}
+        {aafmResult && (
+          <div style={{
+            padding: '12px 16px',
+            borderRadius: '8px',
+            backgroundColor: aafmResult.startsWith('Error') ? '#fef2f2' : '#f0fdf4',
+            border: `1px solid ${aafmResult.startsWith('Error') ? '#fecaca' : '#bbf7d0'}`,
+            marginBottom: '12px',
+            fontSize: '13px',
+            color: aafmResult.startsWith('Error') ? '#dc2626' : '#166534',
+            fontWeight: '600',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>{aafmResult}</span>
+            <button
+              onClick={() => setAafmResult(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#666' }}
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {/* Sync status + resultado */}
         {(syncStatus || syncResult) && (

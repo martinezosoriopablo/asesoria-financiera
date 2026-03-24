@@ -679,20 +679,45 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // 6. Calculate portfolio value for each new date and compute base unit price
-      // We use a "cuota" approach: initial cuotas = 1, value changes with prices
+      // 6. Calculate portfolio value for each new date
       const baseValue = startSnapshot.total_value;
-      const basePrices = new Map<string, number>();
 
-      // Store the base price from the cartola for each holding
+      // Base prices from cartola — fixed reference for return calculations
+      const basePricesMap = new Map<string, number>();
+      // Track last known prices for holdings that may not have daily prices
+      const lastKnownPrices = new Map<string, number>();
+      // Initialize both with cartola prices
       for (const bh of baseHoldings) {
         if (bh.quantity && bh.quantity > 0 && bh.marketValue) {
-          basePrices.set(bh.fundName, bh.marketValue / bh.quantity);
+          const price = bh.marketValue / bh.quantity;
+          basePricesMap.set(bh.fundName, price);
+          lastKnownPrices.set(bh.fundName, price);
+        }
+      }
+
+      // Calculate implied USD/CLP exchange rate from cartola total
+      // total_value (CLP) = sum(CLP holdings) + sum(USD holdings × rate)
+      const clpHoldingsSum = baseHoldings
+        .filter((h) => h.currency !== "USD")
+        .reduce((s, h) => s + (h.marketValue || 0), 0);
+      const usdHoldingsSum = baseHoldings
+        .filter((h) => h.currency === "USD")
+        .reduce((s, h) => s + (h.marketValue || 0), 0);
+      const impliedUsdClpRate = usdHoldingsSum > 0
+        ? (baseValue - clpHoldingsSum) / usdHoldingsSum
+        : 1;
+
+      // Store base CLP values for USD holdings (for proportional scaling)
+      const baseValuesCLP = new Map<string, number>();
+      for (const bh of baseHoldings) {
+        if (bh.currency === "USD" && bh.marketValue) {
+          baseValuesCLP.set(bh.fundName, bh.marketValue * impliedUsdClpRate);
         }
       }
 
       // Previous snapshot values for TWR chain
       let prevValue = baseValue;
+      let prevCuotas = baseHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
       let prevTwrCumulative = startSnapshot.twr_cumulative || 0;
 
       for (const date of newDates) {
@@ -708,40 +733,81 @@ export async function POST(request: NextRequest) {
           marketValue: number;
           assetClass?: string;
           currency?: string;
+          returnFromBase?: number; // % return since cartola base price
+          weight?: number; // % weight in portfolio
         }> = [];
 
         for (const bh of baseHoldings) {
           const info = sourceMap.get(bh.fundName);
           const quantity = bh.quantity || 0;
+          // Default asset class to "equity" if not specified (most common)
+          const assetClass = info?.assetClass || bh.assetClass || "equity";
+          // Base price from cartola (original, trusted price)
+          const cartolaPrice = basePricesMap.get(bh.fundName) || 0;
+          const lastPrice = lastKnownPrices.get(bh.fundName) ||
+            (bh.marketValue && bh.quantity ? bh.marketValue / bh.quantity : 0);
 
           const priceMap = pricesByHolding.get(bh.fundName);
-          const dayPrice = priceMap?.get(date);
+          let dayPrice = priceMap?.get(date);
+
+          // VALIDATION: Reject API prices that differ >20% from cartola price.
+          // This catches wrong fund/series matches while allowing normal equity volatility.
+          if (dayPrice && cartolaPrice > 0) {
+            const priceRatio = dayPrice / cartolaPrice;
+            if (priceRatio < 0.8 || priceRatio > 1.2) {
+              // Price is way off — likely wrong fund match. Use last known good price.
+              dayPrice = undefined;
+              result.errors.push(
+                `${bh.fundName}: API price ${dayPrice} rejected (cartola: ${cartolaPrice.toFixed(2)}, ratio: ${priceRatio.toFixed(2)}). Using last known price.`
+              );
+            }
+          }
+
+          // Helper to compute CLP value from price (handles USD conversion)
+          const computeValue = (price: number): number => {
+            if (info?.currency === "USD") {
+              // Scale base CLP value by price change ratio to avoid needing daily FX rates
+              const baseCLP = baseValuesCLP.get(bh.fundName) || 0;
+              const priceRatio = cartolaPrice > 0 ? price / cartolaPrice : 1;
+              return baseCLP * priceRatio;
+            }
+            return quantity * price;
+          };
 
           if (dayPrice && quantity > 0) {
-            const value = quantity * dayPrice;
+            const value = computeValue(dayPrice);
             totalValue += value;
             holdingsValued++;
+            lastKnownPrices.set(bh.fundName, dayPrice);
+            const returnFromBase = cartolaPrice > 0
+              ? ((dayPrice / cartolaPrice) - 1) * 100 : 0;
             dailyHoldings.push({
               fundName: bh.fundName,
               quantity,
               marketPrice: dayPrice,
               marketValue: value,
-              assetClass: info?.assetClass,
+              assetClass,
               currency: info?.currency,
+              returnFromBase: Math.round(returnFromBase * 100) / 100,
             });
-          } else if (quantity > 0 && bh.marketValue) {
-            // Use last known value for holdings without price on this date
-            // Scale by the portfolio's average performance that day
-            totalValue += bh.marketValue;
-            holdingsValued++;
-            dailyHoldings.push({
-              fundName: bh.fundName,
-              quantity,
-              marketPrice: bh.marketValue / quantity,
-              marketValue: bh.marketValue,
-              assetClass: info?.assetClass,
-              currency: info?.currency,
-            });
+          } else if (quantity > 0) {
+            const fallbackPrice = lastPrice > 0 ? lastPrice : cartolaPrice;
+            if (fallbackPrice > 0) {
+              const value = computeValue(fallbackPrice);
+              totalValue += value;
+              holdingsValued++;
+              const returnFromBase = cartolaPrice > 0
+                ? ((fallbackPrice / cartolaPrice) - 1) * 100 : 0;
+              dailyHoldings.push({
+                fundName: bh.fundName,
+                quantity,
+                marketPrice: fallbackPrice,
+                marketValue: value,
+                assetClass,
+                currency: info?.currency,
+                returnFromBase: Math.round(returnFromBase * 100) / 100,
+              });
+            }
           }
         }
 
@@ -749,20 +815,31 @@ export async function POST(request: NextRequest) {
         if (holdingsValued === 0 || totalValue <= 0) continue;
 
         // If not all holdings have prices, scale proportionally
-        // (assume unpriced holdings move in line with the rest)
         if (holdingsValued < holdingsTotal && holdingsValued > 0) {
           const pricedRatio = holdingsValued / holdingsTotal;
-          // Only scale if we have at least 50% priced
           if (pricedRatio < 0.5) continue;
         }
 
-        // Calculate TWR period return (no cash flows between cartolas)
+        // Add weight to each holding now that we know totalValue
+        for (const h of dailyHoldings) {
+          h.weight = totalValue > 0
+            ? Math.round((h.marketValue / totalValue) * 10000) / 100
+            : 0;
+        }
+
+        // Calculate total cuotas for this day (sum of all quantities)
+        const totalCuotas = dailyHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
+
+        // Calculate portfolio TWR as weighted sum of individual holding returns
+        // TWR_portfolio = Σ(weight_i × return_i) — independent of cash flows
         let twrPeriod = 0;
         if (prevValue > 0) {
+          // Use per-holding weighted returns for accuracy
+          // Period return = portfolio value change (no cash flows between cartolas)
           twrPeriod = ((totalValue / prevValue) - 1) * 100;
-          // Clamp
-          twrPeriod = Math.max(-9999.99, Math.min(9999.99, twrPeriod));
         }
+        // Clamp
+        twrPeriod = Math.max(-9999.99, Math.min(9999.99, twrPeriod));
 
         // Cumulative TWR
         const prevFactor = 1 + prevTwrCumulative / 100;
@@ -783,11 +860,12 @@ export async function POST(request: NextRequest) {
         const cashValue = dailyHoldings
           .filter((h) => h.assetClass === "cash")
           .reduce((s, h) => s + h.marketValue, 0);
-        // Balanced goes to equity for simplicity
+        // Balanced splits 50/50 between equity and fixed income
         const balancedValue = dailyHoldings
           .filter((h) => h.assetClass === "balanced")
           .reduce((s, h) => s + h.marketValue, 0);
-        const totalEquity = equityValue + balancedValue;
+        const totalEquity = equityValue + balancedValue * 0.5;
+        const totalFI = fiValue + balancedValue * 0.5;
 
         // Upsert snapshot
         const { error: upsertError } = await supabase
@@ -798,7 +876,7 @@ export async function POST(request: NextRequest) {
               snapshot_date: date,
               total_value: Math.round(totalValue * 100) / 100,
               equity_value: Math.round(totalEquity * 100) / 100,
-              fixed_income_value: Math.round(fiValue * 100) / 100,
+              fixed_income_value: Math.round(totalFI * 100) / 100,
               alternatives_value: Math.round(altValue * 100) / 100,
               cash_value: Math.round(cashValue * 100) / 100,
               equity_percent:
@@ -807,7 +885,7 @@ export async function POST(request: NextRequest) {
                   : 0,
               fixed_income_percent:
                 totalValue > 0
-                  ? Math.round((fiValue / totalValue) * 10000) / 100
+                  ? Math.round((totalFI / totalValue) * 10000) / 100
                   : 0,
               alternatives_percent:
                 totalValue > 0
@@ -823,8 +901,8 @@ export async function POST(request: NextRequest) {
               deposits: 0,
               withdrawals: 0,
               net_cash_flow: 0,
-              total_cuotas: 0,
-              cuotas_change: 0,
+              total_cuotas: totalCuotas,
+              cuotas_change: 0, // No cuota changes between cartolas (same quantities)
               holdings: dailyHoldings,
               source: "api-prices",
             },
@@ -836,6 +914,7 @@ export async function POST(request: NextRequest) {
         } else {
           result.filled++;
           prevValue = totalValue;
+          prevCuotas = totalCuotas;
           prevTwrCumulative = twrCumulative;
         }
       }

@@ -3,6 +3,7 @@
 import React from "react";
 import { Edit, Trash2, TrendingUp, TrendingDown, Plus, Minus } from "lucide-react";
 import type { Snapshot } from "./SeguimientoPage";
+import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
 
 interface Props {
   snapshots: Snapshot[];
@@ -11,33 +12,6 @@ interface Props {
 }
 
 export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
-  // Formato chileno: puntos para miles, comas para decimales
-  const formatNumber = (value: number, decimals: number = 0): string => {
-    const fixed = Math.abs(value).toFixed(decimals);
-    const [intPart, decPart] = fixed.split(".");
-    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
-    return value < 0 ? `-${formatted}` : formatted;
-  };
-
-  const formatCurrency = (value: number) => {
-    return `$${formatNumber(value, 0)}`;
-  };
-
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    const sign = value >= 0 ? "+" : "";
-    return `${sign}${formatNumber(value, 2)}%`;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
   // Sort snapshots by date descending
   const sortedSnapshots = [...snapshots].sort(
     (a, b) => new Date(b.snapshot_date).getTime() - new Date(a.snapshot_date).getTime()
@@ -111,6 +85,9 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
             </th>
             <th className="px-3 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
               Rentab.
+            </th>
+            <th className="px-3 py-3 text-right text-xs font-semibold text-gb-gray uppercase">
+              Flujos
             </th>
             <th className="px-2 py-3 text-center text-xs font-semibold text-gb-gray uppercase">
               RV
@@ -213,6 +190,26 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
                     )}
                     {formatPercent(snapshot.periodReturn)}
                   </span>
+                ) : (
+                  <span className="text-sm text-gb-gray">-</span>
+                )}
+              </td>
+
+              {/* Flujos */}
+              <td className="px-3 py-3 text-right">
+                {snapshot.deposits || snapshot.withdrawals ? (
+                  <div className="flex flex-col items-end gap-0.5">
+                    {snapshot.deposits ? (
+                      <span className="text-xs font-medium text-green-600">
+                        +{formatCurrency(snapshot.deposits)}
+                      </span>
+                    ) : null}
+                    {snapshot.withdrawals ? (
+                      <span className="text-xs font-medium text-red-600">
+                        -{formatCurrency(snapshot.withdrawals)}
+                      </span>
+                    ) : null}
+                  </div>
                 ) : (
                   <span className="text-sm text-gb-gray">-</span>
                 )}

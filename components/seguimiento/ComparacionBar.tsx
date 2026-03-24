@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Target, AlertTriangle, CheckCircle2, ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
+import { formatNumber, formatCurrency } from "@/lib/format";
 
 interface Recommendation {
   equity_percent?: number;
@@ -71,19 +72,6 @@ const ASSET_CLASSES: AssetClassConfig[] = [
     lightColor: "bg-gray-200",
   },
 ];
-
-// Chilean number format
-function formatNumber(value: number, decimals: number = 0): string {
-  const fixed = Math.abs(value).toFixed(decimals);
-  const [intPart, decPart] = fixed.split(".");
-  const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
-  return value < 0 ? `-${formatted}` : formatted;
-}
-
-function formatCurrency(value: number): string {
-  return `$${formatNumber(value, 0)}`;
-}
 
 export default function ComparacionBar({ recommendation, actual, totalValue }: Props) {
   // Calculate deviations

@@ -162,22 +162,14 @@ export default function ReviewSnapshotModal({
 
   const [holdings, setHoldings] = useState<Holding[]>(getInitialHoldings());
 
-  // Debug: log parsed period
-  console.log("ReviewSnapshotModal - parsedData.period:", parsedData.period);
-  console.log("ReviewSnapshotModal - editMode:", editMode);
-  console.log("ReviewSnapshotModal - existingSnapshot?.snapshot_date:", existingSnapshot?.snapshot_date);
-
   const [fechaCartola, setFechaCartola] = useState(() => {
     if (editMode && existingSnapshot?.snapshot_date) {
-      console.log("Using existingSnapshot date:", existingSnapshot.snapshot_date);
       return existingSnapshot.snapshot_date;
     }
     if (parsedData.period) {
       const parsed = parseDate(parsedData.period);
-      console.log("Parsed period:", parsedData.period, "->", parsed);
       return parsed;
     }
-    console.log("Using today's date as fallback");
     return new Date().toISOString().split("T")[0];
   });
   const [consolidationCurrency, setConsolidationCurrency] = useState("CLP");

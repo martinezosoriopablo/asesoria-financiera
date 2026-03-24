@@ -108,14 +108,6 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
 
       const data = parseResult.data || parseResult;
 
-      // Debug: log parsed data including period
-      console.log("AddSnapshotModal - Parsed data from API:", {
-        period: data.period,
-        totalValue: data.totalValue,
-        endingValue: data.endingValue,
-        holdingsCount: data.holdings?.length,
-      });
-
       const totalValue = data.totalValue || data.endingValue ||
         (data.holdings?.reduce((sum: number, h: { marketValue?: number }) => sum + (h.marketValue || 0), 0) || 0);
 
@@ -182,12 +174,6 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
   // Consolidate all holdings from uploaded files
   // Find the first file that has a period, or use the first file's period
   const consolidatedPeriod = uploadedFiles.find(f => f.data.period)?.data.period || uploadedFiles[0]?.data.period;
-
-  console.log("AddSnapshotModal - Consolidating data:", {
-    filesCount: uploadedFiles.length,
-    periods: uploadedFiles.map(f => ({ fileName: f.fileName, period: f.data.period })),
-    consolidatedPeriod,
-  });
 
   const consolidatedData: ParsedData = {
     holdings: uploadedFiles.flatMap(f => f.data.holdings || []),

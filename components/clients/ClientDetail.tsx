@@ -22,6 +22,9 @@ import {
   BarChart3,
   Briefcase,
   LineChart,
+  Send,
+  ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 
@@ -122,6 +125,8 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [associatedClients, setAssociatedClients] = useState<AssociatedClient[]>([]);
   const [parentClient, setParentClient] = useState<ParentClient | null>(null);
   const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
   const [savingFamily, setSavingFamily] = useState(false);
   const [familyForm, setFamilyForm] = useState({
     nombre: "",
@@ -267,6 +272,29 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       alert("Error al agregar familiar");
     } finally {
       setSavingFamily(false);
+    }
+  };
+
+  const handleInvitePortal = async () => {
+    setInviting(true);
+    try {
+      const response = await fetch("/api/client/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client?.id }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setInviteSuccess(true);
+        fetchClient();
+      } else {
+        alert("Error: " + (data.error || "No se pudo enviar la invitación"));
+      }
+    } catch (err) {
+      console.error("Error inviting client:", err);
+      alert("Error al enviar invitación");
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -738,6 +766,43 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 <p className="text-sm text-gb-gray whitespace-pre-wrap">{client.notas}</p>
               </div>
             )}
+
+            {/* Portal invite */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-emerald-500 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-1.5">
+                <ExternalLink className="w-4 h-4 text-emerald-500" />
+                Portal del Cliente
+              </h2>
+              {inviteSuccess ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-md p-3">
+                  <Send className="w-4 h-4" />
+                  Invitación enviada a {client.email}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-gb-gray mb-3">
+                    Envía acceso al portal donde el cliente puede ver su perfil de riesgo, portafolio y enviarte mensajes.
+                  </p>
+                  <button
+                    onClick={handleInvitePortal}
+                    disabled={inviting || !client.email}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {inviting ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Invitar al Portal
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Quick actions */}
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 shadow-sm">

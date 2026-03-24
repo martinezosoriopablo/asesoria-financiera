@@ -10,6 +10,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { formatNumber, formatCurrency, formatDateShort } from "@/lib/format";
 import type { Snapshot } from "./SeguimientoPage";
 
 interface Props {
@@ -17,28 +18,9 @@ interface Props {
 }
 
 export default function EvolucionChart({ snapshots }: Props) {
-  // Formato chileno: puntos para miles, comas para decimales
-  const formatNumber = (value: number, decimals: number = 0): string => {
-    const fixed = Math.abs(value).toFixed(decimals);
-    const [intPart, decPart] = fixed.split(".");
-    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
-    return value < 0 ? `-${formatted}` : formatted;
-  };
-
-  const formatCurrency = (value: number) => {
-    return `$${formatNumber(value, 0)}`;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "short",
-    });
-  };
 
   const chartData = snapshots.map((s) => ({
-    date: formatDate(s.snapshot_date),
+    date: formatDateShort(s.snapshot_date),
     fullDate: s.snapshot_date,
     value: s.total_value,
     return: s.cumulative_return,

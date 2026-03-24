@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Loader } from "lucide-react";
+import { formatNumber } from "@/lib/format";
 
 interface Props {
   clientId: string;
@@ -17,18 +18,11 @@ interface FormData {
   alternatives_percent: string;
   cash_percent: string;
   nombre_agf: string;
+  deposits: string;
+  withdrawals: string;
 }
 
 export default function ManualEntryForm({ clientId, onSuccess, onCancel }: Props) {
-  // Formato chileno: puntos para miles, comas para decimales
-  const formatNumber = (value: number, decimals: number = 0): string => {
-    const fixed = Math.abs(value).toFixed(decimals);
-    const [intPart, decPart] = fixed.split(".");
-    const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    const formatted = decPart ? `${withThousands},${decPart}` : withThousands;
-    return value < 0 ? `-${formatted}` : formatted;
-  };
-
   const [formData, setFormData] = useState<FormData>({
     fecha_cartola: new Date().toISOString().split("T")[0],
     total_value: "",
@@ -37,6 +31,8 @@ export default function ManualEntryForm({ clientId, onSuccess, onCancel }: Props
     alternatives_percent: "",
     cash_percent: "",
     nombre_agf: "",
+    deposits: "",
+    withdrawals: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +85,11 @@ export default function ManualEntryForm({ clientId, onSuccess, onCancel }: Props
             fixedIncome: { value: totalValue * (fixedIncomePercent / 100), percent: fixedIncomePercent },
             alternatives: { value: totalValue * (alternativesPercent / 100), percent: alternativesPercent },
             cash: { value: totalValue * (cashPercent / 100), percent: cashPercent },
+          },
+          cashFlows: {
+            deposits: parseFloat(formData.deposits) || 0,
+            withdrawals: parseFloat(formData.withdrawals) || 0,
+            netFlow: (parseFloat(formData.deposits) || 0) - (parseFloat(formData.withdrawals) || 0),
           },
           source: "manual",
         }),
@@ -158,6 +159,38 @@ export default function ManualEntryForm({ clientId, onSuccess, onCancel }: Props
           step="0.01"
           className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         />
+      </div>
+
+      {/* Deposits & Withdrawals */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Aportes del Período (USD)
+          </label>
+          <input
+            type="number"
+            value={formData.deposits}
+            onChange={(e) => handleChange("deposits", e.target.value)}
+            placeholder="0"
+            min="0"
+            step="0.01"
+            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Retiros del Período (USD)
+          </label>
+          <input
+            type="number"
+            value={formData.withdrawals}
+            onChange={(e) => handleChange("withdrawals", e.target.value)}
+            placeholder="0"
+            min="0"
+            step="0.01"
+            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
       </div>
 
       {/* Composition */}
