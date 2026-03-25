@@ -2,7 +2,7 @@
 // API para operaciones CRUD en snapshots individuales
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
@@ -22,6 +22,34 @@ interface UpdateData {
   holdings?: unknown[];
 }
 
+/** Check if advisor owns the client associated with a snapshot */
+async function checkSnapshotOwnership(
+  supabase: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  advisor: { id: string; rol: string }
+) {
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id, asesor_id")
+    .eq("id", clientId)
+    .single();
+
+  if (!client) return { ok: false as const, status: 404, error: "Cliente no encontrado" };
+
+  if (client.asesor_id && client.asesor_id !== advisor.id) {
+    if (advisor.rol === "admin") {
+      const allowedIds = await getSubordinateAdvisorIds(advisor.id);
+      if (!allowedIds.includes(client.asesor_id)) {
+        return { ok: false as const, status: 403, error: "No autorizado" };
+      }
+    } else {
+      return { ok: false as const, status: 403, error: "No autorizado" };
+    }
+  }
+
+  return { ok: true as const };
+}
+
 // GET - Obtener un snapshot específico
 export async function GET(
   request: NextRequest,
@@ -30,17 +58,12 @@ export async function GET(
   const blocked = applyRateLimit(request, "snapshot-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
-
     const { id: snapshotId } = await context.params;
 
     const { data: snapshot, error } = await supabase
@@ -49,19 +72,17 @@ export async function GET(
       .eq("id", snapshotId)
       .single();
 
-    if (error) {
-      console.error("Error fetching snapshot:", error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
-    }
-
-    if (!snapshot) {
+    if (error || !snapshot) {
       return NextResponse.json(
         { success: false, error: "Snapshot no encontrado" },
         { status: 404 }
       );
+    }
+
+    // Verify client ownership
+    const access = await checkSnapshotOwnership(supabase, snapshot.client_id, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     return NextResponse.json({
@@ -85,17 +106,12 @@ export async function PUT(
   const blocked = applyRateLimit(request, "snapshot-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
-
     const { id: snapshotId } = await context.params;
     const body: UpdateData = await request.json();
 
@@ -111,6 +127,12 @@ export async function PUT(
         { success: false, error: "Snapshot no encontrado" },
         { status: 404 }
       );
+    }
+
+    // Verify client ownership
+    const access = await checkSnapshotOwnership(supabase, existingSnapshot.client_id, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     // Helper functions to prevent database overflow
@@ -224,17 +246,12 @@ export async function DELETE(
   const blocked = applyRateLimit(request, "snapshot-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
   try {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
-
     const { id: snapshotId } = await context.params;
 
     // Verificar que el snapshot existe
@@ -249,6 +266,12 @@ export async function DELETE(
         { success: false, error: "Snapshot no encontrado" },
         { status: 404 }
       );
+    }
+
+    // Verify client ownership
+    const access = await checkSnapshotOwnership(supabase, existingSnapshot.client_id, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     const isCartola = existingSnapshot.source === "manual" ||

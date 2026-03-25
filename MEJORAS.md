@@ -36,11 +36,48 @@ Ultima auditoria: 2026-03-25
 - [x] Placeholder fetchFromMassive removido de unified-profile (2026-03-25)
 - [x] Audit logging: tabla audit_logs + lib/audit.ts + logs en create/delete client y CRUD advisors (2026-03-25)
 
+### Auditoría #2 — Resueltos (2026-03-25)
+- [x] CRÍTICO: save-risk-profile protegido con HMAC token + validación de inputs + origin check (2026-03-25)
+- [x] CRÍTICO: HTML del comité sanitizado antes de guardar (sanitizeHtml en lib/sanitize.ts) (2026-03-25)
+- [x] CRÍTICO: Snapshots endpoint con verificación de ownership + admin subordinate (2026-03-25)
+- [x] ALTO: CSP removido unsafe-eval + agregado Permissions-Policy header (2026-03-25)
+- [x] ALTO: Fill-prices paralelizado con concurrencia límite de 5 (parallelWithLimit) (2026-03-25)
+- [x] ALTO: Debounce 300ms en búsqueda de market dashboard (2026-03-25)
+- [x] ALTO: Memory leak fix en useAdvisor (isMounted ref) (2026-03-25)
+- [x] ALTO: .env.example creado con todas las variables documentadas (2026-03-25)
+- [x] ALTO: Hardcoded emails/URLs reemplazados por env vars (SENDER_EMAIL, APP_URL) (2026-03-25)
+
 ---
 
-## PENDIENTES
+## PENDIENTES — MEDIO
 
-_Sin items pendientes. Próxima auditoría sugerida: 2026-04-25._
+### 1. Paginación en seguimiento
+- [ ] `app/api/clients/[id]/seguimiento/route.ts` — agregar LIMIT + paginación cursor-based
+
+### 2. Error messages filtran detalles internos
+- [ ] Múltiples rutas — retornar mensajes genéricos, loguear detalles internamente
+
+### 3. Select * anti-pattern
+- [ ] `app/api/advisor/stats/route.ts` — usar select específico en vez de select("*")
+
+### 4. AAFM sync delete+insert no atómico
+- [ ] `lib/aafm-sync.ts:589-595` — usar upsert en vez de delete+insert
+
+---
+
+## PENDIENTES — BAJO
+
+### 5. Console.log excesivo en producción
+- [ ] `lib/aafm-sync.ts` y otros — usar debug flag o remover
+
+### 6. Modales sin keyboard navigation
+- [ ] Múltiples modales — agregar Escape to close + focus trap
+
+### 7. Hook dependencies con eslint-disable
+- [ ] 5+ componentes — resolver dependencias correctamente
+
+### 8. Magic numbers sin constantes
+- [ ] Múltiples archivos — extraer a constantes nombradas
 
 ---
 

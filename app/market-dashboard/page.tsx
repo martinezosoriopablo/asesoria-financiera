@@ -64,6 +64,7 @@ export default function MarketDashboard() {
   const [familia, setFamilia] = useState('todos');
   const [clase, setClase] = useState('todos');
   const [busqueda, setBusqueda] = useState('');
+  const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
   const [ordenar, setOrdenar] = useState('rent_12m_nominal');
   const [direccion, setDireccion] = useState('desc');
   
@@ -102,6 +103,12 @@ export default function MarketDashboard() {
   // Sync AAFM
   const [syncingAAFM, setSyncingAAFM] = useState(false);
   const [aafmResult, setAafmResult] = useState<string | null>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedBusqueda(busqueda), 300);
+    return () => clearTimeout(timer);
+  }, [busqueda]);
   // Cargar estado de sync Fintual
   useEffect(() => {
     const fetchSyncStatus = async () => {
@@ -238,14 +245,14 @@ export default function MarketDashboard() {
             action: 'list',
             familia,
             clase,
-            busqueda,
+            busqueda: debouncedBusqueda,
             ordenar,
             direccion,
             pagina
           })
         });
         const data = await response.json();
-        
+
         if (data.success) {
           setFondos(data.fondos);
           setTotal(data.total);
@@ -257,9 +264,9 @@ export default function MarketDashboard() {
         setLoading(false);
       }
     };
-    
+
     fetchFondos();
-  }, [familia, clase, busqueda, ordenar, direccion, pagina]);
+  }, [familia, clase, debouncedBusqueda, ordenar, direccion, pagina]);
 
   const formatNumber = (num: number | null) => {
     if (num === null || num === undefined) return '-';
@@ -306,7 +313,7 @@ export default function MarketDashboard() {
             action: 'list',
             familia,
             clase,
-            busqueda,
+            busqueda: debouncedBusqueda,
             ordenar,
             direccion,
             pagina

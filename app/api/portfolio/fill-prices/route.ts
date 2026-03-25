@@ -8,6 +8,22 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { getSeriesPrices } from "@/lib/fintual-api";
 import { getHistoricalPrices as getBolsaSantiagoHistorical } from "@/lib/bolsa-santiago/client";
 
+// Execute async tasks in parallel with a concurrency limit
+async function parallelWithLimit<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = [];
+  const executing: Set<Promise<void>> = new Set();
+  for (const task of tasks) {
+    const p = task().then(r => { results.push(r); });
+    const tracked = p.finally(() => executing.delete(tracked));
+    executing.add(tracked);
+    if (executing.size >= limit) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
+  return results;
+}
+
 interface HoldingWithSource {
   fundName: string;
   securityId?: string | null;
@@ -627,64 +643,83 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // 4. Fetch daily prices for each holding with a price source
+      // 4. Fetch daily prices for each holding with a price source (in parallel)
       const nextDay = new Date(startMs + 86400000).toISOString().split("T")[0];
       const pricesByHolding = new Map<string, Map<string, number>>();
+
+      // Build fetch tasks for all holdings, preserving fallback logic per source
+      const fetchTasks: Array<{ name: string; task: () => Promise<{ name: string; prices: DailyPrice[] }> }> = [];
 
       for (const [name, info] of sourceMap) {
         if (info.source === "none" || !info.sourceId) continue;
 
-        let prices: DailyPrice[] = [];
-        try {
-          if (info.source === "fintual") {
-            prices = await fetchFintualHistorical(
-              info.sourceId,
-              nextDay,
-              endDate
-            );
-          } else if (info.source === "bolsa_santiago") {
-            prices = await fetchBolsaSantiagoHistoricalPrices(
-              info.sourceId,
-              nextDay,
-              endDate
-            );
-            // Fallback to Yahoo with .SN suffix if Bolsa de Santiago returns nothing
-            // (e.g., API outside operating hours)
-            if (prices.length === 0) {
-              const yahooTicker = `${info.sourceId}.SN`;
-              prices = await fetchYahooHistorical(yahooTicker, nextDay, endDate);
-            }
-          } else if (info.source === "yahoo") {
-            prices = await fetchYahooHistorical(
-              info.sourceId,
-              nextDay,
-              endDate
-            );
-            // Fallback to Alpha Vantage if Yahoo returned no data
-            if (prices.length === 0 && process.env.ALPHA_VANTAGE_API_KEY) {
-              prices = await fetchAlphaVantageHistorical(
-                info.sourceId,
-                nextDay,
-                endDate
-              );
-            }
-          } else if (info.source === "alphavantage") {
-            prices = await fetchAlphaVantageHistorical(
-              info.sourceId,
-              nextDay,
-              endDate
-            );
-          }
-        } catch (err) {
-          result.errors.push(`Error fetching prices for ${name}: ${err}`);
-          continue;
-        }
+        const sourceId = info.sourceId;
+        const holdingName = name;
 
-        const priceMap = new Map<string, number>();
-        for (const p of prices) {
-          priceMap.set(p.date, p.price);
+        if (info.source === "fintual") {
+          fetchTasks.push({
+            name: holdingName,
+            task: () => fetchFintualHistorical(sourceId, nextDay, endDate)
+              .then(prices => ({ name: holdingName, prices })),
+          });
+        } else if (info.source === "bolsa_santiago") {
+          fetchTasks.push({
+            name: holdingName,
+            task: async () => {
+              let prices = await fetchBolsaSantiagoHistoricalPrices(sourceId, nextDay, endDate);
+              // Fallback to Yahoo with .SN suffix if Bolsa de Santiago returns nothing
+              // (e.g., API outside operating hours)
+              if (prices.length === 0) {
+                const yahooTicker = `${sourceId}.SN`;
+                prices = await fetchYahooHistorical(yahooTicker, nextDay, endDate);
+              }
+              return { name: holdingName, prices };
+            },
+          });
+        } else if (info.source === "yahoo") {
+          fetchTasks.push({
+            name: holdingName,
+            task: async () => {
+              let prices = await fetchYahooHistorical(sourceId, nextDay, endDate);
+              // Fallback to Alpha Vantage if Yahoo returned no data
+              if (prices.length === 0 && process.env.ALPHA_VANTAGE_API_KEY) {
+                prices = await fetchAlphaVantageHistorical(sourceId, nextDay, endDate);
+              }
+              return { name: holdingName, prices };
+            },
+          });
+        } else if (info.source === "alphavantage") {
+          fetchTasks.push({
+            name: holdingName,
+            task: () => fetchAlphaVantageHistorical(sourceId, nextDay, endDate)
+              .then(prices => ({ name: holdingName, prices })),
+          });
         }
-        pricesByHolding.set(name, priceMap);
+      }
+
+      // Execute all fetch tasks in parallel with concurrency limit
+      const CONCURRENCY_LIMIT = 5;
+      const fetchResults = await parallelWithLimit(
+        fetchTasks.map(({ name: holdingName, task }) => async () => {
+          try {
+            return await task();
+          } catch (err) {
+            result.errors.push(`Error fetching prices for ${holdingName}: ${err}`);
+            return { name: holdingName, prices: [] as DailyPrice[] };
+          }
+        }),
+        CONCURRENCY_LIMIT
+      );
+
+      // Populate pricesByHolding from parallel results
+      for (const fetchResult of fetchResults) {
+        if (fetchResult.prices.length > 0) {
+          const priceMap = new Map<string, number>();
+          for (const p of fetchResult.prices) {
+            priceMap.set(p.date, p.price);
+          }
+          pricesByHolding.set(fetchResult.name, priceMap);
+        }
       }
 
       // 5. Collect all dates that have at least one price

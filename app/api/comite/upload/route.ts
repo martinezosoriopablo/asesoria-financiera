@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
 
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extraer metadata básica del HTML (título, fecha si existe)
+    // Extract metadata BEFORE sanitizing (title/date extraction is safe on raw text)
     const titleMatch = content.match(/<title>([^<]+)<\/title>/i);
     const title = titleMatch ? titleMatch[1] : `Reporte ${type}`;
 
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest) {
       ? `${dateMatch[3]}-${getMonthNumber(dateMatch[2])}-${dateMatch[1].padStart(2, "0")}`
       : new Date().toISOString().split("T")[0];
 
+    // Sanitize HTML to prevent stored XSS
+    const sanitizedContent = sanitizeHtml(content);
+
     // Guardar en Supabase
     const { data, error } = await supabase
       .from("comite_reports")
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
           type,
           filename: file.name,
           title,
-          content,
+          content: sanitizedContent,
           report_date: reportDate,
           uploaded_by: user!.id,
           uploaded_at: new Date().toISOString(),

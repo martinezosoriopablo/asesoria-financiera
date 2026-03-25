@@ -1,24 +1,103 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface ValidScores {
+  capacity: number;
+  tolerance: number;
+  perception: number;
+  composure: number;
+  global: number;
+  profileLabel: string;
+}
+
+const EXPECTED_SCORE_KEYS = ["capacity", "tolerance", "perception", "composure", "global", "profileLabel"];
+
+function isValidScores(scores: unknown): scores is ValidScores {
+  if (!scores || typeof scores !== "object" || Array.isArray(scores)) return false;
+  const s = scores as Record<string, unknown>;
+  for (const key of EXPECTED_SCORE_KEYS) {
+    if (!(key in s)) return false;
+  }
+  // Numeric scores must be finite numbers
+  for (const key of ["capacity", "tolerance", "perception", "composure", "global"]) {
+    if (typeof s[key] !== "number" || !Number.isFinite(s[key] as number)) return false;
+  }
+  if (typeof s.profileLabel !== "string" || s.profileLabel.length === 0 || s.profileLabel.length > 100) return false;
+  return true;
+}
+
 export async function POST(req: NextRequest) {
-  const blocked = applyRateLimit(req, "save-risk-profile", { limit: 10, windowSeconds: 60 });
+  const blocked = applyRateLimit(req, "save-risk-profile", { limit: 3, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {
-    const { email, scores, responses, retirementData, projection, advisorEmail: advisorEmailFromClient } = await req.json();
+    // --- Origin validation ---
+    const allowedOrigin = (process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app").replace(/\/$/, "");
+    const origin = req.headers.get("origin");
+    const referer = req.headers.get("referer");
+    if (!origin && !referer) {
+      return NextResponse.json({ error: "Solicitud no autorizada" }, { status: 403 });
+    }
+    const requestOrigin = origin || (referer ? new URL(referer).origin : null);
+    if (requestOrigin && requestOrigin !== allowedOrigin) {
+      // In development, also allow localhost
+      const isDev = allowedOrigin.includes("localhost") || requestOrigin.includes("localhost");
+      if (!isDev) {
+        return NextResponse.json({ error: "Origen no autorizado" }, { status: 403 });
+      }
+    }
 
-    if (!email || !scores) {
-      return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
+    const body = await req.json();
+    const { email, scores, responses, retirementData, projection, advisorEmail: advisorEmailFromClient, token } = body;
+
+    // --- Input validation ---
+    if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email)) {
+      return NextResponse.json({ error: "Email inválido" }, { status: 400 });
+    }
+
+    if (!isValidScores(scores)) {
+      return NextResponse.json({ error: "Datos de puntaje incompletos o inválidos" }, { status: 400 });
+    }
+
+    if (advisorEmailFromClient && (typeof advisorEmailFromClient !== "string" || !EMAIL_REGEX.test(advisorEmailFromClient))) {
+      return NextResponse.json({ error: "Email de asesor inválido" }, { status: 400 });
+    }
+
+    if (responses && typeof responses !== "object") {
+      return NextResponse.json({ error: "Respuestas inválidas" }, { status: 400 });
+    }
+
+    // --- HMAC token verification ---
+    const hmacSecret = process.env.CRON_SECRET || "fallback";
+    const tokenPayload = advisorEmailFromClient ? `${email}:${advisorEmailFromClient}` : email;
+    const expectedToken = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
+    if (!token || typeof token !== "string" || !crypto.timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expectedToken, "hex"))) {
+      return NextResponse.json({ error: "Token de verificación inválido" }, { status: 403 });
     }
 
     const supabase = createAdminClient();
 
-    // Look up advisor ID from email if provided
+    // --- Validate client exists in DB ---
+    const { data: existingClient } = await supabase
+      .from("clients")
+      .select("id, asesor_id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!existingClient) {
+      return NextResponse.json({ error: "Cliente no registrado. Contacta a tu asesor." }, { status: 403 });
+    }
+
+    const clientId = existingClient.id;
+
+    // --- Validate advisor exists and is active ---
     let advisorId: string | null = null;
     if (advisorEmailFromClient) {
       const { data: advisor } = await supabase
@@ -26,52 +105,24 @@ export async function POST(req: NextRequest) {
         .select("id")
         .eq("email", advisorEmailFromClient)
         .single();
-      if (advisor) {
-        advisorId = advisor.id;
+      if (!advisor) {
+        return NextResponse.json({ error: "Asesor no encontrado" }, { status: 400 });
       }
+      advisorId = advisor.id;
     }
 
-    // Find or create client
-    const { data: existingClient } = await supabase
-      .from("clients")
-      .select("id, asesor_id")
-      .eq("email", email)
-      .maybeSingle();
-
-    let clientId: string;
-
-    if (existingClient) {
-      clientId = existingClient.id;
-      // Always assign to the advisor from the questionnaire link (takes precedence)
-      if (advisorId) {
-        await supabase
-          .from("clients")
-          .update({ asesor_id: advisorId })
-          .eq("id", clientId);
-      }
-    } else {
-      const { data: newClient, error: newClientError } = await supabase
+    // Assign advisor if provided (takes precedence)
+    if (advisorId) {
+      await supabase
         .from("clients")
-        .insert({
-          email,
-          nombre: email,
-          apellido: "",
-          asesor_id: advisorId // Assign advisor if known
-        })
-        .select("id")
-        .single();
-
-      if (newClientError || !newClient) {
-        console.error("Error creating client:", newClientError);
-        return NextResponse.json({ error: "Error creando el cliente" }, { status: 500 });
-      }
-      clientId = newClient.id;
+        .update({ asesor_id: advisorId })
+        .eq("id", clientId);
     }
 
     // Build extended responses
     const extendedResponses = {
       ...responses,
-      goal_type: responses["goal_1_objetivo"] ?? null,
+      goal_type: responses?.["goal_1_objetivo"] ?? null,
       retirement_data: retirementData
         ? {
             ...retirementData,

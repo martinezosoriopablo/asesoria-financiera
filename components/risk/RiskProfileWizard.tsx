@@ -71,6 +71,7 @@ export default function RiskProfileWizard() {
   const searchParams = useSearchParams();
   const emailFromUrl = searchParams.get("email") || "";
   const advisorFromUrl = searchParams.get("advisor") || "";
+  const tokenFromUrl = searchParams.get("token") || "";
   const [email, setEmail] = useState("");
   const [includeAlternatives, setIncludeAlternatives] = useState(false);
 
@@ -156,6 +157,7 @@ export default function RiskProfileWizard() {
             answers["goal_1_objetivo"] === "pension" ? retirementAnswers : null,
           projection,
           advisorEmail: advisorFromUrl || undefined,
+          token: tokenFromUrl || undefined,
         }),
       });
 

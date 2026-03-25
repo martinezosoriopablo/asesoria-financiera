@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import crypto from "crypto";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { escapeHtml } from "@/lib/sanitize";
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     let advisorName = "Tu asesor financiero";
     let companyName = "";
     let logoUrl = "";
-    let replyTo = "pmartinez@greybark.com";
+    let replyTo = process.env.SENDER_EMAIL || "noreply@example.com";
 
     if (advisorEmail) {
       const { data: advisor } = await supabase
@@ -44,13 +45,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const appUrl = "https://asesoria-financiera.vercel.app";
-    const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}${advisorEmail ? `&advisor=${encodeURIComponent(advisorEmail)}` : ""}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    // Generate HMAC token to authenticate the questionnaire submission
+    const hmacSecret = process.env.CRON_SECRET || "fallback";
+    const tokenPayload = advisorEmail ? `${email}:${advisorEmail}` : email;
+    const token = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
+    const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}${advisorEmail ? `&advisor=${encodeURIComponent(advisorEmail)}` : ""}&token=${token}`;
     const displayName = clientName || email;
 
     const fromName = companyName || "Asesoría Financiera";
     const { error } = await resend.emails.send({
-      from: `${fromName} <pmartinez@greybark.com>`,
+      from: `${fromName} <${process.env.SENDER_EMAIL || "noreply@example.com"}>`,
       replyTo: replyTo,
       to: email,
       subject: "Cuestionario de Perfil de Inversor",

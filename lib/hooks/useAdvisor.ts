@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import type { AdvisorRole } from "@/lib/types/advisor";
@@ -21,11 +21,14 @@ interface AdvisorInfo {
 export function useAdvisor() {
   const [advisor, setAdvisor] = useState<AdvisorInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(true);
 
   useEffect(() => {
+    isMounted.current = true;
     const supabase = createSupabaseBrowserClient();
 
     supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!isMounted.current) return;
       if (user) {
         // Fetch advisor profile from DB with new fields
         supabase
@@ -34,6 +37,7 @@ export function useAdvisor() {
           .eq("email", user.email)
           .single()
           .then(({ data }) => {
+            if (!isMounted.current) return;
             const role: AdvisorRole = data?.rol || 'advisor';
             setAdvisor({
               user,
@@ -57,6 +61,10 @@ export function useAdvisor() {
         setLoading(false);
       }
     });
+
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const logout = async () => {
