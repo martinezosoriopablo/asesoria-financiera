@@ -22,16 +22,7 @@ Ultima auditoria: 2026-03-25
 - [x] N+1 queries en fill-prices — pre-fetch fintual_funds con Map O(1) (2026-03-25)
 - [x] Token Bolsa Santiago movido de query param a Authorization header (2026-03-25)
 - [x] OAuth CSRF protection — state cookie en Google OAuth flow (2026-03-25)
-
----
-
-## PENDIENTES — ALTO
-
-### 1. RLS en tablas sensibles
-- [ ] `clients` — agregar politica por `asesor_id`
-- [ ] `portfolio_snapshots` — politica por `client_id` -> `asesor_id`
-- [ ] `client_cartolas` — politica por `client_id`
-- [ ] `risk_profiles` — politica por `client_id`
+- [x] RLS en clients, portfolio_snapshots, client_cartolas, risk_profiles + función helper admin (2026-03-25)
 
 ---
 
