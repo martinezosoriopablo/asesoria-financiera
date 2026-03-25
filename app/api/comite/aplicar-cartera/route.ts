@@ -2,7 +2,7 @@
 // Aplica la cartera recomendada: guarda en cliente, crea modelo
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 interface CarteraPosition {
@@ -53,19 +53,10 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const { user, error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    // Verify authentication
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
+    const supabase = createAdminClient();
 
     const body: AplicarCarteraRequest = await request.json();
     const { clientId, cliente, recomendacion, generadoEn } = body;
@@ -147,7 +138,7 @@ export async function POST(request: NextRequest) {
       cliente,
       generadoEn,
       aplicadoEn: new Date().toISOString(),
-      aplicadoPor: user.email,
+      aplicadoPor: user!.email,
     };
 
     const { error: updateClientError } = await supabase

@@ -2,7 +2,7 @@
 // Sube un reporte del comité (HTML)
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
@@ -12,19 +12,10 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const { user, error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    // Verificar autenticación
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
+    const supabase = createAdminClient();
 
     // Parsear el FormData
     const formData = await request.formData();
@@ -85,7 +76,7 @@ export async function POST(request: NextRequest) {
           title,
           content,
           report_date: reportDate,
-          uploaded_by: user.id,
+          uploaded_by: user!.id,
           uploaded_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },

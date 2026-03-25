@@ -2,7 +2,7 @@
 // Agente que genera cartera recomendada basada en reportes del comité + perfil cliente
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -92,19 +92,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createSupabaseServerClient();
+    const { user, error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    // Verificar autenticación
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
+    const supabase = createAdminClient();
 
     // Obtener datos del request
     const body = await request.json();

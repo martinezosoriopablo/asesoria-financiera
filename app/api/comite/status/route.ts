@@ -2,7 +2,7 @@
 // Obtiene el estado actual de los reportes del comité
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 interface ComiteReportStatus {
@@ -18,19 +18,10 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    // Verificar autenticación
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
+    const supabase = createAdminClient();
 
     // Obtener reportes del comité (los más recientes de cada tipo)
     const { data: reports, error } = await supabase

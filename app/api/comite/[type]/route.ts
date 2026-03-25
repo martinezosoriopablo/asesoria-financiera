@@ -2,7 +2,7 @@
 // Obtiene el contenido de un reporte específico del comité
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
@@ -24,19 +24,10 @@ export async function GET(
       );
     }
 
-    const supabase = await createSupabaseServerClient();
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    // Verificar autenticación
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado" },
-        { status: 401 }
-      );
-    }
+    const supabase = createAdminClient();
 
     // Obtener el reporte más reciente de este tipo
     const { data: report, error } = await supabase
