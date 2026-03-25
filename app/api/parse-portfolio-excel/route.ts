@@ -368,7 +368,7 @@ function extractMetadata(data: unknown[][], headerRowIndex: number): {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<ParsedResponse>> {
-  const blocked = applyRateLimit(request, "parse-excel", { limit: 5, windowSeconds: 60 });
+  const blocked = applyRateLimit(request, "parse-excel", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked as NextResponse<ParsedResponse>;
 
   const { error: authError } = await requireAdvisor();

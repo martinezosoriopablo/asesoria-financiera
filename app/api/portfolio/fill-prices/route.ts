@@ -162,35 +162,71 @@ function detectSerieCode(holdingName: string): string | null {
   return null;
 }
 
-// Try to match a holding to a Fintual fund
+// Cached fintual_funds data structure for in-memory lookups
+interface FintualFundRow {
+  fintual_id: string;
+  fund_name: string;
+  serie_name?: string;
+  provider_name?: string;
+  symbol?: string;
+  run?: string;
+}
+
+interface FintualFundsCache {
+  all: FintualFundRow[];
+  byFintualId: Map<string, FintualFundRow>;
+  byRun: Map<string, FintualFundRow[]>;
+}
+
+// Pre-fetch ALL fintual_funds into memory for O(1) lookups
+async function prefetchFintualFunds(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<FintualFundsCache> {
+  const { data, error } = await supabase
+    .from("fintual_funds")
+    .select("fintual_id, fund_name, serie_name, provider_name, symbol, run");
+
+  const all: FintualFundRow[] = data && !error ? data : [];
+
+  const byFintualId = new Map<string, FintualFundRow>();
+  const byRun = new Map<string, FintualFundRow[]>();
+
+  for (const row of all) {
+    byFintualId.set(row.fintual_id, row);
+    if (row.run) {
+      const existing = byRun.get(row.run) || [];
+      existing.push(row);
+      byRun.set(row.run, existing);
+    }
+  }
+
+  return { all, byFintualId, byRun };
+}
+
+// Try to match a holding to a Fintual fund using pre-fetched cache
 // Strategy: name search → find candidates → pick best serie match
-async function matchHoldingToFintual(
-  supabase: ReturnType<typeof createAdminClient>,
+function matchHoldingToFintualCached(
+  cache: FintualFundsCache,
   fundName: string,
   securityId?: string | null
-): Promise<string | null> {
+): string | null {
   // 1. Try matching by symbol if securityId is provided
   if (securityId) {
     const sid = securityId.trim();
-    const { data: bySymbol } = await supabase
-      .from("fintual_funds")
-      .select("fintual_id, symbol")
-      .ilike("symbol", `%${sid}%`)
-      .limit(5);
-    if (bySymbol && bySymbol.length > 0) {
+    const sidUpper = sid.toUpperCase();
+    const bySymbol = cache.all.filter(
+      (f) => f.symbol && f.symbol.toUpperCase().includes(sidUpper)
+    );
+    if (bySymbol.length > 0) {
       // If multiple results, prefer exact match
-      const exact = bySymbol.find((f) => f.symbol?.trim().toUpperCase() === sid.toUpperCase());
+      const exact = bySymbol.find((f) => f.symbol?.trim().toUpperCase() === sidUpper);
       return exact ? exact.fintual_id : bySymbol[0].fintual_id;
     }
 
     // 1b. Try matching by CMF RUN code
     // RUN codes are typically 4-5 digits, different from internal BCI codes (7 digits)
     if (/^\d{3,5}$/.test(sid)) {
-      const { data: byRun } = await supabase
-        .from("fintual_funds")
-        .select("fintual_id, fund_name, symbol, run")
-        .eq("run", sid)
-        .limit(10);
+      const byRun = cache.byRun.get(sid);
       if (byRun && byRun.length > 0) {
         return pickBestSerie(byRun, fundName);
       }
@@ -212,31 +248,28 @@ async function matchHoldingToFintual(
 
   if (searchTerms.length === 0) return null;
 
-  // 3. Search by the most distinctive terms combined
-  let candidates: Array<{ fintual_id: string; fund_name: string; serie_name?: string; provider_name?: string; symbol?: string; run?: string }> | null = null;
+  // 3. Search by the most distinctive terms combined (in-memory filter)
+  let candidates: FintualFundRow[] | null = null;
 
   // Try searching with the first two terms combined for precision
   if (searchTerms.length >= 2) {
-    const { data } = await supabase
-      .from("fintual_funds")
-      .select("fintual_id, fund_name, serie_name, provider_name, symbol, run")
-      .ilike("fund_name", `%${searchTerms[0]}%`)
-      .ilike("fund_name", `%${searchTerms[1]}%`)
-      .limit(20);
-    candidates = data;
+    const term0 = searchTerms[0].toLowerCase();
+    const term1 = searchTerms[1].toLowerCase();
+    candidates = cache.all.filter((f) => {
+      const name = f.fund_name.toLowerCase();
+      return name.includes(term0) && name.includes(term1);
+    });
   }
 
   // Fallback to single term search
   if (!candidates || candidates.length === 0) {
-    const { data } = await supabase
-      .from("fintual_funds")
-      .select("fintual_id, fund_name, serie_name, provider_name, symbol, run")
-      .ilike("fund_name", `%${searchTerms[0]}%`)
-      .limit(30);
-    candidates = data;
+    const term0 = searchTerms[0].toLowerCase();
+    candidates = cache.all.filter((f) =>
+      f.fund_name.toLowerCase().includes(term0)
+    );
   }
 
-  if (!candidates || candidates.length === 0) return null;
+  if (candidates.length === 0) return null;
 
   // 4. Score each candidate
   return pickBestSerie(candidates, fundName);
@@ -413,12 +446,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Resolve price sources for each unique holding across ALL cartolas
+    // 2. Pre-fetch ALL fintual_funds in a single query for O(1) lookups
+    const fintualCache = await prefetchFintualFunds(supabase);
+
+    // Resolve price sources for each unique holding across ALL cartolas
     type PriceSource = "fintual" | "yahoo" | "alphavantage" | "bolsa_santiago" | "none";
     type ResolvedSource = { source: PriceSource; sourceId: string | null };
     const resolvedCache = new Map<string, ResolvedSource>();
 
-    const resolveHolding = async (holding: HoldingWithSource): Promise<ResolvedSource> => {
+    const resolveHolding = (holding: HoldingWithSource): ResolvedSource => {
       const cacheKey = `${holding.fundName}||${holding.securityId || ""}`;
       if (resolvedCache.has(cacheKey)) return resolvedCache.get(cacheKey)!;
 
@@ -429,24 +465,16 @@ export async function POST(request: NextRequest) {
       if (holding.securityId && isFintualId(holding.securityId)) {
         const sid = holding.securityId.trim();
 
-        // 1a. Try as direct Fintual series ID
-        const { data } = await supabase
-          .from("fintual_funds")
-          .select("fintual_id")
-          .eq("fintual_id", sid)
-          .limit(1);
-        if (data && data.length > 0) {
+        // 1a. Try as direct Fintual series ID (O(1) Map lookup)
+        const directMatch = fintualCache.byFintualId.get(sid);
+        if (directMatch) {
           priceSource = "fintual";
-          sourceId = data[0].fintual_id;
+          sourceId = directMatch.fintual_id;
         }
 
         // 1b. Try as CMF RUN code (shorter numbers, typically 3-5 digits)
         if (priceSource === "none") {
-          const { data: byRun } = await supabase
-            .from("fintual_funds")
-            .select("fintual_id, fund_name, symbol, run")
-            .eq("run", sid)
-            .limit(10);
+          const byRun = fintualCache.byRun.get(sid);
           if (byRun && byRun.length > 0) {
             const bestId = pickBestSerie(byRun, holding.fundName);
             if (bestId) {
@@ -467,26 +495,28 @@ export async function POST(request: NextRequest) {
       //    (Fintual has daily prices even for low-liquidity instruments)
       if (priceSource === "none" && holding.securityId) {
         const sid = holding.securityId.trim().toUpperCase();
-        const directMatch = CHILEAN_NEMO_TO_FINTUAL[sid];
-        if (directMatch?.fintualId) {
+        const directNemoMatch = CHILEAN_NEMO_TO_FINTUAL[sid];
+        if (directNemoMatch?.fintualId) {
           priceSource = "fintual";
-          sourceId = directMatch.fintualId;
+          sourceId = directNemoMatch.fintualId;
         } else if (sid.startsWith("CFIETF") || sid.startsWith("CFI")) {
-          const { data } = await supabase
-            .from("fintual_funds")
-            .select("fintual_id, symbol, fund_name")
-            .or(`symbol.ilike.%${sid}%,fund_name.ilike.%${sid}%`)
-            .limit(5);
-          if (data && data.length > 0) {
+          // In-memory search by symbol or fund_name containing the nemo
+          const sidLower = sid.toLowerCase();
+          const match = fintualCache.all.find(
+            (f) =>
+              (f.symbol && f.symbol.toLowerCase().includes(sidLower)) ||
+              f.fund_name.toLowerCase().includes(sidLower)
+          );
+          if (match) {
             priceSource = "fintual";
-            sourceId = data[0].fintual_id;
+            sourceId = match.fintual_id;
           }
         }
       }
 
-      // 4. Try matching to Fintual fund by name/symbol (fuzzy)
+      // 4. Try matching to Fintual fund by name/symbol (fuzzy, in-memory)
       if (priceSource === "none") {
-        const fintualId = await matchHoldingToFintual(supabase, holding.fundName, holding.securityId);
+        const fintualId = matchHoldingToFintualCached(fintualCache, holding.fundName, holding.securityId);
         if (fintualId) {
           priceSource = "fintual";
           sourceId = fintualId;
@@ -535,7 +565,7 @@ export async function POST(request: NextRequest) {
     for (const snap of cartolaSnapshots) {
       if (!snap.holdings) continue;
       for (const h of snap.holdings) {
-        const resolved = await resolveHolding(h);
+        const resolved = resolveHolding(h);
         // Only add unique entries to the report
         if (!allHoldingMatches.some((m) => m.name === h.fundName && m.securityId === h.securityId)) {
           allHoldingMatches.push({
@@ -587,7 +617,7 @@ export async function POST(request: NextRequest) {
       >();
 
       for (const bh of baseHoldings) {
-        const resolved = await resolveHolding(bh);
+        const resolved = resolveHolding(bh);
         sourceMap.set(bh.fundName, {
           source: resolved.source,
           sourceId: resolved.sourceId,

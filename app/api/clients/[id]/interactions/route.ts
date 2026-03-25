@@ -1,7 +1,7 @@
 // app/api/clients/[id]/interactions/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 interface RouteContext {
@@ -9,12 +9,13 @@ interface RouteContext {
 }
 
 /**
- * Verifica que el cliente pertenece al advisor o no tiene asesor asignado.
+ * Verifica que el cliente pertenece al advisor, no tiene asesor asignado,
+ * o pertenece a un subordinado (si el advisor es admin).
  */
 async function verifyClientAccess(
   supabase: ReturnType<typeof createAdminClient>,
   clientId: string,
-  advisorId: string
+  advisor: { id: string; rol: string }
 ): Promise<boolean> {
   const { data: client } = await supabase
     .from("clients")
@@ -24,7 +25,13 @@ async function verifyClientAccess(
 
   if (!client) return false;
   // Puede acceder si es suyo o si no tiene asesor
-  return client.asesor_id === advisorId || client.asesor_id === null;
+  if (client.asesor_id === advisor.id || client.asesor_id === null) return true;
+  // Admin puede acceder a clientes de subordinados
+  if (advisor.rol === "admin") {
+    const allowedIds = await getSubordinateAdvisorIds(advisor.id);
+    return allowedIds.includes(client.asesor_id);
+  }
+  return false;
 }
 
 // GET - Obtener interacciones de un cliente (si pertenece al advisor o no tiene asesor)
@@ -41,7 +48,7 @@ export async function GET(
 
   try {
     // Verificar acceso al cliente
-    const canAccess = await verifyClientAccess(supabase, id, advisor!.id);
+    const canAccess = await verifyClientAccess(supabase, id, advisor!);
     if (!canAccess) {
       return NextResponse.json(
         { success: false, error: "Cliente no encontrado" },
@@ -94,7 +101,7 @@ export async function POST(
 
   try {
     // Verificar acceso al cliente
-    const canAccess = await verifyClientAccess(supabase, id, advisor!.id);
+    const canAccess = await verifyClientAccess(supabase, id, advisor!);
     if (!canAccess) {
       return NextResponse.json(
         { success: false, error: "Cliente no encontrado o no tiene permiso" },

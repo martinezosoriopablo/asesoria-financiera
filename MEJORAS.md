@@ -17,40 +17,21 @@ Ultima auditoria: 2026-03-25
 - [x] Chart period no borra la pagina (filtro client-side)
 - [x] PerformanceAttribution usa `marketValueCLP` y TWR consistente
 - [x] Boton eliminar cliente desde lista
+- [x] Admin subordinate access en messages, invite, interactions (2026-03-25)
+- [x] Rate limiting en endpoints costosos: AI=5/min, non-AI=10/min (2026-03-25)
+- [x] N+1 queries en fill-prices — pre-fetch fintual_funds con Map O(1) (2026-03-25)
+- [x] Token Bolsa Santiago movido de query param a Authorization header (2026-03-25)
+- [x] OAuth CSRF protection — state cookie en Google OAuth flow (2026-03-25)
 
 ---
 
 ## PENDIENTES — ALTO
 
-### 1. Admin subordinate access en 3 endpoints restantes
-- [ ] `app/api/advisor/messages/[clientId]/route.ts`
-- [ ] `app/api/client/invite/route.ts`
-- [ ] `app/api/clients/[id]/interactions/route.ts`
-**Patron:** Agregar `getSubordinateAdvisorIds` check cuando `advisor.rol === "admin"`
-
-### 2. Rate limiting en endpoints costosos
-- [ ] `app/api/parse-portfolio-statement/route.ts` (AI/PDF)
-- [ ] `app/api/parse-portfolio-excel/route.ts` (parsing)
-- [ ] `app/api/generate-pdf/route.ts` (PDF generation)
-- [ ] `app/api/analize-fund/route.ts` (AI)
-- [ ] `app/api/comite/generar-cartera/route.ts` (AI)
-**Patron:** `applyRateLimit(request, "nombre", { limit: 5, windowSeconds: 60 })`
-
-### 3. N+1 queries en fill-prices
-- [ ] `app/api/portfolio/fill-prices/route.ts:421-476`
-**Fix:** Pre-fetch todos los `fintual_funds` en un solo query, usar Map para lookups O(1)
-
-### 4. RLS en tablas sensibles
+### 1. RLS en tablas sensibles
 - [ ] `clients` — agregar politica por `asesor_id`
 - [ ] `portfolio_snapshots` — politica por `client_id` -> `asesor_id`
 - [ ] `client_cartolas` — politica por `client_id`
 - [ ] `risk_profiles` — politica por `client_id`
-
-### 5. Token Bolsa Santiago en header
-- [ ] `lib/bolsa-santiago/client.ts:61` — mover de query param a `Authorization` header
-
-### 6. OAuth CSRF protection
-- [ ] `app/api/google/callback/route.ts` — validar `state` contra valor almacenado en session/cache
 
 ---
 

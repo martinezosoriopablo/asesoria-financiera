@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -26,9 +26,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
   }
 
-  // Verificar que el cliente pertenece a este asesor
-  if (client.asesor_id !== advisor!.id) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  // Verificar que el cliente pertenece a este asesor (o subordinado si es admin)
+  if (client.asesor_id && client.asesor_id !== advisor!.id) {
+    if (advisor!.rol === "admin") {
+      const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+      if (!allowedIds.includes(client.asesor_id)) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
   }
 
   if (!client.email) {

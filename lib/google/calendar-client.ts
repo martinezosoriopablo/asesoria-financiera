@@ -68,7 +68,7 @@ export function isGoogleCalendarConfigured(): boolean {
 /**
  * Genera la URL de autorización de Google OAuth
  */
-export function getGoogleAuthUrl(advisorId: string): string {
+export function getGoogleAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: GOOGLE_REDIRECT_URI,
@@ -76,7 +76,7 @@ export function getGoogleAuthUrl(advisorId: string): string {
     scope: SCOPES.join(" "),
     access_type: "offline",
     prompt: "consent", // Forzar pantalla de consentimiento para obtener refresh_token
-    state: advisorId, // Pasamos el advisor_id para identificar al usuario
+    state, // CSRF token — validated against cookie in callback
   });
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

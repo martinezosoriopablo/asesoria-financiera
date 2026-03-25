@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 
 export async function GET(
   _req: Request,
@@ -18,8 +18,19 @@ export async function GET(
     .eq("id", clientId)
     .single();
 
-  if (!client || client.asesor_id !== advisor!.id) {
+  if (!client) {
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+  }
+
+  if (client.asesor_id && client.asesor_id !== advisor!.id) {
+    if (advisor!.rol === "admin") {
+      const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+      if (!allowedIds.includes(client.asesor_id)) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
   }
 
   const { data: messages } = await admin
@@ -58,8 +69,19 @@ export async function POST(
     .eq("id", clientId)
     .single();
 
-  if (!client || client.asesor_id !== advisor!.id) {
+  if (!client) {
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+  }
+
+  if (client.asesor_id && client.asesor_id !== advisor!.id) {
+    if (advisor!.rol === "admin") {
+      const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+      if (!allowedIds.includes(client.asesor_id)) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
+    } else {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
   }
 
   const { data: message, error: insertError } = await admin

@@ -58,13 +58,14 @@ async function makeRequest<T>(endpoint: string, body: Record<string, unknown> = 
   }
 
   try {
-    const url = `${BOLSA_SANTIAGO_BASE_URL}${endpoint}?access_token=${encodeURIComponent(API_TOKEN)}`;
+    const url = `${BOLSA_SANTIAGO_BASE_URL}${endpoint}`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "Authorization": `Bearer ${API_TOKEN}`,
       },
       body: JSON.stringify(body),
     });

@@ -26,11 +26,26 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Generar URL de autorización
-  const authUrl = getGoogleAuthUrl(advisor!.id);
+  // Generate CSRF state token and store advisor_id in cookie
+  const csrfState = crypto.randomUUID();
+  const authUrl = getGoogleAuthUrl(csrfState);
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     success: true,
     authUrl,
   });
+
+  // Store CSRF state + advisor_id in an httpOnly cookie for validation in callback
+  response.cookies.set("google_oauth_state", JSON.stringify({
+    state: csrfState,
+    advisorId: advisor!.id,
+  }), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/google/callback",
+    maxAge: 600, // 10 minutes — enough time to complete the OAuth flow
+  });
+
+  return response;
 }
