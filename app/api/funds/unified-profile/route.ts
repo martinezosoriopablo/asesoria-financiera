@@ -2,7 +2,6 @@
 // API unificada que intenta obtener datos de múltiples fuentes:
 // 1. Alpha Vantage (principal)
 // 2. Yahoo Finance (fallback)
-// 3. Massive.com (fallback para acciones)
 
 import { NextRequest, NextResponse } from "next/server";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
@@ -33,7 +32,7 @@ interface FundProfile {
   dividendYield?: number | null;
   beta?: number | null;
   assetType?: string;
-  source: "alphavantage" | "yahoo" | "massive";
+  source: "alphavantage" | "yahoo";
   historicalData?: { date: string; close: number }[];
 }
 
@@ -200,16 +199,6 @@ async function fetchFromYahooFinance(symbol: string, fundName?: string): Promise
 }
 
 // ============================================================
-// MASSIVE.COM (placeholder - requires MCP integration)
-// ============================================================
-async function fetchFromMassive(symbol: string): Promise<FundProfile | null> {
-  // Massive.com is integrated via MCP, not direct API
-  // This would need to be called differently in the frontend
-  // For now, return null as it's not directly accessible from API routes
-  return null;
-}
-
-// ============================================================
 // HELPERS
 // ============================================================
 function calculateReturns(historicalData: { date: string; close: number }[], currentPrice: number) {
@@ -349,16 +338,6 @@ export async function GET(request: NextRequest) {
       attempts.push("yahoo:success");
     } else {
       attempts.push("yahoo:failed");
-    }
-  }
-
-  // 3. Try Massive.com as last resort (placeholder)
-  if (!profile) {
-    profile = await fetchFromMassive(symbol);
-    if (profile) {
-      attempts.push("massive:success");
-    } else {
-      attempts.push("massive:failed");
     }
   }
 

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
+import { logAuditEvent } from "@/lib/audit";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -282,6 +283,15 @@ export async function DELETE(
         created_by: advisor!.email,
       },
     ]);
+
+    // Fire-and-forget audit log
+    logAuditEvent({
+      advisorId: advisor!.id,
+      action: "delete",
+      entityType: "client",
+      entityId: id,
+      details: { nombre: client.nombre, apellido: client.apellido },
+    }).catch(() => {});
 
     return successResponse({ message: "Cliente marcado como inactivo", client });
   });

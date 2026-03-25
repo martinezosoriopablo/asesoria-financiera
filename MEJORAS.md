@@ -31,21 +31,16 @@ Ultima auditoria: 2026-03-25
 - [x] Fintual sync atómico: batch upsert por tabla, chunks de 1000 rows (2026-03-25)
 - [x] Env vars validation: lib/env.ts valida 5 vars críticas al startup (2026-03-25)
 
+- [x] Dashboard error handling: ya tenía manejo correcto, verificado (2026-03-25)
+- [x] Edit page stub removido — edición ya existe como modal en ClientDetail (2026-03-25)
+- [x] Placeholder fetchFromMassive removido de unified-profile (2026-03-25)
+- [x] Audit logging: tabla audit_logs + lib/audit.ts + logs en create/delete client y CRUD advisors (2026-03-25)
+
 ---
 
-## PENDIENTES — BAJO
+## PENDIENTES
 
-### 14. Dashboard error handling
-- [ ] `app/dashboard/page.tsx:66` — mostrar banner de error en vez de catch vacio
-
-### 15. Edit page stub
-- [ ] `app/clients/[id]/edit/page.tsx` — implementar o remover ruta
-
-### 16. Placeholder fetchFromMassive
-- [ ] `app/api/funds/unified-profile/route.ts` — implementar o remover
-
-### 17. Audit logging
-- [ ] Implementar logs de acciones admin (creacion/eliminacion de clientes, cambios de rol)
+_Sin items pendientes. Próxima auditoría sugerida: 2026-04-25._
 
 ---
 

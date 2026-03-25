@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { logAuditEvent } from "@/lib/audit";
 
 // GET - Obtener lista de asesores
 export async function GET(request: NextRequest) {
@@ -131,6 +132,15 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    // Fire-and-forget audit log
+    logAuditEvent({
+      advisorId: advisor!.id,
+      action: "create",
+      entityType: "advisor",
+      entityId: newAdvisor?.id,
+      details: { email: body.email, rol: body.rol || 'advisor' },
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       advisor: newAdvisor,
@@ -224,6 +234,15 @@ export async function PUT(request: NextRequest) {
 
     if (updateError) throw updateError;
 
+    // Fire-and-forget audit log (especially important for role changes)
+    logAuditEvent({
+      advisorId: advisor!.id,
+      action: "update",
+      entityType: "advisor",
+      entityId: body.id,
+      details: updateData,
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       advisor: updatedAdvisor,
@@ -287,6 +306,14 @@ export async function DELETE(request: NextRequest) {
       .eq("id", advisorId);
 
     if (updateError) throw updateError;
+
+    // Fire-and-forget audit log
+    logAuditEvent({
+      advisorId: advisor!.id,
+      action: "deactivate",
+      entityType: "advisor",
+      entityId: advisorId,
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

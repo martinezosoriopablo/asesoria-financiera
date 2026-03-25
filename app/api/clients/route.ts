@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { logAuditEvent } from "@/lib/audit";
 
 // GET - Obtener lista de clientes
 // - Advisor normal: ve sus clientes + huérfanos
@@ -156,6 +157,15 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    // Fire-and-forget audit log
+    logAuditEvent({
+      advisorId: advisor!.id,
+      action: "create",
+      entityType: "client",
+      entityId: newClient?.id,
+      details: { nombre: body.nombre, apellido: body.apellido, email: body.email },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,
