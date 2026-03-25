@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
   try {
     // =============================================
     // FASE 1: Sincronizar catálogo (proveedores + fondos + series)
+    // Collect all rows first, then batch upsert per table
     // =============================================
     const providers = await getProviders();
     const chileanProviders = providers.filter((p) =>
@@ -60,17 +61,16 @@ export async function GET(request: NextRequest) {
     );
     result.providers = chileanProviders.length;
 
+    const allProviderRows: Record<string, unknown>[] = [];
+    const allFundRows: Record<string, unknown>[] = [];
+
     for (const provider of chileanProviders) {
       try {
-        // Upsert proveedor
-        await supabase.from("fintual_providers").upsert(
-          {
-            fintual_id: provider.id,
-            name: provider.attributes.name,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "fintual_id" }
-        );
+        allProviderRows.push({
+          fintual_id: provider.id,
+          name: provider.attributes.name,
+          updated_at: new Date().toISOString(),
+        });
 
         // Obtener fondos
         const funds = await getProviderFunds(provider.id);
@@ -86,23 +86,20 @@ export async function GET(request: NextRequest) {
                 if (match) run = match[1];
               }
 
-              await supabase.from("fintual_funds").upsert(
-                {
-                  fintual_id: serie.id,
-                  conceptual_asset_id: fund.id,
-                  provider_id: provider.id,
-                  provider_name: provider.attributes.name,
-                  fund_name: fund.attributes.name,
-                  serie_name: serie.attributes.name,
-                  symbol: serie.attributes.symbol,
-                  run: run,
-                  currency: serie.attributes.currency || "CLP",
-                  last_price: serie.attributes.last_value,
-                  last_price_date: serie.attributes.last_day,
-                  updated_at: new Date().toISOString(),
-                },
-                { onConflict: "fintual_id" }
-              );
+              allFundRows.push({
+                fintual_id: serie.id,
+                conceptual_asset_id: fund.id,
+                provider_id: provider.id,
+                provider_name: provider.attributes.name,
+                fund_name: fund.attributes.name,
+                serie_name: serie.attributes.name,
+                symbol: serie.attributes.symbol,
+                run: run,
+                currency: serie.attributes.currency || "CLP",
+                last_price: serie.attributes.last_value,
+                last_price_date: serie.attributes.last_day,
+                updated_at: new Date().toISOString(),
+              });
               result.seriesUpserted++;
             }
             result.fundsProcessed++;
@@ -119,8 +116,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Batch upsert providers
+    if (allProviderRows.length > 0) {
+      const { error } = await supabase
+        .from("fintual_providers")
+        .upsert(allProviderRows, { onConflict: "fintual_id" });
+      if (error) {
+        result.errors.push(`Batch upsert fintual_providers: ${error.message}`);
+      }
+    }
+
+    // Batch upsert funds (Supabase has a row limit per request, chunk at 1000)
+    const UPSERT_CHUNK_SIZE = 1000;
+    for (let i = 0; i < allFundRows.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = allFundRows.slice(i, i + UPSERT_CHUNK_SIZE);
+      const { error } = await supabase
+        .from("fintual_funds")
+        .upsert(chunk, { onConflict: "fintual_id" });
+      if (error) {
+        result.errors.push(`Batch upsert fintual_funds (chunk ${i}): ${error.message}`);
+      }
+    }
+
     // =============================================
     // FASE 2: Sincronizar precios recientes (últimos 7 días)
+    // Collect all price rows and fund updates, then batch upsert
     // =============================================
     result.phase = "prices";
 
@@ -134,6 +154,9 @@ export async function GET(request: NextRequest) {
       .from("fintual_funds")
       .select("fintual_id")
       .order("updated_at", { ascending: false });
+
+    const allPriceRows: Record<string, unknown>[] = [];
+    const allFundUpdates: Record<string, unknown>[] = [];
 
     if (allFunds) {
       // Procesar en lotes de 20 para no exceder rate limits de Fintual
@@ -161,46 +184,63 @@ export async function GET(request: NextRequest) {
 
               if (prices.length === 0) return;
 
-              const priceRecords = prices.map((p) => ({
-                fintual_fund_id: fund.fintual_id,
-                date: p.attributes.date,
-                price: p.attributes.price,
-                nav: p.attributes.net_asset_value,
-                total_assets: p.attributes.total_assets,
-                patrimony: p.attributes.total_net_assets,
-                shares_outstanding: p.attributes.outstanding_shares,
-                shareholders: p.attributes.shareholders,
-              }));
-
-              const { error } = await supabase
-                .from("fintual_prices")
-                .upsert(priceRecords, {
-                  onConflict: "fintual_fund_id,date",
-                  ignoreDuplicates: true,
+              for (const p of prices) {
+                allPriceRows.push({
+                  fintual_fund_id: fund.fintual_id,
+                  date: p.attributes.date,
+                  price: p.attributes.price,
+                  nav: p.attributes.net_asset_value,
+                  total_assets: p.attributes.total_assets,
+                  patrimony: p.attributes.total_net_assets,
+                  shares_outstanding: p.attributes.outstanding_shares,
+                  shareholders: p.attributes.shareholders,
                 });
-
-              if (!error) {
-                result.pricesUpserted += priceRecords.length;
               }
+              result.pricesUpserted += prices.length;
 
-              // Actualizar último precio
+              // Track latest price for fund update
               const latest = prices.sort((a, b) =>
                 b.attributes.date.localeCompare(a.attributes.date)
               )[0];
 
-              await supabase
-                .from("fintual_funds")
-                .update({
-                  last_price: latest.attributes.price,
-                  last_price_date: latest.attributes.date,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("fintual_id", fund.fintual_id);
+              allFundUpdates.push({
+                fintual_id: fund.fintual_id,
+                last_price: latest.attributes.price,
+                last_price_date: latest.attributes.date,
+                updated_at: new Date().toISOString(),
+              });
             } catch (err) {
               result.errors.push(`Prices ${fund.fintual_id}: ${err}`);
             }
           })
         );
+      }
+    }
+
+    // Batch upsert all prices
+    for (let i = 0; i < allPriceRows.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = allPriceRows.slice(i, i + UPSERT_CHUNK_SIZE);
+      const { error } = await supabase
+        .from("fintual_prices")
+        .upsert(chunk, {
+          onConflict: "fintual_fund_id,date",
+          ignoreDuplicates: true,
+        });
+      if (error) {
+        result.errors.push(`Batch upsert fintual_prices (chunk ${i}): ${error.message}`);
+      }
+    }
+
+    // Batch upsert fund last_price updates
+    if (allFundUpdates.length > 0) {
+      for (let i = 0; i < allFundUpdates.length; i += UPSERT_CHUNK_SIZE) {
+        const chunk = allFundUpdates.slice(i, i + UPSERT_CHUNK_SIZE);
+        const { error } = await supabase
+          .from("fintual_funds")
+          .upsert(chunk, { onConflict: "fintual_id" });
+        if (error) {
+          result.errors.push(`Batch upsert fintual_funds prices (chunk ${i}): ${error.message}`);
+        }
       }
     }
 

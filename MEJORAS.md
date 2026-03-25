@@ -23,32 +23,13 @@ Ultima auditoria: 2026-03-25
 - [x] Token Bolsa Santiago movido de query param a Authorization header (2026-03-25)
 - [x] OAuth CSRF protection — state cookie en Google OAuth flow (2026-03-25)
 - [x] RLS en clients, portfolio_snapshots, client_cartolas, risk_profiles + función helper admin (2026-03-25)
-
----
-
-## PENDIENTES — MEDIO
-
-### 7. Security headers
-- [ ] Agregar en `next.config.ts`: HSTS, X-Content-Type-Options, X-Frame-Options, CSP
-
-### 8. Validacion de formularios
-- [ ] `app/clients/new/page.tsx` — validar RUT chileno, telefono, montos positivos, fecha nacimiento pasada
-
-### 9. XSS en emails
-- [ ] `app/api/client/invite/route.ts` — escapar `client.nombre` en HTML
-- [ ] `app/api/send-questionnaire/route.ts` — escapar `displayName` en HTML
-
-### 10. Race conditions en snapshots
-- [ ] `app/api/portfolio/snapshots/[id]/route.ts:160-195` — crear DB function atomica para calcular y actualizar returns
-
-### 11. Rate limiter persistente
-- [ ] `lib/rate-limit.ts` — migrar de in-memory a Upstash Redis o Vercel KV para multi-instancia
-
-### 12. Fintual sync atomico
-- [ ] `app/api/cron/sync-fintual/route.ts` — wrappear en transaccion DB o usar batch upsert
-
-### 13. Env vars validation
-- [ ] Crear `lib/env.ts` que valide variables criticas al startup: `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`
+- [x] Security headers: HSTS, X-Content-Type-Options, X-Frame-Options, CSP, Referrer-Policy (2026-03-25)
+- [x] Validación formulario nuevo cliente: RUT mod11, teléfono +56, montos positivos, edad ≥18 (2026-03-25)
+- [x] XSS en emails: escapeHtml en invite y questionnaire con lib/sanitize.ts (2026-03-25)
+- [x] Race conditions en snapshots: función atómica calculate_snapshot_returns en PL/pgSQL (2026-03-25)
+- [x] Rate limiter: MAX_ENTRIES cap + cleanup para evitar memory leaks, TODO Upstash (2026-03-25)
+- [x] Fintual sync atómico: batch upsert por tabla, chunks de 1000 rows (2026-03-25)
+- [x] Env vars validation: lib/env.ts valida 5 vars críticas al startup (2026-03-25)
 
 ---
 

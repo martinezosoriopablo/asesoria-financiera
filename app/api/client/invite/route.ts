@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
+import { escapeHtml } from "@/lib/sanitize";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
           <img src="${appUrl}/logo-greybark.png" alt="Greybark Advisors" style="height: 40px; margin-bottom: 32px;" />
           <h1 style="font-size: 20px; color: #1a1a1a; margin-bottom: 16px;">
-            Hola ${client.nombre},
+            Hola ${escapeHtml(client.nombre || '')},
           </h1>
           <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
             Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.

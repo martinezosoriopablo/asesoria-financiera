@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { escapeHtml } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -57,12 +58,12 @@ export async function POST(req: NextRequest) {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           ${logoUrl ? `
           <div style="text-align: center; margin-bottom: 24px;">
-            <img src="${logoUrl}" alt="${companyName || 'Logo'}" style="max-height: 60px; max-width: 200px;" />
+            <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName || 'Logo')}" style="max-height: 60px; max-width: 200px;" />
           </div>
           ` : ""}
-          <h2 style="color: #1e293b;">Hola ${displayName},</h2>
+          <h2 style="color: #1e293b;">Hola ${escapeHtml(displayName)},</h2>
           <p style="color: #475569; font-size: 16px; line-height: 1.6;">
-            <strong>${advisorName}</strong>${companyName ? ` de <strong>${companyName}</strong>` : ""} te ha enviado un cuestionario para determinar tu perfil de inversor.
+            <strong>${escapeHtml(advisorName)}</strong>${companyName ? ` de <strong>${escapeHtml(companyName)}</strong>` : ""} te ha enviado un cuestionario para determinar tu perfil de inversor.
             Este cuestionario nos ayudará a entender tu capacidad, tolerancia y comportamiento frente
             al riesgo, para recomendarte una estrategia de inversión alineada con tus objetivos.
           </p>
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
             </a>
           </div>
           <p style="color: #94a3b8; font-size: 13px;">
-            Si tienes dudas, puedes responder directamente a este correo para contactar a ${advisorName}${companyName ? ` (${companyName})` : ""}.
+            Si tienes dudas, puedes responder directamente a este correo para contactar a ${escapeHtml(advisorName)}${companyName ? ` (${escapeHtml(companyName)})` : ""}.
           </p>
         </div>
       `,

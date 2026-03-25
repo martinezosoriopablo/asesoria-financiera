@@ -157,43 +157,6 @@ export async function PUT(
       updateData.holdings = body.holdings;
     }
 
-    // Recalcular retornos si se cambió el valor
-    if (body.totalValue !== undefined) {
-      const clientId = existingSnapshot.client_id;
-      const date = body.snapshotDate || existingSnapshot.snapshot_date;
-
-      // Obtener snapshot anterior
-      const { data: prevSnapshot } = await supabase
-        .from("portfolio_snapshots")
-        .select("total_value")
-        .eq("client_id", clientId)
-        .lt("snapshot_date", date)
-        .order("snapshot_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (prevSnapshot && prevSnapshot.total_value > 0) {
-        updateData.daily_return = clampPercent(
-          ((body.totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100
-        );
-      }
-
-      // Obtener primer snapshot para calcular retorno acumulado
-      const { data: firstSnapshot } = await supabase
-        .from("portfolio_snapshots")
-        .select("total_value")
-        .eq("client_id", clientId)
-        .order("snapshot_date", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (firstSnapshot && firstSnapshot.total_value > 0) {
-        updateData.cumulative_return = clampPercent(
-          ((body.totalValue - firstSnapshot.total_value) / firstSnapshot.total_value) * 100
-        );
-      }
-    }
-
     // Actualizar snapshot
     const { data: snapshot, error } = await supabase
       .from("portfolio_snapshots")
@@ -208,6 +171,36 @@ export async function PUT(
         { success: false, error: error.message },
         { status: 500 }
       );
+    }
+
+    // Atomically recalculate returns if total_value changed
+    if (body.totalValue !== undefined) {
+      const { error: rpcError } = await supabase.rpc(
+        "calculate_snapshot_returns",
+        {
+          p_snapshot_id: snapshotId,
+          p_total_value: body.totalValue,
+        }
+      );
+
+      if (rpcError) {
+        console.error("Error calculating snapshot returns:", rpcError);
+        // Non-fatal: the snapshot was saved, returns just weren't updated
+      } else {
+        // Re-fetch the snapshot to include the updated returns
+        const { data: refreshed } = await supabase
+          .from("portfolio_snapshots")
+          .select("*")
+          .eq("id", snapshotId)
+          .single();
+
+        if (refreshed) {
+          return NextResponse.json({
+            success: true,
+            data: refreshed,
+          });
+        }
+      }
     }
 
     return NextResponse.json({

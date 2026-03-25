@@ -15,11 +15,83 @@ import {
   Loader,
 } from "lucide-react";
 
+// --- Validation helpers ---
+
+function validateRut(rut: string): string | null {
+  if (!rut) return null; // optional field
+  // Strip dots and spaces, normalize
+  const cleaned = rut.replace(/\./g, "").replace(/\s/g, "").toUpperCase();
+  // Must match XXXXXXXX-X or XXXXXXX-X (7-8 digits, dash, check char)
+  if (!/^\d{7,8}-[\dK]$/.test(cleaned)) {
+    return "Formato de RUT inválido. Use XX.XXX.XXX-X o XXXXXXXX-X";
+  }
+  const body = cleaned.slice(0, -2); // digits before dash
+  const providedDv = cleaned.slice(-1); // check digit after dash
+  // Modulo 11 algorithm
+  let sum = 0;
+  let multiplier = 2;
+  for (let i = body.length - 1; i >= 0; i--) {
+    sum += parseInt(body[i]) * multiplier;
+    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+  }
+  const remainder = 11 - (sum % 11);
+  const expectedDv = remainder === 11 ? "0" : remainder === 10 ? "K" : String(remainder);
+  if (providedDv !== expectedDv) {
+    return "Dígito verificador del RUT incorrecto";
+  }
+  return null;
+}
+
+function validatePhone(phone: string): string | null {
+  if (!phone) return null; // optional field
+  // Strip all non-digit characters except leading +
+  const digits = phone.replace(/[^\d]/g, "");
+  if (digits.length < 9) {
+    return "El teléfono debe tener al menos 9 dígitos";
+  }
+  // Accept +56XXXXXXXXX or 56XXXXXXXXX or 9XXXXXXXX patterns
+  if (!/^(\+?56\s*)?[29]\d{8}$/.test(phone.replace(/[\s\-().]/g, ""))) {
+    return "Formato de teléfono inválido. Use +56 9 XXXX XXXX";
+  }
+  return null;
+}
+
+function validatePositiveNumber(value: string, fieldName: string): string | null {
+  if (!value) return null; // optional field
+  const num = parseFloat(value);
+  if (isNaN(num) || num < 0) {
+    return `${fieldName} debe ser un número positivo`;
+  }
+  return null;
+}
+
+function validateFechaNacimiento(fecha: string): string | null {
+  if (!fecha) return null; // optional field
+  const birthDate = new Date(fecha);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (birthDate >= today) {
+    return "La fecha de nacimiento debe ser en el pasado";
+  }
+  // Check at least 18 years old
+  const eighteenYearsAgo = new Date(today);
+  eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+  if (birthDate > eighteenYearsAgo) {
+    return "El cliente debe tener al menos 18 años";
+  }
+  return null;
+}
+
+type FieldErrors = Partial<Record<string, string>>;
+
+// --- Component ---
+
 export default function NewClientPage() {
   const router = useRouter();
   const { advisor, loading: authLoading } = useAdvisor();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
@@ -48,16 +120,50 @@ export default function NewClientPage() {
   if (!advisor) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
+    // Clear field error when user edits the field
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
+  };
+
+  const validateForm = (): FieldErrors => {
+    const errors: FieldErrors = {};
+    const rutErr = validateRut(formData.rut);
+    if (rutErr) errors.rut = rutErr;
+    const phoneErr = validatePhone(formData.telefono);
+    if (phoneErr) errors.telefono = phoneErr;
+    const patrimonioErr = validatePositiveNumber(formData.patrimonio_estimado, "Patrimonio estimado");
+    if (patrimonioErr) errors.patrimonio_estimado = patrimonioErr;
+    const ingresoErr = validatePositiveNumber(formData.ingreso_mensual, "Ingreso mensual");
+    if (ingresoErr) errors.ingreso_mensual = ingresoErr;
+    const toleranciaErr = validatePositiveNumber(formData.tolerancia_perdida, "Tolerancia pérdida");
+    if (toleranciaErr) errors.tolerancia_perdida = toleranciaErr;
+    const fechaErr = validateFechaNacimiento(formData.fecha_nacimiento);
+    if (fechaErr) errors.fecha_nacimiento = fechaErr;
+    return errors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+
+    // Run validation
+    const errors = validateForm();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    setLoading(true);
 
     try {
       // Preparar datos para enviar
@@ -204,9 +310,12 @@ export default function NewClientPage() {
                   name="telefono"
                   value={formData.telefono}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.telefono ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                   placeholder="+56912345678"
                 />
+                {fieldErrors.telefono && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.telefono}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -217,9 +326,12 @@ export default function NewClientPage() {
                   name="rut"
                   value={formData.rut}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.rut ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                   placeholder="12.345.678-9"
                 />
+                {fieldErrors.rut && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.rut}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -230,8 +342,11 @@ export default function NewClientPage() {
                   name="fecha_nacimiento"
                   value={formData.fecha_nacimiento}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.fecha_nacimiento ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                 />
+                {fieldErrors.fecha_nacimiento && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.fecha_nacimiento}</p>
+                )}
               </div>
             </div>
           </div>
@@ -252,9 +367,12 @@ export default function NewClientPage() {
                   name="patrimonio_estimado"
                   value={formData.patrimonio_estimado}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.patrimonio_estimado ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                   placeholder="50000000"
                 />
+                {fieldErrors.patrimonio_estimado && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.patrimonio_estimado}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -265,9 +383,12 @@ export default function NewClientPage() {
                   name="ingreso_mensual"
                   value={formData.ingreso_mensual}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.ingreso_mensual ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                   placeholder="3000000"
                 />
+                {fieldErrors.ingreso_mensual && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.ingreso_mensual}</p>
+                )}
               </div>
             </div>
           </div>
@@ -359,9 +480,12 @@ export default function NewClientPage() {
                   value={formData.tolerancia_perdida}
                   onChange={handleChange}
                   step="0.1"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.tolerancia_perdida ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                   placeholder="10.0"
                 />
+                {fieldErrors.tolerancia_perdida && (
+                  <p className="mt-1 text-sm text-red-600">{fieldErrors.tolerancia_perdida}</p>
+                )}
               </div>
             </div>
           </div>

@@ -1,19 +1,40 @@
-// Simple in-memory rate limiter for API routes
-// Resets on server restart (suitable for single-instance deployments)
+// Simple in-memory rate limiter for API routes.
+//
+// LIMITATION: This store is per-process and resets on every deploy/restart.
+// In serverless environments (e.g. Vercel), each instance maintains its own
+// map, so a client could exceed limits by hitting different instances.
+// For single-instance or low-traffic deployments this is acceptable.
+//
+// TODO: Migrate to Upstash Redis (@upstash/ratelimit) for persistent,
+// globally-consistent rate limiting when traffic or security needs grow.
 
 interface RateLimitEntry {
   count: number;
   resetAt: number;
 }
 
+/** Maximum number of keys kept in the store to prevent unbounded memory growth. */
+const MAX_ENTRIES = 10_000;
+
 const store = new Map<string, RateLimitEntry>();
 
-// Clean expired entries periodically
+// Clean expired entries periodically and enforce max-entries cap.
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of store) {
     if (now > entry.resetAt) {
       store.delete(key);
+    }
+  }
+
+  // If still over the cap after expiry cleanup, evict the oldest entries
+  // (Map iteration order is insertion order).
+  if (store.size > MAX_ENTRIES) {
+    const excess = store.size - MAX_ENTRIES;
+    const iter = store.keys();
+    for (let i = 0; i < excess; i++) {
+      const { value } = iter.next();
+      if (value !== undefined) store.delete(value);
     }
   }
 }, 60_000);
@@ -40,6 +61,11 @@ export function rateLimit(
   const entry = store.get(key);
 
   if (!entry || now > entry.resetAt) {
+    // Evict oldest entry if at capacity (prevents memory leaks between cleanup ticks)
+    if (store.size >= MAX_ENTRIES) {
+      const firstKey = store.keys().next().value;
+      if (firstKey !== undefined) store.delete(firstKey);
+    }
     store.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
     return { allowed: true, remaining: limit - 1, resetAt: now + windowSeconds * 1000 };
   }
