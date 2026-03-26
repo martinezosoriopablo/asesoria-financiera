@@ -30,12 +30,12 @@ export async function GET(request: NextRequest) {
       // Fallback: calcular manualmente
       const { data: clients } = await supabase
         .from("clients")
-        .select("*")
+        .select("status, patrimonio_estimado")
         .eq("asesor_id", advisor!.id);
 
       const { data: meetings } = await supabase
         .from("meetings")
-        .select("*")
+        .select("fecha")
         .eq("asesor_id", advisor!.id)
         .eq("completada", false)
         .eq("cancelada", false)

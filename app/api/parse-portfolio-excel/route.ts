@@ -19,6 +19,10 @@ interface Holding {
   assetClass?: string;
 }
 
+// Excel serial date range: 30000 = ~1982, 50000 = ~2036 — covers plausible financial statement dates
+const EXCEL_SERIAL_DATE_MIN = 30000;
+const EXCEL_SERIAL_DATE_MAX = 50000;
+
 // Same response format as PDF parser
 interface ParsedResponse {
   clientName?: string;
@@ -316,7 +320,7 @@ function extractMetadata(data: unknown[][], headerRowIndex: number): {
       if (cell === null || cell === undefined) continue;
 
       // Handle Excel serial dates (numbers that represent dates)
-      if (typeof cell === "number" && cell > 30000 && cell < 50000) {
+      if (typeof cell === "number" && cell > EXCEL_SERIAL_DATE_MIN && cell < EXCEL_SERIAL_DATE_MAX) {
         // Excel serial date - convert to date string
         const excelEpoch = new Date(1899, 11, 30);
         const date = new Date(excelEpoch.getTime() + cell * 24 * 60 * 60 * 1000);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { X, Upload, FileSpreadsheet, Edit3, Loader, AlertTriangle, Plus, Trash2, Building2 } from "lucide-react";
 import ManualEntryForm from "./ManualEntryForm";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
@@ -66,6 +66,12 @@ const CUSTODIAN_OPTIONS = [
 ];
 
 export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   const [mode, setMode] = useState<Mode>("select");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);

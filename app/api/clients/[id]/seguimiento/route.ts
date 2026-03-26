@@ -80,6 +80,12 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "ALL";
 
+    // Pagination params
+    const rawLimit = parseInt(searchParams.get("limit") || "500", 10);
+    const rawOffset = parseInt(searchParams.get("offset") || "0", 10);
+    const limit = Math.max(1, Math.min(isNaN(rawLimit) ? 500 : rawLimit, 1000));
+    const offset = Math.max(0, isNaN(rawOffset) ? 0 : rawOffset);
+
     // Verificar que el cliente pertenece al advisor
     const { data: client, error: clientError } = await supabase
       .from("clients")
@@ -131,14 +137,15 @@ export async function GET(
         break;
     }
 
-    // Obtener snapshots
-    const { data: snapshots, error: snapshotsError } = await supabase
+    // Obtener snapshots with pagination
+    const { data: snapshots, error: snapshotsError, count: totalCount } = await supabase
       .from("portfolio_snapshots")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("client_id", clientId)
       .gte("snapshot_date", startDate.toISOString().split("T")[0])
       .lte("snapshot_date", endDate.toISOString().split("T")[0])
-      .order("snapshot_date", { ascending: true });
+      .order("snapshot_date", { ascending: true })
+      .range(offset, offset + limit - 1);
 
     if (snapshotsError) {
       console.error("Error fetching snapshots:", snapshotsError);
@@ -170,6 +177,11 @@ export async function GET(
         period,
         startDate: startDate.toISOString().split("T")[0],
         endDate: endDate.toISOString().split("T")[0],
+        pagination: {
+          limit,
+          offset,
+          total: totalCount ?? (snapshots?.length || 0),
+        },
       },
     });
   } catch (error) {

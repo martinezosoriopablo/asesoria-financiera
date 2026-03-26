@@ -31,6 +31,12 @@ interface Metricas {
 }
 
 export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalProps) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   const [activeTab, setActiveTab] = useState<'grafico' | 'tabla' | 'volatilidad' | 'metricas' | 'comparar'>('grafico');
   const [datos, setDatos] = useState<DatosDiarios[]>([]);
   const [loading, setLoading] = useState(true);

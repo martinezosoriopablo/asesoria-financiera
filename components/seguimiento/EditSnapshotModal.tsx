@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Loader } from "lucide-react";
 import type { Snapshot } from "./SeguimientoPage";
 
@@ -20,6 +20,12 @@ interface FormData {
 }
 
 export default function EditSnapshotModal({ snapshot, onClose, onSuccess }: Props) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   // Formato chileno: puntos para miles, comas para decimales
   const formatNumber = (value: number, decimals: number = 0): string => {
     const fixed = Math.abs(value).toFixed(decimals);

@@ -4,6 +4,10 @@
 
 import * as XLSX from "xlsx";
 
+// Conditional debug logging — silent in production
+const DEBUG = process.env.NODE_ENV === "development";
+function debugLog(...args: unknown[]) { if (DEBUG) console.log("[AAFM]", ...args); }
+
 // AAFM export endpoint — accepts filter parameters directly
 const AAFM_BASE = "https://estadisticas2.aafm.cl";
 const AAFM_EXPORT_URL = `${AAFM_BASE}/Rentabilities/ExportRentabilitiesCompleteList`;
@@ -54,7 +58,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
     InputSearch: "NO INDICADO,NO INDICADO,NO INDICADO,NO INDICADO,NO INDICADO,NO INDICADO,NO INDICADO",
   });
 
-  console.log(`[AAFM Fetch] Requesting export for ${dateStr}...`);
+  debugLog(`Requesting export for ${dateStr}...`);
 
   const response = await fetch(AAFM_EXPORT_URL, {
     method: "POST",
@@ -78,7 +82,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
   const buf = Buffer.from(arrayBuffer);
   const text = buf.toString("utf8").trim();
 
-  console.log(`[AAFM Fetch] Response: ${(buf.length / 1024).toFixed(0)} KB, Content-Type: ${contentType}`);
+  debugLog(`Response: ${(buf.length / 1024).toFixed(0)} KB, Content-Type: ${contentType}`);
 
   // Response is JSON with FileContents byte array (ASP.NET FileContentResult)
   if (text.startsWith("{") || text.startsWith("[")) {
@@ -91,7 +95,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
       } else {
         excelBuffer = Buffer.from(json.FileContents, "base64");
       }
-      console.log(`[AAFM Fetch] Excel: ${(excelBuffer.length / 1024).toFixed(0)} KB`);
+      debugLog(`Excel: ${(excelBuffer.length / 1024).toFixed(0)} KB`);
       return excelBuffer;
     }
 
@@ -118,17 +122,17 @@ function parseAAFMJson(json: any, dateStr: string): AAFMFundRow[] {
   } else {
     // Log the structure to understand it
     const keys = Object.keys(json);
-    console.log("[AAFM JSON] Top-level keys:", keys);
+    debugLog("JSON top-level keys:", keys);
     for (const key of keys.slice(0, 5)) {
       const val = json[key];
-      console.log(`[AAFM JSON] ${key}: ${typeof val} ${Array.isArray(val) ? `(array of ${val.length})` : typeof val === "object" ? JSON.stringify(val).substring(0, 200) : String(val).substring(0, 100)}`);
+      debugLog(`${key}: ${typeof val} ${Array.isArray(val) ? `(array of ${val.length})` : typeof val === "object" ? JSON.stringify(val).substring(0, 200) : String(val).substring(0, 100)}`);
     }
     throw new Error(`AAFM JSON: unknown structure. Keys: ${keys.join(", ")}`);
   }
 
-  console.log(`[AAFM JSON] Found ${items.length} items`);
+  debugLog(`JSON found ${items.length} items`);
   if (items.length > 0) {
-    console.log("[AAFM JSON] Sample item:", JSON.stringify(items[0]).substring(0, 500));
+    debugLog("Sample item:", JSON.stringify(items[0]).substring(0, 500));
   }
 
   const results: AAFMFundRow[] = [];
@@ -182,17 +186,17 @@ function toNum(val: unknown): number {
 export function parseAAFMExcel(buffer: Buffer): AAFMFundRow[] {
   const workbook = XLSX.read(buffer, { type: "buffer" });
 
-  console.log("[AAFM Parse] Sheet names:", workbook.SheetNames);
+  debugLog("Sheet names:", workbook.SheetNames);
 
   // Prefer "Rentabilidades" sheet, fall back to first sheet
   const sheetName = workbook.SheetNames.find((s) => s.toLowerCase().includes("rentabilidades")) || workbook.SheetNames[0];
-  console.log("[AAFM Parse] Using sheet:", sheetName);
+  debugLog("Using sheet:", sheetName);
   const sheet = workbook.Sheets[sheetName];
 
   // Get raw rows as arrays to handle varying column names
   let rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-  console.log(`[AAFM Parse] Sheet "${sheetName}" has ${rawRows.length} rows`);
+  debugLog(`Sheet "${sheetName}" has ${rawRows.length} rows`);
 
   // If this sheet has too few rows, try other sheets
   if (rawRows.length < 8) {
@@ -200,10 +204,10 @@ export function parseAAFMExcel(buffer: Buffer): AAFMFundRow[] {
       if (altName === sheetName) continue;
       const altSheet = workbook.Sheets[altName];
       const altRows: unknown[][] = XLSX.utils.sheet_to_json(altSheet, { header: 1 });
-      console.log(`[AAFM Parse] Trying sheet "${altName}": ${altRows.length} rows`);
+      debugLog(`Trying sheet "${altName}": ${altRows.length} rows`);
       if (altRows.length > rawRows.length) {
         rawRows = altRows;
-        console.log(`[AAFM Parse] Switched to sheet "${altName}" with ${rawRows.length} rows`);
+        debugLog(`Switched to sheet "${altName}" with ${rawRows.length} rows`);
         break;
       }
     }
@@ -229,19 +233,19 @@ export function parseAAFMExcel(buffer: Buffer): AAFMFundRow[] {
 
   if (headerRowIdx === -1) {
     for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
-      console.log(`[AAFM Parse] Row ${r}: ${JSON.stringify(rawRows[r])}`);
+      debugLog(`Row ${r}: ${JSON.stringify(rawRows[r])}`);
     }
     console.warn("[AAFM Parse] Cannot find header row in AAFM Excel");
     return [];
   }
 
-  console.log(`[AAFM Parse] Using row ${headerRowIdx} as header`);
+  debugLog(`Using row ${headerRowIdx} as header`);
 
   const headers = (rawRows[headerRowIdx] as unknown[]).map((h) =>
     String(h ?? "").toLowerCase().trim()
   );
 
-  console.log("[AAFM Parse] Headers:", headers.join(" | "));
+  debugLog("Headers:", headers.join(" | "));
 
   // Map column indices by matching known patterns from AAFM Excel
   // Actual headers: Administradora | Run | Fondo | Serie | Categoría CMF | Categoría AFM |
@@ -267,7 +271,7 @@ export function parseAAFMExcel(buffer: Buffer): AAFMFundRow[] {
     rent1y: findCol(headers, ["12 meses nominal", "12 meses", "1 año", "365"]),
   };
 
-  console.log("[AAFM Parse] Column mapping:", JSON.stringify(colMap));
+  debugLog("Column mapping:", JSON.stringify(colMap));
 
   if (colMap.fondo === -1) {
     // Try second row as header
@@ -535,7 +539,7 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<nu
     await Promise.all(pagePromises);
   }
 
-  console.log(`[AAFM→FM] Loaded ${fondosMap.size} fondos_mutuos records`);
+  debugLog(`[FM] Loaded ${fondosMap.size} fondos_mutuos records`);
 
   // 2. Single pass: match AAFM funds and build BOTH agregadas + daily price records
   const fecha = funds[0]?.fecha || new Date().toISOString().split("T")[0];
@@ -582,59 +586,54 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<nu
     }
   }
 
-  console.log(`[AAFM→FM] Matched ${registros.length} funds to fondos_mutuos`);
+  debugLog(`[FM] Matched ${registros.length} funds to fondos_mutuos`);
 
   if (registros.length === 0) return 0;
 
-  // 3. Delete existing AAFM records for this date, then insert BOTH tables in parallel
-  await sb
-    .from("fondos_rentabilidades_agregadas")
-    .delete()
-    .eq("fecha_calculo", fecha)
-    .eq("fuente", "aafm");
-
+  // 3. Upsert BOTH tables in parallel (atomic per-row, no delete+insert race)
   const BATCH = 500;
 
-  // Run agregadas inserts and daily price upserts in parallel
-  const insertAgregadas = async () => {
-    let inserted = 0;
+  const upsertAgregadas = async () => {
+    let upserted = 0;
     const promises: Promise<void>[] = [];
     for (let i = 0; i < registros.length; i += BATCH) {
       const batch = registros.slice(i, i + BATCH);
       promises.push(
         (async () => {
-          const { error } = await sb.from("fondos_rentabilidades_agregadas").insert(batch);
-          if (error) console.error(`[AAFM→FM] Batch insert error:`, error.message);
-          else inserted += batch.length;
+          const { error } = await sb
+            .from("fondos_rentabilidades_agregadas")
+            .upsert(batch, { onConflict: "fondo_id,fecha_calculo,fuente" });
+          if (error) console.error(`[AAFM→FM] Batch upsert error:`, error.message);
+          else upserted += batch.length;
         })()
       );
     }
     await Promise.all(promises);
-    console.log(`[AAFM→FM] Inserted ${inserted} rentabilidades_agregadas records`);
-    return inserted;
+    debugLog(`[FM] Upserted ${upserted} rentabilidades_agregadas records`);
+    return upserted;
   };
 
-  const insertDailyPrices = async () => {
+  const upsertDailyPrices = async () => {
     if (dailyPrices.length === 0) return;
-    // Delete existing daily prices for this date, then insert fresh
-    await sb.from("fondos_rentabilidades_diarias").delete().eq("fecha", fecha);
-    let dailyInserted = 0;
+    let dailyUpserted = 0;
     const promises: Promise<void>[] = [];
     for (let i = 0; i < dailyPrices.length; i += BATCH) {
       const batch = dailyPrices.slice(i, i + BATCH);
       promises.push(
         (async () => {
-          const { error } = await sb.from("fondos_rentabilidades_diarias").insert(batch);
-          if (error) console.error(`[AAFM→FM] Daily prices batch error:`, error.message);
-          else dailyInserted += batch.length;
+          const { error } = await sb
+            .from("fondos_rentabilidades_diarias")
+            .upsert(batch, { onConflict: "fondo_id,fecha" });
+          if (error) console.error(`[AAFM→FM] Daily prices upsert error:`, error.message);
+          else dailyUpserted += batch.length;
         })()
       );
     }
     await Promise.all(promises);
-    console.log(`[AAFM→FM] Inserted ${dailyInserted} daily prices (valor_cuota)`);
+    debugLog(`[FM] Upserted ${dailyUpserted} daily prices (valor_cuota)`);
   };
 
-  const [inserted] = await Promise.all([insertAgregadas(), insertDailyPrices()]);
+  const [inserted] = await Promise.all([upsertAgregadas(), upsertDailyPrices()]);
   return inserted;
 }
 

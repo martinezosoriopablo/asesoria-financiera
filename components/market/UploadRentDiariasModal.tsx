@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface UploadRentDiariasModalProps {
   fondo: {
@@ -12,6 +12,12 @@ interface UploadRentDiariasModalProps {
 }
 
 export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDiariasModalProps) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{

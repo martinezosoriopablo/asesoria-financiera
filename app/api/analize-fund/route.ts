@@ -166,11 +166,9 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     return NextResponse.json(fundData);
   } catch (error: unknown) {
     console.error("Error in analyze-fund API:", error);
-    const message = error instanceof Error ? error.message : "Error al analizar el fondo";
     return NextResponse.json(
       {
-        error: message,
-        details: "Verifica que el PDF sea un factsheet válido",
+        error: "Error al procesar la solicitud",
       },
       { status: 500 }
     );

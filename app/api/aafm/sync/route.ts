@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Error syncing AAFM data",
+        error: "Error interno del servidor",
       },
       { status: 500 }
     );
@@ -121,8 +121,9 @@ export async function GET(request: NextRequest) {
       latestPriceDate: stats?.[0]?.last_price_date || null,
     });
   } catch (error) {
+    console.error("[AAFM Status] Error:", error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error" },
+      { success: false, error: "Error interno del servidor" },
       { status: 500 }
     );
   }

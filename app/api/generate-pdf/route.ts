@@ -39,16 +39,15 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    console.error("💥 Error generando PDF:", error);
-    const errorMessage = error instanceof Error ? error.message : "Error al generar PDF";
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error("Stack trace:", errorStack);
+    console.error("Error generando PDF:", error);
+    if (error instanceof Error) {
+      console.error("Stack trace:", error.stack);
+    }
 
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
-        details: process.env.NODE_ENV === "development" ? errorStack : undefined,
+        error: "Error al generar PDF",
       },
       { status: 500 }
     );

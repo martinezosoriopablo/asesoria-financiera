@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
@@ -136,12 +136,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     telefono: "",
   });
 
-  useEffect(() => {
-    fetchClient();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
-
-  const fetchClient = async () => {
+  const fetchClient = useCallback(async () => {
     try {
       const response = await fetch(`/api/clients/${clientId}`);
       const data = await response.json();
@@ -155,7 +150,11 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientId]);
+
+  useEffect(() => {
+    fetchClient();
+  }, [fetchClient]);
 
   const handleAddInteraction = async () => {
     try {

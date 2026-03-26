@@ -47,37 +47,20 @@ Ultima auditoria: 2026-03-25
 - [x] ALTO: .env.example creado con todas las variables documentadas (2026-03-25)
 - [x] ALTO: Hardcoded emails/URLs reemplazados por env vars (SENDER_EMAIL, APP_URL) (2026-03-25)
 
----
-
-## PENDIENTES — MEDIO
-
-### 1. Paginación en seguimiento
-- [ ] `app/api/clients/[id]/seguimiento/route.ts` — agregar LIMIT + paginación cursor-based
-
-### 2. Error messages filtran detalles internos
-- [ ] Múltiples rutas — retornar mensajes genéricos, loguear detalles internamente
-
-### 3. Select * anti-pattern
-- [ ] `app/api/advisor/stats/route.ts` — usar select específico en vez de select("*")
-
-### 4. AAFM sync delete+insert no atómico
-- [ ] `lib/aafm-sync.ts:589-595` — usar upsert en vez de delete+insert
+- [x] MEDIO: Paginación en seguimiento: limit/offset con default 500, count exact (2026-03-25)
+- [x] MEDIO: Error messages genéricos en 6 rutas API, detalles solo en server logs (2026-03-25)
+- [x] MEDIO: Select específico en advisor/stats en vez de select("*") (2026-03-25)
+- [x] MEDIO: AAFM sync atómico con upsert en vez de delete+insert (2026-03-25)
+- [x] BAJO: Console.log condicional con debugLog() en aafm-sync (2026-03-25)
+- [x] BAJO: Escape key handler en 6 modales (2026-03-25)
+- [x] BAJO: Hook dependencies resueltos en ClientsManager y ClientDetail (2026-03-25)
+- [x] BAJO: Magic numbers extraídos a constantes en fill-prices y parse-excel (2026-03-25)
 
 ---
 
-## PENDIENTES — BAJO
+## PENDIENTES
 
-### 5. Console.log excesivo en producción
-- [ ] `lib/aafm-sync.ts` y otros — usar debug flag o remover
-
-### 6. Modales sin keyboard navigation
-- [ ] Múltiples modales — agregar Escape to close + focus trap
-
-### 7. Hook dependencies con eslint-disable
-- [ ] 5+ componentes — resolver dependencias correctamente
-
-### 8. Magic numbers sin constantes
-- [ ] Múltiples archivos — extraer a constantes nombradas
+_Sin items pendientes. Próxima auditoría sugerida: 2026-04-25._
 
 ---
 

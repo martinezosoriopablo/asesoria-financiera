@@ -8,6 +8,18 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { getSeriesPrices } from "@/lib/fintual-api";
 import { getHistoricalPrices as getBolsaSantiagoHistorical } from "@/lib/bolsa-santiago/client";
 
+// --- Named constants (avoid magic numbers) ---
+/** Minimum ratio of API price to cartola price to accept (reject if below, likely wrong match) */
+const PRICE_VALIDATION_MIN_RATIO = 0.8;
+/** Maximum ratio of API price to cartola price to accept (reject if above, likely wrong match) */
+const PRICE_VALIDATION_MAX_RATIO = 1.2;
+/** Minimum fraction of holdings that must have prices to create a snapshot */
+const MIN_PRICED_HOLDINGS_RATIO = 0.5;
+/** Balanced fund split: fraction allocated to equity */
+const BALANCED_EQUITY_FRACTION = 0.5;
+/** Balanced fund split: fraction allocated to fixed income */
+const BALANCED_FIXED_INCOME_FRACTION = 0.5;
+
 // Execute async tasks in parallel with a concurrency limit
 async function parallelWithLimit<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
   const results: T[] = [];
@@ -819,7 +831,7 @@ export async function POST(request: NextRequest) {
           // This catches wrong fund/series matches while allowing normal equity volatility.
           if (dayPrice && cartolaPrice > 0) {
             const priceRatio = dayPrice / cartolaPrice;
-            if (priceRatio < 0.8 || priceRatio > 1.2) {
+            if (priceRatio < PRICE_VALIDATION_MIN_RATIO || priceRatio > PRICE_VALIDATION_MAX_RATIO) {
               // Price is way off — likely wrong fund match. Use last known good price.
               dayPrice = undefined;
               result.errors.push(
@@ -882,7 +894,7 @@ export async function POST(request: NextRequest) {
         // If not all holdings have prices, scale proportionally
         if (holdingsValued < holdingsTotal && holdingsValued > 0) {
           const pricedRatio = holdingsValued / holdingsTotal;
-          if (pricedRatio < 0.5) continue;
+          if (pricedRatio < MIN_PRICED_HOLDINGS_RATIO) continue;
         }
 
         // Add weight to each holding now that we know totalValue
@@ -929,8 +941,8 @@ export async function POST(request: NextRequest) {
         const balancedValue = dailyHoldings
           .filter((h) => h.assetClass === "balanced")
           .reduce((s, h) => s + h.marketValue, 0);
-        const totalEquity = equityValue + balancedValue * 0.5;
-        const totalFI = fiValue + balancedValue * 0.5;
+        const totalEquity = equityValue + balancedValue * BALANCED_EQUITY_FRACTION;
+        const totalFI = fiValue + balancedValue * BALANCED_FIXED_INCOME_FRACTION;
 
         // Upsert snapshot
         const { error: upsertError } = await supabase
@@ -995,7 +1007,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Error llenando precios",
+        error: "Error interno del servidor",
       },
       { status: 500 }
     );

@@ -329,8 +329,7 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     console.error("Error in parse-portfolio-statement API:", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Error al analizar la cartola",
-        details: "Verifica que el PDF sea una cartola o estado de cuenta válido",
+        error: "Error al procesar la solicitud",
       },
       { status: 500 }
     );

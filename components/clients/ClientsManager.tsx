@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
@@ -63,17 +63,7 @@ export default function ClientsManager() {
   const [filterPerfil, setFilterPerfil] = useState("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchClients();
-    fetchStats();
-  }, []);
-
-  useEffect(() => {
-    filterClientsFn();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clients, searchTerm, filterStatus, filterPerfil]);
-
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const response = await fetch("/api/clients");
       const data = await response.json();
@@ -83,9 +73,9 @@ export default function ClientsManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const response = await fetch("/api/clients/stats");
       const data = await response.json();
@@ -93,9 +83,9 @@ export default function ClientsManager() {
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
-  };
+  }, []);
 
-  const filterClientsFn = () => {
+  const filterClientsFn = useCallback(() => {
     let filtered = [...clients];
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -109,7 +99,16 @@ export default function ClientsManager() {
     if (filterStatus !== "all") filtered = filtered.filter((c) => c.status === filterStatus);
     if (filterPerfil !== "all") filtered = filtered.filter((c) => c.perfil_riesgo === filterPerfil);
     setFilteredClients(filtered);
-  };
+  }, [clients, searchTerm, filterStatus, filterPerfil]);
+
+  useEffect(() => {
+    fetchClients();
+    fetchStats();
+  }, [fetchClients, fetchStats]);
+
+  useEffect(() => {
+    filterClientsFn();
+  }, [filterClientsFn]);
 
   const handleDeleteClient = async (clientId: string, clientName: string) => {
     if (!confirm(`¿Eliminar a ${clientName}? El cliente será marcado como inactivo.`)) return;
