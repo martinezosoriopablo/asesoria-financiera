@@ -3,14 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Loader, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader, CheckCircle, AlertCircle, LogIn } from "lucide-react";
 import { Suspense } from "react";
 
 function PortalLoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "error" | "login">("loading");
   const [errorMsg, setErrorMsg] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
   useEffect(() => {
     const tokenHash = searchParams.get("token_hash");
@@ -19,7 +22,6 @@ function PortalLoginContent() {
     if (tokenHash && type === "magiclink") {
       verifyMagicLink(tokenHash);
     } else {
-      // Check if already logged in
       checkSession();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -33,8 +35,8 @@ function PortalLoginContent() {
     });
 
     if (error) {
-      setStatus("error");
-      setErrorMsg("El link ha expirado o ya fue utilizado. Contacta a tu asesor para recibir uno nuevo.");
+      setStatus("login");
+      setErrorMsg("El link ha expirado. Puedes ingresar con tu email y contraseña.");
       return;
     }
 
@@ -53,9 +55,41 @@ function PortalLoginContent() {
       router.push("/portal/dashboard");
       router.refresh();
     } else {
-      setStatus("error");
-      setErrorMsg("Para acceder a tu portal, usa el link que recibiste por email de tu asesor.");
+      setStatus("login");
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+
+    setLoginLoading(true);
+    setErrorMsg("");
+
+    const supabase = createSupabaseBrowserClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setErrorMsg("Email o contraseña incorrectos");
+      setLoginLoading(false);
+      return;
+    }
+
+    if (data.user?.user_metadata?.role !== "client") {
+      await supabase.auth.signOut();
+      setErrorMsg("Esta cuenta no tiene acceso al portal de clientes");
+      setLoginLoading(false);
+      return;
+    }
+
+    setStatus("success");
+    setTimeout(() => {
+      router.push("/portal/bienvenida");
+      router.refresh();
+    }, 1000);
   };
 
   return (
@@ -81,6 +115,62 @@ function PortalLoginContent() {
               <h1 className="text-lg font-semibold text-gb-black">Bienvenido</h1>
               <p className="text-sm text-gb-gray mt-1">Redirigiendo a tu portal...</p>
             </div>
+          </div>
+        )}
+
+        {status === "login" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-lg font-semibold text-gb-black">Portal de Inversiones</h1>
+              <p className="text-sm text-gb-gray mt-1">Ingresa con tus credenciales</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4 text-left">
+              <div>
+                <label className="block text-xs font-medium text-gb-gray mb-1">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-transparent"
+                  placeholder="tu@email.com"
+                  autoComplete="email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gb-gray mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-transparent"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+              </div>
+
+              {errorMsg && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {errorMsg}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loginLoading || !email || !password}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-gb-black text-white rounded-lg text-sm font-medium hover:bg-gb-dark disabled:opacity-40 transition-colors"
+              >
+                {loginLoading ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    Ingresar
+                  </>
+                )}
+              </button>
+            </form>
           </div>
         )}
 
