@@ -593,14 +593,29 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<{ 
 
   if (registros.length === 0) return { updated: 0, historyRecords: 0 };
 
-  // 3. Upsert BOTH tables in parallel (atomic per-row, no delete+insert race)
+  // 3. Deduplicate records — multiple AAFM series can map to the same fondos_mutuos record
+  function dedup<T extends Record<string, unknown>>(rows: T[], keyFn: (r: T) => string): T[] {
+    const seen = new Map<string, T>();
+    for (const r of rows) {
+      const key = keyFn(r);
+      seen.set(key, r); // last one wins
+    }
+    return Array.from(seen.values());
+  }
+
+  const dedupedRegistros = dedup(registros, (r) => `${r.fondo_id}-${r.fecha_calculo}-${r.fuente}`);
+  const dedupedDailyPrices = dedup(dailyPrices, (r) => `${r.fondo_id}-${r.fecha}`);
+
+  debugLog(`[FM] Deduped: ${registros.length}→${dedupedRegistros.length} agregadas, ${dailyPrices.length}→${dedupedDailyPrices.length} daily`);
+
+  // 4. Upsert BOTH tables in parallel (atomic per-row, no delete+insert race)
   const BATCH = 500;
 
   const upsertAgregadas = async () => {
     let upserted = 0;
     const promises: Promise<void>[] = [];
-    for (let i = 0; i < registros.length; i += BATCH) {
-      const batch = registros.slice(i, i + BATCH);
+    for (let i = 0; i < dedupedRegistros.length; i += BATCH) {
+      const batch = dedupedRegistros.slice(i, i + BATCH);
       promises.push(
         (async () => {
           const { error } = await sb
@@ -617,11 +632,11 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<{ 
   };
 
   const upsertDailyPrices = async () => {
-    if (dailyPrices.length === 0) return;
+    if (dedupedDailyPrices.length === 0) return;
     let dailyUpserted = 0;
     const promises: Promise<void>[] = [];
-    for (let i = 0; i < dailyPrices.length; i += BATCH) {
-      const batch = dailyPrices.slice(i, i + BATCH);
+    for (let i = 0; i < dedupedDailyPrices.length; i += BATCH) {
+      const batch = dedupedDailyPrices.slice(i, i + BATCH);
       promises.push(
         (async () => {
           const { error } = await sb
@@ -706,13 +721,17 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<{ 
     }
   }
 
+  // Deduplicate history records
+  const dedupedHistory = dedup(derivedHistory, (r) => `${r.fondo_id}-${r.fecha}-${r.source}`);
+  debugLog(`[History] Deduped: ${derivedHistory.length}→${dedupedHistory.length} history records`);
+
   // Upsert derived history in parallel with other upserts
   const upsertHistory = async () => {
-    if (derivedHistory.length === 0) return 0;
+    if (dedupedHistory.length === 0) return 0;
     let historyUpserted = 0;
     const promises: Promise<void>[] = [];
-    for (let i = 0; i < derivedHistory.length; i += BATCH) {
-      const batch = derivedHistory.slice(i, i + BATCH);
+    for (let i = 0; i < dedupedHistory.length; i += BATCH) {
+      const batch = dedupedHistory.slice(i, i + BATCH);
       promises.push(
         (async () => {
           const { error } = await sb

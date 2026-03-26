@@ -68,11 +68,12 @@ export async function POST(request: NextRequest) {
       ...syncResult,
     });
   } catch (error) {
-    console.error("[AAFM Sync] Error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[AAFM Sync] Error:", msg, error);
     return NextResponse.json(
       {
         success: false,
-        error: "Error interno del servidor",
+        error: `Sync error: ${msg}`,
       },
       { status: 500 }
     );

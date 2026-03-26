@@ -2,7 +2,7 @@
 
 ## Estado actual de la plataforma
 
-Ultima auditoria: 2026-03-25
+Ultima auditoria: 2026-03-26
 
 ---
 
@@ -58,9 +58,17 @@ Ultima auditoria: 2026-03-25
 
 ---
 
+## RESUELTOS (2026-03-26)
+
+- [x] Fund cuota history: derivación histórica de valores cuota usando rentabilidades AAFM (7d, 30d, 90d, 365d, YTD) (2026-03-26)
+- [x] AAFM sync error: deduplicación de registros antes de upsert (múltiples series → mismo fondo_id) (2026-03-26)
+- [x] Error messages mejorados en AAFM sync: mensaje específico en vez de genérico (2026-03-26)
+- [x] API endpoint `/api/funds/historical-series` para consultar serie de cuotas históricas (2026-03-26)
+- [x] Unique constraint en `fondos_rentabilidades_agregadas(fondo_id, fecha_calculo, fuente)` — habilita upsert atómico (2026-03-26)
+
 ## PENDIENTES
 
-_Sin items pendientes. Próxima auditoría sugerida: 2026-04-25._
+_Sin items pendientes. Próxima auditoría sugerida: 2026-04-26._
 
 ---
 
