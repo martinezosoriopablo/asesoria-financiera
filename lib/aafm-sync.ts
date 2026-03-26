@@ -369,6 +369,7 @@ export interface SyncResult {
   updated: number;
   errors: number;
   fondosMutuosUpdated: number;
+  historyRecords: number;
   sample: Array<{ fondo: string; serie: string; run: string; valorCuota: number; matched: boolean }>;
 }
 
@@ -376,7 +377,7 @@ export async function syncAAFMToSupabase(
   funds: AAFMFundRow[],
   supabase: { from: (table: string) => unknown } // SupabaseClient type
 ): Promise<SyncResult> {
-  const result: SyncResult = { total: funds.length, matched: 0, updated: 0, errors: 0, fondosMutuosUpdated: 0, sample: [] };
+  const result: SyncResult = { total: funds.length, matched: 0, updated: 0, errors: 0, fondosMutuosUpdated: 0, historyRecords: 0, sample: [] };
 
   // Group by clean RUN (no check digit) for batch matching
   const byRun = new Map<string, AAFMFundRow[]>();
@@ -453,7 +454,9 @@ export async function syncAAFMToSupabase(
   }
 
   // Also sync rentabilities to fondos_mutuos ecosystem (Market Dashboard)
-  result.fondosMutuosUpdated = await syncAAFMToFondosMutuos(funds, sb);
+  const fmResult = await syncAAFMToFondosMutuos(funds, sb);
+  result.fondosMutuosUpdated = fmResult.updated;
+  result.historyRecords = fmResult.historyRecords;
 
   // Take a sample of first 10
   const sampleFunds = funds.slice(0, 10);
@@ -498,7 +501,7 @@ function matchFondoId(fondosMap: Map<string, string>, cleanRun: string, serieUpp
 
 // Sync AAFM rentabilities to fondos_rentabilidades_agregadas (feeds Market Dashboard)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<number> {
+async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<{ updated: number; historyRecords: number }> {
   // 1. Load all fondos_mutuos into a map — parallel pages for speed
   const fondosMap = new Map<string, string>();
 
@@ -510,7 +513,7 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<nu
 
   if (firstErr || !firstPage) {
     console.error("[AAFM→FM] Failed to load fondos_mutuos:", firstErr?.message);
-    return 0;
+    return { updated: 0, historyRecords: 0 };
   }
 
   for (const f of firstPage) {
@@ -588,7 +591,7 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<nu
 
   debugLog(`[FM] Matched ${registros.length} funds to fondos_mutuos`);
 
-  if (registros.length === 0) return 0;
+  if (registros.length === 0) return { updated: 0, historyRecords: 0 };
 
   // 3. Upsert BOTH tables in parallel (atomic per-row, no delete+insert race)
   const BATCH = 500;
@@ -633,8 +636,100 @@ async function syncAAFMToFondosMutuos(funds: AAFMFundRow[], sb: any): Promise<nu
     debugLog(`[FM] Upserted ${dailyUpserted} daily prices (valor_cuota)`);
   };
 
-  const [inserted] = await Promise.all([upsertAgregadas(), upsertDailyPrices()]);
-  return inserted;
+  // Build derived historical cuota values from rentabilities
+  const derivedHistory: Array<Record<string, unknown>> = [];
+
+  for (const f of funds) {
+    const cleanRun = f.run.replace(/-[\dK]$/i, "").trim();
+    if (!cleanRun || f.valorCuota <= 0) continue;
+
+    const serieUpper = f.serie.toUpperCase().trim();
+    const fondoId = matchFondoId(fondosMap, cleanRun, serieUpper);
+    if (!fondoId) continue;
+
+    const today = f.fecha;
+    const cuota = f.valorCuota;
+    const cuotaOrig = f.valorCuotaOrig;
+    const isUSD = f.moneda && !/peso|clp/i.test(f.moneda);
+    const moneda = isUSD ? "USD" : "CLP";
+
+    // Direct: today's value
+    derivedHistory.push({
+      fondo_id: fondoId,
+      fecha: today,
+      valor_cuota: cuota,
+      valor_cuota_orig: cuotaOrig || null,
+      moneda,
+      source: "aafm_direct",
+    });
+
+    // Derived from rentabilities: cuota_pasada = cuota_hoy / (1 + rent/100)
+    const derivations = [
+      { rent: f.rent7d, days: 7, source: "aafm_derived_7d" },
+      { rent: f.rent30d, days: 30, source: "aafm_derived_30d" },
+      { rent: f.rent90d, days: 90, source: "aafm_derived_90d" },
+      { rent: f.rent1y, days: 365, source: "aafm_derived_365d" },
+    ];
+
+    for (const d of derivations) {
+      if (d.rent != null && d.rent !== 0) {
+        const pastCuota = cuota / (1 + d.rent / 100);
+        const pastDate = new Date(today);
+        pastDate.setDate(pastDate.getDate() - d.days);
+        const pastDateStr = pastDate.toISOString().split("T")[0];
+
+        derivedHistory.push({
+          fondo_id: fondoId,
+          fecha: pastDateStr,
+          valor_cuota: Math.round(pastCuota * 10000) / 10000,
+          valor_cuota_orig: cuotaOrig && d.rent !== 0 ? Math.round((cuotaOrig / (1 + d.rent / 100)) * 10000) / 10000 : null,
+          moneda,
+          source: d.source,
+        });
+      }
+    }
+
+    // YTD: derive Dec 31 of previous year
+    if (f.rentYTD != null && f.rentYTD !== 0) {
+      const year = new Date(today).getFullYear();
+      const dec31 = `${year - 1}-12-31`;
+      const pastCuota = cuota / (1 + f.rentYTD / 100);
+
+      derivedHistory.push({
+        fondo_id: fondoId,
+        fecha: dec31,
+        valor_cuota: Math.round(pastCuota * 10000) / 10000,
+        valor_cuota_orig: cuotaOrig && f.rentYTD !== 0 ? Math.round((cuotaOrig / (1 + f.rentYTD / 100)) * 10000) / 10000 : null,
+        moneda,
+        source: "aafm_derived_ytd",
+      });
+    }
+  }
+
+  // Upsert derived history in parallel with other upserts
+  const upsertHistory = async () => {
+    if (derivedHistory.length === 0) return 0;
+    let historyUpserted = 0;
+    const promises: Promise<void>[] = [];
+    for (let i = 0; i < derivedHistory.length; i += BATCH) {
+      const batch = derivedHistory.slice(i, i + BATCH);
+      promises.push(
+        (async () => {
+          const { error } = await sb
+            .from("fund_cuota_history")
+            .upsert(batch, { onConflict: "fondo_id,fecha,source" });
+          if (error) console.error("[AAFM→History] Upsert error:", error.message);
+          else historyUpserted += batch.length;
+        })()
+      );
+    }
+    await Promise.all(promises);
+    debugLog(`[History] Upserted ${historyUpserted} cuota history records`);
+    return historyUpserted;
+  };
+
+  const [inserted, , historyCount] = await Promise.all([upsertAgregadas(), upsertDailyPrices(), upsertHistory()]);
+  return { updated: inserted, historyRecords: historyCount };
 }
 
 // Serie code mapping for fintual_funds matching (reverse direction)
