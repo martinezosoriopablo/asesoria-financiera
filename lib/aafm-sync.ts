@@ -60,16 +60,42 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
 
   debugLog(`Requesting export for ${dateStr}...`);
 
+  const browserHeaders = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    "Accept-Language": "es-CL,es;q=0.9,en;q=0.8",
+    "Origin": AAFM_BASE,
+    "Referer": `${AAFM_BASE}/Rentabilities`,
+  };
+
+  // Step 1: Visit the page first to establish a session (get cookies)
+  let cookies = "";
+  try {
+    const pageRes = await fetch(`${AAFM_BASE}/Rentabilities`, {
+      method: "GET",
+      headers: {
+        ...browserHeaders,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    const setCookies = pageRes.headers.getSetCookie?.() || [];
+    cookies = setCookies.map((c: string) => c.split(";")[0]).join("; ");
+    debugLog(`Session cookies: ${cookies ? "obtained" : "none"}`);
+  } catch {
+    debugLog("Could not establish session, proceeding without cookies");
+  }
+
+  // Step 2: POST the export request with session cookies
+  const exportHeaders: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "X-Requested-With": "XMLHttpRequest",
+    ...browserHeaders,
+  };
+  if (cookies) exportHeaders["Cookie"] = cookies;
+
   const response = await fetch(AAFM_EXPORT_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      "Accept": "application/json, text/javascript, */*; q=0.01",
-      "X-Requested-With": "XMLHttpRequest",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-      "Origin": AAFM_BASE,
-      "Referer": `${AAFM_BASE}/Rentabilities`,
-    },
+    headers: exportHeaders,
     body: body.toString(),
   });
 
