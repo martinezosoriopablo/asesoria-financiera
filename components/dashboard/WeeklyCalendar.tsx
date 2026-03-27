@@ -25,7 +25,6 @@ interface WeeklyCalendarProps {
 }
 
 export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
-  console.log('WeeklyCalendar - Meetings recibidas:', meetings);
 
   const getWeekDays = () => {
     const today = new Date();
@@ -45,25 +44,17 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
   const weekDays = getWeekDays();
 
   const getMeetingsForDay = (day: Date) => {
-    if (!Array.isArray(meetings)) {
-      console.error('Meetings no es un array:', meetings);
-      return [];
-    }
+    if (!Array.isArray(meetings)) return [];
 
     return meetings.filter((meeting) => {
       try {
         const meetingDate = new Date(meeting.fecha);
-        const match = (
+        return (
           meetingDate.getDate() === day.getDate() &&
           meetingDate.getMonth() === day.getMonth() &&
           meetingDate.getFullYear() === day.getFullYear()
         );
-        if (match) {
-          console.log('Meeting encontrado para día:', day.toDateString(), meeting);
-        }
-        return match;
-      } catch (error) {
-        console.error('Error parseando fecha de meeting:', meeting, error);
+      } catch {
         return false;
       }
     });
@@ -84,8 +75,7 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
         hour: "2-digit",
         minute: "2-digit",
       });
-    } catch (error) {
-      console.error('Error formateando hora:', dateString, error);
+    } catch {
       return '--:--';
     }
   };
@@ -121,18 +111,6 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
 
   return (
     <>
-      {/* Debug info - remover en producción */}
-      {meetings.length > 0 && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
-          <p className="font-bold text-blue-900">Debug: {meetings.length} reunión(es) cargada(s)</p>
-          {meetings.map((m, i) => (
-            <p key={i} className="text-blue-700">
-              {i + 1}. {m.titulo} - {new Date(m.fecha).toLocaleString('es-CL')} - {getClientName(m)}
-            </p>
-          ))}
-        </div>
-      )}
-
       <div className="grid grid-cols-5 gap-4">
         {weekDays.map((day, index) => {
           const dayMeetings = getMeetingsForDay(day);

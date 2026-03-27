@@ -111,13 +111,13 @@ export default function AdvisorDashboard() {
       desc: "Cuestionario de riesgo y análisis de cartola",
     },
     {
-      href: "/portfolio-comparison",
+      href: "/portfolio-designer?mode=comparison",
       icon: BarChart3,
       title: "Comparación Ideal vs Actual",
       desc: "Compara benchmark con cartera actual",
     },
     {
-      href: "/modelo-cartera",
+      href: "/portfolio-designer?mode=model",
       icon: Briefcase,
       title: "Modelo de Cartera",
       desc: "Construye propuestas de inversión",
@@ -240,7 +240,7 @@ export default function AdvisorDashboard() {
                   Enviar Cuestionario de Riesgo
                 </Link>
                 <Link
-                  href="/modelo-cartera"
+                  href="/portfolio-designer?mode=model"
                   className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-gb-black hover:bg-gb-light transition-colors"
                 >
                   <Briefcase className="w-4 h-4 text-gb-gray" />
