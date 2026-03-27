@@ -20,6 +20,7 @@ import {
   ChevronDown,
   FileText,
   Settings,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AdvisorHeaderProps {
@@ -190,14 +191,24 @@ export default function AdvisorHeader({
                         Mi Perfil
                       </Link>
                       {isAdmin && (
-                        <Link
-                          href="/admin/advisors"
-                          onClick={() => setMenuOpen(false)}
-                          className="flex items-center gap-2 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gray-50"
-                        >
-                          <Settings className="w-4 h-4" />
-                          Gestión Asesores
-                        </Link>
+                        <>
+                          <Link
+                            href="/admin/advisors"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gray-50"
+                          >
+                            <Settings className="w-4 h-4" />
+                            Gestión Asesores
+                          </Link>
+                          <Link
+                            href="/admin/data-sync"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gray-50"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Sincronización de Datos
+                          </Link>
+                        </>
                       )}
                       <hr className="my-1 border-gb-border" />
                       <button
