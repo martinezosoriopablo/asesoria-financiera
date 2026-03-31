@@ -282,6 +282,16 @@ export async function POST(request: NextRequest) {
       source,
     };
 
+    // Check if this is the first snapshot for this client → auto-mark as baseline
+    const { count: existingCount } = await supabase
+      .from("portfolio_snapshots")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId);
+
+    if (existingCount === 0) {
+      (snapshotData as Record<string, unknown>).is_baseline = true;
+    }
+
     // Insertar o actualizar snapshot
     const { data: snapshot, error } = await supabase
       .from("portfolio_snapshots")

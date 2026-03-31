@@ -555,7 +555,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         {snapshots.length > 0 && (
           <div className="bg-white rounded-lg border border-gb-border shadow-sm mb-6">
             <div className="px-6 py-4 border-b border-gb-border flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gb-black">Evolución del Valor</h2>
+              <h2 className="text-base font-semibold text-gb-black">Evolución del Portafolio</h2>
               <div className="flex gap-1">
                 {["1M", "3M", "6M", "1Y", "ALL"].map((p) => (
                   <button
@@ -626,7 +626,7 @@ export default function SeguimientoPage({ clientId }: Props) {
           <PerformanceAttribution
             snapshots={snapshots}
             recommendation={recommendation}
-            previousPortfolio={null}
+            previousPortfolio={snapshots.find(s => s.is_baseline) || null}
             twr={metrics?.twr || metrics?.totalReturn}
           />
         )}
