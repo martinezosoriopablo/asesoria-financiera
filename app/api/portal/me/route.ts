@@ -15,14 +15,14 @@ export async function GET() {
     .eq("client_id", client!.id)
     .order("created_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   // Obtener nombre del asesor
   const { data: advisor } = await admin
     .from("advisors")
     .select("nombre, apellido, email, company_name, logo_url")
     .eq("id", client!.asesor_id)
-    .single();
+    .maybeSingle();
 
   // Count snapshots (cartolas) for onboarding status
   const { count: snapshotCount } = await admin

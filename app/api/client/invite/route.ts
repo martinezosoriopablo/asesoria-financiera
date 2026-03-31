@@ -81,7 +81,10 @@ export async function POST(req: Request) {
       portal_invited_at: new Date().toISOString(),
     }).eq("id", clientId);
   } else {
-    // Ya tiene auth user, solo re-habilitar portal
+    // Ya tiene auth user, actualizar metadata y re-habilitar portal
+    await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      user_metadata: { role: "client", client_id: clientId },
+    });
     await supabaseAdmin.from("clients").update({
       portal_enabled: true,
       portal_invited_at: new Date().toISOString(),
@@ -135,5 +138,5 @@ export async function POST(req: Request) {
     });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, portalLink });
 }

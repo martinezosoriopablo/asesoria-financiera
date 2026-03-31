@@ -134,6 +134,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [portalLink, setPortalLink] = useState<string | null>(null);
   const [uploadingContract, setUploadingContract] = useState(false);
   const [contractError, setContractError] = useState<string | null>(null);
   const [savingFamily, setSavingFamily] = useState(false);
@@ -294,6 +295,10 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       const data = await response.json();
       if (data.success) {
         setInviteSuccess(true);
+        if (data.portalLink) setPortalLink(data.portalLink);
+        if (data.warning) {
+          alert("Nota: " + data.warning + "\nPuedes copiar el link de acceso desde la sección Portal.");
+        }
         fetchClient();
       } else {
         alert("Error: " + (data.error || "No se pudo enviar la invitación"));
@@ -934,9 +939,30 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 Portal del Cliente
               </h2>
               {inviteSuccess ? (
-                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-md p-3">
-                  <Send className="w-4 h-4" />
-                  Invitación enviada a {client.email}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-md p-3">
+                    <Send className="w-4 h-4" />
+                    Invitación enviada a {client.email}
+                  </div>
+                  {portalLink && (
+                    <div className="text-xs text-gb-gray bg-gray-50 rounded-md p-3">
+                      <p className="mb-1 font-medium">Link de acceso (si el email no llega):</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={portalLink}
+                          className="flex-1 text-xs bg-white border border-gb-border rounded px-2 py-1 truncate"
+                        />
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(portalLink); }}
+                          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium whitespace-nowrap"
+                        >
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>

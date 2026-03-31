@@ -38,8 +38,32 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
+  // Transform snapshot for portal display
+  let portalSnapshot = null;
+  if (latestSnapshot) {
+    const holdings = Array.isArray(latestSnapshot.holdings) ? latestSnapshot.holdings : [];
+    const totalVal = latestSnapshot.total_value || 1;
+    portalSnapshot = {
+      id: latestSnapshot.id,
+      snapshot_date: latestSnapshot.snapshot_date,
+      total_value: latestSnapshot.total_value,
+      equity_percent: latestSnapshot.equity_percent || 0,
+      fixed_income_percent: latestSnapshot.fixed_income_percent || 0,
+      alternatives_percent: latestSnapshot.alternatives_percent || 0,
+      cash_percent: latestSnapshot.cash_percent || 0,
+      twr_cumulative: latestSnapshot.twr_cumulative,
+      twr_period: latestSnapshot.twr_period,
+      holdings: holdings.map((h: Record<string, unknown>) => ({
+        nombre: (h.fundName || h.nombre || h.name || "Sin nombre") as string,
+        tipo: (h.assetClass || h.tipo || "—") as string,
+        valor: (h.marketValue || h.marketValueCLP || h.valor || 0) as number,
+        porcentaje: ((h.marketValue || h.marketValueCLP || h.valor || 0) as number) / totalVal * 100,
+      })),
+    };
+  }
+
   return NextResponse.json({
-    snapshot: latestSnapshot || null,
+    snapshot: portalSnapshot,
     history: (allSnapshots || []).map(s => ({
       date: s.snapshot_date,
       value: s.total_value,
