@@ -14,6 +14,7 @@ import {
   UserX,
   UserCheck,
   Mail,
+  Send,
   Building2,
   Loader,
   X,
@@ -54,6 +55,8 @@ export default function AdminAdvisorsPage() {
     rol: "advisor" as "admin" | "advisor",
   });
   const [saving, setSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && advisor) {
@@ -184,6 +187,29 @@ export default function AdminAdvisorsPage() {
     }
   };
 
+  const handleResendInvite = async (adv: AdvisorData) => {
+    setResendingId(adv.id);
+    setSuccessMessage(null);
+    try {
+      const response = await fetch("/api/admin/advisors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: adv.id }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMessage(data.message);
+        setTimeout(() => setSuccessMessage(null), 5000);
+      } else {
+        setError(data.error || "Error al reenviar invitación");
+      }
+    } catch {
+      setError("Error de conexión");
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gb-light flex items-center justify-center">
@@ -227,6 +253,13 @@ export default function AdminAdvisorsPage() {
             Nuevo Asesor
           </button>
         </div>
+
+        {/* Success */}
+        {successMessage && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
+            {successMessage}
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -315,26 +348,41 @@ export default function AdminAdvisorsPage() {
                     Editar
                   </button>
                   {adv.id !== advisor.id && (
-                    <button
-                      onClick={() => handleToggleActive(adv)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        adv.activo
-                          ? "text-red-600 hover:bg-red-50"
-                          : "text-green-600 hover:bg-green-50"
-                      }`}
-                    >
-                      {adv.activo ? (
-                        <>
-                          <UserX className="w-4 h-4" />
-                          Desactivar
-                        </>
-                      ) : (
-                        <>
-                          <UserCheck className="w-4 h-4" />
-                          Activar
-                        </>
-                      )}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleResendInvite(adv)}
+                        disabled={resendingId === adv.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                        title={`Reenviar invitación a ${adv.email}`}
+                      >
+                        {resendingId === adv.id ? (
+                          <Loader className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        Reenviar
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(adv)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          adv.activo
+                            ? "text-red-600 hover:bg-red-50"
+                            : "text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        {adv.activo ? (
+                          <>
+                            <UserX className="w-4 h-4" />
+                            Desactivar
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-4 h-4" />
+                            Activar
+                          </>
+                        )}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

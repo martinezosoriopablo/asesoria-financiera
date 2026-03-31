@@ -256,6 +256,89 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// PATCH - Reenviar invitación por email (solo admins)
+export async function PATCH(request: NextRequest) {
+  const blocked = applyRateLimit(request, "admin-advisors-resend", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { advisor, error: authError } = await requireAdmin();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
+  try {
+    const { id } = await request.json();
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: "id es requerido" },
+        { status: 400 }
+      );
+    }
+
+    // Obtener el asesor objetivo
+    const { data: targetAdvisor, error: fetchError } = await supabase
+      .from("advisors")
+      .select("id, email, nombre, apellido, parent_advisor_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !targetAdvisor) {
+      return NextResponse.json(
+        { success: false, error: "Asesor no encontrado" },
+        { status: 404 }
+      );
+    }
+
+    // Solo puede reenviar a subordinados
+    if (targetAdvisor.parent_advisor_id !== advisor!.id && targetAdvisor.id !== advisor!.id) {
+      return NextResponse.json(
+        { success: false, error: "No tiene permiso para reenviar invitación a este asesor" },
+        { status: 403 }
+      );
+    }
+
+    // Reenviar invitación
+    const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+      targetAdvisor.email,
+      {
+        data: {
+          nombre: targetAdvisor.nombre,
+          apellido: targetAdvisor.apellido,
+        },
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://asesoria-financiera.vercel.app'}/login`,
+      }
+    );
+
+    if (inviteError) {
+      console.error("Error reenviando invitación:", inviteError);
+      return NextResponse.json(
+        { success: false, error: `Error al reenviar: ${inviteError.message}` },
+        { status: 500 }
+      );
+    }
+
+    logAuditEvent({
+      advisorId: advisor!.id,
+      action: "resend_invite",
+      entityType: "advisor",
+      entityId: id,
+      details: { email: targetAdvisor.email },
+    }).catch(() => {});
+
+    return NextResponse.json({
+      success: true,
+      message: `Invitación reenviada a ${targetAdvisor.email}`,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al reenviar invitación";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE - Desactivar asesor (solo admins)
 export async function DELETE(request: NextRequest) {
   const blocked = applyRateLimit(request, "admin-advisors-delete", { limit: 5, windowSeconds: 60 });
