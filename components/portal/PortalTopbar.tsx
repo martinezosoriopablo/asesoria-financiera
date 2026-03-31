@@ -4,21 +4,24 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home } from "lucide-react";
+import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home, FileText, FileUp } from "lucide-react";
 
 interface PortalTopbarProps {
   clientName: string;
   clientEmail: string;
   unreadCount?: number;
+  unreadReports?: number;
 }
 
 const tabs = [
   { label: "Inicio", href: "/portal/bienvenida", icon: Home },
   { label: "Mi Portafolio", href: "/portal/dashboard", icon: LayoutDashboard },
-  { label: "Mensajes", href: "/portal/mensajes", icon: MessageSquare },
+  { label: "Reportes", href: "/portal/reportes", icon: FileText, badgeKey: "reports" as const },
+  { label: "Mis Cartolas", href: "/portal/mis-cartolas", icon: FileUp },
+  { label: "Mensajes", href: "/portal/mensajes", icon: MessageSquare, badgeKey: "messages" as const },
 ];
 
-export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0 }: PortalTopbarProps) {
+export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0, unreadReports = 0 }: PortalTopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -62,9 +65,14 @@ export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0 
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}
-                {tab.label === "Mensajes" && unreadCount > 0 && (
+                {tab.badgeKey === "messages" && unreadCount > 0 && (
                   <span className="ml-1 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+                {tab.badgeKey === "reports" && unreadReports > 0 && (
+                  <span className="ml-1 bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadReports > 9 ? "9+" : unreadReports}
                   </span>
                 )}
               </Link>
@@ -116,9 +124,14 @@ export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0 
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}
-                {tab.label === "Mensajes" && unreadCount > 0 && (
+                {tab.badgeKey === "messages" && unreadCount > 0 && (
                   <span className="ml-auto bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {unreadCount}
+                  </span>
+                )}
+                {tab.badgeKey === "reports" && unreadReports > 0 && (
+                  <span className="ml-auto bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadReports}
                   </span>
                 )}
               </Link>

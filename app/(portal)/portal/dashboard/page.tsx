@@ -29,6 +29,12 @@ interface Snapshot {
   }>;
 }
 
+interface HistoryPoint {
+  date: string;
+  value: number;
+  twr: number | null;
+}
+
 interface ClientInfo {
   id: string;
   nombre: string;
@@ -40,6 +46,7 @@ export default function PortalDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [benchmark, setBenchmark] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
@@ -61,6 +68,7 @@ export default function PortalDashboardPage() {
       if (portfolioRes.ok) {
         const pData = await portfolioRes.json();
         setSnapshot(pData.snapshot || null);
+        setHistory(pData.history || []);
         setBenchmark(pData.benchmark || null);
       }
     } catch (err) {
@@ -157,6 +165,16 @@ export default function PortalDashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* Evolution chart */}
+            {history.length >= 2 && (
+              <div className="bg-white rounded-lg border border-gb-border p-6 mb-6">
+                <h2 className="text-sm font-semibold text-gb-black mb-4">
+                  Evolución del Portafolio
+                </h2>
+                <EvolutionChart data={history} />
+              </div>
+            )}
 
             {/* Composition */}
             <div className="bg-white rounded-lg border border-gb-border p-6 mb-6">
@@ -290,4 +308,75 @@ function getReturnIcon(value: number | null) {
   if (value > 0) return <TrendingUp className="w-3 h-3 text-gb-success" />;
   if (value < 0) return <TrendingDown className="w-3 h-3 text-gb-danger" />;
   return <Minus className="w-3 h-3 text-gb-gray" />;
+}
+
+function EvolutionChart({ data }: { data: HistoryPoint[] }) {
+  if (data.length < 2) return null;
+
+  const values = data.map((d) => d.value);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal || 1;
+
+  const chartH = 160;
+  const chartW = 100; // percent
+  const padY = 10;
+
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * chartW;
+    const y = chartH - padY - ((d.value - minVal) / range) * (chartH - 2 * padY);
+    return { x, y, ...d };
+  });
+
+  const polyline = points.map((p) => `${p.x},${p.y}`).join(" ");
+  const areaPath = `M ${points[0].x},${chartH} L ${polyline} L ${points[points.length - 1].x},${chartH} Z`;
+
+  const isPositive = values[values.length - 1] >= values[0];
+  const strokeColor = isPositive ? "#16a34a" : "#dc2626";
+  const fillColor = isPositive ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)";
+
+  const formatCLP = (n: number) =>
+    new Intl.NumberFormat("es-CL", {
+      style: "currency",
+      currency: "CLP",
+      minimumFractionDigits: 0,
+      notation: "compact",
+    }).format(n);
+
+  // Show ~4 x-axis labels
+  const labelStep = Math.max(1, Math.floor(data.length / 4));
+  const xLabels = data.filter((_, i) => i === 0 || i === data.length - 1 || i % labelStep === 0);
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full" preserveAspectRatio="none" style={{ height: chartH }}>
+        <path d={areaPath} fill={fillColor} />
+        <polyline
+          points={polyline}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="0.5"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* Dots at start and end */}
+        <circle cx={points[0].x} cy={points[0].y} r="1" fill={strokeColor} vectorEffect="non-scaling-stroke" />
+        <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="1" fill={strokeColor} vectorEffect="non-scaling-stroke" />
+      </svg>
+
+      {/* X-axis labels */}
+      <div className="flex justify-between mt-2 px-1">
+        {xLabels.map((d, i) => (
+          <span key={i} className="text-[10px] text-gb-gray">
+            {new Date(d.date + "T12:00:00").toLocaleDateString("es-CL", { month: "short", year: "2-digit" })}
+          </span>
+        ))}
+      </div>
+
+      {/* Y-axis summary */}
+      <div className="flex justify-between mt-1 px-1">
+        <span className="text-[10px] text-gb-gray">{formatCLP(minVal)}</span>
+        <span className="text-[10px] text-gb-gray">{formatCLP(maxVal)}</span>
+      </div>
+    </div>
+  );
 }

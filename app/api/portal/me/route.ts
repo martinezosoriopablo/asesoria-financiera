@@ -24,6 +24,31 @@ export async function GET() {
     .eq("id", client!.asesor_id)
     .single();
 
+  // Count snapshots (cartolas) for onboarding status
+  const { count: snapshotCount } = await admin
+    .from("portfolio_snapshots")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", client!.id)
+    .in("source", ["statement", "manual", "excel", "client-upload"]);
+
+  // Generate questionnaire link for portal access
+  let questionnaireLink: string | null = null;
+  if (!riskProfile && advisor) {
+    const crypto = await import("crypto");
+    const hmacSecret = process.env.CRON_SECRET || "fallback";
+    const tokenPayload = `${client!.email}:${advisor.email}`;
+    const token = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(client!.email)}&advisor=${encodeURIComponent(advisor.email)}&token=${token}`;
+  }
+
+  // Count unread reports for badge
+  const { count: unreadReports } = await admin
+    .from("client_reports")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", client!.id)
+    .is("read_at", null);
+
   return NextResponse.json({
     client: {
       id: client!.id,
@@ -38,5 +63,8 @@ export async function GET() {
       company: advisor.company_name,
       logo: advisor.logo_url,
     } : null,
+    hasSnapshots: (snapshotCount || 0) > 0,
+    questionnaireLink,
+    unreadReports: unreadReports || 0,
   });
 }

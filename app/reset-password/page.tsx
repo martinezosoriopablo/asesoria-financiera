@@ -15,7 +15,6 @@ export default function ResetPasswordPage() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    // Check if user has a valid session from the email link
     const checkSession = async () => {
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -60,7 +59,6 @@ export default function ResetPasswordPage() {
     setSuccess(true);
     setLoading(false);
 
-    // Redirect to login after 2 seconds
     setTimeout(() => {
       router.push("/login");
     }, 2000);
@@ -130,7 +128,7 @@ export default function ResetPasswordPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mínimo 6 caracteres"
                 className="w-full pl-10 pr-4 py-2.5 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-transparent"
-                disabled={loading}
+                disabled={loading || !!error}
               />
             </div>
           </div>
@@ -148,14 +146,14 @@ export default function ResetPasswordPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Repite tu contraseña"
                 className="w-full pl-10 pr-4 py-2.5 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-transparent"
-                disabled={loading}
+                disabled={loading || !!error}
               />
             </div>
           </div>
 
           <button
             type="submit"
-            disabled={loading || !password || !confirmPassword}
+            disabled={loading || !password || !confirmPassword || !!error}
             className="w-full py-2.5 bg-gb-black text-white text-sm font-medium rounded-lg hover:bg-gb-dark disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? (

@@ -238,6 +238,68 @@ export async function PUT(
   }
 }
 
+// PATCH - Set/unset baseline
+export async function PATCH(
+  request: NextRequest,
+  context: RouteContext
+) {
+  const blocked = applyRateLimit(request, "snapshot-patch", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
+  try {
+    const { id: snapshotId } = await context.params;
+    const body = await request.json();
+
+    if (body.is_baseline === undefined) {
+      return NextResponse.json({ success: false, error: "Campo is_baseline requerido" }, { status: 400 });
+    }
+
+    const { data: snapshot, error: fetchError } = await supabase
+      .from("portfolio_snapshots")
+      .select("id, client_id")
+      .eq("id", snapshotId)
+      .single();
+
+    if (fetchError || !snapshot) {
+      return NextResponse.json({ success: false, error: "Snapshot no encontrado" }, { status: 404 });
+    }
+
+    const access = await checkSnapshotOwnership(supabase, snapshot.client_id, advisor!);
+    if (!access.ok) {
+      return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+    }
+
+    // Clear any existing baseline for this client
+    if (body.is_baseline) {
+      await supabase
+        .from("portfolio_snapshots")
+        .update({ is_baseline: false })
+        .eq("client_id", snapshot.client_id)
+        .eq("is_baseline", true);
+    }
+
+    // Set the new baseline
+    const { error: updateError } = await supabase
+      .from("portfolio_snapshots")
+      .update({ is_baseline: body.is_baseline })
+      .eq("id", snapshotId);
+
+    if (updateError) {
+      return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error in PATCH snapshot:", error);
+    return NextResponse.json({ success: false, error: "Error interno del servidor" }, { status: 500 });
+  }
+}
+
 // DELETE - Eliminar un snapshot
 export async function DELETE(
   request: NextRequest,

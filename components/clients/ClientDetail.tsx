@@ -25,8 +25,13 @@ import {
   Send,
   ExternalLink,
   MessageSquare,
+  Upload,
+  Download,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
+import ReportConfigPanel from "@/components/clients/ReportConfigPanel";
 
 interface Client {
   id: string;
@@ -47,6 +52,8 @@ interface Client {
   portfolio_data: Record<string, unknown>;
   status: string;
   notas: string;
+  contract_url?: string | null;
+  contract_uploaded_at?: string | null;
   fecha_onboarding: string;
   ultima_interaccion: string;
   client_interactions: Interaction[];
@@ -127,6 +134,8 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [showAddFamilyModal, setShowAddFamilyModal] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [uploadingContract, setUploadingContract] = useState(false);
+  const [contractError, setContractError] = useState<string | null>(null);
   const [savingFamily, setSavingFamily] = useState(false);
   const [familyForm, setFamilyForm] = useState({
     nombre: "",
@@ -294,6 +303,54 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       alert("Error al enviar invitación");
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleUploadContract = async (file: File) => {
+    setUploadingContract(true);
+    setContractError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/clients/${clientId}/contract`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchClient();
+      } else {
+        setContractError(data.error || "Error al subir contrato");
+      }
+    } catch {
+      setContractError("Error de conexión");
+    } finally {
+      setUploadingContract(false);
+    }
+  };
+
+  const handleDownloadContract = async () => {
+    try {
+      const res = await fetch(`/api/clients/${clientId}/contract`);
+      const data = await res.json();
+      if (data.success && data.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch {
+      // silent
+    }
+  };
+
+  const handleDeleteContract = async () => {
+    if (!confirm("¿Eliminar el contrato?")) return;
+    try {
+      const res = await fetch(`/api/clients/${clientId}/contract`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        fetchClient();
+      }
+    } catch {
+      // silent
     }
   };
 
@@ -730,6 +787,18 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                       <p className="text-base font-semibold text-gb-black">{client.tolerancia_perdida}%</p>
                     </div>
                   )}
+                  <button
+                    onClick={() => {
+                      const advisorEmail = advisor?.email;
+                      if (!advisorEmail) return;
+                      const link = `/analisis-cartola?email=${encodeURIComponent(client.email)}&advisor=${encodeURIComponent(advisorEmail)}`;
+                      window.open(link, "_blank");
+                    }}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Re-enviar cuestionario de riesgo
+                  </button>
                 </div>
               </div>
             )}
@@ -757,6 +826,98 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 </div>
               </div>
             )}
+
+            {/* Contract */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-amber-500 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-amber-500" />
+                Contrato de Prestación de Servicios
+              </h2>
+              {client.contract_url ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-green-800">Contrato cargado</p>
+                      {client.contract_uploaded_at && (
+                        <p className="text-xs text-green-600">
+                          {new Date(client.contract_uploaded_at).toLocaleDateString("es-CL", {
+                            day: "numeric", month: "short", year: "numeric",
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDownloadContract}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Ver / Descargar
+                    </button>
+                    <button
+                      onClick={handleDeleteContract}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {/* Replace contract */}
+                  <label className="block">
+                    <span className="text-xs text-gb-gray cursor-pointer hover:text-gb-black">
+                      Reemplazar contrato...
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadContract(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-gb-gray mb-3">
+                    Sube el contrato de prestación de servicios firmado (PDF, máx 10MB).
+                  </p>
+                  <label className={`flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                    uploadingContract
+                      ? "border-amber-300 bg-amber-50"
+                      : "border-slate-300 hover:border-amber-400 hover:bg-amber-50"
+                  }`}>
+                    {uploadingContract ? (
+                      <Loader className="w-6 h-6 text-amber-500 animate-spin" />
+                    ) : (
+                      <Upload className="w-6 h-6 text-amber-500" />
+                    )}
+                    <span className="text-sm font-medium text-gb-gray">
+                      {uploadingContract ? "Subiendo..." : "Subir Contrato PDF"}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      disabled={uploadingContract}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadContract(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
+              {contractError && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                  {contractError}
+                </div>
+              )}
+            </div>
 
             {/* Notes */}
             {client.notas && (
@@ -802,6 +963,9 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 </div>
               )}
             </div>
+
+            {/* Report configuration */}
+            <ReportConfigPanel clientId={client.id} />
 
             {/* Quick actions */}
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 shadow-sm">

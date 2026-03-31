@@ -13,6 +13,8 @@ import PerformanceAttribution from "./PerformanceAttribution";
 import ComparacionBar from "./ComparacionBar";
 import HoldingReturnsPanel from "./HoldingReturnsPanel";
 import HoldingDiagnosticPanel from "./HoldingDiagnosticPanel";
+import BaselineComparison from "./BaselineComparison";
+import RecommendationHistory from "./RecommendationHistory";
 import {
   ArrowLeft,
   Loader,
@@ -66,6 +68,7 @@ export interface Snapshot {
   total_cuotas?: number;
   cuotas_change?: number;
   source: string;
+  is_baseline?: boolean;
   created_at: string;
 }
 
@@ -168,9 +171,12 @@ export default function SeguimientoPage({ clientId }: Props) {
       if (result.success) {
         const matches = result.result.holdingMatches || [];
         const matched = matches.filter((m: { source: string }) => m.source !== "none").length;
-        setFillResult(
-          `${result.result.filled} snapshots creados (${matched}/${matches.length} holdings con precios)${result.result.errors?.length ? ` — ${result.result.errors.length} errores` : ""}`
-        );
+        const errors = result.result.errors || [];
+        const warnings = result.result.warnings || [];
+        let msg = `${result.result.filled} snapshots creados (${matched}/${matches.length} holdings con precios)`;
+        if (errors.length > 0) msg += ` — ${errors.length} errores`;
+        if (warnings.length > 0) console.log(`Fill-prices: ${warnings.length} price warnings (normal)`, warnings.slice(0, 5));
+        setFillResult(msg);
         setFillDetails(matches);
         fetchData();
       } else {
@@ -200,6 +206,25 @@ export default function SeguimientoPage({ clientId }: Props) {
     } catch (err) {
       console.error("Error deleting snapshot:", err);
       alert("Error al eliminar snapshot");
+    }
+  };
+
+  const handleSetBaseline = async (snapshotId: string) => {
+    const snap = data?.snapshots.find(s => s.id === snapshotId);
+    if (snap?.is_baseline) return; // Already baseline
+
+    try {
+      const res = await fetch(`/api/portfolio/snapshots/${snapshotId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_baseline: true }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        fetchData();
+      }
+    } catch {
+      // silent
     }
   };
 
@@ -564,6 +589,25 @@ export default function SeguimientoPage({ clientId }: Props) {
           </div>
         )}
 
+        {/* Baseline vs Current comparison */}
+        {(() => {
+          const baseline = snapshots.find(s => s.is_baseline);
+          const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+          if (baseline && latest && baseline.id !== latest.id) {
+            return (
+              <div className="mb-6">
+                <BaselineComparison baseline={baseline} current={latest} />
+              </div>
+            );
+          }
+          return null;
+        })()}
+
+        {/* Recommendation version history */}
+        <div className="mb-6">
+          <RecommendationHistory clientId={clientId} />
+        </div>
+
         {/* Holding Diagnostic Panel - latest snapshot */}
         {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
           <HoldingDiagnosticPanel
@@ -611,6 +655,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                     snapshots={cartolas}
                     onEdit={setEditingSnapshot}
                     onDelete={handleDeleteSnapshot}
+                    onSetBaseline={handleSetBaseline}
                   />
                 </div>
               )}

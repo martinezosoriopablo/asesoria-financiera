@@ -22,6 +22,7 @@ import {
   Settings,
   RefreshCw,
 } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 interface AdvisorHeaderProps {
   advisorName: string;
@@ -151,6 +152,9 @@ export default function AdvisorHeader({
 
             {/* Right side */}
             <div className="flex items-center gap-3">
+              {/* Notifications */}
+              <NotificationBell />
+
               {/* User menu */}
               <div className="relative hidden sm:block">
                 <button

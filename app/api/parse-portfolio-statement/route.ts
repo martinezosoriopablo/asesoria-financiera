@@ -202,6 +202,7 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
     {
       "fundName": "string (nombre completo del fondo o instrumento)",
       "securityId": "string (Security Identifier / CUSIP / ISIN / ticker)",
+      "market": "CL | INT | US",
       "quantity": number,
       "unitCost": number,
       "costBasis": number,
@@ -249,6 +250,19 @@ CONTEXTO: Los portfolios chilenos valen MILLONES de pesos.
 
 Si un campo no se encuentra, usa null para strings y 0 para números.
 unrealizedGainLoss puede ser negativo.
+
+REGLAS PARA "market" (CLASIFICACIÓN DE MERCADO):
+Clasifica CADA holding en uno de estos mercados:
+- "CL" = Fondo mutuo chileno, ETF chileno, acción chilena, o ADR en Bolsa de Santiago
+  Indicadores: AGF chileno (Banchile, BTG, LarrainVial, Santander, Security, etc.),
+  RUN numérico de 3-5 dígitos, nemotécnicos como CFIETF*, acciones como BSANTANDER, SQM-B,
+  ADRs chilenos terminados en "CL" (GOOGLCL, NVDACL, etc.), moneda CLP o UF
+- "INT" = Fondo mutuo internacional (SICAV Luxemburgo, Irlanda, Bermuda, Caimán, etc.)
+  Indicadores: CUSIP empezando con G (Bermuda) o L (Luxemburgo), ISIN con prefijo LU/IE/KY,
+  gestoras como JPMorgan, Robeco, Schroder, Ninety One, Wellington, Franklin Templeton,
+  Pershing/Banchile Corredores como custodio, precios en USD con decimales tipo NAV
+- "US" = Acción o ETF listado en bolsa estadounidense (NYSE/NASDAQ)
+  Indicadores: ticker corto 1-5 letras (AAPL, VOO, VTI, BND), precio en USD
 
 OTRAS REGLAS:
 - Extrae TODOS los holdings/posiciones listados

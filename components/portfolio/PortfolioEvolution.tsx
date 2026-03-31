@@ -22,7 +22,10 @@ import {
   AlertTriangle,
   RefreshCw,
   Plus,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 interface Snapshot {
   id: string;
@@ -36,11 +39,19 @@ interface Snapshot {
   cash_percent: number;
   daily_return: number;
   cumulative_return: number;
+  twr_cumulative?: number;
+  twr_period?: number;
+  total_cuotas?: number;
+  deposits?: number;
+  withdrawals?: number;
+  net_cash_flow?: number;
 }
 
 interface Metrics {
   totalReturn: number;
   annualizedReturn: number;
+  twr: number;
+  twrAnnualized: number;
   volatility: number;
   maxDrawdown: number;
   sharpeRatio: number;
@@ -49,6 +60,9 @@ interface Metrics {
   unrealizedGainLoss: number | null;
   dataPoints: number;
   periodDays: number;
+  totalDeposits?: number;
+  totalWithdrawals?: number;
+  netCashFlow?: number;
   composition: {
     equity: number;
     fixedIncome: number;
@@ -97,11 +111,43 @@ export default function PortfolioEvolution({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creatingSnapshot, setCreatingSnapshot] = useState(false);
+  const [fillingPrices, setFillingPrices] = useState(false);
+  const [chartMode, setChartMode] = useState<"return" | "value">("return");
+  const [showDividendModal, setShowDividendModal] = useState(false);
+  const [dividendDate, setDividendDate] = useState("");
+  const [dividendAmount, setDividendAmount] = useState("");
+  const [dividendNote, setDividendNote] = useState("");
+  const [savingDividend, setSavingDividend] = useState(false);
+  const [priceCoverage, setPriceCoverage] = useState<{
+    totalHoldings: number;
+    withPrices: number;
+    frozenPercent: number;
+    unpricedHoldings: Array<{ name: string; securityId?: string | null; weight: number }>;
+  } | null>(null);
+  const [showManualPriceModal, setShowManualPriceModal] = useState(false);
+  // manualCsv removed — now using form-only mode
+  const [manualPriceNote, setManualPriceNote] = useState("");
+  const [uploadingPrices, setUploadingPrices] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; errors?: string[] } | null>(null);
+  const [selectedFund, setSelectedFund] = useState<{ name: string; securityId: string } | null>(null);
+  const [priceRows, setPriceRows] = useState<Array<{ date: string; price: string }>>([{ date: "", price: "" }]);
+  // inputMode removed — form-only
 
   useEffect(() => {
     loadSnapshots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, period]);
+
+  // Check price coverage for this client (which holdings have prices, which are frozen)
+  const loadCoverage = async () => {
+    try {
+      const res = await fetch(`/api/portfolio/fill-prices/coverage?clientId=${clientId}`);
+      const data = await res.json();
+      if (data.success && data.coverage) {
+        setPriceCoverage(data.coverage);
+      }
+    } catch { /* silent */ }
+  };
 
   const loadSnapshots = async () => {
     setLoading(true);
@@ -114,6 +160,10 @@ export default function PortfolioEvolution({
       if (data.success) {
         setSnapshots(data.data.snapshots);
         setMetrics(data.data.metrics);
+        // Load coverage info if we have snapshots but no coverage yet
+        if (data.data.snapshots?.length > 0 && !priceCoverage) {
+          loadCoverage();
+        }
       } else {
         setError(data.error);
       }
@@ -159,6 +209,25 @@ export default function PortfolioEvolution({
       const data = await res.json();
 
       if (data.success) {
+        // Auto-fill prices: wait for completion then refresh chart
+        if (data.shouldFillPrices) {
+          setFillingPrices(true);
+          try {
+            const fillRes = await fetch("/api/portfolio/fill-prices", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clientId }),
+            });
+            const fillData = await fillRes.json();
+            if (fillData.result?.coverage) {
+              setPriceCoverage(fillData.result.coverage);
+            }
+          } catch {
+            /* silent — snapshots still saved */
+          } finally {
+            setFillingPrices(false);
+          }
+        }
         await loadSnapshots();
         onSnapshotCreated?.();
       } else {
@@ -169,6 +238,175 @@ export default function PortfolioEvolution({
       console.error(err);
     } finally {
       setCreatingSnapshot(false);
+    }
+  };
+
+  const saveDividend = async () => {
+    if (!dividendDate || !dividendAmount) return;
+    setSavingDividend(true);
+    try {
+      const res = await fetch("/api/portfolio/dividends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          date: dividendDate,
+          amount: parseFloat(dividendAmount),
+          note: dividendNote || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowDividendModal(false);
+        setDividendDate("");
+        setDividendAmount("");
+        setDividendNote("");
+        await loadSnapshots();
+      } else {
+        setError(data.error || "Error al guardar dividendo");
+      }
+    } catch {
+      setError("Error al guardar dividendo");
+    } finally {
+      setSavingDividend(false);
+    }
+  };
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
+
+        if (rows.length === 0) {
+          setUploadResult({ success: false, message: "El archivo está vacío" });
+          return;
+        }
+
+        // Detect date and price columns by header name
+        const keys = Object.keys(rows[0]);
+        const dateCol = keys.find(k => /fecha|date|dia/i.test(k)) || keys[0];
+        const priceCol = keys.find(k => /precio|price|valor|cuota|nav/i.test(k)) || keys[1];
+
+        if (!dateCol || !priceCol) {
+          setUploadResult({ success: false, message: "No se encontraron columnas de fecha y precio" });
+          return;
+        }
+
+        const parsed: Array<{ date: string; price: string }> = [];
+        for (const row of rows) {
+          const rawDate = row[dateCol];
+          const rawPrice = row[priceCol];
+
+          // Parse date
+          let dateStr = "";
+          if (rawDate instanceof Date) {
+            dateStr = rawDate.toISOString().slice(0, 10);
+          } else if (typeof rawDate === "number") {
+            // Excel serial date
+            const d = XLSX.SSF.parse_date_code(rawDate);
+            dateStr = `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+          } else if (typeof rawDate === "string" && rawDate.trim()) {
+            // Try common formats: DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD
+            const s = rawDate.trim();
+            const dmyMatch = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+            const ymdMatch = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+            if (ymdMatch) {
+              dateStr = `${ymdMatch[1]}-${ymdMatch[2].padStart(2, "0")}-${ymdMatch[3].padStart(2, "0")}`;
+            } else if (dmyMatch) {
+              dateStr = `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
+            }
+          }
+
+          // Parse price
+          let priceStr = "";
+          if (typeof rawPrice === "number") {
+            priceStr = rawPrice.toString();
+          } else if (typeof rawPrice === "string") {
+            priceStr = rawPrice.replace(/[^\d.,-]/g, "").replace(",", ".");
+          }
+
+          if (dateStr && priceStr) {
+            parsed.push({ date: dateStr, price: priceStr });
+          }
+        }
+
+        if (parsed.length === 0) {
+          setUploadResult({ success: false, message: "No se pudieron parsear filas válidas del archivo" });
+          return;
+        }
+
+        setPriceRows(parsed);
+        setUploadResult({ success: true, message: `${parsed.length} filas importadas del Excel` });
+      } catch {
+        setUploadResult({ success: false, message: "Error al leer el archivo Excel" });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const buildCsvFromForm = (): string => {
+    if (!selectedFund) return "";
+    const lines: string[] = [];
+    for (const row of priceRows) {
+      if (row.date && row.price) {
+        lines.push(`${row.date},${row.price}`);
+      }
+    }
+    return lines.join("\n");
+  };
+
+  const uploadManualPrices = async () => {
+    const csvToSend = buildCsvFromForm();
+    if (!csvToSend.trim()) return;
+    setUploadingPrices(true);
+    setUploadResult(null);
+    try {
+      const res = await fetch("/api/portfolio/manual-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csv: csvToSend,
+          securityId: selectedFund?.securityId || undefined,
+          note: manualPriceNote || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUploadResult({ success: true, message: data.message });
+        setManualPriceNote("");
+        setPriceRows([{ date: "", price: "" }]);
+        // Re-fill prices with the new manual data
+        setFillingPrices(true);
+        try {
+          const fillRes = await fetch("/api/portfolio/fill-prices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId }),
+          });
+          const fillData = await fillRes.json();
+          if (fillData.result?.coverage) setPriceCoverage(fillData.result.coverage);
+        } catch { /* silent */ }
+        setFillingPrices(false);
+        await loadSnapshots();
+      } else {
+        setUploadResult({
+          success: false,
+          message: data.error || "Error al subir precios",
+          errors: data.validationErrors,
+        });
+      }
+    } catch {
+      setUploadResult({ success: false, message: "Error de conexión" });
+    } finally {
+      setUploadingPrices(false);
     }
   };
 
@@ -198,7 +436,7 @@ export default function PortfolioEvolution({
     date: formatDate(s.snapshot_date),
     fullDate: s.snapshot_date,
     value: s.total_value,
-    return: s.cumulative_return,
+    twr: s.twr_cumulative ?? 0, // TWR acumulado (%)
   }));
 
   return (
@@ -226,14 +464,36 @@ export default function PortfolioEvolution({
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </button>
 
+            <button
+              onClick={() => setShowManualPriceModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-lg transition-colors"
+              title="Subir precios manuales para fondos sin precio automático"
+            >
+              <Upload className="w-4 h-4" />
+              Precios
+            </button>
+
+            <button
+              onClick={() => setShowDividendModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+              title="Registrar dividendo recibido"
+            >
+              <DollarSign className="w-4 h-4" />
+              Dividendo
+            </button>
+
             {portfolioData?.composition && (
               <button
                 onClick={createSnapshot}
-                disabled={creatingSnapshot}
+                disabled={creatingSnapshot || fillingPrices}
                 className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
               >
-                <Plus className="w-4 h-4" />
-                {creatingSnapshot ? "Guardando..." : "Guardar Snapshot"}
+                {fillingPrices ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                {fillingPrices ? "Llenando precios..." : creatingSnapshot ? "Guardando..." : "Guardar Snapshot"}
               </button>
             )}
           </div>
@@ -267,6 +527,35 @@ export default function PortfolioEvolution({
         </div>
       )}
 
+      {/* Price coverage warning */}
+      {priceCoverage && priceCoverage.unpricedHoldings.length > 0 && (
+        <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
+          <p className="text-sm text-amber-800 flex items-center gap-2 font-medium">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            {priceCoverage.withPrices}/{priceCoverage.totalHoldings} fondos con precios dinámicos
+            ({priceCoverage.frozenPercent.toFixed(1)}% del portfolio con precio congelado)
+          </p>
+          <div className="mt-1 ml-6 space-y-0.5">
+            {priceCoverage.unpricedHoldings.map((h, i) => (
+              <p key={i} className="text-xs text-amber-700">
+                {h.name} {h.securityId ? `(${h.securityId})` : ""} — {h.weight.toFixed(1)}% del portfolio
+              </p>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 mt-2 ml-6">
+            <p className="text-xs text-amber-600">
+              Estos fondos usan el precio de la última cartola.
+            </p>
+            <button
+              onClick={() => setShowManualPriceModal(true)}
+              className="text-xs font-medium text-amber-800 underline hover:text-amber-900"
+            >
+              Subir precios manualmente
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Loading */}
       {loading && (
         <div className="px-6 py-12 flex items-center justify-center">
@@ -285,10 +574,10 @@ export default function PortfolioEvolution({
           {portfolioData?.composition && (
             <button
               onClick={createSnapshot}
-              disabled={creatingSnapshot}
+              disabled={creatingSnapshot || fillingPrices}
               className="mt-4 px-4 py-2 bg-gb-accent text-white font-medium rounded-lg hover:bg-gb-accent/90 transition-colors"
             >
-              Crear Primer Snapshot
+              {fillingPrices ? "Llenando precios..." : creatingSnapshot ? "Guardando..." : "Crear Primer Snapshot"}
             </button>
           )}
         </div>
@@ -299,6 +588,38 @@ export default function PortfolioEvolution({
         <>
           {/* Metrics cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-gb-light/30">
+            {/* TWR (Time-Weighted Return) — the TRUE performance metric */}
+            <div className="bg-white rounded-lg p-4 border border-gb-border">
+              <div className="flex items-center gap-2 text-gb-gray mb-1">
+                <Percent className="w-4 h-4" />
+                <span className="text-xs font-medium uppercase">Rentabilidad TWR</span>
+              </div>
+              <p className={`text-xl font-bold ${
+                (metrics.twr || 0) >= 0 ? "text-green-600" : "text-red-600"
+              }`}>
+                {formatPercent(metrics.twr || 0)}
+              </p>
+              <p className="text-xs text-gb-gray mt-1">
+                {metrics.periodDays} días
+              </p>
+            </div>
+
+            {/* TWR Annualized */}
+            <div className="bg-white rounded-lg p-4 border border-gb-border">
+              <div className="flex items-center gap-2 text-gb-gray mb-1">
+                <TrendingUp className="w-4 h-4" />
+                <span className="text-xs font-medium uppercase">TWR Anualizado</span>
+              </div>
+              <p className={`text-xl font-bold ${
+                (metrics.twrAnnualized || 0) >= 0 ? "text-green-600" : "text-red-600"
+              }`}>
+                {formatPercent(metrics.twrAnnualized || 0)}
+              </p>
+              <p className="text-xs text-gb-gray mt-1">
+                Anualizado
+              </p>
+            </div>
+
             {/* Current Value */}
             <div className="bg-white rounded-lg p-4 border border-gb-border">
               <div className="flex items-center gap-2 text-gb-gray mb-1">
@@ -308,45 +629,11 @@ export default function PortfolioEvolution({
               <p className="text-xl font-bold text-gb-black">
                 {formatCurrency(metrics.currentValue)}
               </p>
-              {metrics.unrealizedGainLoss !== null && (
-                <p className={`text-xs mt-1 ${
-                  metrics.unrealizedGainLoss >= 0 ? "text-green-600" : "text-red-600"
-                }`}>
-                  {formatCurrency(metrics.unrealizedGainLoss)} no realizado
+              {(metrics.netCashFlow !== undefined && metrics.netCashFlow !== 0) && (
+                <p className="text-xs text-gb-gray mt-1">
+                  Flujos netos: {formatCurrency(metrics.netCashFlow)}
                 </p>
               )}
-            </div>
-
-            {/* Total Return */}
-            <div className="bg-white rounded-lg p-4 border border-gb-border">
-              <div className="flex items-center gap-2 text-gb-gray mb-1">
-                <Percent className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase">Retorno Total</span>
-              </div>
-              <p className={`text-xl font-bold ${
-                metrics.totalReturn >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
-                {formatPercent(metrics.totalReturn)}
-              </p>
-              <p className="text-xs text-gb-gray mt-1">
-                {metrics.periodDays} días
-              </p>
-            </div>
-
-            {/* Annualized Return */}
-            <div className="bg-white rounded-lg p-4 border border-gb-border">
-              <div className="flex items-center gap-2 text-gb-gray mb-1">
-                <TrendingUp className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase">Retorno Anual</span>
-              </div>
-              <p className={`text-xl font-bold ${
-                metrics.annualizedReturn >= 0 ? "text-green-600" : "text-red-600"
-              }`}>
-                {formatPercent(metrics.annualizedReturn)}
-              </p>
-              <p className="text-xs text-gb-gray mt-1">
-                Anualizado
-              </p>
             </div>
 
             {/* Volatility */}
@@ -366,11 +653,37 @@ export default function PortfolioEvolution({
 
           {/* Chart */}
           <div className="p-6">
-            <h3 className="text-sm font-semibold text-gb-black mb-4">Evolución del Valor</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gb-black">
+                {chartMode === "return" ? "Rentabilidad TWR (%)" : "Evolución del Valor"}
+              </h3>
+              <div className="flex items-center gap-1 bg-gb-light rounded-lg p-0.5">
+                <button
+                  onClick={() => setChartMode("return")}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    chartMode === "return" ? "bg-white text-gb-black shadow-sm" : "text-gb-gray hover:text-gb-black"
+                  }`}
+                >
+                  Rentabilidad
+                </button>
+                <button
+                  onClick={() => setChartMode("value")}
+                  className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                    chartMode === "value" ? "bg-white text-gb-black shadow-sm" : "text-gb-gray hover:text-gb-black"
+                  }`}
+                >
+                  Valor
+                </button>
+              </div>
+            </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
+                    <linearGradient id="colorReturn" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
+                    </linearGradient>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
@@ -383,28 +696,45 @@ export default function PortfolioEvolution({
                     tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={chartMode === "return"
+                      ? (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`
+                      : (v) => `$${(v / 1000).toFixed(0)}k`
+                    }
                     tick={{ fontSize: 11, fill: "#666" }}
                     tickLine={false}
                     axisLine={false}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid #e5e5e5",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value: number | undefined) => [formatCurrency(value ?? 0), "Valor"]}
-                    labelFormatter={(label) => `Fecha: ${label}`}
-                  />
+                  {chartMode === "return" && (
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e5e5e5",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: number | undefined) => [formatPercent(value ?? 0), "Rentabilidad TWR"]}
+                      labelFormatter={(label) => `Fecha: ${label}`}
+                    />
+                  )}
+                  {chartMode === "value" && (
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e5e5e5",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: number | undefined) => [formatCurrency(value ?? 0), "Valor"]}
+                      labelFormatter={(label) => `Fecha: ${label}`}
+                    />
+                  )}
                   <Area
                     type="monotone"
-                    dataKey="value"
-                    stroke="#2563eb"
+                    dataKey={chartMode === "return" ? "twr" : "value"}
+                    stroke={chartMode === "return" ? "#16a34a" : "#2563eb"}
                     strokeWidth={2}
                     fillOpacity={1}
-                    fill="url(#colorValue)"
+                    fill={chartMode === "return" ? "url(#colorReturn)" : "url(#colorValue)"}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -468,6 +798,211 @@ export default function PortfolioEvolution({
             </div>
           )}
         </>
+      )}
+
+      {/* Modal de Dividendos */}
+      {showDividendModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gb-black mb-1">Registrar Dividendo</h3>
+            <p className="text-sm text-gb-gray mb-4">
+              Los dividendos se suman al valor del portfolio sin afectar las cuotas,
+              reflejando correctamente la rentabilidad real.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gb-black mb-1">Fecha</label>
+                <input
+                  type="date"
+                  value={dividendDate}
+                  onChange={(e) => setDividendDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-gb-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gb-black mb-1">Monto (USD)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={dividendAmount}
+                  onChange={(e) => setDividendAmount(e.target.value)}
+                  placeholder="Ej: 250.00"
+                  className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-gb-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gb-black mb-1">Nota (opcional)</label>
+                <input
+                  type="text"
+                  value={dividendNote}
+                  onChange={(e) => setDividendNote(e.target.value)}
+                  placeholder="Ej: Dividendo JPMorgan Q4 2025"
+                  className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent focus:border-gb-accent"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowDividendModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gb-gray hover:text-gb-black transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={saveDividend}
+                disabled={savingDividend || !dividendDate || !dividendAmount}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {savingDividend ? "Guardando..." : "Guardar Dividendo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Precios Manuales */}
+      {showManualPriceModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gb-black mb-1">Subir Precios Manuales</h3>
+            <p className="text-sm text-gb-gray mb-3">
+              Ingresa precios NAV para fondos sin precio automático.
+            </p>
+
+            {/* Fund selector */}
+            <div>
+              <label className="block text-sm font-medium text-gb-black mb-1">Fondo</label>
+              {priceCoverage?.unpricedHoldings && priceCoverage.unpricedHoldings.length > 0 ? (
+                <select
+                  value={selectedFund?.securityId || ""}
+                  onChange={(e) => {
+                    const h = priceCoverage.unpricedHoldings.find(x => x.securityId === e.target.value);
+                    setSelectedFund(h ? { name: h.name, securityId: h.securityId || "" } : null);
+                    setPriceRows([{ date: "", price: "" }]);
+                  }}
+                  className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent"
+                >
+                  <option value="">Seleccionar fondo...</option>
+                  {priceCoverage.unpricedHoldings.map((h, i) => (
+                    <option key={i} value={h.securityId || ""}>
+                      {h.name.substring(0, 55)}{h.securityId ? ` (${h.securityId})` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={selectedFund?.securityId || ""}
+                  onChange={(e) => setSelectedFund({ name: "", securityId: e.target.value })}
+                  placeholder="CUSIP o ISIN (ej: L51224282)"
+                  className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent"
+                />
+              )}
+            </div>
+
+            {/* Excel import + Price rows table */}
+            {selectedFund && (
+              <div className="mt-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <label className="flex items-center gap-2 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium rounded-lg border border-green-200 cursor-pointer transition-colors">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Importar Excel
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleExcelUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-xs text-gb-gray">
+                    Columnas: fecha, valor cuota
+                  </span>
+                </div>
+                <div className="border border-gb-border rounded-lg overflow-hidden">
+                  <div className="grid grid-cols-[1fr_1fr_32px] gap-0 bg-gb-light px-3 py-1.5">
+                    <span className="text-xs font-medium text-gb-gray">Fecha</span>
+                    <span className="text-xs font-medium text-gb-gray">Valor Cuota</span>
+                    <span></span>
+                  </div>
+                  {priceRows.map((row, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_32px] gap-2 px-3 py-1.5 border-t border-gb-border">
+                      <input
+                        type="date"
+                        value={row.date}
+                        onChange={(e) => {
+                          const updated = [...priceRows];
+                          updated[i] = { ...updated[i], date: e.target.value };
+                          setPriceRows(updated);
+                        }}
+                        className="px-2 py-1 border border-gb-border rounded text-sm focus:ring-1 focus:ring-gb-accent"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={row.price}
+                        onChange={(e) => {
+                          const updated = [...priceRows];
+                          updated[i] = { ...updated[i], price: e.target.value };
+                          setPriceRows(updated);
+                        }}
+                        placeholder="1674.94"
+                        className="px-2 py-1 border border-gb-border rounded text-sm focus:ring-1 focus:ring-gb-accent"
+                      />
+                      <button
+                        onClick={() => priceRows.length > 1 && setPriceRows(priceRows.filter((_, j) => j !== i))}
+                        className={`text-sm ${priceRows.length > 1 ? "text-red-400 hover:text-red-600" : "text-gb-border cursor-default"}`}
+                        title="Eliminar fila"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setPriceRows([...priceRows, { date: "", price: "" }])}
+                  className="mt-2 text-xs text-gb-accent hover:text-gb-accent/80 font-medium"
+                >
+                  + Agregar fila
+                </button>
+              </div>
+            )}
+
+            {uploadResult && (
+              <div className={`mt-3 p-3 rounded-lg text-sm ${
+                uploadResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+              }`}>
+                <p className="font-medium">{uploadResult.message}</p>
+                {uploadResult.errors && uploadResult.errors.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 text-xs">
+                    {uploadResult.errors.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => { setShowManualPriceModal(false); setUploadResult(null); setSelectedFund(null); setPriceRows([{ date: "", price: "" }]); }}
+                className="px-4 py-2 text-sm font-medium text-gb-gray hover:text-gb-black transition-colors"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={uploadManualPrices}
+                disabled={uploadingPrices || !selectedFund || priceRows.every(r => !r.date || !r.price)}
+                className="px-4 py-2 bg-gb-accent hover:bg-gb-accent/90 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {uploadingPrices ? "Subiendo..." : "Guardar Precios"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -181,6 +181,7 @@ export default function ReviewSnapshotModal({
   const [withdrawalsCurrency, setWithdrawalsCurrency] = useState("CLP");
 
   const [saving, setSaving] = useState(false);
+  const [savingMsg, setSavingMsg] = useState("Guardando...");
   const [error, setError] = useState<string | null>(null);
 
   // Auto-match state
@@ -598,6 +599,7 @@ export default function ReviewSnapshotModal({
 
   const handleSave = async () => {
     setSaving(true);
+    setSavingMsg("Guardando...");
     setError(null);
 
     try {
@@ -639,6 +641,31 @@ export default function ReviewSnapshotModal({
       const result = await res.json();
 
       if (result.success) {
+        // Auto-fill prices to generate daily evolution
+        if (result.shouldFillPrices) {
+          setSavingMsg("Calculando evolución de precios...");
+          try {
+            const fillRes = await fetch("/api/portfolio/fill-prices", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clientId }),
+            });
+            const fillResult = await fillRes.json();
+            if (fillResult.success) {
+              const filled = fillResult.result?.filled || 0;
+              const matched = fillResult.result?.holdingMatches?.filter((m: { source: string }) => m.source !== "none").length || 0;
+              const total = fillResult.result?.holdingMatches?.length || 0;
+              console.log(`Fill prices: ${filled} snapshots creados, ${matched}/${total} holdings con fuente de precios`);
+              if (filled === 0 && matched === 0) {
+                console.warn("Fill prices: ningún holding matcheó con una fuente de precios", fillResult.result?.holdingMatches);
+              }
+            } else {
+              console.warn("Fill prices error:", fillResult.error);
+            }
+          } catch (err) {
+            console.warn("Fill prices failed:", err);
+          }
+        }
         onSuccess();
       } else {
         setError(result.error || "Error al guardar snapshot");
@@ -1208,7 +1235,7 @@ export default function ReviewSnapshotModal({
               {saving ? (
                 <>
                   <Loader className="w-4 h-4 animate-spin" />
-                  Guardando...
+                  {savingMsg}
                 </>
               ) : (
                 <>

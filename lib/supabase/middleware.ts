@@ -25,6 +25,21 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // Handle PKCE code exchange (e.g. password recovery link)
+  const code = request.nextUrl.searchParams.get("code");
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      // Recovery flow: redirect to reset-password
+      const next = request.nextUrl.searchParams.get("next") || "/reset-password";
+      const url = request.nextUrl.clone();
+      url.pathname = next;
+      url.searchParams.delete("code");
+      url.searchParams.delete("next");
+      return NextResponse.redirect(url, { headers: supabaseResponse.headers });
+    }
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -42,6 +57,7 @@ export async function updateSession(request: NextRequest) {
     "/mi-perfil-inversor",
     "/api/save-risk-profile",
     "/portal/login",
+    "/auth/callback",
   ];
   const isPublic = publicPaths.some((path) =>
     pathname.startsWith(path)

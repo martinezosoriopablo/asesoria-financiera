@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -259,6 +260,32 @@ export async function POST(req: NextRequest) {
       }
     } catch (notifyError) {
       console.error("Error sending advisor notification:", notifyError);
+    }
+
+    // In-app notification for advisor
+    try {
+      const advisorIdForNotif = advisorId || existingClient.asesor_id;
+      if (advisorIdForNotif) {
+        const { data: clientData } = await supabase
+          .from("clients")
+          .select("nombre, apellido")
+          .eq("id", clientId)
+          .single();
+        const name = clientData
+          ? `${clientData.nombre} ${clientData.apellido || ""}`.trim()
+          : email;
+
+        await createNotification(supabase, {
+          advisorId: advisorIdForNotif,
+          clientId,
+          type: "questionnaire_completed",
+          title: "Cuestionario de riesgo completado",
+          body: `${name} — Perfil ${scores.profileLabel} (${Math.round(scores.global)}/100)`,
+          link: `/clients?id=${clientId}`,
+        });
+      }
+    } catch (notifError) {
+      console.error("Error creating in-app notification:", notifError);
     }
 
     return NextResponse.json({ success: true, clientId });

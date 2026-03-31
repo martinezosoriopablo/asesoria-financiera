@@ -141,6 +141,34 @@ export async function POST(request: NextRequest) {
       aplicadoPor: user!.email,
     };
 
+    // 4a. Get next version number
+    const { data: lastVersion } = await supabase
+      .from("recommendation_versions")
+      .select("version_number")
+      .eq("client_id", clientId)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextVersion = (lastVersion?.version_number || 0) + 1;
+
+    // 4b. Save version to history
+    const { error: versionError } = await supabase
+      .from("recommendation_versions")
+      .insert({
+        client_id: clientId,
+        version_number: nextVersion,
+        cartera_recomendada: carteraRecomendada,
+        applied_by: user!.email,
+        applied_at: new Date().toISOString(),
+      });
+
+    if (versionError) {
+      console.error("Error saving recommendation version:", versionError);
+      // Non-fatal: continue with client update
+    }
+
+    // 4c. Update client with latest recommendation
     const { error: updateClientError } = await supabase
       .from("clients")
       .update({
@@ -191,6 +219,7 @@ export async function POST(request: NextRequest) {
         clientUpdated: true,
         modelCreated: !modelError,
         modelId: modelResult?.id || null,
+        versionNumber: nextVersion,
         weights,
         positions: recomendacion.cartera.map((p) => ({
           ticker: p.ticker,

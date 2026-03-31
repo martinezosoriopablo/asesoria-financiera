@@ -300,6 +300,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: snapshot,
+      // Signal to frontend that fill-prices should be triggered
+      shouldFillPrices: !!(holdings && holdings.length > 0 && (source === "statement" || source === "manual" || source === "excel")),
     });
   } catch (error: unknown) {
     console.error("Error in POST snapshot:", error);

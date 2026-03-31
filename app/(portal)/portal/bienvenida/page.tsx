@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import PortalTopbar from "@/components/portal/PortalTopbar";
 import { ProfileGauge } from "@/components/risk/ProfileGauge";
 import {
@@ -12,6 +11,8 @@ import {
   Shield,
   TrendingUp,
   MessageSquare,
+  Upload,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -43,6 +44,9 @@ export default function BienvenidaPage() {
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [riskProfile, setRiskProfile] = useState<RiskProfile | null>(null);
   const [advisor, setAdvisor] = useState<AdvisorInfo | null>(null);
+  const [hasSnapshots, setHasSnapshots] = useState(false);
+  const [questionnaireLink, setQuestionnaireLink] = useState<string | null>(null);
+  const [unreadReports, setUnreadReports] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -56,6 +60,9 @@ export default function BienvenidaPage() {
       setClientInfo(data.client);
       setRiskProfile(data.riskProfile);
       setAdvisor(data.advisor);
+      setHasSnapshots(data.hasSnapshots || false);
+      setQuestionnaireLink(data.questionnaireLink || null);
+      setUnreadReports(data.unreadReports || 0);
     } catch (err) {
       console.error("Error fetching portal data:", err);
     } finally {
@@ -83,7 +90,6 @@ export default function BienvenidaPage() {
   const gaugeColor = getGaugeColor(profileLabel);
   const hasRiskProfile = !!riskProfile;
 
-  // Proceso de onboarding steps
   const steps = [
     {
       label: "Perfil de riesgo completado",
@@ -92,7 +98,7 @@ export default function BienvenidaPage() {
     },
     {
       label: "Portafolio analizado",
-      done: false, // Will be true when there are snapshots
+      done: hasSnapshots,
       icon: TrendingUp,
     },
     {
@@ -107,6 +113,7 @@ export default function BienvenidaPage() {
       <PortalTopbar
         clientName={`${clientInfo.nombre} ${clientInfo.apellido}`}
         clientEmail={clientInfo.email}
+        unreadReports={unreadReports}
       />
 
       <main className="max-w-3xl mx-auto px-6 py-8">
@@ -134,7 +141,6 @@ export default function BienvenidaPage() {
               </span>
             </div>
 
-            {/* Global score */}
             <div className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gb-gray">Puntaje global</span>
@@ -150,28 +156,11 @@ export default function BienvenidaPage() {
               </div>
             </div>
 
-            {/* 4 dimensions */}
             <div className="grid grid-cols-2 gap-3">
-              <ProfileGauge
-                label="Capacidad"
-                value={riskProfile!.capacity_score}
-                color="bg-blue-500"
-              />
-              <ProfileGauge
-                label="Tolerancia"
-                value={riskProfile!.tolerance_score}
-                color="bg-emerald-500"
-              />
-              <ProfileGauge
-                label="Percepción"
-                value={riskProfile!.perception_score}
-                color="bg-amber-500"
-              />
-              <ProfileGauge
-                label="Compostura"
-                value={riskProfile!.composure_score}
-                color="bg-purple-500"
-              />
+              <ProfileGauge label="Capacidad" value={riskProfile!.capacity_score} color="bg-blue-500" />
+              <ProfileGauge label="Tolerancia" value={riskProfile!.tolerance_score} color="bg-emerald-500" />
+              <ProfileGauge label="Percepción" value={riskProfile!.perception_score} color="bg-amber-500" />
+              <ProfileGauge label="Compostura" value={riskProfile!.composure_score} color="bg-purple-500" />
             </div>
 
             <p className="text-xs text-gb-gray mt-4">
@@ -180,15 +169,51 @@ export default function BienvenidaPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-gb-border p-6 mb-6 text-center">
-            <Shield className="w-10 h-10 text-gb-border mx-auto mb-3" />
-            <h2 className="text-sm font-semibold text-gb-black mb-1">
-              Perfil de riesgo pendiente
-            </h2>
-            <p className="text-xs text-gb-gray">
-              Tu asesor te enviará el cuestionario pronto.
-            </p>
+          <div className="bg-white rounded-lg border border-gb-border p-6 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
+                <Shield className="w-6 h-6 text-indigo-500" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-semibold text-gb-black mb-1">
+                  Completa tu perfil de riesgo
+                </h2>
+                <p className="text-xs text-gb-gray">
+                  Responde un breve cuestionario para que tu asesor pueda diseñar la mejor estrategia para ti.
+                </p>
+              </div>
+              {questionnaireLink && (
+                <a
+                  href={questionnaireLink}
+                  className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Completar
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              )}
+            </div>
           </div>
+        )}
+
+        {/* Upload cartola CTA — only if risk profile done but no snapshots yet */}
+        {hasRiskProfile && !hasSnapshots && (
+          <Link
+            href="/portal/subir-cartola"
+            className="flex items-center gap-4 p-6 bg-white rounded-lg border border-gb-border mb-6 hover:border-blue-300 hover:bg-blue-50/30 transition-colors"
+          >
+            <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+              <Upload className="w-6 h-6 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-gb-black mb-1">
+                Sube tu cartola de inversiones
+              </h2>
+              <p className="text-xs text-gb-gray">
+                Envía el estado de cuenta de tu broker o administradora actual para que tu asesor pueda analizarlo.
+              </p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-gb-gray shrink-0" />
+          </Link>
         )}
 
         {/* Onboarding steps */}
@@ -244,6 +269,30 @@ export default function BienvenidaPage() {
             </div>
             <ArrowRight className="w-4 h-4 text-gb-gray" />
           </Link>
+
+          <Link
+            href="/portal/reportes"
+            className="flex items-center justify-between p-4 bg-white rounded-lg border border-gb-border hover:border-blue-200 hover:bg-blue-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <span className="text-sm font-medium text-gb-black">Ver reportes</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-gb-gray" />
+          </Link>
+
+          {hasSnapshots && (
+            <Link
+              href="/portal/subir-cartola"
+              className="flex items-center justify-between p-4 bg-white rounded-lg border border-gb-border hover:border-blue-200 hover:bg-blue-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Upload className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-medium text-gb-black">Subir cartola</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gb-gray" />
+            </Link>
+          )}
         </div>
 
         {/* Advisor info */}

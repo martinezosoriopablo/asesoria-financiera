@@ -39,6 +39,7 @@ async function parallelWithLimit<T>(tasks: (() => Promise<T>)[], limit: number):
 interface HoldingWithSource {
   fundName: string;
   securityId?: string | null;
+  market?: "CL" | "INT" | "US" | null; // Parsed from cartola: CL=Chilean, INT=International fund, US=US stock/ETF
   quantity: number;
   marketValue: number;
   assetClass?: string;
@@ -188,6 +189,99 @@ function detectSerieCode(holdingName: string): string | null {
     if (pattern.test(holdingName)) return serieCode;
   }
   return null;
+}
+
+// --- Yahoo Finance map for international funds (CUSIP → Yahoo ticker) ---
+interface YahooMapRow {
+  security_id: string;
+  yahoo_ticker: string;
+  fund_name?: string;
+  currency?: string;
+}
+
+// Pre-fetch the security_yahoo_map table (gracefully handles missing table)
+async function prefetchYahooMap(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<Map<string, YahooMapRow>> {
+  const map = new Map<string, YahooMapRow>();
+  try {
+    const { data, error } = await supabase
+      .from("security_yahoo_map")
+      .select("security_id, yahoo_ticker, fund_name, currency");
+
+    if (data && !error) {
+      for (const row of data) {
+        map.set(row.security_id, row);
+      }
+    }
+  } catch {
+    // Table may not exist yet — that's OK, we'll use CUSIP search fallback
+  }
+  return map;
+}
+
+// Search Yahoo Finance for a CUSIP/ISIN and return the first mutual fund ticker
+async function searchYahooForCUSIP(cusip: string): Promise<string | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(cusip)}&quotesCount=5&newsCount=0`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const quotes = data.quotes || [];
+    // Prefer mutual fund results with 0P prefix (Morningstar IDs)
+    const fund = quotes.find((q: { symbol?: string; quoteType?: string }) =>
+      q.symbol && q.symbol.startsWith("0P")
+    );
+    return fund ? fund.symbol : null;
+  } catch {
+    return null;
+  }
+}
+
+// Save a new CUSIP → Yahoo ticker mapping to the database for future use
+async function saveYahooMapping(
+  supabase: ReturnType<typeof createAdminClient>,
+  securityId: string,
+  yahooTicker: string,
+  fundName?: string
+): Promise<void> {
+  try {
+    await supabase.from("security_yahoo_map").upsert(
+      { security_id: securityId, yahoo_ticker: yahooTicker, fund_name: fundName, updated_at: new Date().toISOString() },
+      { onConflict: "security_id" }
+    );
+  } catch {
+    // Table may not exist yet — silently ignore
+  }
+}
+
+// Pre-fetch manual prices grouped by security_id → Map<date, price>
+async function prefetchManualPrices(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<Map<string, Map<string, number>>> {
+  const map = new Map<string, Map<string, number>>();
+  try {
+    const { data, error } = await supabase
+      .from("manual_prices")
+      .select("security_id, price_date, price")
+      .order("price_date", { ascending: true });
+
+    if (data && !error) {
+      for (const row of data) {
+        let dateMap = map.get(row.security_id);
+        if (!dateMap) {
+          dateMap = new Map();
+          map.set(row.security_id, dateMap);
+        }
+        dateMap.set(row.price_date, parseFloat(row.price));
+      }
+    }
+  } catch {
+    // Table may not exist yet
+  }
+  return map;
 }
 
 // Cached fintual_funds data structure for in-memory lookups
@@ -474,11 +568,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Pre-fetch ALL fintual_funds in a single query for O(1) lookups
-    const fintualCache = await prefetchFintualFunds(supabase);
+    // 2. Pre-fetch ALL fintual_funds, Yahoo map, and manual prices in parallel for O(1) lookups
+    const [fintualCache, yahooMap, manualPricesMap] = await Promise.all([
+      prefetchFintualFunds(supabase),
+      prefetchYahooMap(supabase),
+      prefetchManualPrices(supabase),
+    ]);
+
+    // Track CUSIPs that need Yahoo search (not yet in map)
+    const pendingYahooSearches = new Map<string, string>(); // securityId → fundName
 
     // Resolve price sources for each unique holding across ALL cartolas
-    type PriceSource = "fintual" | "yahoo" | "alphavantage" | "bolsa_santiago" | "none";
+    type PriceSource = "fintual" | "yahoo" | "alphavantage" | "bolsa_santiago" | "manual" | "none";
     type ResolvedSource = { source: PriceSource; sourceId: string | null };
     const resolvedCache = new Map<string, ResolvedSource>();
 
@@ -488,99 +589,185 @@ export async function POST(request: NextRequest) {
 
       let priceSource: PriceSource = "none";
       let sourceId: string | null = null;
+      const market = holding.market; // CL, INT, US, or null (legacy cartolas)
+
+      // ============================================================
+      // MANUAL PRICES — always check first (highest priority)
+      // If the advisor uploaded manual prices for this security, use them
+      // ============================================================
+      if (holding.securityId) {
+        const sid = holding.securityId.trim();
+        if (manualPricesMap.has(sid)) {
+          priceSource = "manual";
+          sourceId = sid;
+          const resolved: ResolvedSource = { source: priceSource, sourceId };
+          resolvedCache.set(cacheKey, resolved);
+          return resolved;
+        }
+      }
+
+      // ============================================================
+      // MARKET-AWARE RESOLUTION (when market field is available)
+      // ============================================================
+
+      if (market === "INT") {
+        // --- INTERNATIONAL FUND: Yahoo Finance via security_yahoo_map ---
+        if (holding.securityId) {
+          const sid = holding.securityId.trim();
+          const yahooEntry = yahooMap.get(sid);
+          if (yahooEntry) {
+            priceSource = "yahoo";
+            sourceId = yahooEntry.yahoo_ticker;
+          } else {
+            // Queue for auto-discovery via Yahoo Finance CUSIP search
+            pendingYahooSearches.set(sid, holding.fundName);
+          }
+        }
+        // Done — international funds only use Yahoo
+        const resolved: ResolvedSource = { source: priceSource, sourceId };
+        resolvedCache.set(cacheKey, resolved);
+        return resolved;
+      }
+
+      if (market === "US") {
+        // --- US STOCK/ETF: Yahoo Finance direct, or Alpha Vantage ---
+        const ticker = extractTicker(holding.fundName, holding.securityId);
+        if (ticker) {
+          priceSource = "yahoo";
+          sourceId = ticker;
+        } else if (holding.securityId && /^[A-Z]{1,5}$/.test(holding.securityId.trim())) {
+          priceSource = process.env.ALPHA_VANTAGE_API_KEY ? "alphavantage" : "yahoo";
+          sourceId = holding.securityId.trim();
+        }
+        const resolved: ResolvedSource = { source: priceSource, sourceId };
+        resolvedCache.set(cacheKey, resolved);
+        return resolved;
+      }
+
+      if (market === "CL") {
+        // --- CHILEAN: Fintual → Bolsa de Santiago → Yahoo .SN ---
+        // Try Fintual ID / CMF RUN
+        if (holding.securityId && isFintualId(holding.securityId)) {
+          const sid = holding.securityId.trim();
+          const directMatch = fintualCache.byFintualId.get(sid);
+          if (directMatch) { priceSource = "fintual"; sourceId = directMatch.fintual_id; }
+          if (priceSource === "none") {
+            const byRun = fintualCache.byRun.get(sid);
+            if (byRun?.length) {
+              const bestId = pickBestSerie(byRun, holding.fundName);
+              if (bestId) { priceSource = "fintual"; sourceId = bestId; }
+            }
+          }
+        }
+        if (priceSource === "none" && holding.fintual_id) {
+          priceSource = "fintual"; sourceId = holding.fintual_id;
+        }
+        // Chilean ETF nemotécnicos
+        if (priceSource === "none" && holding.securityId) {
+          const sid = holding.securityId.trim().toUpperCase();
+          const directNemoMatch = CHILEAN_NEMO_TO_FINTUAL[sid];
+          if (directNemoMatch?.fintualId) {
+            priceSource = "fintual"; sourceId = directNemoMatch.fintualId;
+          }
+        }
+        // Fuzzy Fintual name match
+        if (priceSource === "none") {
+          const fintualId = matchHoldingToFintualCached(fintualCache, holding.fundName, holding.securityId);
+          if (fintualId) { priceSource = "fintual"; sourceId = fintualId; }
+        }
+        // Bolsa de Santiago
+        if (priceSource === "none" && holding.securityId) {
+          const sid = holding.securityId.trim().toUpperCase();
+          if (KNOWN_CHILEAN_NEMOS.has(sid) || (sid.endsWith("CL") && sid.length >= 5) || sid.startsWith("CFI")) {
+            priceSource = "bolsa_santiago"; sourceId = sid.replace(/\.SN$/, "");
+          }
+        }
+        // Yahoo .SN fallback
+        if (priceSource === "none") {
+          const ticker = extractTicker(holding.fundName, holding.securityId);
+          if (ticker) { priceSource = "yahoo"; sourceId = ticker; }
+        }
+        const resolved: ResolvedSource = { source: priceSource, sourceId };
+        resolvedCache.set(cacheKey, resolved);
+        return resolved;
+      }
+
+      // ============================================================
+      // LEGACY FALLBACK (market field not set — old cartolas)
+      // Uses heuristic-based resolution
+      // ============================================================
+
+      // 0. CHECK YAHOO MAP FIRST — covers international mutual funds (CUSIP/ISIN → Yahoo ticker)
+      if (holding.securityId) {
+        const sid = holding.securityId.trim();
+        const yahooEntry = yahooMap.get(sid);
+        if (yahooEntry) {
+          priceSource = "yahoo";
+          sourceId = yahooEntry.yahoo_ticker;
+        } else if (/^[A-Z][A-Z0-9]{6,8}$/i.test(sid) && !isFintualId(sid)) {
+          // Looks like an international CUSIP/SEDOL (starts with letter, 7-9 alphanumeric chars)
+          pendingYahooSearches.set(sid, holding.fundName);
+        }
+      }
 
       // 1. If securityId is numeric, try as Fintual series ID first, then as CMF RUN
       if (holding.securityId && isFintualId(holding.securityId)) {
         const sid = holding.securityId.trim();
-
-        // 1a. Try as direct Fintual series ID (O(1) Map lookup)
         const directMatch = fintualCache.byFintualId.get(sid);
-        if (directMatch) {
-          priceSource = "fintual";
-          sourceId = directMatch.fintual_id;
-        }
-
-        // 1b. Try as CMF RUN code (shorter numbers, typically 3-5 digits)
+        if (directMatch) { priceSource = "fintual"; sourceId = directMatch.fintual_id; }
         if (priceSource === "none") {
           const byRun = fintualCache.byRun.get(sid);
-          if (byRun && byRun.length > 0) {
+          if (byRun?.length) {
             const bestId = pickBestSerie(byRun, holding.fundName);
-            if (bestId) {
-              priceSource = "fintual";
-              sourceId = bestId;
-            }
+            if (bestId) { priceSource = "fintual"; sourceId = bestId; }
           }
         }
       }
 
       // 2. If holding already has fintual_id field
       if (priceSource === "none" && holding.fintual_id) {
-        priceSource = "fintual";
-        sourceId = holding.fintual_id;
+        priceSource = "fintual"; sourceId = holding.fintual_id;
       }
 
-      // 3. For Chilean nemotécnicos (CFIETF*, CFI*), try Fintual direct mapping first
-      //    (Fintual has daily prices even for low-liquidity instruments)
+      // 3. Chilean nemotécnicos
       if (priceSource === "none" && holding.securityId) {
         const sid = holding.securityId.trim().toUpperCase();
         const directNemoMatch = CHILEAN_NEMO_TO_FINTUAL[sid];
         if (directNemoMatch?.fintualId) {
-          priceSource = "fintual";
-          sourceId = directNemoMatch.fintualId;
+          priceSource = "fintual"; sourceId = directNemoMatch.fintualId;
         } else if (sid.startsWith("CFIETF") || sid.startsWith("CFI")) {
-          // In-memory search by symbol or fund_name containing the nemo
           const sidLower = sid.toLowerCase();
           const match = fintualCache.all.find(
-            (f) =>
-              (f.symbol && f.symbol.toLowerCase().includes(sidLower)) ||
-              f.fund_name.toLowerCase().includes(sidLower)
+            (f) => (f.symbol && f.symbol.toLowerCase().includes(sidLower)) || f.fund_name.toLowerCase().includes(sidLower)
           );
-          if (match) {
-            priceSource = "fintual";
-            sourceId = match.fintual_id;
-          }
+          if (match) { priceSource = "fintual"; sourceId = match.fintual_id; }
         }
       }
 
-      // 4. Try matching to Fintual fund by name/symbol (fuzzy, in-memory)
+      // 4. Fuzzy Fintual name match
       if (priceSource === "none") {
         const fintualId = matchHoldingToFintualCached(fintualCache, holding.fundName, holding.securityId);
-        if (fintualId) {
-          priceSource = "fintual";
-          sourceId = fintualId;
-        }
+        if (fintualId) { priceSource = "fintual"; sourceId = fintualId; }
       }
 
-      // 5. For Chilean instruments, try Bolsa de Santiago API (reliable during business hours)
+      // 5. Bolsa de Santiago
       if (priceSource === "none" && holding.securityId) {
         const sid = holding.securityId.trim().toUpperCase();
-        const isChilean = KNOWN_CHILEAN_NEMOS.has(sid) ||
-          sid.endsWith("CL") && sid.length >= 5 ||
-          sid.startsWith("CFI");
-        if (isChilean) {
-          // Remove .SN suffix if present for the Bolsa API
-          const nemo = sid.replace(/\.SN$/, "");
-          priceSource = "bolsa_santiago";
-          sourceId = nemo;
+        if (KNOWN_CHILEAN_NEMOS.has(sid) || (sid.endsWith("CL") && sid.length >= 5) || sid.startsWith("CFI")) {
+          priceSource = "bolsa_santiago"; sourceId = sid.replace(/\.SN$/, "");
         }
       }
 
-      // 6. Try securityId as Yahoo ticker (Chilean with .SN, or international)
+      // 6. Yahoo ticker
       if (priceSource === "none") {
         const ticker = extractTicker(holding.fundName, holding.securityId);
-        if (ticker) {
-          priceSource = "yahoo";
-          sourceId = ticker;
-        }
+        if (ticker) { priceSource = "yahoo"; sourceId = ticker; }
       }
 
-      // 7. Last resort: try Alpha Vantage
+      // 7. Alpha Vantage (only short stock tickers)
       if (priceSource === "none" && holding.securityId && process.env.ALPHA_VANTAGE_API_KEY) {
         const sid = holding.securityId.trim();
-        if (/^[A-Z0-9]{2,15}$/i.test(sid)) {
-          priceSource = "alphavantage";
-          sourceId = sid;
-        }
+        if (/^[A-Z]{1,5}$/.test(sid)) { priceSource = "alphavantage"; sourceId = sid; }
       }
 
       const resolved: ResolvedSource = { source: priceSource, sourceId };
@@ -606,24 +793,90 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. For each pair of consecutive cartolas, fill intermediate prices
+    // 2b. For holdings still unresolved, search Yahoo Finance by CUSIP and save results
+    if (pendingYahooSearches.size > 0) {
+      const searchTasks = Array.from(pendingYahooSearches.entries()).map(
+        ([secId, fundName]) => async () => {
+          const ticker = await searchYahooForCUSIP(secId);
+          if (ticker) {
+            // Save to DB for future use
+            await saveYahooMapping(supabase, secId, ticker, fundName);
+            // Update the yahoo map and re-resolve holdings with this securityId
+            yahooMap.set(secId, { security_id: secId, yahoo_ticker: ticker, fund_name: fundName });
+            // Update resolved cache for all holdings with this securityId
+            for (const snap of cartolaSnapshots) {
+              if (!snap.holdings) continue;
+              for (const h of snap.holdings) {
+                if (h.securityId?.trim() === secId) {
+                  const ck = `${h.fundName}||${secId}`;
+                  resolvedCache.set(ck, { source: "yahoo", sourceId: ticker });
+                  // Update allHoldingMatches
+                  const match = allHoldingMatches.find(m => m.securityId?.trim() === secId);
+                  if (match) {
+                    match.source = "yahoo";
+                    match.sourceId = ticker;
+                  }
+                }
+              }
+            }
+          }
+        }
+      );
+      // Run CUSIP searches sequentially to avoid rate limiting
+      for (const task of searchTasks) {
+        await task();
+      }
+    }
+
+    // 3. Build date ranges to fill: backward from earliest cartola + forward between cartolas + to today
     const result = {
       filled: 0,
       skipped: 0,
-      errors: [] as string[],
+      errors: [] as string[],      // Real errors (upsert failures, etc.)
+      warnings: [] as string[],    // Price validation warnings (informational)
       holdingMatches: allHoldingMatches,
     };
 
-    // Process from the latest cartola to today (or between cartolas)
-    for (let ci = 0; ci < cartolaSnapshots.length; ci++) {
-      const startSnapshot = cartolaSnapshots[ci];
-      const startDate = startSnapshot.snapshot_date;
+    // Build ranges: each has a reference snapshot (holdings/values) and a date range to fill
+    interface FillRange {
+      snapshot: typeof cartolaSnapshots[0];
+      fromDate: string;
+      toDate: string;
+      direction: "forward" | "backward";
+    }
+    const fillRanges: FillRange[] = [];
 
-      // End date is next cartola date, or today
+    // Backward fill: from earliest cartola, go back up to 90 days to show historical evolution
+    const BACKWARD_DAYS = 90;
+    const earliestSnapshot = cartolaSnapshots[0];
+    const earliestMs = new Date(earliestSnapshot.snapshot_date).getTime();
+    const backwardStartMs = earliestMs - BACKWARD_DAYS * 86400000;
+    const backwardStartDate = new Date(backwardStartMs).toISOString().split("T")[0];
+    fillRanges.push({
+      snapshot: earliestSnapshot,
+      fromDate: backwardStartDate,
+      toDate: earliestSnapshot.snapshot_date,
+      direction: "backward",
+    });
+
+    // Forward fill: between consecutive cartolas, and from last cartola to today
+    for (let ci = 0; ci < cartolaSnapshots.length; ci++) {
       const endDate =
         ci < cartolaSnapshots.length - 1
           ? cartolaSnapshots[ci + 1].snapshot_date
           : new Date().toISOString().split("T")[0];
+      fillRanges.push({
+        snapshot: cartolaSnapshots[ci],
+        fromDate: cartolaSnapshots[ci].snapshot_date,
+        toDate: endDate,
+        direction: "forward",
+      });
+    }
+
+    for (const range of fillRanges) {
+      const startSnapshot = range.snapshot;
+      const startDate = range.fromDate;
+      const endDate = range.toDate;
 
       // Skip if dates are same or adjacent
       const startMs = new Date(startDate).getTime();
@@ -656,7 +909,14 @@ export async function POST(request: NextRequest) {
       }
 
       // 4. Fetch daily prices for each holding with a price source (in parallel)
-      const nextDay = new Date(startMs + 86400000).toISOString().split("T")[0];
+      // For forward fill: from day after cartola to end date
+      // For backward fill: from start date to day before cartola
+      const fetchFromDate = range.direction === "backward"
+        ? startDate
+        : new Date(startMs + 86400000).toISOString().split("T")[0];
+      const fetchToDate = range.direction === "backward"
+        ? new Date(endMs - 86400000).toISOString().split("T")[0]
+        : endDate;
       const pricesByHolding = new Map<string, Map<string, number>>();
 
       // Build fetch tasks for all holdings, preserving fallback logic per source
@@ -668,22 +928,38 @@ export async function POST(request: NextRequest) {
         const sourceId = info.sourceId;
         const holdingName = name;
 
-        if (info.source === "fintual") {
+        if (info.source === "manual") {
+          // Manual prices are already in memory — just filter by date range
           fetchTasks.push({
             name: holdingName,
-            task: () => fetchFintualHistorical(sourceId, nextDay, endDate)
+            task: async () => {
+              const dateMap = manualPricesMap.get(sourceId);
+              if (!dateMap) return { name: holdingName, prices: [] };
+              const prices: DailyPrice[] = [];
+              for (const [date, price] of dateMap) {
+                if (date >= fetchFromDate && date <= fetchToDate) {
+                  prices.push({ date, price });
+                }
+              }
+              return { name: holdingName, prices };
+            },
+          });
+        } else if (info.source === "fintual") {
+          fetchTasks.push({
+            name: holdingName,
+            task: () => fetchFintualHistorical(sourceId, fetchFromDate, fetchToDate)
               .then(prices => ({ name: holdingName, prices })),
           });
         } else if (info.source === "bolsa_santiago") {
           fetchTasks.push({
             name: holdingName,
             task: async () => {
-              let prices = await fetchBolsaSantiagoHistoricalPrices(sourceId, nextDay, endDate);
+              let prices = await fetchBolsaSantiagoHistoricalPrices(sourceId, fetchFromDate, fetchToDate);
               // Fallback to Yahoo with .SN suffix if Bolsa de Santiago returns nothing
               // (e.g., API outside operating hours)
               if (prices.length === 0) {
                 const yahooTicker = `${sourceId}.SN`;
-                prices = await fetchYahooHistorical(yahooTicker, nextDay, endDate);
+                prices = await fetchYahooHistorical(yahooTicker, fetchFromDate, fetchToDate);
               }
               return { name: holdingName, prices };
             },
@@ -692,10 +968,10 @@ export async function POST(request: NextRequest) {
           fetchTasks.push({
             name: holdingName,
             task: async () => {
-              let prices = await fetchYahooHistorical(sourceId, nextDay, endDate);
+              let prices = await fetchYahooHistorical(sourceId, fetchFromDate, fetchToDate);
               // Fallback to Alpha Vantage if Yahoo returned no data
               if (prices.length === 0 && process.env.ALPHA_VANTAGE_API_KEY) {
-                prices = await fetchAlphaVantageHistorical(sourceId, nextDay, endDate);
+                prices = await fetchAlphaVantageHistorical(sourceId, fetchFromDate, fetchToDate);
               }
               return { name: holdingName, prices };
             },
@@ -703,7 +979,7 @@ export async function POST(request: NextRequest) {
         } else if (info.source === "alphavantage") {
           fetchTasks.push({
             name: holdingName,
-            task: () => fetchAlphaVantageHistorical(sourceId, nextDay, endDate)
+            task: () => fetchAlphaVantageHistorical(sourceId, fetchFromDate, fetchToDate)
               .then(prices => ({ name: holdingName, prices })),
           });
         }
@@ -796,6 +1072,7 @@ export async function POST(request: NextRequest) {
       let prevValue = baseValue;
       let prevCuotas = baseHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
       let prevTwrCumulative = startSnapshot.twr_cumulative || 0;
+      let firstBackwardValue: number | null = null; // For backward fill: first computed value becomes the base
 
       for (const date of newDates) {
         // Calculate total portfolio value on this date
@@ -805,13 +1082,15 @@ export async function POST(request: NextRequest) {
 
         const dailyHoldings: Array<{
           fundName: string;
+          securityId?: string | null;
+          market?: string | null;
           quantity: number;
           marketPrice: number;
           marketValue: number;
           assetClass?: string;
           currency?: string;
-          returnFromBase?: number; // % return since cartola base price
-          weight?: number; // % weight in portfolio
+          returnFromBase?: number;
+          weight?: number;
         }> = [];
 
         for (const bh of baseHoldings) {
@@ -827,15 +1106,19 @@ export async function POST(request: NextRequest) {
           const priceMap = pricesByHolding.get(bh.fundName);
           let dayPrice = priceMap?.get(date);
 
-          // VALIDATION: Reject API prices that differ >20% from cartola price.
-          // This catches wrong fund/series matches while allowing normal equity volatility.
+          // VALIDATION: Reject API prices that differ too much from cartola price.
+          // For backward fill (90 days), allow wider range since prices change more over time.
+          // For forward fill (days/weeks), use tighter range to catch wrong fund matches.
+          const minRatio = range.direction === "backward" ? 0.3 : PRICE_VALIDATION_MIN_RATIO;
+          const maxRatio = range.direction === "backward" ? 3.0 : PRICE_VALIDATION_MAX_RATIO;
           if (dayPrice && cartolaPrice > 0) {
             const priceRatio = dayPrice / cartolaPrice;
-            if (priceRatio < PRICE_VALIDATION_MIN_RATIO || priceRatio > PRICE_VALIDATION_MAX_RATIO) {
+            if (priceRatio < minRatio || priceRatio > maxRatio) {
               // Price is way off — likely wrong fund match. Use last known good price.
+              const rejectedPrice = dayPrice;
               dayPrice = undefined;
-              result.errors.push(
-                `${bh.fundName}: API price ${dayPrice} rejected (cartola: ${cartolaPrice.toFixed(2)}, ratio: ${priceRatio.toFixed(2)}). Using last known price.`
+              result.warnings.push(
+                `${bh.fundName}: price ${rejectedPrice.toFixed(2)} rejected on ${date} (base: ${cartolaPrice.toFixed(2)}, ratio: ${priceRatio.toFixed(2)})`
               );
             }
           }
@@ -860,6 +1143,8 @@ export async function POST(request: NextRequest) {
               ? ((dayPrice / cartolaPrice) - 1) * 100 : 0;
             dailyHoldings.push({
               fundName: bh.fundName,
+              securityId: bh.securityId,
+              market: bh.market,
               quantity,
               marketPrice: dayPrice,
               marketValue: value,
@@ -877,6 +1162,8 @@ export async function POST(request: NextRequest) {
                 ? ((fallbackPrice / cartolaPrice) - 1) * 100 : 0;
               dailyHoldings.push({
                 fundName: bh.fundName,
+                securityId: bh.securityId,
+                market: bh.market,
                 quantity,
                 marketPrice: fallbackPrice,
                 marketValue: value,
@@ -907,12 +1194,16 @@ export async function POST(request: NextRequest) {
         // Calculate total cuotas for this day (sum of all quantities)
         const totalCuotas = dailyHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
 
-        // Calculate portfolio TWR as weighted sum of individual holding returns
-        // TWR_portfolio = Σ(weight_i × return_i) — independent of cash flows
+        // For backward fill: first computed value becomes the chain base (TWR = 0)
+        if (range.direction === "backward" && firstBackwardValue === null) {
+          firstBackwardValue = totalValue;
+          prevValue = totalValue;
+          prevTwrCumulative = 0;
+        }
+
+        // Calculate portfolio TWR
         let twrPeriod = 0;
         if (prevValue > 0) {
-          // Use per-holding weighted returns for accuracy
-          // Period return = portfolio value change (no cash flows between cartolas)
           twrPeriod = ((totalValue / prevValue) - 1) * 100;
         }
         // Clamp
@@ -997,10 +1288,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Calculate coverage: what % of portfolio has dynamic prices vs frozen
+    const totalPortfolioValue = cartolaSnapshots[cartolaSnapshots.length - 1]?.total_value || 0;
+    let frozenValue = 0;
+    const unpricedHoldings: Array<{ name: string; securityId?: string | null; value: number; weight: number }> = [];
+    const lastCartola = cartolaSnapshots[cartolaSnapshots.length - 1];
+    if (lastCartola?.holdings) {
+      for (const h of lastCartola.holdings as HoldingWithSource[]) {
+        const resolved = resolveHolding(h);
+        if (resolved.source === "none") {
+          const hValue = h.marketValue || 0;
+          frozenValue += hValue;
+          unpricedHoldings.push({
+            name: h.fundName,
+            securityId: h.securityId,
+            value: hValue,
+            weight: totalPortfolioValue > 0 ? Math.round((hValue / totalPortfolioValue) * 10000) / 100 : 0,
+          });
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `${result.filled} snapshots intermedios creados`,
-      result,
+      result: {
+        ...result,
+        coverage: {
+          totalHoldings: allHoldingMatches.length,
+          withPrices: allHoldingMatches.filter(m => m.source !== "none").length,
+          frozenPercent: totalPortfolioValue > 0 ? Math.round((frozenValue / totalPortfolioValue) * 10000) / 100 : 0,
+          unpricedHoldings,
+        },
+      },
     });
   } catch (error) {
     console.error("Error in fill-prices:", error);

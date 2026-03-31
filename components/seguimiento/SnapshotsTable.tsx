@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Edit, Trash2, TrendingUp, TrendingDown, Plus, Minus } from "lucide-react";
+import { Edit, Trash2, TrendingUp, TrendingDown, Plus, Minus, Star } from "lucide-react";
 import type { Snapshot } from "./SeguimientoPage";
 import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
 
@@ -9,9 +9,10 @@ interface Props {
   snapshots: Snapshot[];
   onEdit: (snapshot: Snapshot) => void;
   onDelete: (snapshotId: string) => void;
+  onSetBaseline?: (snapshotId: string) => void;
 }
 
-export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
+export default function SnapshotsTable({ snapshots, onEdit, onDelete, onSetBaseline }: Props) {
   // Sort snapshots by date descending
   const sortedSnapshots = [...snapshots].sort(
     (a, b) => new Date(b.snapshot_date).getTime() - new Date(a.snapshot_date).getTime()
@@ -113,13 +114,21 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
           {snapshotsWithReturns.map((snapshot) => (
             <tr
               key={snapshot.id}
-              className="border-b border-gb-border hover:bg-blue-50 transition-colors"
+              className={`border-b border-gb-border hover:bg-blue-50 transition-colors ${snapshot.is_baseline ? "bg-amber-50/50" : ""}`}
             >
               {/* Fecha */}
               <td className="px-3 py-3">
-                <span className="text-sm font-medium text-gb-black">
-                  {formatDate(snapshot.snapshot_date)}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-gb-black">
+                    {formatDate(snapshot.snapshot_date)}
+                  </span>
+                  {snapshot.is_baseline && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-semibold" title="Portafolio Inicial">
+                      <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                      Inicial
+                    </span>
+                  )}
+                </div>
               </td>
 
               {/* Valor Total */}
@@ -247,6 +256,19 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete }: Props) {
               {/* Acciones */}
               <td className="px-2 py-3 text-right">
                 <div className="flex items-center justify-end gap-0.5">
+                  {onSetBaseline && (
+                    <button
+                      onClick={() => onSetBaseline(snapshot.id)}
+                      className={`p-1 rounded transition-colors ${
+                        snapshot.is_baseline
+                          ? "text-amber-500"
+                          : "text-gb-gray hover:text-amber-500 hover:bg-amber-50"
+                      }`}
+                      title={snapshot.is_baseline ? "Portafolio inicial" : "Marcar como portafolio inicial"}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${snapshot.is_baseline ? "fill-amber-500" : ""}`} />
+                    </button>
+                  )}
                   <button
                     onClick={() => onEdit(snapshot)}
                     className="p-1 text-gb-gray hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
