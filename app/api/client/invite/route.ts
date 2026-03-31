@@ -90,18 +90,19 @@ export async function POST(req: Request) {
     }).eq("id", clientId);
   }
 
-  // 4. Generar link de invitación (requiere que el usuario defina contraseña)
+  // 4. Generar link de recuperación (permite definir contraseña)
+  // Usamos "recovery" porque "invite" falla si el usuario ya está confirmado
   const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin
-    .generateLink({ type: "invite", email: client.email });
+    .generateLink({ type: "recovery", email: client.email });
 
   if (linkError || !linkData) {
     console.error("Error generando link:", linkError);
-    return NextResponse.json({ error: "Error generando link de acceso" }, { status: 500 });
+    return NextResponse.json({ error: "Error generando link de acceso: " + (linkError?.message || "desconocido") }, { status: 500 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
   // Use auth callback to exchange token, then redirect to setup-password
-  const portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=invite&next=/portal/setup-password`;
+  const portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/portal/setup-password`;
 
   // 5. Enviar email via Resend
   const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
