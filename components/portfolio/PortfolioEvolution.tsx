@@ -123,6 +123,7 @@ export default function PortfolioEvolution({
     withPrices: number;
     frozenPercent: number;
     unpricedHoldings: Array<{ name: string; securityId?: string | null; weight: number }>;
+    manualHoldings?: Array<{ name: string; securityId: string; weight: number; lastDate: string }>;
   } | null>(null);
   const [showManualPriceModal, setShowManualPriceModal] = useState(false);
   // manualCsv removed — now using form-only mode
@@ -131,7 +132,7 @@ export default function PortfolioEvolution({
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; errors?: string[] } | null>(null);
   const [selectedFund, setSelectedFund] = useState<{ name: string; securityId: string } | null>(null);
   const [priceRows, setPriceRows] = useState<Array<{ date: string; price: string }>>([{ date: "", price: "" }]);
-  // inputMode removed — form-only
+  const [loadingExisting, setLoadingExisting] = useState(false);
 
   useEffect(() => {
     loadSnapshots();
@@ -269,6 +270,27 @@ export default function PortfolioEvolution({
       setError("Error al guardar dividendo");
     } finally {
       setSavingDividend(false);
+    }
+  };
+
+  const loadExistingPrices = async (securityId: string) => {
+    setLoadingExisting(true);
+    try {
+      const res = await fetch(`/api/portfolio/manual-prices?securityId=${securityId}`);
+      const data = await res.json();
+      if (data.success && data.data && data.data.length > 0) {
+        const existing = data.data.map((r: { price_date: string; price: number }) => ({
+          date: r.price_date,
+          price: String(r.price),
+        }));
+        setPriceRows([...existing, { date: "", price: "" }]);
+      } else {
+        setPriceRows([{ date: "", price: "" }]);
+      }
+    } catch {
+      setPriceRows([{ date: "", price: "" }]);
+    } finally {
+      setLoadingExisting(false);
     }
   };
 
@@ -553,6 +575,30 @@ export default function PortfolioEvolution({
               Subir precios manualmente
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Manual price funds info */}
+      {priceCoverage && priceCoverage.manualHoldings && priceCoverage.manualHoldings.length > 0 && (
+        <div className="px-6 py-3 bg-blue-50 border-b border-blue-200">
+          <p className="text-sm text-blue-800 flex items-center gap-2 font-medium">
+            <Upload className="w-4 h-4 flex-shrink-0" />
+            {priceCoverage.manualHoldings.length} fondo{priceCoverage.manualHoldings.length > 1 ? "s" : ""} con precios manuales
+          </p>
+          <div className="mt-1 ml-6 space-y-0.5">
+            {priceCoverage.manualHoldings.map((h, i) => (
+              <p key={i} className="text-xs text-blue-700">
+                {h.name} ({h.securityId}) — último dato: <span className="font-semibold">{new Date(h.lastDate + "T12:00:00").toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                {" "}— {h.weight.toFixed(1)}% del portfolio
+              </p>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowManualPriceModal(true)}
+            className="mt-1.5 ml-6 text-xs font-medium text-blue-800 underline hover:text-blue-900"
+          >
+            Actualizar precios
+          </button>
         </div>
       )}
 
@@ -876,22 +922,43 @@ export default function PortfolioEvolution({
             {/* Fund selector */}
             <div>
               <label className="block text-sm font-medium text-gb-black mb-1">Fondo</label>
-              {priceCoverage?.unpricedHoldings && priceCoverage.unpricedHoldings.length > 0 ? (
+              {priceCoverage && (priceCoverage.unpricedHoldings.length > 0 || (priceCoverage.manualHoldings && priceCoverage.manualHoldings.length > 0)) ? (
                 <select
                   value={selectedFund?.securityId || ""}
                   onChange={(e) => {
-                    const h = priceCoverage.unpricedHoldings.find(x => x.securityId === e.target.value);
+                    const allFunds = [
+                      ...priceCoverage.unpricedHoldings,
+                      ...(priceCoverage.manualHoldings || []),
+                    ];
+                    const h = allFunds.find(x => x.securityId === e.target.value);
                     setSelectedFund(h ? { name: h.name, securityId: h.securityId || "" } : null);
-                    setPriceRows([{ date: "", price: "" }]);
+                    if (h?.securityId && priceCoverage.manualHoldings?.some(m => m.securityId === h.securityId)) {
+                      loadExistingPrices(h.securityId);
+                    } else {
+                      setPriceRows([{ date: "", price: "" }]);
+                    }
                   }}
                   className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:ring-2 focus:ring-gb-accent"
                 >
                   <option value="">Seleccionar fondo...</option>
-                  {priceCoverage.unpricedHoldings.map((h, i) => (
-                    <option key={i} value={h.securityId || ""}>
-                      {h.name.substring(0, 55)}{h.securityId ? ` (${h.securityId})` : ""}
-                    </option>
-                  ))}
+                  {priceCoverage.unpricedHoldings.length > 0 && (
+                    <optgroup label="Sin precios">
+                      {priceCoverage.unpricedHoldings.map((h, i) => (
+                        <option key={`u-${i}`} value={h.securityId || ""}>
+                          {h.name.substring(0, 55)}{h.securityId ? ` (${h.securityId})` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {priceCoverage.manualHoldings && priceCoverage.manualHoldings.length > 0 && (
+                    <optgroup label="Precios manuales">
+                      {priceCoverage.manualHoldings.map((h, i) => (
+                        <option key={`m-${i}`} value={h.securityId}>
+                          {h.name.substring(0, 45)} — último: {h.lastDate}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               ) : (
                 <input
@@ -907,6 +974,12 @@ export default function PortfolioEvolution({
             {/* Excel import + Price rows table */}
             {selectedFund && (
               <div className="mt-4">
+                {loadingExisting && (
+                  <div className="flex items-center gap-2 mb-3 text-sm text-gb-gray">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Cargando precios existentes...
+                  </div>
+                )}
                 <div className="flex items-center gap-3 mb-3">
                   <label className="flex items-center gap-2 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium rounded-lg border border-green-200 cursor-pointer transition-colors">
                     <FileSpreadsheet className="w-4 h-4" />

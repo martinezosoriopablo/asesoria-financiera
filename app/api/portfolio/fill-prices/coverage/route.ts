@@ -40,29 +40,41 @@ export async function GET(request: NextRequest) {
     }
 
     // Load known price sources
+    // Fetch manual prices with last date per security
     const [yahooMapRes, manualPricesRes, fintualRes] = await Promise.all([
       supabase.from("security_yahoo_map").select("security_id"),
-      supabase.from("manual_prices").select("security_id"),
+      supabase.from("manual_prices").select("security_id, price_date").order("price_date", { ascending: false }),
       supabase.from("fintual_funds").select("fintual_id, run, symbol"),
     ]);
 
     const yahooIds = new Set((yahooMapRes.data || []).map(r => r.security_id));
-    const manualIds = new Set((manualPricesRes.data || []).map(r => r.security_id));
+    // Build map: security_id → latest price_date
+    const manualLastDate = new Map<string, string>();
+    for (const r of (manualPricesRes.data || [])) {
+      if (!manualLastDate.has(r.security_id)) {
+        manualLastDate.set(r.security_id, r.price_date);
+      }
+    }
+    const manualIds = new Set(manualLastDate.keys());
     const fintualIds = new Set((fintualRes.data || []).map(r => r.fintual_id));
     const fintualRuns = new Set((fintualRes.data || []).filter(r => r.run).map(r => r.run));
 
     const totalValue = latestCartola.total_value || 0;
     let frozenValue = 0;
     const unpricedHoldings: Array<{ name: string; securityId?: string; weight: number }> = [];
+    const manualHoldings: Array<{ name: string; securityId: string; weight: number; lastDate: string }> = [];
     let withPrices = 0;
 
     for (const h of latestCartola.holdings as Array<{ fundName: string; securityId?: string; marketValue?: number; fintual_id?: string }>) {
       const sid = h.securityId?.trim() || "";
       const hValue = h.marketValue || 0;
 
+      // Check if this holding uses manual prices
+      const isManual = manualIds.has(sid);
+
       // Check if any source covers this holding
       const hasSource =
-        manualIds.has(sid) ||
+        isManual ||
         yahooIds.has(sid) ||
         (h.fintual_id && fintualIds.has(h.fintual_id)) ||
         (/^\d{3,10}$/.test(sid) && (fintualIds.has(sid) || fintualRuns.has(sid))) ||
@@ -70,6 +82,14 @@ export async function GET(request: NextRequest) {
 
       if (hasSource) {
         withPrices++;
+        if (isManual) {
+          manualHoldings.push({
+            name: h.fundName,
+            securityId: sid,
+            weight: totalValue > 0 ? Math.round((hValue / totalValue) * 10000) / 100 : 0,
+            lastDate: manualLastDate.get(sid) || "",
+          });
+        }
       } else {
         frozenValue += hValue;
         unpricedHoldings.push({
@@ -87,6 +107,7 @@ export async function GET(request: NextRequest) {
         withPrices,
         frozenPercent: totalValue > 0 ? Math.round((frozenValue / totalValue) * 10000) / 100 : 0,
         unpricedHoldings,
+        manualHoldings,
         snapshotDate: latestCartola.snapshot_date,
       },
     });
