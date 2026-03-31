@@ -6,6 +6,11 @@ import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-
 import { applyRateLimit } from "@/lib/rate-limit";
 import { logAuditEvent } from "@/lib/audit";
 
+function getAppUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
+  return raw.startsWith("http") ? raw : `https://${raw}`;
+}
+
 // GET - Obtener lista de asesores
 export async function GET(request: NextRequest) {
   const blocked = applyRateLimit(request, "admin-advisors", { limit: 30, windowSeconds: 60 });
@@ -95,7 +100,7 @@ export async function POST(request: NextRequest) {
           apellido: body.apellido,
           rol: body.rol || 'advisor',
         },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://asesoria-financiera.vercel.app'}/login`,
+        redirectTo: `${getAppUrl()}/login`,
       }
     );
 
@@ -306,7 +311,7 @@ export async function PATCH(request: NextRequest) {
           nombre: targetAdvisor.nombre,
           apellido: targetAdvisor.apellido,
         },
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://asesoria-financiera.vercel.app'}/login`,
+        redirectTo: `${getAppUrl()}/login`,
       }
     );
 
