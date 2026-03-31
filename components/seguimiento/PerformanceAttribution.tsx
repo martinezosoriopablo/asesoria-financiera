@@ -93,15 +93,21 @@ export default function PerformanceAttribution({
 }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>("assetClass");
 
-  // Get first and last snapshots for comparison
-  const firstSnapshot = snapshots[0];
-  const lastSnapshot = snapshots[snapshots.length - 1];
+  // Use only snapshots that have asset class values (cartola snapshots, not fill-prices intermediates)
+  const snapshotsWithAssetData = useMemo(() =>
+    snapshots.filter(s => (s.equity_value > 0 || s.fixed_income_value > 0 || s.alternatives_value > 0 || s.cash_value > 0)),
+    [snapshots]
+  );
+
+  // Get first and last snapshots with asset data for attribution
+  const firstSnapshot = snapshotsWithAssetData[0] || snapshots[0];
+  const lastSnapshot = snapshotsWithAssetData[snapshotsWithAssetData.length - 1] || snapshots[snapshots.length - 1];
 
   // ============================================
   // 1. ATTRIBUTION BY ASSET CLASS
   // ============================================
   const assetClassAttribution = useMemo(() => {
-    if (!firstSnapshot || !lastSnapshot || snapshots.length < 2) return null;
+    if (!firstSnapshot || !lastSnapshot || snapshotsWithAssetData.length < 2) return null;
 
     const initialValue = firstSnapshot.total_value;
     const finalValue = lastSnapshot.total_value;
@@ -170,7 +176,7 @@ export default function PerformanceAttribution({
       initialValue,
       finalValue,
     };
-  }, [snapshots, firstSnapshot, lastSnapshot, twr]);
+  }, [snapshotsWithAssetData, firstSnapshot, lastSnapshot, twr]);
 
   // ============================================
   // 2. ATTRIBUTION BY INDIVIDUAL POSITION
@@ -252,7 +258,7 @@ export default function PerformanceAttribution({
   // 3. BENCHMARK COMPARISON (Allocation + Selection Effect)
   // ============================================
   const benchmarkAttribution = useMemo(() => {
-    if (!recommendation || !firstSnapshot || !lastSnapshot || snapshots.length < 2) return null;
+    if (!recommendation || !firstSnapshot || !lastSnapshot || snapshotsWithAssetData.length < 2) return null;
 
     const portfolioReturn = ((lastSnapshot.total_value - firstSnapshot.total_value) / firstSnapshot.total_value) * 100;
 
@@ -315,7 +321,7 @@ export default function PerformanceAttribution({
       interactionEffect: activeReturn - totalAllocationEffect - totalSelectionEffect,
       effects,
     };
-  }, [recommendation, firstSnapshot, lastSnapshot, snapshots, assetClassAttribution]);
+  }, [recommendation, firstSnapshot, lastSnapshot, snapshotsWithAssetData, assetClassAttribution]);
 
   // ============================================
   // 4. PREVIOUS PORTFOLIO COMPARISON

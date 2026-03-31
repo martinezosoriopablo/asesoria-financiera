@@ -1215,22 +1215,31 @@ export async function POST(request: NextRequest) {
         let twrCumulative = (prevFactor * periodFactor - 1) * 100;
         twrCumulative = Math.max(-9999.99, Math.min(9999.99, twrCumulative));
 
-        // Calculate composition
+        // Calculate composition (normalize assetClass: "Equity" -> "equity", "Fixed Income" -> "fixedIncome", etc.)
+        const normalizeAC = (ac: string | undefined) => {
+          const lower = (ac || "").toLowerCase().replace(/\s+/g, "");
+          if (lower === "equity" || lower === "rentavariable") return "equity";
+          if (lower === "fixedincome" || lower === "rentafija") return "fixedIncome";
+          if (lower === "alternatives" || lower === "alternativos") return "alternatives";
+          if (lower === "cash" || lower === "efectivo") return "cash";
+          if (lower === "balanced" || lower === "balanceado") return "balanced";
+          return lower;
+        };
         const equityValue = dailyHoldings
-          .filter((h) => h.assetClass === "equity")
+          .filter((h) => normalizeAC(h.assetClass) === "equity")
           .reduce((s, h) => s + h.marketValue, 0);
         const fiValue = dailyHoldings
-          .filter((h) => h.assetClass === "fixedIncome")
+          .filter((h) => normalizeAC(h.assetClass) === "fixedIncome")
           .reduce((s, h) => s + h.marketValue, 0);
         const altValue = dailyHoldings
-          .filter((h) => h.assetClass === "alternatives")
+          .filter((h) => normalizeAC(h.assetClass) === "alternatives")
           .reduce((s, h) => s + h.marketValue, 0);
         const cashValue = dailyHoldings
-          .filter((h) => h.assetClass === "cash")
+          .filter((h) => normalizeAC(h.assetClass) === "cash")
           .reduce((s, h) => s + h.marketValue, 0);
         // Balanced splits 50/50 between equity and fixed income
         const balancedValue = dailyHoldings
-          .filter((h) => h.assetClass === "balanced")
+          .filter((h) => normalizeAC(h.assetClass) === "balanced")
           .reduce((s, h) => s + h.marketValue, 0);
         const totalEquity = equityValue + balancedValue * BALANCED_EQUITY_FRACTION;
         const totalFI = fiValue + balancedValue * BALANCED_FIXED_INCOME_FRACTION;
