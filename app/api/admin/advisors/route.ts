@@ -303,7 +303,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Reenviar invitación
+    // Try invite first (works for users who never confirmed).
+    // If already registered, fall back to a magic link.
     const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
       targetAdvisor.email,
       {
@@ -316,11 +317,53 @@ export async function PATCH(request: NextRequest) {
     );
 
     if (inviteError) {
-      console.error("Error reenviando invitación:", inviteError);
-      return NextResponse.json(
-        { success: false, error: `Error al reenviar: ${inviteError.message}` },
-        { status: 500 }
-      );
+      // User already confirmed — send a magic link instead
+      const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+        type: "magiclink",
+        email: targetAdvisor.email,
+        options: {
+          redirectTo: `${getAppUrl()}/login`,
+        },
+      });
+
+      if (linkError || !linkData) {
+        console.error("Error generando magic link:", linkError);
+        return NextResponse.json(
+          { success: false, error: `Error al reenviar: ${linkError?.message || "No se pudo generar link"}` },
+          { status: 500 }
+        );
+      }
+
+      // Send the magic link via Resend
+      const { Resend } = await import("resend");
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const actionLink = linkData.properties?.action_link;
+
+      const { error: emailError } = await resend.emails.send({
+        from: process.env.SENDER_EMAIL || "Greybark Advisors <noreply@greybark.cl>",
+        to: targetAdvisor.email,
+        subject: "Acceso a Greybark Advisors",
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2>Hola ${targetAdvisor.nombre},</h2>
+            <p>Se te ha enviado un nuevo enlace de acceso a la plataforma Greybark Advisors.</p>
+            <p style="margin: 24px 0;">
+              <a href="${actionLink}" style="background: #111; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                Acceder a la plataforma
+              </a>
+            </p>
+            <p style="color: #666; font-size: 13px;">Si no solicitaste este acceso, puedes ignorar este email.</p>
+          </div>
+        `,
+      });
+
+      if (emailError) {
+        console.error("Error enviando email:", emailError);
+        return NextResponse.json(
+          { success: false, error: "Error al enviar el email" },
+          { status: 500 }
+        );
+      }
     }
 
     logAuditEvent({
