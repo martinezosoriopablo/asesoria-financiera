@@ -60,7 +60,6 @@ export async function POST(req: Request) {
         const existing = users?.find((u) => u.email === client.email);
         if (existing) {
           authUserId = existing.id;
-          // Actualizar metadata
           await supabaseAdmin.auth.admin.updateUserById(existing.id, {
             user_metadata: { role: "client", client_id: clientId },
           });
@@ -91,36 +90,43 @@ export async function POST(req: Request) {
     }).eq("id", clientId);
   }
 
-  // 4. Generar magic link
+  // 4. Generar link de invitación (requiere que el usuario defina contraseña)
   const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin
-    .generateLink({ type: "magiclink", email: client.email });
+    .generateLink({ type: "invite", email: client.email });
 
   if (linkError || !linkData) {
+    console.error("Error generando link:", linkError);
     return NextResponse.json({ error: "Error generando link de acceso" }, { status: 500 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
-  // The hashed_token needs to be sent to the client for verification
-  const portalLink = `${appUrl}/portal/login?token_hash=${linkData.properties.hashed_token}&type=magiclink`;
+  // Use auth callback to exchange token, then redirect to setup-password
+  const portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=invite&next=/portal/setup-password`;
 
-  // 5. Enviar email
+  // 5. Enviar email via Resend
+  const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
+  let emailSent = false;
+  let emailError: string | null = null;
+
   try {
-    await resend.emails.send({
-      from: "Greybark Advisors <noreply@greybark.cl>",
+    const { data: emailData, error: resendError } = await resend.emails.send({
+      from: `Greybark Advisors <${senderEmail}>`,
       to: client.email,
-      subject: "Tu portal de inversiones está listo",
+      subject: "Tu portal de inversiones está listo — define tu contraseña",
       html: `
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
           <img src="${appUrl}/logo-greybark.png" alt="Greybark Advisors" style="height: 40px; margin-bottom: 32px;" />
           <h1 style="font-size: 20px; color: #1a1a1a; margin-bottom: 16px;">
             Hola ${escapeHtml(client.nombre || '')},
           </h1>
-          <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
+          <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
             Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
-            Desde aquí podrás ver tu perfil de riesgo, seguir tu portafolio y comunicarte directamente.
+          </p>
+          <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
+            Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
           </p>
           <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
-            Acceder a mi portal
+            Crear contraseña y acceder
           </a>
           <p style="font-size: 12px; color: #9ca3af; margin-top: 32px;">
             Este link expira en 24 horas. Si necesitas uno nuevo, contacta a tu asesor.
@@ -128,13 +134,24 @@ export async function POST(req: Request) {
         </div>
       `,
     });
-  } catch (emailError) {
-    console.error("Error enviando email:", emailError);
-    // Still return success since the user was created, just note the email issue
+
+    if (resendError) {
+      console.error("Resend API error:", resendError);
+      emailError = resendError.message;
+    } else {
+      emailSent = true;
+      console.log("Email enviado:", emailData?.id);
+    }
+  } catch (err) {
+    console.error("Error enviando email:", err);
+    emailError = err instanceof Error ? err.message : "Error desconocido";
+  }
+
+  if (!emailSent) {
     return NextResponse.json({
       success: true,
-      warning: "Usuario creado pero hubo un error enviando el email",
-      portalLink, // Devolver el link para que el asesor lo comparta manualmente
+      warning: `Email no enviado: ${emailError}. Comparte el link manualmente.`,
+      portalLink,
     });
   }
 
