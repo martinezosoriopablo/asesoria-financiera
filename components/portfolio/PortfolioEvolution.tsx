@@ -161,8 +161,8 @@ export default function PortfolioEvolution({
       if (data.success) {
         setSnapshots(data.data.snapshots);
         setMetrics(data.data.metrics);
-        // Load coverage info if we have snapshots but no coverage yet
-        if (data.data.snapshots?.length > 0 && !priceCoverage) {
+        // Always refresh coverage info when we have snapshots
+        if (data.data.snapshots?.length > 0) {
           loadCoverage();
         }
       } else {
@@ -214,22 +214,18 @@ export default function PortfolioEvolution({
         if (data.shouldFillPrices) {
           setFillingPrices(true);
           try {
-            const fillRes = await fetch("/api/portfolio/fill-prices", {
+            await fetch("/api/portfolio/fill-prices", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ clientId }),
             });
-            const fillData = await fillRes.json();
-            if (fillData.result?.coverage) {
-              setPriceCoverage(fillData.result.coverage);
-            }
           } catch {
             /* silent — snapshots still saved */
           } finally {
             setFillingPrices(false);
           }
         }
-        await loadSnapshots();
+        await loadSnapshots(); // This also refreshes coverage
         onSnapshotCreated?.();
       } else {
         setError(data.error);
@@ -408,16 +404,14 @@ export default function PortfolioEvolution({
         // Re-fill prices with the new manual data
         setFillingPrices(true);
         try {
-          const fillRes = await fetch("/api/portfolio/fill-prices", {
+          await fetch("/api/portfolio/fill-prices", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ clientId }),
           });
-          const fillData = await fillRes.json();
-          if (fillData.result?.coverage) setPriceCoverage(fillData.result.coverage);
         } catch { /* silent */ }
         setFillingPrices(false);
-        await loadSnapshots();
+        await loadSnapshots(); // This also refreshes coverage
       } else {
         setUploadResult({
           success: false,
