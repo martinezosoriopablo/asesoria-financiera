@@ -121,8 +121,12 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
       }
     }
 
-    // Build summary from latest snapshot
-    const latestSnap = snapshotsWithHoldings[snapshotsWithHoldings.length - 1];
+    // Build summary from latest snapshot — prefer api-prices snapshot for current prices
+    // (cartola snapshots have frozen prices from upload date, api-prices have live prices)
+    const apiPricesSnaps = snapshotsWithHoldings.filter(s => s.source === "api-prices");
+    const latestSnap = apiPricesSnaps.length > 0
+      ? apiPricesSnaps[apiPricesSnaps.length - 1]
+      : snapshotsWithHoldings[snapshotsWithHoldings.length - 1];
     const latestHoldings = latestSnap.holdings as HoldingData[];
     const latestTotal = latestSnap.total_value || latestHoldings.reduce((s, h) => s + (h.marketValue || 0), 0);
 
@@ -486,17 +490,17 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
                   </td>
                   <td className="px-3 py-2 text-center">
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                      h.assetClass === "equity" ? "bg-blue-100 text-blue-700" :
-                      h.assetClass === "fixedIncome" ? "bg-green-100 text-green-700" :
-                      h.assetClass === "alternatives" ? "bg-purple-100 text-purple-700" :
-                      h.assetClass === "cash" ? "bg-gray-100 text-gray-700" :
+                      /equity/i.test(h.assetClass || "") ? "bg-blue-100 text-blue-700" :
+                      /fixed|renta\s*fija/i.test(h.assetClass || "") ? "bg-green-100 text-green-700" :
+                      /altern/i.test(h.assetClass || "") ? "bg-purple-100 text-purple-700" :
+                      /cash|efect/i.test(h.assetClass || "") ? "bg-gray-100 text-gray-700" :
                       "bg-slate-100 text-slate-600"
                     }`}>
-                      {h.assetClass === "equity" ? "RV" :
-                       h.assetClass === "fixedIncome" ? "RF" :
-                       h.assetClass === "alternatives" ? "Alt" :
-                       h.assetClass === "cash" ? "Cash" :
-                       h.assetClass === "balanced" ? "Bal" : h.assetClass || "-"}
+                      {/equity/i.test(h.assetClass || "") ? "RV" :
+                       /fixed|renta\s*fija/i.test(h.assetClass || "") ? "RF" :
+                       /altern/i.test(h.assetClass || "") ? "Alt" :
+                       /cash|efect/i.test(h.assetClass || "") ? "Cash" :
+                       /balanced|balance/i.test(h.assetClass || "") ? "Bal" : h.assetClass || "-"}
                     </span>
                   </td>
                 </tr>
