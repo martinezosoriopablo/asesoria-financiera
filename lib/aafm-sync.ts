@@ -76,15 +76,50 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
         ...browserHeaders,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
+      redirect: "manual", // Don't follow redirects — we need the Set-Cookie from first response
     });
-    const setCookies = pageRes.headers.getSetCookie?.() || [];
+
+    // Extract cookies — try multiple methods for compatibility
+    let setCookies: string[] = [];
+    if (typeof pageRes.headers.getSetCookie === "function") {
+      setCookies = pageRes.headers.getSetCookie();
+    } else {
+      // Fallback: raw set-cookie header (may be comma-joined in some runtimes)
+      const raw = pageRes.headers.get("set-cookie");
+      if (raw) {
+        // Split carefully — cookies can contain commas in expires, so split on ", " followed by a cookie name pattern
+        setCookies = raw.split(/,\s*(?=[A-Za-z_]+=)/);
+      }
+    }
     cookies = setCookies.map((c: string) => c.split(";")[0]).join("; ");
-    debugLog(`Session cookies: ${cookies ? "obtained" : "none"}`);
-  } catch {
-    debugLog("Could not establish session, proceeding without cookies");
+
+    // If redirect, follow it to get more cookies
+    if (pageRes.status >= 300 && pageRes.status < 400) {
+      const location = pageRes.headers.get("location");
+      if (location) {
+        const redirectUrl = location.startsWith("http") ? location : `${AAFM_BASE}${location}`;
+        const redirectRes = await fetch(redirectUrl, {
+          method: "GET",
+          headers: { ...browserHeaders, Cookie: cookies },
+        });
+        let moreCookies: string[] = [];
+        if (typeof redirectRes.headers.getSetCookie === "function") {
+          moreCookies = redirectRes.headers.getSetCookie();
+        } else {
+          const raw2 = redirectRes.headers.get("set-cookie");
+          if (raw2) moreCookies = raw2.split(/,\s*(?=[A-Za-z_]+=)/);
+        }
+        if (moreCookies.length > 0) {
+          cookies += "; " + moreCookies.map((c: string) => c.split(";")[0]).join("; ");
+        }
+      }
+    }
+    debugLog(`Session cookies: ${cookies ? "obtained (" + cookies.length + " chars)" : "none"}`);
+  } catch (e) {
+    debugLog("Could not establish session, proceeding without cookies:", e);
   }
 
-  // Step 2: POST the export request with session cookies
+  // Step 2: POST the export request with session cookies (retry once on 403)
   const exportHeaders: Record<string, string> = {
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     "Accept": "application/json, text/javascript, */*; q=0.01",
@@ -93,11 +128,40 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
   };
   if (cookies) exportHeaders["Cookie"] = cookies;
 
-  const response = await fetch(AAFM_EXPORT_URL, {
+  let response = await fetch(AAFM_EXPORT_URL, {
     method: "POST",
     headers: exportHeaders,
     body: body.toString(),
   });
+
+  // Retry once on 403: re-establish session and try again
+  if (response.status === 403) {
+    debugLog("Got 403, retrying with fresh session...");
+    try {
+      const retryPage = await fetch(`${AAFM_BASE}/Rentabilities`, {
+        method: "GET",
+        headers: { ...browserHeaders, "Accept": "text/html" },
+      });
+      let retryCookies: string[] = [];
+      if (typeof retryPage.headers.getSetCookie === "function") {
+        retryCookies = retryPage.headers.getSetCookie();
+      } else {
+        const raw = retryPage.headers.get("set-cookie");
+        if (raw) retryCookies = raw.split(/,\s*(?=[A-Za-z_]+=)/);
+      }
+      const freshCookies = retryCookies.map((c: string) => c.split(";")[0]).join("; ");
+      if (freshCookies) {
+        exportHeaders["Cookie"] = freshCookies;
+        response = await fetch(AAFM_EXPORT_URL, {
+          method: "POST",
+          headers: exportHeaders,
+          body: body.toString(),
+        });
+      }
+    } catch {
+      debugLog("Retry session failed");
+    }
+  }
 
   if (!response.ok) {
     throw new Error(`AAFM request failed: ${response.status} ${response.statusText}`);

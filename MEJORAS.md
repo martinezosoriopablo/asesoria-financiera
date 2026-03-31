@@ -143,16 +143,17 @@ Ultima auditoria: 2026-03-31
 - [x] **Fix RLS en coverage endpoint** — `manual_prices` se leía con RLS que bloqueaba silenciosamente, cambiado a admin client (2026-03-31)
 
 ### Bugs Críticos Corregidos
-- [x] **fill-prices: assetClass no matcheaba** — holdings tenían `"Equity"`, `"Fixed Income"` pero el código filtraba por `"equity"`, `"fixedIncome"`. Agregado `normalizeAC()` que normaliza case y espacios. Esto causaba que todos los snapshots intermedios tuvieran `equity_value=0`, `fixed_income_value=0`, haciendo invisible la atribución de rendimiento (2026-03-31)
-- [x] **Snapshots fantasma pre-cartola** — fill-prices generaba snapshots hasta 2 años antes de la primera cartola. Limpiados 444 snapshots stale para el cliente Auger. Causa raíz: backward fill de 90 días es correcto, pero existían snapshots de ejecuciones anteriores con cartolas diferentes (2026-03-31)
+- [x] **fill-prices: assetClass no matcheaba** — holdings tenían `"Equity"`, `"Fixed Income"` pero el código filtraba por `"equity"`, `"fixedIncome"`. Agregado `normalizeAC()` que normaliza case y espacios. Soporta español (`Renta Variable`, `Renta Fija`) e inglés. Esto causaba que todos los snapshots intermedios tuvieran `equity_value=0`, `fixed_income_value=0`, haciendo invisible la atribución de rendimiento (2026-03-31)
+- [x] **Snapshots fantasma pre-cartola** — fill-prices generaba snapshots hasta 2 años antes de la primera cartola. Limpiados 444 snapshots stale. Causa raíz: existían snapshots de ejecuciones anteriores con cartolas diferentes (2026-03-31)
 - [x] **PerformanceAttribution vacía** — componente usaba primer snapshot (intermedio con eq=0) para calcular. Ahora filtra solo snapshots con datos reales de asset class (2026-03-31)
 - [x] **Invitación apuntaba a localhost** — `NEXT_PUBLIC_APP_URL` sin `https://` + Supabase Site URL en localhost. Agregado `getAppUrl()` helper + fallback magic link para usuarios ya registrados (2026-03-31)
+- [x] **HoldingReturnsPanel mostraba 0% rentabilidad** — componente usaba snapshot manual (con precios congelados) para "P. Actual". Ahora prefiere el último snapshot api-prices que tiene precios de mercado reales. También normalización de etiquetas assetClass case-insensitive (2026-03-31)
+- [x] **AAFM 403 Forbidden** — cookies de sesión no se extraían correctamente en Vercel. Mejorado: fallback `set-cookie` header cuando `getSetCookie()` no existe, manejo de redirects, retry automático en 403 con sesión fresca (2026-03-31)
 
 ## PENDIENTES
 
 ### Próximos pasos del flujo
 - [ ] **Firma electrónica del contrato** — integración con servicio de firma (e.g., DocuSign, FirmaVirtual)
-- [ ] **Re-ejecutar fill-prices después de fix assetClass** — los snapshots intermedios necesitan recalcularse para cada cliente. Acción: abrir seguimiento del cliente y esperar que fill-prices se re-ejecute, o crear botón "Recalcular" en admin
 
 _Próxima auditoría sugerida: 2026-04-06._
 

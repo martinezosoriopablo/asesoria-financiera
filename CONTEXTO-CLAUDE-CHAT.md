@@ -110,7 +110,13 @@ Login → Dashboard (valor portafolio, evolución, composición)
 12. **Google Fonts via `<link>`** — Debería usar `next/font` para mejor performance.
 13. **Mezcla español/inglés en código** — UI en español, código mixto.
 14. **Tests limitados** — Vitest configurado pero cobertura incierta, especialmente en cálculos financieros.
-15. **Sin cron jobs completos** — Solo Fintual tiene sync programado, AAFM y exchange rates son manuales.
+15. ~~**Sin cron jobs completos**~~ Parcialmente resuelto — Cron de reportes L-V 12pm. AAFM sync manual desde admin.
+
+### Patrones recurrentes de bugs (para futuras sesiones de Claude)
+- **Normalización de strings**: assetClass viene como `"Equity"` / `"Fixed Income"` de las cartolas pero el código interno usa `"equity"` / `"fixedIncome"`. SIEMPRE usar comparación case-insensitive o normalizar.
+- **RLS silenciosa**: Supabase devuelve `[]` vacío (no error) cuando RLS bloquea. Si un query retorna vacío inesperadamente, verificar si se necesita `createAdminClient()`.
+- **Snapshots api-prices vs manual**: Los snapshots `source=manual` tienen precios congelados de la cartola. Los `source=api-prices` tienen precios de mercado. Componentes deben preferir api-prices para precios actuales.
+- **AAFM 403**: El servidor AAFM requiere cookies de sesión. `getSetCookie()` puede no existir en algunos runtimes. Usar fallback con `get("set-cookie")` + retry.
 
 ### Bajo impacto
 16. **Sin export CSV/Excel** — Para compliance y reportería masiva.
