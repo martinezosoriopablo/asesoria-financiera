@@ -134,10 +134,25 @@ Ultima auditoria: 2026-03-31
 - [x] **Daily reports** — migración y endpoint de upload (2026-03-31)
 - [x] **Cron send-reports** — endpoint + vercel.json configurado L-V 12pm (2026-03-31)
 
+### Seguimiento de Cartolas — Mejoras UX
+- [x] **Gráfico dual: Rentabilidad TWR + Valor** — modo default "Rentabilidad TWR", escala acotada para valor con padding 10% (2026-03-31)
+- [x] **Auto-baseline primera cartola** — primera cartola se marca automáticamente como `is_baseline` (2026-03-31)
+- [x] **PerformanceAttribution con baseline** — pasa snapshot baseline como `previousPortfolio` en vez de null (2026-03-31)
+- [x] **Banner de fondos con precios manuales** — banner azul mostrando qué fondos usan precios manuales + fecha del último dato (2026-03-31)
+- [x] **Modal de precios con carga de existentes** — al seleccionar fondo manual, carga precios ya guardados para editar/extender (2026-03-31)
+- [x] **Fix RLS en coverage endpoint** — `manual_prices` se leía con RLS que bloqueaba silenciosamente, cambiado a admin client (2026-03-31)
+
+### Bugs Críticos Corregidos
+- [x] **fill-prices: assetClass no matcheaba** — holdings tenían `"Equity"`, `"Fixed Income"` pero el código filtraba por `"equity"`, `"fixedIncome"`. Agregado `normalizeAC()` que normaliza case y espacios. Esto causaba que todos los snapshots intermedios tuvieran `equity_value=0`, `fixed_income_value=0`, haciendo invisible la atribución de rendimiento (2026-03-31)
+- [x] **Snapshots fantasma pre-cartola** — fill-prices generaba snapshots hasta 2 años antes de la primera cartola. Limpiados 444 snapshots stale para el cliente Auger. Causa raíz: backward fill de 90 días es correcto, pero existían snapshots de ejecuciones anteriores con cartolas diferentes (2026-03-31)
+- [x] **PerformanceAttribution vacía** — componente usaba primer snapshot (intermedio con eq=0) para calcular. Ahora filtra solo snapshots con datos reales de asset class (2026-03-31)
+- [x] **Invitación apuntaba a localhost** — `NEXT_PUBLIC_APP_URL` sin `https://` + Supabase Site URL en localhost. Agregado `getAppUrl()` helper + fallback magic link para usuarios ya registrados (2026-03-31)
+
 ## PENDIENTES
 
 ### Próximos pasos del flujo
 - [ ] **Firma electrónica del contrato** — integración con servicio de firma (e.g., DocuSign, FirmaVirtual)
+- [ ] **Re-ejecutar fill-prices después de fix assetClass** — los snapshots intermedios necesitan recalcularse para cada cliente. Acción: abrir seguimiento del cliente y esperar que fill-prices se re-ejecute, o crear botón "Recalcular" en admin
 
 _Próxima auditoría sugerida: 2026-04-06._
 
