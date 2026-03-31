@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
@@ -40,10 +41,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Load known price sources
-    // Fetch manual prices with last date per security
+    // Fetch manual prices with last date per security (use admin to bypass RLS)
+    const admin = createAdminClient();
     const [yahooMapRes, manualPricesRes, fintualRes] = await Promise.all([
       supabase.from("security_yahoo_map").select("security_id"),
-      supabase.from("manual_prices").select("security_id, price_date").order("price_date", { ascending: false }),
+      admin.from("manual_prices").select("security_id, price_date").order("price_date", { ascending: false }),
       supabase.from("fintual_funds").select("fintual_id, run, symbol"),
     ]);
 
