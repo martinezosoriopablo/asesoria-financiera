@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { User, Mail, Phone, Briefcase, Camera, ArrowLeft, Save, Loader, Linkedin } from "lucide-react";
+import { User, Mail, Phone, Briefcase, Camera, ArrowLeft, Save, Loader, Linkedin, Lock } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface AdvisorProfile {
   id: string;
@@ -25,6 +26,12 @@ export default function AdvisorProfilePage() {
   const [profile, setProfile] = useState<AdvisorProfile | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   useEffect(() => {
     if (advisor) fetchProfile();
@@ -89,6 +96,53 @@ export default function AdvisorProfilePage() {
       setError("Error al guardar el perfil");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess(false);
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("Las contraseñas no coinciden");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      // Verify current password by re-signing in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: profile?.email || "",
+        password: currentPassword,
+      });
+      if (signInError) {
+        setPasswordError("La contraseña actual es incorrecta");
+        setSavingPassword(false);
+        return;
+      }
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) {
+        setPasswordError(updateError.message);
+      } else {
+        setPasswordSuccess(true);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+        setTimeout(() => setPasswordSuccess(false), 3000);
+      }
+    } catch {
+      setPasswordError("Error al cambiar la contraseña");
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -309,6 +363,89 @@ export default function AdvisorProfilePage() {
                   <><Loader className="w-4 h-4 animate-spin" /> Guardando...</>
                 ) : (
                   <><Save className="w-4 h-4" /> Guardar Cambios</>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Change Password */}
+        <div className="bg-white border border-gb-border rounded-lg overflow-hidden mt-6">
+          <div className="px-6 py-4 border-b border-gb-border">
+            <h2 className="text-base font-semibold text-gb-black flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              Cambiar Contraseña
+            </h2>
+          </div>
+          <form onSubmit={handleChangePassword} className="p-6 space-y-5">
+            {passwordError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {passwordError}
+              </div>
+            )}
+            {passwordSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg text-sm">
+                Contraseña actualizada exitosamente
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-gb-dark mb-1.5">Contraseña actual</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                  disabled={savingPassword}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-medium text-gb-dark mb-1.5">Nueva contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full pl-9 pr-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                    disabled={savingPassword}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gb-dark mb-1.5">Confirmar nueva contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
+                  <input
+                    type="password"
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                    disabled={savingPassword}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3">
+              <button
+                type="submit"
+                disabled={savingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+                className="px-5 py-2.5 bg-gb-black text-white text-sm font-medium rounded-lg hover:bg-gb-dark transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {savingPassword ? (
+                  <><Loader className="w-4 h-4 animate-spin" /> Cambiando...</>
+                ) : (
+                  <><Lock className="w-4 h-4" /> Cambiar Contraseña</>
                 )}
               </button>
             </div>
