@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home, FileText, FileUp } from "lucide-react";
+import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home, FileText, FileUp, Lock } from "lucide-react";
 
 interface PortalTopbarProps {
   clientName: string;
@@ -89,6 +89,13 @@ export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0,
           <div className="w-8 h-8 rounded-full bg-gb-light text-gb-black text-xs font-semibold flex items-center justify-center">
             {initials}
           </div>
+          <Link
+            href="/portal/cambiar-password"
+            className="p-1.5 text-gb-gray hover:text-gb-black rounded-md hover:bg-gray-50"
+            title="Cambiar contraseña"
+          >
+            <Lock className="w-4 h-4" />
+          </Link>
           <button
             onClick={handleLogout}
             className="p-1.5 text-gb-gray hover:text-gb-black rounded-md hover:bg-gray-50"
@@ -142,6 +149,14 @@ export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0,
               <p className="text-sm font-medium text-gb-black">{clientName}</p>
               <p className="text-xs text-gb-gray">{clientEmail}</p>
             </div>
+            <Link
+              href="/portal/cambiar-password"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-gb-gray hover:bg-gray-50 w-full"
+            >
+              <Lock className="w-4 h-4" />
+              Cambiar contraseña
+            </Link>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 w-full"
