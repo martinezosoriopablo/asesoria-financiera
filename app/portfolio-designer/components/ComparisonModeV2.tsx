@@ -240,44 +240,67 @@ export default function ComparisonModeV2() {
   }>>([]);
   const [fundSearchLoading, setFundSearchLoading] = useState(false);
 
-  // Search funds across all sources
+  // Search funds across all sources (in parallel)
   const searchFundsForAdd = async (query: string) => {
     if (query.length < 2) { setFundSearchResults([]); return; }
     setFundSearchLoading(true);
     try {
-      const results: typeof fundSearchResults = [];
+      const q = encodeURIComponent(query);
 
-      // Search local DB (Chilean + imported funds)
-      try {
-        const res = await fetch(`/api/funds/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (data.success && data.funds) {
-          for (const f of data.funds) {
+      // Run all searches in parallel
+      const [localRes, fintualRes, alphaRes] = await Promise.allSettled([
+        fetch(`/api/funds/search?q=${q}`).then(r => r.json()),
+        fetch(`/api/fintual/search?q=${q}&limit=20`).then(r => r.json()),
+        fetch(`/api/funds/search-alpha?q=${q}&type=all`).then(r => r.json()),
+      ]);
+
+      const results: typeof fundSearchResults = [];
+      const seenIds = new Set<string>();
+
+      // 1. Local DB funds
+      if (localRes.status === "fulfilled" && localRes.value.success && localRes.value.funds) {
+        for (const f of localRes.value.funds) {
+          const id = f.id || f.symbol;
+          seenIds.add(id);
+          results.push({
+            id, symbol: f.symbol || f.name?.substring(0, 6).toUpperCase(),
+            name: f.name, type: f.type === "external" ? "Internacional" : "Chile",
+            asset_class: f.asset_class, source: "local", return_1y: f.return_1y, ter: f.total_expense_ratio,
+          });
+        }
+      }
+
+      // 2. Fintual/AAFM funds (Chilean mutual funds — searchable by RUN, name, provider)
+      if (fintualRes.status === "fulfilled" && fintualRes.value.success && fintualRes.value.data) {
+        for (const f of fintualRes.value.data) {
+          const fundId = f.id || f.run || f.fund_name;
+          if (!seenIds.has(fundId)) {
+            seenIds.add(fundId);
             results.push({
-              id: f.id || f.symbol, symbol: f.symbol || f.name?.substring(0, 6).toUpperCase(),
-              name: f.name, type: f.type === "external" ? "Internacional" : "Chile",
-              asset_class: f.asset_class, source: "local", return_1y: f.return_1y, ter: f.total_expense_ratio,
+              id: fundId,
+              symbol: f.run || f.symbol || f.fund_name?.substring(0, 8),
+              name: `${f.fund_name || ""}${f.serie_name ? ` — Serie ${f.serie_name}` : ""}${f.provider_name ? ` (${f.provider_name})` : ""}`,
+              type: "Fondo Mutuo CL",
+              asset_class: f.asset_class,
+              source: "fintual",
+              ter: f.total_expense_ratio,
             });
           }
         }
-      } catch {}
+      }
 
-      // Search Alpha Vantage (international ETFs/funds)
-      try {
-        const res = await fetch(`/api/funds/search-alpha?q=${encodeURIComponent(query)}&type=all`);
-        const data = await res.json();
-        if (data.success && data.funds) {
-          const existing = new Set(results.map(r => r.symbol?.toUpperCase()));
-          for (const f of data.funds) {
-            if (!existing.has((f.symbol as string)?.toUpperCase())) {
-              results.push({
-                id: f.symbol as string, symbol: f.symbol as string, name: f.name as string,
-                type: (f.type as string) || "Internacional", source: "alphavantage",
-              });
-            }
+      // 3. Alpha Vantage (international ETFs/funds)
+      if (alphaRes.status === "fulfilled" && alphaRes.value.success && alphaRes.value.funds) {
+        const existingSymbols = new Set(results.map(r => r.symbol?.toUpperCase()));
+        for (const f of alphaRes.value.funds) {
+          if (!existingSymbols.has((f.symbol as string)?.toUpperCase())) {
+            results.push({
+              id: f.symbol as string, symbol: f.symbol as string, name: f.name as string,
+              type: (f.type as string) || "Internacional", source: "alphavantage",
+            });
           }
         }
-      } catch {}
+      }
 
       setFundSearchResults(results);
     } finally {
