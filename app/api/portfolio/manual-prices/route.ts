@@ -142,7 +142,7 @@ function parseCSV(csvText: string, externalSecurityId?: string): { rows: ParsedR
 
 // POST: Subir precios manuales via CSV
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "manual-prices", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "manual-prices", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {
@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
 
 // GET: Obtener precios manuales (opcionalmente filtrar por security_id)
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "manual-prices-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "manual-prices-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

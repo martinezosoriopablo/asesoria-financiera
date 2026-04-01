@@ -35,7 +35,7 @@ function isValidScores(scores: unknown): scores is ValidScores {
 }
 
 export async function POST(req: NextRequest) {
-  const blocked = applyRateLimit(req, "save-risk-profile", { limit: 3, windowSeconds: 60 });
+  const blocked = await applyRateLimit(req, "save-risk-profile", { limit: 3, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

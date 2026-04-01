@@ -87,7 +87,7 @@ interface RentabilidadRegistro {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "rentabilidades-agregadas", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "rentabilidades-agregadas", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "rentabilidades-agregadas-post", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "rentabilidades-agregadas-post", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdmin();

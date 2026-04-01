@@ -3,7 +3,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fund-history", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "fund-history", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

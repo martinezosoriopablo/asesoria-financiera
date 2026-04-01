@@ -91,7 +91,7 @@ async function fetchBolsaSantiagoQuote(ticker: string): Promise<{
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fondos-search-price", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "fondos-search-price", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

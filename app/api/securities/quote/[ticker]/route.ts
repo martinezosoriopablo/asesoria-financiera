@@ -166,7 +166,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
-  const blocked = applyRateLimit(request, "securities-quote", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "securities-quote", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

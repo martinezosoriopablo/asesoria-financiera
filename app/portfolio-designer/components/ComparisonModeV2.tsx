@@ -207,6 +207,16 @@ export default function ComparisonModeV2() {
   const [_carteraIA, setCarteraIA] = useState<CarteraIAData | null>(null);
   const [carteraLoadedFromDB, setCarteraLoadedFromDB] = useState(false);
   const [savingCartera, setSavingCartera] = useState(false);
+  const [showRebalanceSummary, setShowRebalanceSummary] = useState(false);
+  const [rebalanceSummary, setRebalanceSummary] = useState<Array<{
+    ticker: string;
+    nombre: string;
+    clase: string;
+    actualPct: number;
+    recomendadoPct: number;
+    action: "comprar" | "vender" | "mantener";
+    diffPct: number;
+  }>>([]);
 
   // Currency
   const [_exchangeRates, setExchangeRates] = useState({ usd: 980, uf: 38500 });
@@ -478,6 +488,31 @@ export default function ComparisonModeV2() {
 
       setCurrentHoldings(mappedHoldings);
 
+      // Also try to load latest snapshot for more up-to-date holdings
+      try {
+        const snapRes = await fetch(`/api/clients/${clientData.id}/seguimiento?period=ALL`);
+        const snapResult = await snapRes.json();
+        if (snapResult.success && snapResult.data?.snapshots?.length > 0) {
+          const latestSnap = snapResult.data.snapshots[snapResult.data.snapshots.length - 1];
+          if (latestSnap.holdings && latestSnap.holdings.length > 0 && latestSnap.total_value > 0) {
+            const snapHoldings: CurrentHolding[] = latestSnap.holdings.map((h: any) => ({
+              securityId: h.securityId || h.ticker || "N/A",
+              fundName: h.fundName || h.name || h.nombre || "Fondo",
+              assetClass: h.assetClass || h.tipo || "Unknown",
+              marketValue: h.marketValue || h.marketValueCLP || h.valor || 0,
+              costBasis: h.costBasis || 0,
+              unrealizedGainLoss: h.unrealizedGainLoss || 0,
+              percentOfPortfolio: h.percentOfPortfolio || ((h.marketValue || h.marketValueCLP || h.valor || 0) / latestSnap.total_value * 100),
+            }));
+            setCurrentHoldings(snapHoldings);
+            setTotalInvestment(latestSnap.total_value);
+          }
+        }
+      } catch (e) {
+        console.error("Error loading latest snapshot:", e);
+        // Keep portfolio_data holdings as fallback
+      }
+
       // Load saved recommended portfolio if exists
       if (clientData.cartera_recomendada?.cartera && clientData.cartera_recomendada.cartera.length > 0) {
         console.log("Loading saved cartera:", clientData.cartera_recomendada.cartera);
@@ -535,6 +570,46 @@ export default function ComparisonModeV2() {
       } else {
         console.log("Cartera saved successfully");
         setCarteraLoadedFromDB(true);
+
+        // Generate rebalancing summary
+        const summary = positionsToSave.map(pos => {
+          const currentMatch = currentHoldings.find(h =>
+            h.securityId === pos.ticker ||
+            h.fundName.toLowerCase().includes(pos.nombre.toLowerCase().substring(0, 10))
+          );
+          const actualPct = currentMatch?.percentOfPortfolio || 0;
+          const diffPct = pos.porcentaje - actualPct;
+          const action = Math.abs(diffPct) < 1 ? "mantener" as const : diffPct > 0 ? "comprar" as const : "vender" as const;
+          return {
+            ticker: pos.ticker,
+            nombre: pos.nombre,
+            clase: pos.clase,
+            actualPct,
+            recomendadoPct: pos.porcentaje,
+            action,
+            diffPct,
+          };
+        });
+        // Add holdings in current but not in recommended (need to sell)
+        currentHoldings.forEach(h => {
+          const inRecommended = positionsToSave.some(pos =>
+            pos.ticker === h.securityId ||
+            h.fundName.toLowerCase().includes(pos.nombre.toLowerCase().substring(0, 10))
+          );
+          if (!inRecommended && h.percentOfPortfolio > 0.5) {
+            summary.push({
+              ticker: h.securityId,
+              nombre: h.fundName,
+              clase: h.assetClass === "Equity" ? "Renta Variable" : h.assetClass === "Fixed Income" ? "Renta Fija" : "Alternativos",
+              actualPct: h.percentOfPortfolio,
+              recomendadoPct: 0,
+              action: "vender",
+              diffPct: -h.percentOfPortfolio,
+            });
+          }
+        });
+        setRebalanceSummary(summary);
+        setShowRebalanceSummary(true);
       }
     } catch (error) {
       console.error("Error saving cartera:", error);
@@ -1815,6 +1890,118 @@ export default function ComparisonModeV2() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* REBALANCING SUMMARY */}
+      {/* ============================================================ */}
+      {showRebalanceSummary && rebalanceSummary.length > 0 && (
+        <div className="bg-white border-2 border-blue-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Resumen de Rebalanceo</h2>
+                <p className="text-sm text-gray-500">Acciones necesarias para alinear el portafolio</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowRebalanceSummary(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-6">
+            {/* Summary counts */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{rebalanceSummary.filter(s => s.action === "comprar").length}</div>
+                <div className="text-xs text-green-700 font-medium">Comprar / Aumentar</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{rebalanceSummary.filter(s => s.action === "vender").length}</div>
+                <div className="text-xs text-red-700 font-medium">Vender / Reducir</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-600">{rebalanceSummary.filter(s => s.action === "mantener").length}</div>
+                <div className="text-xs text-gray-700 font-medium">Mantener</div>
+              </div>
+            </div>
+
+            {/* Detail table */}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 px-2 text-gray-500 font-medium">Instrumento</th>
+                  <th className="text-left py-2 px-2 text-gray-500 font-medium">Clase</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">Actual %</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">Recom. %</th>
+                  <th className="text-right py-2 px-2 text-gray-500 font-medium">Diferencia</th>
+                  <th className="text-center py-2 px-2 text-gray-500 font-medium">Accion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rebalanceSummary
+                  .sort((a, b) => Math.abs(b.diffPct) - Math.abs(a.diffPct))
+                  .map((item, idx) => (
+                  <tr key={idx} className="border-b border-gray-100">
+                    <td className="py-2.5 px-2">
+                      <div className="font-medium text-gray-900">{item.nombre}</div>
+                      <div className="text-xs text-gray-400">{item.ticker}</div>
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        item.clase === "Renta Variable" ? "bg-blue-100 text-blue-700" :
+                        item.clase === "Renta Fija" ? "bg-emerald-100 text-emerald-700" :
+                        "bg-amber-100 text-amber-700"
+                      }`}>
+                        {item.clase === "Renta Variable" ? "RV" : item.clase === "Renta Fija" ? "RF" : "ALT"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-medium">{item.actualPct.toFixed(1)}%</td>
+                    <td className="py-2.5 px-2 text-right font-medium">{item.recomendadoPct.toFixed(1)}%</td>
+                    <td className={`py-2.5 px-2 text-right font-bold ${
+                      item.diffPct > 0 ? "text-green-600" : item.diffPct < 0 ? "text-red-600" : "text-gray-500"
+                    }`}>
+                      {item.diffPct > 0 ? "+" : ""}{item.diffPct.toFixed(1)}%
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                        item.action === "comprar" ? "bg-green-100 text-green-700" :
+                        item.action === "vender" ? "bg-red-100 text-red-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}>
+                        {item.action === "comprar" ? "Comprar" : item.action === "vender" ? "Vender" : "Mantener"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {totalInvestment > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Montos estimados</h4>
+                <div className="space-y-1">
+                  {rebalanceSummary
+                    .filter(s => s.action !== "mantener")
+                    .sort((a, b) => Math.abs(b.diffPct) - Math.abs(a.diffPct))
+                    .map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{item.nombre}</span>
+                      <span className={`font-medium ${item.diffPct > 0 ? "text-green-600" : "text-red-600"}`}>
+                        {item.diffPct > 0 ? "+" : ""}{fmtUSD(totalInvestment * item.diffPct / 100)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

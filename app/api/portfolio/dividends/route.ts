@@ -9,7 +9,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 // POST: Registrar un dividendo
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "dividends", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "dividends", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
 // GET: Listar dividendos de un cliente
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "dividends-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "dividends-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

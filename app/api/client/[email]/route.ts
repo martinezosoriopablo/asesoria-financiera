@@ -6,7 +6,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ email: string }> }
 ) {
-  const blocked = applyRateLimit(request, "client-by-email", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "client-by-email", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

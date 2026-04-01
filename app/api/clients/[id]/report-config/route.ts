@@ -29,7 +29,7 @@ async function verifyClientAccess(supabase: ReturnType<typeof createAdminClient>
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "report-config-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "report-config-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "report-config-put", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "report-config-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, user, error: authError } = await requireAdvisor();

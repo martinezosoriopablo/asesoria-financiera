@@ -41,7 +41,7 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "client-cartolas", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "client-cartolas", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -109,7 +109,7 @@ export async function POST(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "cartolas-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "cartolas-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -164,7 +164,7 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "cartolas-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "cartolas-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

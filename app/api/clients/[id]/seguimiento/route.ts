@@ -67,7 +67,7 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "client-seguimiento", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "client-seguimiento", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

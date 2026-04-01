@@ -24,7 +24,7 @@ let cache: {
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "exchange-rates", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "exchange-rates", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

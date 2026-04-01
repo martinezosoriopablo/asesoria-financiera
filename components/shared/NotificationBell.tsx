@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, FileUp, ClipboardCheck, Check, CheckCheck } from "lucide-react";
+import { Bell, FileUp, ClipboardCheck, Check, CheckCheck, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 interface Notification {
@@ -19,11 +19,13 @@ interface Notification {
 const TYPE_ICONS: Record<string, typeof FileUp> = {
   cartola_upload: FileUp,
   questionnaire_completed: ClipboardCheck,
+  rebalance_alert: AlertTriangle,
 };
 
 const TYPE_COLORS: Record<string, string> = {
   cartola_upload: "text-blue-600 bg-blue-50",
   questionnaire_completed: "text-green-600 bg-green-50",
+  rebalance_alert: "text-amber-600 bg-amber-50",
 };
 
 function timeAgo(dateStr: string): string {

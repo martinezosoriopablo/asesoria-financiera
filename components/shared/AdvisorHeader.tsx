@@ -36,6 +36,7 @@ interface AdvisorHeaderProps {
 const NAV_ITEMS = [
   { href: '/advisor', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clients', label: 'Clientes', icon: Users },
+  { href: '/advisor/clients-overview', label: 'Vista General', icon: Activity },
   { href: '/analisis-cartola', label: 'Cartola & Riesgo', icon: Shield },
   { href: '/portfolio-designer?mode=comparison', label: 'Portfolio Designer', icon: BarChart3 },
 ];

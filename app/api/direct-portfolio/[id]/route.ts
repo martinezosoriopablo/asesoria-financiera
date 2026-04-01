@@ -10,7 +10,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "direct-portfolio-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "direct-portfolio-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -91,7 +91,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "direct-portfolio-put", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "direct-portfolio-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -181,7 +181,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "direct-portfolio-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "direct-portfolio-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

@@ -19,7 +19,7 @@ interface SyncResult {
 
 // POST: Sincronizar catálogo completo de fondos
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "sync-fintual", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "sync-fintual", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdmin();
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
 // GET: Obtener estado de la sincronización
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fintual-sync-status", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "fintual-sync-status", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

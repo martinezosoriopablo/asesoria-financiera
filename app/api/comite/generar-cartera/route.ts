@@ -81,7 +81,7 @@ interface CarteraRecomendada {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "generar-cartera", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "generar-cartera", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

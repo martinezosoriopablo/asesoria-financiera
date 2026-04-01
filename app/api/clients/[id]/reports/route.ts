@@ -30,7 +30,7 @@ async function verifyClientAccess(supabase: ReturnType<typeof createAdminClient>
 
 // GET - List reports
 export async function GET(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "client-reports-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "client-reports-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 // POST - Generate a new report
 export async function POST(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "client-reports-generate", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "client-reports-generate", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

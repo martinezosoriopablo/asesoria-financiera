@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const securityHeaders = [
   {
@@ -29,7 +30,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.vercel-analytics.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.vercel-analytics.com https://*.sentry.io",
       "frame-ancestors 'none'",
     ].join("; "),
   },
@@ -50,4 +51,19 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Sentry org and project (set via env vars)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Only upload source maps in CI/production builds
+  silent: !process.env.CI,
+
+  // Hide source maps from client bundles
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
+
+  // Skip source map upload if auth token is not set
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+});

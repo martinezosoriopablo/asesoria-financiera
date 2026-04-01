@@ -303,7 +303,7 @@ function calculateReturnsFromMonthly(historicalData: { date: string; close: numb
 // MAIN API HANDLER
 // ============================================================
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "funds-unified-profile", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "funds-unified-profile", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { searchParams } = new URL(request.url);

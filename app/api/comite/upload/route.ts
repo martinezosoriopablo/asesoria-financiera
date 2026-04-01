@@ -9,7 +9,7 @@ import { sanitizeHtml } from "@/lib/sanitize";
 const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "comite-upload", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "comite-upload", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

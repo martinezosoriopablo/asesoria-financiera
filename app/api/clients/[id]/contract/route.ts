@@ -38,7 +38,7 @@ async function verifyClientAccess(
 
 // GET - Get signed URL for downloading the contract
 export async function GET(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "contract-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "contract-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 // POST - Upload contract PDF
 export async function POST(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "contract-upload", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "contract-upload", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
 // DELETE - Remove contract
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  const blocked = applyRateLimit(request, "contract-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "contract-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

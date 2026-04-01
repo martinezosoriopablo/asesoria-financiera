@@ -10,7 +10,7 @@ interface ClaudeContentBlock {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "analize-fund", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "analize-fund", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

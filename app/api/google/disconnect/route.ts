@@ -7,7 +7,7 @@ import { revokeGoogleAccess } from "@/lib/google/calendar-client";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "google-disconnect", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "google-disconnect", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

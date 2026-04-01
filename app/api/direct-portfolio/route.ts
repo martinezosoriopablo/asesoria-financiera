@@ -7,7 +7,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Listar portafolios directos
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "direct-portfolio-list", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "direct-portfolio-list", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Crear nuevo portafolio directo
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "direct-portfolio-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "direct-portfolio-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

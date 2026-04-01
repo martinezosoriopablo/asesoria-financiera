@@ -74,10 +74,39 @@ export default function RiskProfileWizard() {
   const tokenFromUrl = searchParams.get("token") || "";
   const [email, setEmail] = useState("");
   const [includeAlternatives, setIncludeAlternatives] = useState(false);
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(false);
 
   useEffect(() => {
     if (emailFromUrl) setEmail(emailFromUrl);
   }, [emailFromUrl]);
+
+  // Check if profile already exists for this client
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (!emailFromUrl || !advisorFromUrl || !tokenFromUrl) return;
+      setCheckingProfile(true);
+      try {
+        const params = new URLSearchParams({
+          email: emailFromUrl,
+          advisor: advisorFromUrl,
+          token: tokenFromUrl,
+        });
+        const res = await fetch(`/api/check-risk-profile?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.exists) {
+            setAlreadyCompleted(true);
+          }
+        }
+      } catch {
+        // Silently fail — let them continue
+      } finally {
+        setCheckingProfile(false);
+      }
+    };
+    checkExisting();
+  }, [emailFromUrl, advisorFromUrl, tokenFromUrl]);
   const [benchmark, setBenchmark] = useState<AssetAllocation | null>(null);
   const [retirementProjection, setRetirementProjection] = useState<RetirementProjection | null>(null);
 
@@ -178,6 +207,43 @@ export default function RiskProfileWizard() {
 
   const isLastStep = currentStepIndex === visibleSteps.length - 1;
   const isRetirementStep = currentStep?.id === "retirement";
+
+  if (checkingProfile) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-pulse text-slate-400">Verificando perfil...</div>
+      </div>
+    );
+  }
+
+  if (alreadyCompleted && !scores) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="max-w-lg mx-auto px-4 py-16 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-900 mb-3">
+            Tu perfil de riesgo ya está completado
+          </h1>
+          <p className="text-slate-600 mb-6">
+            Ya respondiste el cuestionario de riesgo. Tu asesor puede ver tu perfil y diseñar la estrategia de inversión adecuada para ti.
+          </p>
+          <p className="text-sm text-slate-500 mb-8">
+            Si necesitas actualizar tu perfil, contacta a tu asesor para que te envíe un nuevo cuestionario.
+          </p>
+          <button
+            onClick={() => setAlreadyCompleted(false)}
+            className="text-sm text-blue-600 hover:text-blue-700 underline"
+          >
+            Quiero volver a completarlo de todas formas
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

@@ -55,7 +55,7 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "snapshot-get", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "snapshot-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -103,7 +103,7 @@ export async function PUT(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "snapshot-put", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "snapshot-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -243,7 +243,7 @@ export async function PATCH(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "snapshot-patch", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "snapshot-patch", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -305,7 +305,7 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "snapshot-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "snapshot-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

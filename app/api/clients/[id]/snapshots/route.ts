@@ -13,7 +13,7 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const blocked = applyRateLimit(request, "delete-all-snapshots", { limit: 3, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "delete-all-snapshots", { limit: 3, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

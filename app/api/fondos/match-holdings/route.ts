@@ -137,7 +137,7 @@ function isChileanTicker(ticker: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "match-holdings", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "match-holdings", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

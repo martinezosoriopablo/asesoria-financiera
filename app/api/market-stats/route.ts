@@ -6,7 +6,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "market-stats", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "market-stats", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

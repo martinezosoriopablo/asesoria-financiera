@@ -35,7 +35,7 @@ interface SnapshotData {
 
 // GET: Obtener snapshots históricos de un cliente
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "portfolio-snapshots", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "portfolio-snapshots", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Crear un nuevo snapshot
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "snapshots-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "snapshots-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

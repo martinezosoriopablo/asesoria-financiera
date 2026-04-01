@@ -24,12 +24,11 @@ export async function GET() {
     .eq("id", client!.asesor_id)
     .maybeSingle();
 
-  // Count snapshots (cartolas) for onboarding status
+  // Count ALL snapshots for onboarding status (includes advisor-uploaded and api-prices)
   const { count: snapshotCount } = await admin
     .from("portfolio_snapshots")
     .select("id", { count: "exact", head: true })
-    .eq("client_id", client!.id)
-    .in("source", ["statement", "manual", "excel", "client-upload"]);
+    .eq("client_id", client!.id);
 
   // Generate questionnaire link for portal access
   let questionnaireLink: string | null = null;

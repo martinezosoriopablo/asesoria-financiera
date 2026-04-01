@@ -7,7 +7,8 @@ export type NotificationType =
   | "cartola_upload"
   | "questionnaire_completed"
   | "new_message"
-  | "report_ready";
+  | "report_ready"
+  | "rebalance_alert";
 
 interface CreateNotificationParams {
   advisorId: string;

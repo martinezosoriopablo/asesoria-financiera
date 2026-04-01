@@ -49,7 +49,7 @@ interface AplicarCarteraRequest {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "aplicar-cartera", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "aplicar-cartera", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

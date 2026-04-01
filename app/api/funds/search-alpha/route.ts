@@ -25,7 +25,7 @@ interface AlphaVantageSearchResponse {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "funds-search-alpha", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "funds-search-alpha", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   if (!ALPHA_VANTAGE_API_KEY) {

@@ -23,7 +23,7 @@ async function fetchAndParse(date: Date) {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "aafm-sync", { limit: 3, windowSeconds: 300 });
+  const blocked = await applyRateLimit(request, "aafm-sync", { limit: 3, windowSeconds: 300 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
 // GET: Check last sync status
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "aafm-status", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "aafm-status", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

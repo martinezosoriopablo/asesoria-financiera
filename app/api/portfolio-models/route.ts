@@ -6,7 +6,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener modelos de portafolio de un cliente
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "portfolio-models", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "portfolio-models", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Guardar nuevo modelo de portafolio
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "portfolio-models-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "portfolio-models-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
 
 // DELETE - Eliminar modelo de portafolio
 export async function DELETE(request: NextRequest) {
-  const blocked = applyRateLimit(request, "portfolio-models-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "portfolio-models-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

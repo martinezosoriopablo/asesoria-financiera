@@ -12,8 +12,11 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.1",
+    "@sentry/nextjs": "^10.47.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.84.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.2.3",
     "lucide-react": "^0.554.0",

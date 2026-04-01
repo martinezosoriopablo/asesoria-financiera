@@ -29,7 +29,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ isin: string }> }
 ) {
-  const blocked = applyRateLimit(request, "bonds-historical", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "bonds-historical", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

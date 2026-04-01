@@ -35,7 +35,7 @@ interface YahooChartResult {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "funds-yahoo-historical", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "funds-yahoo-historical", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { searchParams } = new URL(request.url);

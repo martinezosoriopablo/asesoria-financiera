@@ -9,6 +9,7 @@ import {
   Minus,
   PieChart,
   Calendar,
+  Target,
 } from "lucide-react";
 
 interface Snapshot {
@@ -35,6 +36,17 @@ interface HistoryPoint {
   twr: number | null;
 }
 
+interface CarteraRecomendada {
+  cartera: Array<{
+    ticker: string;
+    nombre: string;
+    clase: string;
+    porcentaje: number;
+  }>;
+  generadoEn?: string;
+  guardadoEn?: string;
+}
+
 interface ClientInfo {
   id: string;
   nombre: string;
@@ -48,6 +60,7 @@ export default function PortalDashboardPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [benchmark, setBenchmark] = useState<Record<string, number> | null>(null);
+  const [carteraRecomendada, setCarteraRecomendada] = useState<CarteraRecomendada | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -70,6 +83,7 @@ export default function PortalDashboardPage() {
         setSnapshot(pData.snapshot || null);
         setHistory(pData.history || []);
         setBenchmark(pData.benchmark || null);
+        setCarteraRecomendada(pData.carteraRecomendada || null);
       }
     } catch (err) {
       console.error("Error fetching dashboard:", err);
@@ -251,9 +265,206 @@ export default function PortalDashboardPage() {
                 </div>
               </div>
             )}
+
+            {/* Cartera Recomendada */}
+            {carteraRecomendada && carteraRecomendada.cartera && carteraRecomendada.cartera.length > 0 && (
+              <RecommendedPortfolioSection
+                cartera={carteraRecomendada}
+                snapshot={snapshot}
+              />
+            )}
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+/* ── Cartera Recomendada Section ── */
+
+const ASSET_CLASS_LABELS: Record<string, string> = {
+  equity: "Renta Variable",
+  "renta variable": "Renta Variable",
+  fixed_income: "Renta Fija",
+  "renta fija": "Renta Fija",
+  alternatives: "Alternativos",
+  alternativos: "Alternativos",
+  cash: "Caja",
+  caja: "Caja",
+};
+
+const ASSET_CLASS_COLORS: Record<string, string> = {
+  "Renta Variable": "bg-blue-500",
+  "Renta Fija": "bg-emerald-500",
+  "Alternativos": "bg-amber-500",
+  "Caja": "bg-gray-400",
+};
+
+function normalizeAssetClass(raw: string): string {
+  const key = raw.toLowerCase().trim();
+  return ASSET_CLASS_LABELS[key] || raw;
+}
+
+function aggregateByClass(items: Array<{ clase: string; porcentaje: number }>): Record<string, number> {
+  const agg: Record<string, number> = {};
+  for (const item of items) {
+    const label = normalizeAssetClass(item.clase);
+    agg[label] = (agg[label] || 0) + item.porcentaje;
+  }
+  return agg;
+}
+
+function RecommendedPortfolioSection({
+  cartera,
+  snapshot,
+}: {
+  cartera: CarteraRecomendada;
+  snapshot: Snapshot;
+}) {
+  const recByClass = aggregateByClass(
+    cartera.cartera.map((c) => ({ clase: c.clase, porcentaje: c.porcentaje }))
+  );
+
+  // Current allocation from snapshot
+  const currentByClass: Record<string, number> = {
+    "Renta Variable": snapshot.equity_percent || 0,
+    "Renta Fija": snapshot.fixed_income_percent || 0,
+    "Alternativos": snapshot.alternatives_percent || 0,
+    "Caja": snapshot.cash_percent || 0,
+  };
+
+  // All classes that appear in either current or recommended
+  const allClasses = Array.from(
+    new Set([...Object.keys(currentByClass), ...Object.keys(recByClass)])
+  ).filter((c) => (currentByClass[c] || 0) > 0 || (recByClass[c] || 0) > 0);
+
+  const savedDate = cartera.guardadoEn
+    ? new Date(cartera.guardadoEn).toLocaleDateString("es-CL", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <div className="bg-white rounded-lg border border-gb-border p-6 mt-6">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Target className="w-4 h-4 text-gb-gray" />
+          <h2 className="text-sm font-semibold text-gb-black">
+            Portafolio Recomendado por tu Asesor
+          </h2>
+        </div>
+        {savedDate && (
+          <span className="text-xs text-gb-gray">Actualizado el {savedDate}</span>
+        )}
+      </div>
+
+      {/* Comparison bars: current vs recommended by asset class */}
+      <div className="mb-6">
+        <p className="text-xs text-gb-gray mb-3">
+          Comparacion por clase de activo: tu portafolio actual vs. el objetivo recomendado.
+        </p>
+        <div className="space-y-4">
+          {allClasses.map((cls) => {
+            const current = currentByClass[cls] || 0;
+            const target = recByClass[cls] || 0;
+            const diff = current - target;
+            const color = ASSET_CLASS_COLORS[cls] || "bg-gray-400";
+            return (
+              <div key={cls}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gb-black">{cls}</span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-gb-gray">
+                      Actual: <span className="font-medium text-gb-black">{current.toFixed(1)}%</span>
+                    </span>
+                    <span className="text-gb-gray">
+                      Objetivo: <span className="font-medium text-gb-black">{target.toFixed(1)}%</span>
+                    </span>
+                    <span
+                      className={`font-medium ${
+                        Math.abs(diff) < 1
+                          ? "text-gb-gray"
+                          : diff > 0
+                          ? "text-amber-600"
+                          : "text-blue-600"
+                      }`}
+                    >
+                      {Math.abs(diff) < 0.1
+                        ? "En objetivo"
+                        : diff > 0
+                        ? `+${diff.toFixed(1)}% sobre`
+                        : `${diff.toFixed(1)}% bajo`}
+                    </span>
+                  </div>
+                </div>
+                {/* Dual bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gb-gray w-12">Actual</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${color}`}
+                        style={{ width: `${Math.min(current, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gb-gray w-12">Objetivo</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${color} opacity-40`}
+                        style={{
+                          width: `${Math.min(target, 100)}%`,
+                          backgroundImage:
+                            "repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(255,255,255,0.5) 3px, rgba(255,255,255,0.5) 6px)",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Instruments table */}
+      <div>
+        <h3 className="text-xs font-semibold text-gb-gray uppercase tracking-wide mb-3">
+          Instrumentos Recomendados
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gb-border text-left">
+                <th className="pb-2 text-xs font-medium text-gb-gray">Instrumento</th>
+                <th className="pb-2 text-xs font-medium text-gb-gray">Clase</th>
+                <th className="pb-2 text-xs font-medium text-gb-gray text-right">% Objetivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cartera.cartera
+                .sort((a, b) => b.porcentaje - a.porcentaje)
+                .map((item, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-2.5">
+                      <p className="font-medium text-gb-black">{item.nombre}</p>
+                      <p className="text-xs text-gb-gray">{item.ticker}</p>
+                    </td>
+                    <td className="py-2.5 text-gb-gray capitalize text-xs">
+                      {normalizeAssetClass(item.clase)}
+                    </td>
+                    <td className="py-2.5 text-right font-medium text-gb-black">
+                      {item.porcentaje.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

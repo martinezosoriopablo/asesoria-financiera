@@ -11,7 +11,7 @@ interface RouteParams {
 }
 
 export async function GET(request: NextRequest, context: RouteParams) {
-  const blocked = applyRateLimit(request, "etf-data", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "etf-data", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

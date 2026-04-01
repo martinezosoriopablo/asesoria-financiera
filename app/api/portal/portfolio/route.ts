@@ -38,6 +38,13 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
+  // Cartera recomendada por el asesor
+  const { data: clientData } = await admin
+    .from("clients")
+    .select("cartera_recomendada")
+    .eq("id", client!.id)
+    .maybeSingle();
+
   // Transform snapshot for portal display
   let portalSnapshot = null;
   if (latestSnapshot) {
@@ -70,5 +77,6 @@ export async function GET() {
       twr: s.twr_cumulative,
     })),
     benchmark: riskProfile?.benchmark_allocation || null,
+    carteraRecomendada: clientData?.cartera_recomendada || null,
   });
 }

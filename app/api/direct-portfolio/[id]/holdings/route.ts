@@ -39,7 +39,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "portfolio-holdings", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "portfolio-holdings", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -89,7 +89,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "holdings-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "holdings-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -184,7 +184,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "holdings-put", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "holdings-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -271,7 +271,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const blocked = applyRateLimit(request, "holdings-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "holdings-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();

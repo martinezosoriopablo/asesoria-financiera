@@ -8,7 +8,7 @@ import { escapeHtml } from "@/lib/sanitize";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const blocked = applyRateLimit(req, "send-questionnaire", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(req, "send-questionnaire", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();

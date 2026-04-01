@@ -16,7 +16,7 @@ interface RentabilidadRegistro {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "rentabilidades-diarias", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "rentabilidades-diarias", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "rentabilidades-diarias-post", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "rentabilidades-diarias-post", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError2 } = await requireAdmin();
@@ -325,7 +325,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const blocked = applyRateLimit(request, "rentabilidades-diarias-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "rentabilidades-diarias-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError3 } = await requireAdmin();

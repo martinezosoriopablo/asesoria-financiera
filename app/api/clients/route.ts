@@ -10,7 +10,7 @@ import { logAuditEvent } from "@/lib/audit";
 // - Advisor normal: ve sus clientes + huérfanos
 // - Admin: ve sus clientes + clientes de subordinados + huérfanos
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "clients-list", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "clients-list", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Crear nuevo cliente (asignado al advisor autenticado)
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "clients-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "clients-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

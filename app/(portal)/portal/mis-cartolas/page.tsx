@@ -19,6 +19,7 @@ interface Cartola {
   resultado: string;
   fecha: string;
   created_at: string;
+  origen?: "cliente" | "asesor";
 }
 
 const STATUS_MAP: Record<string, { label: string; icon: typeof Clock; color: string }> = {
@@ -81,9 +82,9 @@ export default function MisCartolasPage() {
         {cartolas.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-lg border border-gb-border">
             <FileUp className="w-12 h-12 text-gb-border mx-auto mb-4" />
-            <p className="text-gb-gray font-medium">No has subido cartolas aún</p>
+            <p className="text-gb-gray font-medium">No hay cartolas registradas</p>
             <p className="text-sm text-gb-gray mt-1 mb-4">
-              Sube tu estado de cuenta para que tu asesor pueda analizarlo
+              Sube tu estado de cuenta o espera a que tu asesor cargue tu información
             </p>
             <Link
               href="/portal/subir-cartola"
@@ -111,9 +112,19 @@ export default function MisCartolasPage() {
                     <FileUp className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gb-black">{c.titulo}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gb-black">{c.titulo}</p>
+                      {c.origen === "asesor" && (
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
+                          Asesor
+                        </span>
+                      )}
+                    </div>
                     {admin && (
                       <p className="text-xs text-gb-gray mt-0.5">{admin}</p>
+                    )}
+                    {c.descripcion && !admin && (
+                      <p className="text-xs text-gb-gray mt-0.5">{c.descripcion}</p>
                     )}
                     <p className="text-xs text-gb-gray mt-1">
                       {new Date(c.fecha).toLocaleDateString("es-CL", {

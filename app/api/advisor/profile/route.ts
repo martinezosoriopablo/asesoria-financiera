@@ -6,7 +6,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET - Obtener perfil del asesor autenticado
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "advisor-profile", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "advisor-profile", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación - el email viene del usuario autenticado
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
 // PUT - Actualizar perfil del asesor autenticado
 export async function PUT(request: NextRequest) {
-  const blocked = applyRateLimit(request, "advisor-profile-put", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "advisor-profile-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

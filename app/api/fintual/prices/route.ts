@@ -8,7 +8,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 // GET: Obtener precios de un fondo
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fintual-prices", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "fintual-prices", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Sincronizar precios de uno o varios fondos
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fintual-prices-sync", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "fintual-prices-sync", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError2 } = await requireAdvisor();

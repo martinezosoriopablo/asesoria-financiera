@@ -149,7 +149,7 @@ async function searchBolsaSantiagoYahoo(query: string): Promise<SecuritySearchRe
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "securities-search", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "securities-search", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

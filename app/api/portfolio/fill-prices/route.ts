@@ -520,7 +520,7 @@ function extractTicker(name: string, securityId?: string | null): string | null 
 }
 
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fill-prices", {
+  const blocked = await applyRateLimit(request, "fill-prices", {
     limit: 5,
     windowSeconds: 60,
   });

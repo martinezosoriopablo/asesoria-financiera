@@ -2,7 +2,7 @@
 
 ## Estado actual de la plataforma
 
-Ultima auditoria: 2026-03-31
+Ultima auditoria: 2026-04-01
 
 ---
 
@@ -150,10 +150,66 @@ Ultima auditoria: 2026-03-31
 - [x] **HoldingReturnsPanel mostraba 0% rentabilidad** — componente usaba snapshot manual (con precios congelados) para "P. Actual". Ahora prefiere el último snapshot api-prices que tiene precios de mercado reales. También normalización de etiquetas assetClass case-insensitive (2026-03-31)
 - [x] **AAFM 403 Forbidden** — cookies de sesión no se extraían correctamente en Vercel. Mejorado: fallback `set-cookie` header cuando `getSetCookie()` no existe, manejo de redirects, retry automático en 403 con sesión fresca (2026-03-31)
 
+## RESUELTOS (2026-04-01)
+
+### Portal del Cliente — Acceso y Seguridad
+- [x] **Fix portal login** — auth user de andres.auger11@gmail.com sin metadata `role: "client"`, corregido con script admin (2026-04-01)
+- [x] **Fix portal dashboard crash** — snapshot holdings tenían `fundName`/`marketValue` pero portal esperaba `nombre`/`valor`/`porcentaje`, transformación agregada en `/api/portal/portfolio` (2026-04-01)
+- [x] **Fix `.single()` crash en portal/me** — `.maybeSingle()` para risk_profiles y advisors que pueden no existir (2026-04-01)
+- [x] **Invitación con setup de contraseña** — cambiado de `generateLink({ type: "magiclink" })` a `type: "recovery"` + página `/portal/setup-password` para definir contraseña (2026-04-01)
+- [x] **Fix email de invitación** — `resend.emails.send()` no lanza error, retorna `{ error }`. Mejorado handling + link copiable como fallback (2026-04-01)
+- [x] **Auth callback mejorado** — `/auth/callback` ahora maneja `token_hash` + `type` (invite/recovery/magiclink) via `verifyOtp()` además de OAuth/PKCE (2026-04-01)
+- [x] **Cambiar contraseña (cliente)** — nueva página `/portal/cambiar-password` con verificación de contraseña actual + icono Lock en topbar desktop y mobile (2026-04-01)
+- [x] **Cambiar contraseña (asesor)** — sección en `/advisor/profile` con formulario de cambio de contraseña (2026-04-01)
+
+### Portfolio Designer — Búsqueda de Fondos y Flujo Completo
+- [x] **Búsqueda universal de fondos** — modal de búsqueda en ComparisonModeV2 que consulta 3 fuentes en paralelo: BD local, Fintual/AAFM (fondos mutuos CL, RUN), Alpha Vantage (ETFs internacionales) (2026-04-01)
+- [x] **Agregar/eliminar posiciones manualmente** — botón "Agregar posición" + búsqueda + botón eliminar por fila en portafolio recomendado (2026-04-01)
+- [x] **Cargar último snapshot como Actual** — ComparisonModeV2 ahora carga el último snapshot del API (más actualizado) en vez de solo `portfolio_data`, con fallback (2026-04-01)
+- [x] **Resumen de rebalanceo post-guardado** — al guardar cartera recomendada, muestra tabla de acciones: comprar/vender/mantener por instrumento con montos estimados (2026-04-01)
+
+### Seguimiento — Panel de Rebalanceo
+- [x] **Tabla de rebalanceo por holding** — nueva sección entre ComparacionBar y BaselineComparison: Instrumento | Actual % | Recomendado % | Diferencia (pp) | Acción, con conteo de operaciones en header (2026-04-01)
+
+### ModelMode — Conexión con Cartera Recomendada
+- [x] **Cargar cartera recomendada del cliente** — al seleccionar cliente en ModelMode, carga `cartera_recomendada` desde API y muestra tabla resumen como referencia antes de los bloques de asset class (2026-04-01)
+
+### Portal del Cliente — Consistencia de datos
+- [x] **Cuestionario ya completado** — si el cliente ya completó el cuestionario por email, al abrir el link muestra mensaje "ya completado" con opción de repetir. Endpoint `/api/check-risk-profile` con validación HMAC (2026-04-01)
+- [x] **Cartolas del asesor visibles en portal** — "Mis Cartolas" ahora muestra tanto las subidas por el cliente como los snapshots cargados por el asesor (con badge "Asesor"). Deduplicación por fecha (2026-04-01)
+- [x] **hasSnapshots incluye todo** — el onboarding step "Portafolio analizado" ahora cuenta todos los snapshots, no solo cartolas del cliente (2026-04-01)
+
+### Sprint 1: Portal — Cartera Recomendada visible
+- [x] **Cartera recomendada en dashboard del cliente** — nueva sección en `/portal/dashboard` mostrando comparación Actual vs Objetivo por clase de activo + tabla detallada de instrumentos con % objetivo (2026-04-01)
+- [x] **API portfolio enriquecida** — `/api/portal/portfolio` ahora retorna `carteraRecomendada` del campo `clients.cartera_recomendada` (2026-04-01)
+
+### Sprint 2: Vista Consolidada del Asesor
+- [x] **API `/api/advisor/clients-overview`** — endpoint consolidado que retorna todos los clientes con datos enriquecidos (portfolio, drift, TWR, contacto, reportes) usando batch fetching para evitar N+1 (2026-04-01)
+- [x] **Página `/advisor/clients-overview`** — dashboard con 7 métricas resumen (Clientes, AUM, TWR promedio, Recomendaciones, Drift alto, Sin contacto 30d+, Con portafolio), búsqueda, filtro por perfil de riesgo y estado, ordenamiento por 6 columnas, iconos de estado (2026-04-01)
+- [x] **Link en navegación** — "Vista General" agregado al AdvisorHeader con icono Activity (2026-04-01)
+
+### Sprint 3: Alertas de Rebalanceo + Tracking de Ejecución
+- [x] **Tabla `rebalance_executions`** — registra operaciones ejecutadas post-recomendación: ticker, acción (buy/sell/hold), % actual vs objetivo, montos, notas (2026-04-01)
+- [x] **Tipo `rebalance_alert` en notificaciones** — nueva categoría de alerta con icono amber en NotificationBell (2026-04-01)
+- [x] **Cron `/api/cron/check-drift`** — verifica drift de todos los clientes diariamente (L-V 1pm), crea alertas cuando drift > umbral del asesor, evita duplicados dentro de 7 días (2026-04-01)
+- [x] **`drift_threshold` configurable** — campo en tabla advisors (default 5%) para personalizar umbral de alerta por asesor (2026-04-01)
+- [x] **API `/api/clients/[id]/rebalance-executions`** — GET para listar historial, POST para registrar batch de ejecuciones (2026-04-01)
+- [x] **UI de ejecución en Seguimiento** — botón "Registrar ejecución" en tabla de rebalanceo que guarda operaciones comprar/vender, historial expandible con detalle de cada trade (2026-04-01)
+
+### Sprint 4: Infraestructura
+- [x] **Upstash Redis rate limiting** — `@upstash/ratelimit` + `@upstash/redis` con sliding window, fallback a in-memory cuando Redis no configurado, 68 endpoints migrados a async `await applyRateLimit()` (2026-04-01)
+- [x] **Sentry error tracking** — `@sentry/nextjs` con client/server/edge configs, `global-error.tsx` para captura de errores React, `instrumentation.ts` para server-side, source maps protegidos, 10% trace sampling (2026-04-01)
+- [x] **CSP actualizado** — agregado `https://*.sentry.io` a `connect-src` para permitir reportes de errores (2026-04-01)
+- [x] **Cron check-drift** — verificación diaria de drift L-V 1pm configurada en `vercel.json` (2026-04-01)
+- [x] **`.env.example` actualizado** — documentadas variables de Upstash Redis y Sentry (opcionales) (2026-04-01)
+
 ## PENDIENTES
 
 ### Próximos pasos del flujo
 - [ ] **Firma electrónica del contrato** — integración con servicio de firma (e.g., DocuSign, FirmaVirtual)
+- [ ] **Aprobación de cartera por cliente** — flujo para que el cliente acepte/rechace la recomendación del asesor desde el portal
+- [ ] **ModelMode tilts → cartera recomendada** — guardar resultado de tilts en ModelMode directamente como cartera_recomendada
+- [ ] **Dashboard de performance consolidado** — gráfico histórico de AUM total y TWR promedio del asesor
 
 _Próxima auditoría sugerida: 2026-04-06._
 

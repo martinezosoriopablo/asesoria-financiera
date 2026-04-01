@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "fill-coverage", { limit: 20, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "fill-coverage", { limit: 20, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

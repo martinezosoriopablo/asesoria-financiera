@@ -1,83 +1,115 @@
-// Simple in-memory rate limiter for API routes.
+// Rate limiter for API routes.
 //
-// LIMITATION: This store is per-process and resets on every deploy/restart.
-// In serverless environments (e.g. Vercel), each instance maintains its own
-// map, so a client could exceed limits by hitting different instances.
-// For single-instance or low-traffic deployments this is acceptable.
-//
-// TODO: Migrate to Upstash Redis (@upstash/ratelimit) for persistent,
-// globally-consistent rate limiting when traffic or security needs grow.
+// Uses Upstash Redis when UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
+// are configured, providing globally-consistent rate limiting across serverless
+// instances. Falls back to in-memory store when Redis is not available.
+
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+// ---------------------------------------------------------------------------
+// In-memory fallback (for local dev or when Redis is not configured)
+// ---------------------------------------------------------------------------
 
 interface RateLimitEntry {
   count: number;
   resetAt: number;
 }
 
-/** Maximum number of keys kept in the store to prevent unbounded memory growth. */
 const MAX_ENTRIES = 10_000;
+const memoryStore = new Map<string, RateLimitEntry>();
 
-const store = new Map<string, RateLimitEntry>();
-
-// Clean expired entries periodically and enforce max-entries cap.
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of store) {
-    if (now > entry.resetAt) {
-      store.delete(key);
-    }
+  for (const [key, entry] of memoryStore) {
+    if (now > entry.resetAt) memoryStore.delete(key);
   }
-
-  // If still over the cap after expiry cleanup, evict the oldest entries
-  // (Map iteration order is insertion order).
-  if (store.size > MAX_ENTRIES) {
-    const excess = store.size - MAX_ENTRIES;
-    const iter = store.keys();
+  if (memoryStore.size > MAX_ENTRIES) {
+    const excess = memoryStore.size - MAX_ENTRIES;
+    const iter = memoryStore.keys();
     for (let i = 0; i < excess; i++) {
       const { value } = iter.next();
-      if (value !== undefined) store.delete(value);
+      if (value !== undefined) memoryStore.delete(value);
     }
   }
 }, 60_000);
+
+function memoryRateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number
+): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const entry = memoryStore.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    if (memoryStore.size >= MAX_ENTRIES) {
+      const firstKey = memoryStore.keys().next().value;
+      if (firstKey !== undefined) memoryStore.delete(firstKey);
+    }
+    memoryStore.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
+    return { allowed: true, remaining: limit - 1, resetAt: now + windowSeconds * 1000 };
+  }
+
+  entry.count++;
+  return {
+    allowed: entry.count <= limit,
+    remaining: Math.max(0, limit - entry.count),
+    resetAt: entry.resetAt,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Upstash Redis rate limiter (lazy-initialized)
+// ---------------------------------------------------------------------------
+
+let redis: Redis | null = null;
+let useUpstash = false;
+
+// Cache of Ratelimit instances per unique limit+window combo
+const upstashLimiters = new Map<string, Ratelimit>();
+
+function getUpstashLimiter(limit: number, windowSeconds: number): Ratelimit {
+  const cacheKey = `${limit}:${windowSeconds}`;
+  let limiter = upstashLimiters.get(cacheKey);
+  if (!limiter) {
+    limiter = new Ratelimit({
+      redis: redis!,
+      limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
+      prefix: "rl",
+    });
+    upstashLimiters.set(cacheKey, limiter);
+  }
+  return limiter;
+}
+
+// Initialize on first use
+function initUpstash(): boolean {
+  if (redis) return true;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) {
+    try {
+      redis = new Redis({ url, token });
+      useUpstash = true;
+      return true;
+    } catch {
+      console.warn("Failed to initialize Upstash Redis, falling back to in-memory rate limiting");
+      return false;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Public API (same interface as before, now async)
+// ---------------------------------------------------------------------------
 
 interface RateLimitOptions {
   /** Max requests per window */
   limit?: number;
   /** Window duration in seconds */
   windowSeconds?: number;
-}
-
-interface RateLimitResult {
-  allowed: boolean;
-  remaining: number;
-  resetAt: number;
-}
-
-export function rateLimit(
-  key: string,
-  options: RateLimitOptions = {}
-): RateLimitResult {
-  const { limit = 30, windowSeconds = 60 } = options;
-  const now = Date.now();
-  const entry = store.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    // Evict oldest entry if at capacity (prevents memory leaks between cleanup ticks)
-    if (store.size >= MAX_ENTRIES) {
-      const firstKey = store.keys().next().value;
-      if (firstKey !== undefined) store.delete(firstKey);
-    }
-    store.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
-    return { allowed: true, remaining: limit - 1, resetAt: now + windowSeconds * 1000 };
-  }
-
-  entry.count++;
-  const remaining = Math.max(0, limit - entry.count);
-
-  return {
-    allowed: entry.count <= limit,
-    remaining,
-    resetAt: entry.resetAt,
-  };
 }
 
 /**
@@ -94,16 +126,44 @@ export function getClientIp(request: Request): string {
  * Apply rate limiting to an API route. Returns a 429 response if limit exceeded, null otherwise.
  *
  * @example
- * const blocked = applyRateLimit(request, "fondos-search", { limit: 30 });
+ * const blocked = await applyRateLimit(request, "fondos-search", { limit: 30 });
  * if (blocked) return blocked;
  */
-export function applyRateLimit(
+export async function applyRateLimit(
   request: Request,
   routeKey: string,
   options: RateLimitOptions = {}
-): Response | null {
+): Promise<Response | null> {
+  const { limit = 30, windowSeconds = 60 } = options;
   const ip = getClientIp(request);
-  const { allowed, remaining, resetAt } = rateLimit(`${routeKey}:${ip}`, options);
+  const key = `${routeKey}:${ip}`;
+
+  let allowed: boolean;
+  let remaining: number;
+  let resetAt: number;
+
+  // Try Upstash first
+  initUpstash();
+  if (useUpstash) {
+    try {
+      const limiter = getUpstashLimiter(limit, windowSeconds);
+      const result = await limiter.limit(key);
+      allowed = result.success;
+      remaining = result.remaining;
+      resetAt = result.reset;
+    } catch {
+      // Redis error — fall back to memory
+      const result = memoryRateLimit(key, limit, windowSeconds);
+      allowed = result.allowed;
+      remaining = result.remaining;
+      resetAt = result.resetAt;
+    }
+  } else {
+    const result = memoryRateLimit(key, limit, windowSeconds);
+    allowed = result.allowed;
+    remaining = result.remaining;
+    resetAt = result.resetAt;
+  }
 
   if (!allowed) {
     return new Response(
@@ -121,4 +181,10 @@ export function applyRateLimit(
   }
 
   return null;
+}
+
+// Keep the low-level function exported for tests
+export function rateLimit(key: string, options: RateLimitOptions = {}) {
+  const { limit = 30, windowSeconds = 60 } = options;
+  return memoryRateLimit(key, limit, windowSeconds);
 }

@@ -13,10 +13,10 @@ Es una herramienta B2B para **asesores financieros** que gestiona todo el ciclo 
 1. **CRM de clientes** — CRUD completo, filtros por estado/perfil de riesgo, estadísticas, jerarquía admin/asesor
 2. **Cuestionario de riesgo** — 7 pasos, scoring en 4 dimensiones (capacidad, tolerancia, percepción, compostura), genera benchmark de inversión automático
 3. **Parseo de cartolas** — Sube PDF o Excel de estados de cuenta, clasifica automáticamente activos en RV/RF/Alternativas/Cash
-4. **Diseñador de portafolios** — 5 modos: comparación actual vs ideal, modelos guardados, plantillas rápidas, análisis de fondos, portafolio directo (acciones/bonos)
+4. **Diseñador de portafolios** — 5 modos: comparación actual vs ideal (con búsqueda universal de fondos y resumen de rebalanceo), modelos guardados (con cartera recomendada como referencia), plantillas rápidas, análisis de fondos, portafolio directo (acciones/bonos)
 5. **Centro de fondos** — Búsqueda, comparación side-by-side de hasta 6 ETFs, análisis de factsheets PDF
 6. **Dashboard de mercado chileno** — Catálogo de fondos mutuos con datos de Fintual y AAFM (rentabilidades, patrimonio, partícipes)
-7. **Seguimiento temporal** — Snapshots de portafolio, cálculo de TWR (Time-Weighted Return), llenado de precios intermedios
+7. **Seguimiento temporal** — Snapshots de portafolio, cálculo de TWR, llenado de precios intermedios, comparación vs recomendación, rebalanceo por holding (comprar/vender/mantener), baseline vs actual
 8. **Comité de inversiones** — Generación de cartera recomendada, aplicación masiva a clientes, export PDF
 9. **Agenda** — Calendario semanal con sync Google Calendar (OAuth 2.0)
 10. **Calculadora APV** — Simulador de ahorro previsional voluntario
@@ -40,7 +40,7 @@ Resolución de precios en cascada: Fintual → Bolsa Santiago → Yahoo → Alph
 ### Seguridad
 - Supabase Auth (email/password), middleware de sesión
 - Roles: admin/advisor con RLS en PostgreSQL
-- Rate limiting, API auth helpers (`requireAuth`, `requireAdmin`)
+- Rate limiting: Upstash Redis (production) with in-memory fallback (dev), API auth helpers (`requireAuth`, `requireAdmin`)
 - Tokens OAuth protegidos con RLS estricto
 
 ### Base de datos (Supabase PostgreSQL)
@@ -50,7 +50,7 @@ Resolución de precios en cascada: Fintual → Bolsa Santiago → Yahoo → Alph
 - `fintual_providers`, `fintual_funds`, `fintual_prices`
 - `security_prices_cache`, `manual_prices`, `security_yahoo_map`
 - `portfolio_dividends`, `advisor_notifications`, `client_reports`, `client_report_config`
-- `recommendation_versions`, `client_contracts`, `audit_logs`
+- `recommendation_versions`, `rebalance_executions`, `client_contracts`, `audit_logs`
 - `advisor_meetings`, `advisor_google_tokens`
 
 ---
@@ -61,21 +61,24 @@ Resolución de precios en cascada: Fintual → Bolsa Santiago → Yahoo → Alph
 ```
 Login → Dashboard (stats, calendario, acciones rápidas)
   ├── Clientes: listar → ver detalle → enviar cuestionario → subir cartola → comparar vs benchmark
-  ├── Portfolio Designer: crear modelos → comparar fondos → diseñar cartera
-  ├── Fund Center: buscar → comparar ETFs → analizar factsheets
+  ├── Vista General: métricas consolidadas → filtrar por perfil/estado → ordenar por TWR/drift/contacto → ver alertas
+  ├── Portfolio Designer:
+  │     ├── Comparación V2: seleccionar cliente → generar cartera IA → buscar/agregar fondos manualmente → guardar → ver resumen de rebalanceo
+  │     ├── Modelo: cargar cliente → ver benchmark vs cartera recomendada guardada → ajustar tilts
+  │     └── Fund Center: buscar → comparar ETFs → analizar factsheets
   ├── Market Dashboard: ver fondos chilenos → sync datos [admin]
-  ├── Seguimiento: ver evolución → calcular TWR
+  ├── Seguimiento: evolución TWR → comparación vs recomendación → rebalanceo por holding → registrar ejecución → baseline vs actual
   └── Agenda: ver semana → crear reuniones → sync Google
 ```
 
 ### El cliente (portal activo)
 ```
-Login → Dashboard (valor portafolio, evolución, composición)
-  ├── Completar perfil de riesgo (cuestionario 7 pasos)
+Login → Dashboard (valor portafolio, evolución, composición, cartera recomendada vs actual)
+  ├── Completar perfil de riesgo (cuestionario 7 pasos, detecta si ya completado)
   ├── Subir cartolas (PDF/Excel)
   ├── Ver reportes del asesor
   ├── Mensajes con el asesor
-  └── Historial de cartolas subidas
+  └── Historial de cartolas (propias + las del asesor con badge)
 ```
 
 ---
@@ -97,8 +100,8 @@ Login → Dashboard (valor portafolio, evolución, composición)
 1. ~~**Sin portal de cliente**~~ ✅ RESUELTO — Portal completo con dashboard, reportes, cartolas, mensajes
 2. ~~**Sin notificaciones**~~ ✅ RESUELTO — NotificationBell con polling, triggers automáticos en upload/cuestionario
 3. ~~**Sin reportes automáticos**~~ ✅ RESUELTO — Cron L-V 12pm, email con Resend, configuración por cliente
-4. **Sin alertas de rebalanceo** — No avisa cuando el portafolio se desvía del benchmark.
-5. **Sin dashboard consolidado de rendimiento** — El asesor no tiene vista de performance de todos sus clientes juntos.
+4. ~~**Sin alertas de rebalanceo**~~ ✅ RESUELTO — Tabla de rebalanceo por holding en Seguimiento + resumen post-guardado en Portfolio Designer + cron diario check-drift con alertas automáticas + tracking de ejecuciones (buy/sell) + drift_threshold configurable por asesor.
+5. ~~**Sin dashboard consolidado de rendimiento**~~ ✅ RESUELTO — Vista consolidada `/advisor/clients-overview` con métricas (AUM, TWR promedio, drift), filtros por perfil/estado, ordenamiento por 6 columnas, iconos de estado.
 6. **Sin onboarding** — Un asesor nuevo no tiene flujo guiado.
 7. ~~**Sin chat/mensajería**~~ ✅ RESUELTO — Sistema de mensajes integrado asesor-cliente
 8. **Cartola manual** — Mejorado: cliente puede subir desde portal, pero sin conexión directa con bancos.
@@ -106,11 +109,11 @@ Login → Dashboard (valor portafolio, evolución, composición)
 ### Técnico — Medio impacto
 9. **Sin skeleton loaders** — Las cargas son abruptas, sin feedback visual consistente.
 10. **Sin SWR/React Query** — Fetch directo sin caché, re-fetching innecesario.
-11. **Sin Sentry/monitoring** — Difícil detectar errores en producción.
+11. ~~**Sin Sentry/monitoring**~~ ✅ RESUELTO — Sentry integrado con client/server/edge configs, global-error.tsx, instrumentation.ts, 10% trace sampling.
 12. **Google Fonts via `<link>`** — Debería usar `next/font` para mejor performance.
 13. **Mezcla español/inglés en código** — UI en español, código mixto.
 14. **Tests limitados** — Vitest configurado pero cobertura incierta, especialmente en cálculos financieros.
-15. ~~**Sin cron jobs completos**~~ Parcialmente resuelto — Cron de reportes L-V 12pm. AAFM sync manual desde admin.
+15. ~~**Sin cron jobs completos**~~ ✅ RESUELTO — Cron de reportes L-V 12pm + cron check-drift L-V 1pm + sync Fintual L-V 10am. AAFM sync manual desde admin.
 
 ### Patrones recurrentes de bugs (para futuras sesiones de Claude)
 - **Normalización de strings**: assetClass viene como `"Equity"` / `"Fixed Income"` de las cartolas pero el código interno usa `"equity"` / `"fixedIncome"`. SIEMPRE usar comparación case-insensitive o normalizar.

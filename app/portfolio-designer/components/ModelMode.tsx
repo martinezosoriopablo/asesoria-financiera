@@ -227,6 +227,11 @@ export default function ModelMode() {
   const [portfolioAmount, setPortfolioAmount] = useState<number | null>(null);
   const [portfolioAmountStr, setPortfolioAmountStr] = useState<string>("");
 
+  // Cartera recomendada del cliente
+  const [carteraRecomendada, setCarteraRecomendada] = useState<Array<{
+    ticker: string; nombre: string; clase: string; porcentaje: number;
+  }> | null>(null);
+
   // Estado para guardar modelo
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -242,6 +247,7 @@ export default function ModelMode() {
     setClient(null);
     setSaveMsg(null);
     setSaveErrorMsg(null);
+    setCarteraRecomendada(null);
 
     setEquityWeights({} as EquityModelWeights);
     setFixedIncomeWeights({} as FixedIncomeModelWeights);
@@ -286,6 +292,19 @@ export default function ModelMode() {
         apellido: clientRow.apellido,
       };
       setClient(clientData);
+
+      // Fetch cartera_recomendada
+      try {
+        const carteraRes = await fetch(`/api/clients/${clientData.id}/seguimiento?period=ALL`);
+        const carteraResult = await carteraRes.json();
+        if (carteraResult.success && carteraResult.data?.recommendation?.cartera) {
+          setCarteraRecomendada(carteraResult.data.recommendation.cartera);
+        } else {
+          setCarteraRecomendada(null);
+        }
+      } catch {
+        setCarteraRecomendada(null);
+      }
 
       // 2. Buscar perfil de riesgo usando la API
       const profileResponse = await fetch(`/api/clients/${clientData.id}/risk-profile`);
@@ -921,6 +940,63 @@ export default function ModelMode() {
               </div>
             )}
           </section>
+        )}
+
+        {/* Cartera Recomendada del Cliente */}
+        {carteraRecomendada && carteraRecomendada.length > 0 && (
+          <div className="bg-white border border-green-200 rounded-xl shadow-sm mb-6 overflow-hidden">
+            <div className="px-6 py-3 bg-green-50 border-b border-green-200 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full" />
+                Cartera Recomendada Guardada
+              </h3>
+              <span className="text-xs text-green-600">{carteraRecomendada.length} posiciones</span>
+            </div>
+            <div className="p-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-2 text-gray-500 font-medium text-xs">Ticker</th>
+                    <th className="text-left py-2 px-2 text-gray-500 font-medium text-xs">Nombre</th>
+                    <th className="text-left py-2 px-2 text-gray-500 font-medium text-xs">Clase</th>
+                    <th className="text-right py-2 px-2 text-gray-500 font-medium text-xs">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {carteraRecomendada.map((pos, idx) => (
+                    <tr key={idx} className="border-b border-gray-50">
+                      <td className="py-1.5 px-2 font-mono text-xs font-medium">{pos.ticker}</td>
+                      <td className="py-1.5 px-2 text-xs text-gray-700">{pos.nombre}</td>
+                      <td className="py-1.5 px-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          pos.clase === "Renta Variable" ? "bg-blue-100 text-blue-700" :
+                          pos.clase === "Renta Fija" ? "bg-emerald-100 text-emerald-700" :
+                          "bg-amber-100 text-amber-700"
+                        }`}>
+                          {pos.clase === "Renta Variable" ? "RV" : pos.clase === "Renta Fija" ? "RF" : "ALT"}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2 text-right font-medium text-xs">{pos.porcentaje.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {/* Summary by asset class */}
+              <div className="mt-3 pt-3 border-t border-gray-100 flex gap-4 text-xs">
+                {["Renta Variable", "Renta Fija", "Alternativos"].map(clase => {
+                  const total = carteraRecomendada
+                    .filter(p => p.clase === clase || (clase === "Alternativos" && p.clase !== "Renta Variable" && p.clase !== "Renta Fija"))
+                    .reduce((sum, p) => sum + p.porcentaje, 0);
+                  if (total === 0) return null;
+                  return (
+                    <span key={clase} className="text-gray-500">
+                      {clase === "Renta Variable" ? "RV" : clase === "Renta Fija" ? "RF" : "ALT"}: <span className="font-medium text-gray-700">{total.toFixed(1)}%</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Secciones de Asset Classes con Acordeones */}

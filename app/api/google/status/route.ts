@@ -7,7 +7,7 @@ import { isGoogleCalendarConfigured } from "@/lib/google/calendar-client";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "google-status", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "google-status", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   // Verificar autenticación

@@ -109,7 +109,7 @@ function calculateReturns(historicalData: HistoricalData[]) {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "funds-full-profile", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "funds-full-profile", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   if (!ALPHA_VANTAGE_API_KEY) {

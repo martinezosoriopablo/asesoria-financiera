@@ -14,7 +14,7 @@ interface ComiteReportStatus {
 }
 
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "comite-status", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "comite-status", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   try {

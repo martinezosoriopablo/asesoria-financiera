@@ -13,7 +13,7 @@ function getAppUrl(): string {
 
 // GET - Obtener lista de asesores
 export async function GET(request: NextRequest) {
-  const blocked = applyRateLimit(request, "admin-advisors", { limit: 30, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "admin-advisors", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Crear nuevo asesor (solo admins)
 export async function POST(request: NextRequest) {
-  const blocked = applyRateLimit(request, "admin-advisors-post", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "admin-advisors-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdmin();
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
 // PUT - Actualizar asesor (solo admins pueden actualizar subordinados)
 export async function PUT(request: NextRequest) {
-  const blocked = applyRateLimit(request, "admin-advisors-put", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "admin-advisors-put", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdvisor();
@@ -263,7 +263,7 @@ export async function PUT(request: NextRequest) {
 
 // PATCH - Reenviar invitación por email (solo admins)
 export async function PATCH(request: NextRequest) {
-  const blocked = applyRateLimit(request, "admin-advisors-resend", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "admin-advisors-resend", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdmin();
@@ -389,7 +389,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Desactivar asesor (solo admins)
 export async function DELETE(request: NextRequest) {
-  const blocked = applyRateLimit(request, "admin-advisors-delete", { limit: 5, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "admin-advisors-delete", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { advisor, error: authError } = await requireAdmin();
