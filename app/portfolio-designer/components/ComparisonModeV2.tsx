@@ -37,6 +37,8 @@ import {
   HelpCircle,
   X,
   Download,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { GenerarCarteraButton } from "@/components/comite/CarteraRecomendada";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
@@ -228,6 +230,116 @@ export default function ComparisonModeV2() {
   }>({ file: null, ter: "", isin: "", nombre: "", moneda: "USD" });
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const modalFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Fund search modal state
+  const [showFundSearch, setShowFundSearch] = useState(false);
+  const [fundSearchQuery, setFundSearchQuery] = useState("");
+  const [fundSearchResults, setFundSearchResults] = useState<Array<{
+    id: string; symbol: string; name: string; type: string;
+    asset_class?: string; source: string; return_1y?: number; ter?: number;
+  }>>([]);
+  const [fundSearchLoading, setFundSearchLoading] = useState(false);
+
+  // Search funds across all sources
+  const searchFundsForAdd = async (query: string) => {
+    if (query.length < 2) { setFundSearchResults([]); return; }
+    setFundSearchLoading(true);
+    try {
+      const results: typeof fundSearchResults = [];
+
+      // Search local DB (Chilean + imported funds)
+      try {
+        const res = await fetch(`/api/funds/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.success && data.funds) {
+          for (const f of data.funds) {
+            results.push({
+              id: f.id || f.symbol, symbol: f.symbol || f.name?.substring(0, 6).toUpperCase(),
+              name: f.name, type: f.type === "external" ? "Internacional" : "Chile",
+              asset_class: f.asset_class, source: "local", return_1y: f.return_1y, ter: f.total_expense_ratio,
+            });
+          }
+        }
+      } catch {}
+
+      // Search Alpha Vantage (international ETFs/funds)
+      try {
+        const res = await fetch(`/api/funds/search-alpha?q=${encodeURIComponent(query)}&type=all`);
+        const data = await res.json();
+        if (data.success && data.funds) {
+          const existing = new Set(results.map(r => r.symbol?.toUpperCase()));
+          for (const f of data.funds) {
+            if (!existing.has((f.symbol as string)?.toUpperCase())) {
+              results.push({
+                id: f.symbol as string, symbol: f.symbol as string, name: f.name as string,
+                type: (f.type as string) || "Internacional", source: "alphavantage",
+              });
+            }
+          }
+        }
+      } catch {}
+
+      setFundSearchResults(results);
+    } finally {
+      setFundSearchLoading(false);
+    }
+  };
+
+  // Add a fund from search to proposed positions
+  const addFundToProposed = async (fund: { symbol: string; name: string; asset_class?: string }) => {
+    const clase = fund.asset_class?.toLowerCase().includes("fixed") || fund.asset_class?.toLowerCase().includes("bond")
+      ? "Renta Fija"
+      : fund.asset_class?.toLowerCase().includes("alt") || fund.asset_class?.toLowerCase().includes("commodity")
+      ? "Alternativos"
+      : "Renta Variable";
+
+    const newPos: ProposedPosition = {
+      ticker: fund.symbol,
+      nombre: fund.name,
+      clase,
+      porcentaje: 0,
+      loading: true,
+    };
+
+    setProposedPositions(prev => [...prev, newPos]);
+    setShowFundSearch(false);
+    setFundSearchQuery("");
+    setFundSearchResults([]);
+
+    // Fetch fund data
+    const idx = proposedPositions.length; // index of newly added
+    try {
+      const res = await fetch(`/api/funds/unified-profile?symbol=${encodeURIComponent(fund.symbol)}&name=${encodeURIComponent(fund.name)}`);
+      const result = await res.json();
+      if (result.success && result.profile) {
+        const profile = result.profile;
+        setProposedPositions(prev => prev.map((p, i) =>
+          i === idx ? {
+            ...p, loading: false,
+            fundData: {
+              id: `proposed-${fund.symbol}`, ticker: profile.symbol || fund.symbol,
+              symbol: profile.symbol || fund.symbol, name: profile.name || fund.name,
+              currency: profile.currency || "USD", type: "proposed" as const,
+              asset_class: profile.assetType, total_expense_ratio: profile.expenseRatio,
+              return_1m: profile.returns?.["1m"], return_3m: profile.returns?.["3m"],
+              return_6m: profile.returns?.["6m"], return_ytd: profile.returns?.ytd,
+              return_1y: profile.returns?.["1y"], price: profile.price,
+              dataSource: profile.source, historicalData: profile.historicalData,
+            },
+          } : p
+        ));
+      } else {
+        setProposedPositions(prev => prev.map((p, i) => i === idx ? { ...p, loading: false } : p));
+      }
+    } catch {
+      setProposedPositions(prev => prev.map((p, i) => i === idx ? { ...p, loading: false } : p));
+    }
+  };
+
+  // Remove a proposed position
+  const removeProposedPosition = (idx: number) => {
+    setProposedPositions(prev => prev.filter((_, i) => i !== idx));
+  };
 
   // Download Excel template
   const downloadExcelTemplate = () => {
@@ -1105,7 +1217,7 @@ export default function ComparisonModeV2() {
       {/* ============================================================ */}
       {/* PROPOSED PORTFOLIO (TOP - MAIN FOCUS) */}
       {/* ============================================================ */}
-      {proposedPositions.length > 0 && (
+      {(proposedPositions.length > 0 || client) && (
         <div className="bg-white border-2 border-green-200 rounded-xl shadow-sm overflow-hidden">
           <div
             className="w-full px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 flex items-center justify-between hover:from-green-100 hover:to-emerald-100 transition-colors cursor-pointer"
@@ -1146,6 +1258,19 @@ export default function ComparisonModeV2() {
 
           {proposedExpanded && (
             <div className="p-6">
+              {proposedPositions.length === 0 ? (
+                <div className="text-center py-8">
+                  <PieChart className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 mb-4">Sin posiciones todavía. Genera con IA o agrega fondos manualmente.</p>
+                  <button
+                    onClick={() => setShowFundSearch(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buscar y agregar fondos
+                  </button>
+                </div>
+              ) : (<>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1171,6 +1296,7 @@ export default function ComparisonModeV2() {
                           </button>
                         </div>
                       </th>
+                      <th className="w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1290,12 +1416,30 @@ export default function ComparisonModeV2() {
                               </div>
                             )}
                           </td>
+                          <td className="py-3 px-1">
+                            <button
+                              onClick={() => removeProposedPosition(idx)}
+                              className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
+                              title="Eliminar posición"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+
+              {/* Add position button */}
+              <button
+                onClick={() => setShowFundSearch(true)}
+                className="mt-3 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 border-dashed rounded-lg transition-colors w-full justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar posición
+              </button>
 
               {/* Summary Stats */}
               <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-3 gap-4">
@@ -1324,6 +1468,7 @@ export default function ComparisonModeV2() {
                   <div className="text-2xl font-bold text-purple-600">{proposedPositions.length}</div>
                 </div>
               </div>
+              </>)}
             </div>
           )}
         </div>
@@ -1647,6 +1792,86 @@ export default function ComparisonModeV2() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* FUND SEARCH MODAL */}
+      {/* ============================================================ */}
+      {showFundSearch && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-xl w-full max-h-[80vh] flex flex-col">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Search className="w-5 h-5 text-green-600" />
+                Buscar Fondo o ETF
+              </h2>
+              <button onClick={() => { setShowFundSearch(false); setFundSearchQuery(""); setFundSearchResults([]); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={fundSearchQuery}
+                  onChange={(e) => {
+                    setFundSearchQuery(e.target.value);
+                    searchFundsForAdd(e.target.value);
+                  }}
+                  placeholder="Buscar por nombre, ticker, RUN o ISIN..."
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
+                />
+                {fundSearchLoading && <Loader className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 animate-spin" />}
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Busca en fondos chilenos (AAFM/Fintual), ETFs internacionales y acciones</p>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 pb-4">
+              {fundSearchResults.length > 0 ? (
+                <div className="space-y-1">
+                  {fundSearchResults.map((fund) => (
+                    <button
+                      key={fund.id}
+                      onClick={() => addFundToProposed(fund)}
+                      className="w-full p-3 hover:bg-green-50 rounded-lg transition-colors text-left flex items-center justify-between group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-green-700">{fund.symbol}</span>
+                          <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{fund.type}</span>
+                          {fund.source === "local" && (
+                            <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">BD</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-700 truncate mt-0.5">{fund.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
+                          {fund.ter != null && <span>TER: {fund.ter}%</span>}
+                          {fund.return_1y != null && (
+                            <span className={fund.return_1y >= 0 ? "text-green-600" : "text-red-600"}>
+                              1Y: {fund.return_1y > 0 ? "+" : ""}{typeof fund.return_1y === "number" && Math.abs(fund.return_1y) > 1 ? fund.return_1y.toFixed(1) : ((fund.return_1y ?? 0) * 100).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Plus className="w-5 h-5 text-gray-300 group-hover:text-green-600 transition-colors flex-shrink-0 ml-2" />
+                    </button>
+                  ))}
+                </div>
+              ) : fundSearchQuery.length >= 2 && !fundSearchLoading ? (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-sm">No se encontraron resultados para &ldquo;{fundSearchQuery}&rdquo;</p>
+                  <p className="text-xs mt-1">Puedes escribir el ticker directamente en la tabla</p>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">Escribe al menos 2 caracteres para buscar</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
