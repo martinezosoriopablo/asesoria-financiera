@@ -23,7 +23,15 @@ export default function ForgotPasswordPage() {
     });
 
     if (resetError) {
-      setError(resetError.message);
+      // Translate common Supabase Auth errors to Spanish
+      const msg = resetError.message.toLowerCase();
+      if (msg.includes("rate limit") || msg.includes("too many requests")) {
+        setError("Demasiados intentos. Espera unos minutos antes de intentar de nuevo.");
+      } else if (msg.includes("user not found")) {
+        setError("No encontramos una cuenta con ese email.");
+      } else {
+        setError(resetError.message);
+      }
       setLoading(false);
       return;
     }

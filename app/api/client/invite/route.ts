@@ -44,24 +44,40 @@ export async function POST(req: Request) {
   }
 
   let authUserId = client.auth_user_id;
+  let isExistingUser = false;
+  let hasPassword = false;
 
-  // 2. Crear usuario en Supabase Auth si no existe
+  // 2. Crear o vincular usuario en Supabase Auth
   if (!authUserId) {
+    // Try to create a new auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: client.email,
-      user_metadata: { role: "client", client_id: clientId },
+      user_metadata: { role: "client", roles: ["client"], active_role: "client", client_id: clientId },
       email_confirm: true,
     });
 
     if (createError) {
-      // Si el usuario ya existe en auth, buscar por email
+      // User already exists in auth (e.g., they're an advisor) — link them
       if (createError.message?.includes("already been registered")) {
         const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
         const existing = users?.find((u) => u.email === client.email);
         if (existing) {
           authUserId = existing.id;
+          isExistingUser = true;
+          hasPassword = true; // Existing users already have a password
+
+          // Add "client" to roles array without removing existing roles
+          const currentRoles = (existing.user_metadata?.roles as string[]) || [];
+          const currentRole = existing.user_metadata?.role as string;
+          const roles = [...new Set([...currentRoles, ...(currentRole ? [currentRole] : []), "client"])];
+
           await supabaseAdmin.auth.admin.updateUserById(existing.id, {
-            user_metadata: { role: "client", client_id: clientId },
+            user_metadata: {
+              ...existing.user_metadata,
+              roles,
+              client_id: clientId,
+              // Don't change active_role — let user switch manually
+            },
           });
         } else {
           return NextResponse.json({ error: "Error creando usuario: " + createError.message }, { status: 500 });
@@ -80,29 +96,77 @@ export async function POST(req: Request) {
       portal_invited_at: new Date().toISOString(),
     }).eq("id", clientId);
   } else {
-    // Ya tiene auth user, actualizar metadata y re-habilitar portal
-    await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-      user_metadata: { role: "client", client_id: clientId },
-    });
+    isExistingUser = true;
+    // Ya tiene auth user, agregar rol client si no lo tiene
+    const { data: { user: existingAuth } } = await supabaseAdmin.auth.admin.getUserById(authUserId);
+    if (existingAuth) {
+      const currentRoles = (existingAuth.user_metadata?.roles as string[]) || [];
+      const currentRole = existingAuth.user_metadata?.role as string;
+      const roles = [...new Set([...currentRoles, ...(currentRole ? [currentRole] : []), "client"])];
+      hasPassword = true;
+
+      await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+        user_metadata: {
+          ...existingAuth.user_metadata,
+          roles,
+          client_id: clientId,
+        },
+      });
+    }
     await supabaseAdmin.from("clients").update({
       portal_enabled: true,
       portal_invited_at: new Date().toISOString(),
     }).eq("id", clientId);
   }
 
-  // 4. Generar link de recuperación (permite definir contraseña)
-  // Usamos "recovery" porque "invite" falla si el usuario ya está confirmado
-  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin
-    .generateLink({ type: "recovery", email: client.email });
-
-  if (linkError || !linkData) {
-    console.error("Error generando link:", linkError);
-    return NextResponse.json({ error: "Error generando link de acceso: " + (linkError?.message || "desconocido") }, { status: 500 });
-  }
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
-  // Use auth callback to exchange token, then redirect to setup-password
-  const portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/portal/setup-password`;
+  let portalLink: string;
+  let emailSubject: string;
+  let emailBody: string;
+
+  if (isExistingUser && hasPassword) {
+    // User already has a password (e.g., they're also an advisor)
+    // No need for recovery link — just send them to portal login
+    portalLink = `${appUrl}/portal/login`;
+    emailSubject = "Tu portal de inversiones está listo";
+    emailBody = `
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
+        Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
+      </p>
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
+        Puedes acceder con tu email y contraseña actual. Si no recuerdas tu contraseña, usa la opción "Olvidé mi contraseña" en la página de inicio de sesión.
+      </p>
+      <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        Acceder al portal
+      </a>
+    `;
+  } else {
+    // New user — generate recovery link so they can set their password
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin
+      .generateLink({ type: "recovery", email: client.email });
+
+    if (linkError || !linkData) {
+      console.error("Error generando link:", linkError);
+      return NextResponse.json({ error: "Error generando link de acceso: " + (linkError?.message || "desconocido") }, { status: 500 });
+    }
+
+    portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/portal/setup-password`;
+    emailSubject = "Tu portal de inversiones está listo — define tu contraseña";
+    emailBody = `
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
+        Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
+      </p>
+      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
+        Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
+      </p>
+      <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        Crear contraseña y acceder
+      </a>
+      <p style="font-size: 12px; color: #9ca3af; margin-top: 32px;">
+        Este link expira en 24 horas. Si necesitas uno nuevo, contacta a tu asesor.
+      </p>
+    `;
+  }
 
   // 5. Enviar email via Resend
   const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
@@ -113,25 +177,14 @@ export async function POST(req: Request) {
     const { data: emailData, error: resendError } = await resend.emails.send({
       from: `Greybark Advisors <${senderEmail}>`,
       to: client.email,
-      subject: "Tu portal de inversiones está listo — define tu contraseña",
+      subject: emailSubject,
       html: `
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
           <img src="${appUrl}/logo-greybark.png" alt="Greybark Advisors" style="height: 40px; margin-bottom: 32px;" />
           <h1 style="font-size: 20px; color: #1a1a1a; margin-bottom: 16px;">
             Hola ${escapeHtml(client.nombre || '')},
           </h1>
-          <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
-            Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
-          </p>
-          <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
-            Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
-          </p>
-          <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
-            Crear contraseña y acceder
-          </a>
-          <p style="font-size: 12px; color: #9ca3af; margin-top: 32px;">
-            Este link expira en 24 horas. Si necesitas uno nuevo, contacta a tu asesor.
-          </p>
+          ${emailBody}
         </div>
       `,
     });

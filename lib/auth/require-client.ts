@@ -26,8 +26,10 @@ export async function requireClient(): Promise<{
       };
     }
 
-    const role = user.user_metadata?.role;
-    if (role !== "client") {
+    // Check active role (supports dual-role users)
+    const activeRole = user.user_metadata?.active_role || user.user_metadata?.role;
+    const roles = (user.user_metadata?.roles as string[]) || [];
+    if (activeRole !== "client" && !roles.includes("client")) {
       return {
         client: null,
         error: NextResponse.json({ error: "Acceso solo para clientes" }, { status: 403 }),

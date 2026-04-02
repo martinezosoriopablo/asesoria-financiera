@@ -51,7 +51,9 @@ function PortalLoginContent() {
     const supabase = createSupabaseBrowserClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (user && user.user_metadata?.role === "client") {
+    const activeRole = user?.user_metadata?.active_role || user?.user_metadata?.role;
+    const roles = (user?.user_metadata?.roles as string[]) || [];
+    if (user && (activeRole === "client" || roles.includes("client"))) {
       router.push("/portal/dashboard");
       router.refresh();
     } else {
@@ -78,12 +80,25 @@ function PortalLoginContent() {
       return;
     }
 
-    if (data.user?.user_metadata?.role !== "client") {
+    const userRoles = (data.user?.user_metadata?.roles as string[]) || [];
+    const userRole = data.user?.user_metadata?.role as string;
+    const hasClientRole = userRoles.includes("client") || userRole === "client";
+
+    if (!hasClientRole) {
       await supabase.auth.signOut();
       setErrorMsg("Esta cuenta no tiene acceso al portal de clientes");
       setLoginLoading(false);
       return;
     }
+
+    // Set active_role to client for dual-role users
+    try {
+      await fetch("/api/auth/switch-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "client" }),
+      });
+    } catch {}
 
     setStatus("success");
     setTimeout(() => {
@@ -147,6 +162,15 @@ function PortalLoginContent() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
+              </div>
+
+              <div className="text-right">
+                <a
+                  href="/forgot-password"
+                  className="text-xs text-gb-accent hover:underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </a>
               </div>
 
               {errorMsg && (

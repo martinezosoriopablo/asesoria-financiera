@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -21,6 +21,7 @@ import {
   FileText,
   Settings,
   RefreshCw,
+  ArrowRightLeft,
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
@@ -31,6 +32,7 @@ interface AdvisorHeaderProps {
   advisorLogo?: string | null;
   companyName?: string | null;
   isAdmin?: boolean;
+  hasClientRole?: boolean;
 }
 
 const NAV_ITEMS = [
@@ -55,16 +57,49 @@ export default function AdvisorHeader({
   advisorLogo,
   companyName,
   isAdmin = false,
+  hasClientRole = false,
 }: AdvisorHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [detectedClientRole, setDetectedClientRole] = useState(false);
   const pathname = usePathname();
+
+  // Auto-detect if user also has client role
+  useEffect(() => {
+    if (!hasClientRole) {
+      const supabase = createSupabaseBrowserClient();
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        const roles = (user?.user_metadata?.roles as string[]) || [];
+        if (roles.includes('client')) setDetectedClientRole(true);
+      });
+    }
+  }, [hasClientRole]);
+
+  const showClientSwitch = hasClientRole || detectedClientRole;
 
   const handleLogout = async () => {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
     window.location.href = '/login';
+  };
+
+  const handleSwitchToClient = async () => {
+    setSwitching(true);
+    try {
+      const res = await fetch('/api/auth/switch-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'client' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.location.href = data.redirectTo || '/portal/dashboard';
+      }
+    } catch {
+      setSwitching(false);
+    }
   };
 
   const isActive = (href: string) => pathname === href;
@@ -215,6 +250,19 @@ export default function AdvisorHeader({
                           </Link>
                         </>
                       )}
+                      {showClientSwitch && (
+                        <>
+                          <hr className="my-1 border-gb-border" />
+                          <button
+                            onClick={handleSwitchToClient}
+                            disabled={switching}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <ArrowRightLeft className="w-4 h-4" />
+                            {switching ? 'Cambiando...' : 'Ir a mi Portal Cliente'}
+                          </button>
+                        </>
+                      )}
                       <hr className="my-1 border-gb-border" />
                       <button
                         onClick={handleLogout}
@@ -302,6 +350,16 @@ export default function AdvisorHeader({
               <User className="w-4 h-4" />
               Mi Perfil
             </Link>
+            {showClientSwitch && (
+              <button
+                onClick={handleSwitchToClient}
+                disabled={switching}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm text-gb-gray hover:bg-gray-50 disabled:opacity-50"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                {switching ? 'Cambiando...' : 'Ir a mi Portal Cliente'}
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm text-red-600 hover:bg-red-50"

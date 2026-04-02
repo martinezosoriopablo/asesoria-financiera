@@ -1,7 +1,7 @@
 # Auditoría Completa — Greybark Advisors
 ## Plataforma de Asesoría Financiera
 
-**Fecha:** 23 de marzo 2026 (actualizado 31 de marzo 2026)
+**Fecha:** 23 de marzo 2026 (actualizado 1 de abril 2026)
 **Stack:** Next.js 16 + React 19 + Supabase + TypeScript + Tailwind CSS v4
 **Deployment:** Vercel (asesoria-financiera.vercel.app)
 **Marca:** Greybark Advisors
@@ -78,8 +78,12 @@
 | Funcionalidad | Estado | Ruta |
 |---|---|---|
 | Timeline de snapshots | ✅ Funciona | `/clients/[id]/seguimiento` |
-| Gráficos de evolución de cartera | ✅ Funciona | Recharts |
-| Panel de retornos por holding | ✅ En desarrollo | `HoldingReturnsPanel` |
+| Gráficos de evolución de cartera (TWR + Valor) | ✅ Funciona | Recharts |
+| Panel de retornos por holding | ✅ Funciona | `HoldingReturnsPanel` |
+| Tabla de rebalanceo por holding | ✅ Funciona | Comprar/Vender/Mantener |
+| Registro de ejecuciones (buy/sell) | ✅ Funciona | `rebalance_executions` |
+| Comparación baseline vs actual | ✅ Funciona | `BaselineComparison` |
+| Historial de recomendaciones | ✅ Funciona | `RecommendationHistory` |
 
 ### 1.8 Herramientas del Asesor
 | Funcionalidad | Estado | Ruta |
@@ -98,14 +102,48 @@
 | Aplicar cartera a clientes | ✅ Funciona | `/api/comite/aplicar-cartera` |
 | Exportar PDF del comité | ✅ Funciona | `CarteraComitePDF` |
 
-### 1.10 Otras Herramientas
+### 1.10 Portal del Cliente
+| Funcionalidad | Estado | Ruta |
+|---|---|---|
+| Login email/password + "Olvidé mi contraseña" | ✅ Funciona | `/portal/login` |
+| Setup de contraseña (invitación) | ✅ Funciona | `/portal/setup-password` |
+| Cambiar contraseña | ✅ Funciona | `/portal/cambiar-password` |
+| Dashboard (valor, evolución, composición) | ✅ Funciona | `/portal/dashboard` |
+| Cartera recomendada vs actual | ✅ Funciona | `/portal/dashboard` |
+| Bienvenida con onboarding steps | ✅ Funciona | `/portal/bienvenida` |
+| Subir cartolas | ✅ Funciona | `/portal/subir-cartola` |
+| Historial de cartolas (propias + asesor) | ✅ Funciona | `/portal/mis-cartolas` |
+| Reportes del asesor | ✅ Funciona | `/portal/reportes` |
+| Mensajes con el asesor | ✅ Funciona | `/portal/mensajes` |
+| Completar cuestionario de riesgo | ✅ Funciona | Link HMAC |
+
+### 1.11 Sistema Dual-Role
+| Funcionalidad | Estado | Ruta |
+|---|---|---|
+| Switch role (advisor ↔ client) | ✅ Funciona | `/api/auth/switch-role` |
+| Botón "Ir a mi Portal Cliente" (asesor) | ✅ Funciona | AdvisorHeader |
+| Botón "Vista Asesor" (cliente) | ✅ Funciona | PortalTopbar |
+| Invitación a usuario existente | ✅ Funciona | No sobreescribe roles |
+| Middleware routing por active_role | ✅ Funciona | middleware.ts |
+
+### 1.12 Notificaciones y Cron Jobs
+| Funcionalidad | Estado | Ruta |
+|---|---|---|
+| NotificationBell con polling 30s | ✅ Funciona | AdvisorHeader |
+| Tipos: cartola, cuestionario, rebalanceo, reporte | ✅ Funciona | `advisor_notifications` |
+| Cron reportes L-V 12pm | ✅ Funciona | `/api/cron/send-reports` |
+| Cron check-drift L-V 1pm | ✅ Funciona | `/api/cron/check-drift` |
+| Cron sync Fintual L-V 10am | ✅ Funciona | `/api/cron/sync-fintual` |
+
+### 1.13 Otras Herramientas
 | Funcionalidad | Estado | Ruta |
 |---|---|---|
 | Calculadora APV | ✅ Funciona | `/calculadora-apv` |
 | Educación financiera | ✅ Funciona | `/educacion-financiera` |
 | Generación de reportes PDF | ✅ Funciona | `@react-pdf/renderer` |
 | Admin: gestión de asesores | ✅ Funciona | `/admin/advisors` |
-| Admin: upload NAV history | ✅ Funciona | `/admin/nav-upload` |
+| Admin: sincronización de datos | ✅ Funciona | `/admin/data-sync` |
+| Vista general de clientes | ✅ Funciona | `/advisor/clients-overview` |
 
 ---
 
@@ -141,10 +179,12 @@
 |---|---|---|
 | Autenticación | Supabase Auth (email/password) | ✅ Sólido |
 | Middleware de sesión | `updateSession` en middleware.ts | ✅ Correcto |
-| Roles | admin / advisor | ✅ Funciona |
+| Roles | admin / advisor / client con dual-role support | ✅ Funciona |
+| Dual-role | `user_metadata.roles[]` + `active_role`, switch vía API | ✅ Implementado |
 | RLS en Supabase | Habilitado en tablas sensibles | ✅ Bien |
-| API auth helpers | `requireAuth()`, `requireAdvisor()`, `requireAdmin()` | ✅ Consistente |
-| Rate limiting | Implementado en `lib/rate-limit.ts` | ✅ Presente |
+| API auth helpers | `requireAuth()`, `requireAdvisor()`, `requireAdmin()`, `requireClient()` | ✅ Consistente |
+| Rate limiting | Upstash Redis (prod) + in-memory fallback (dev), 68 endpoints | ✅ Robusto |
+| Error tracking | Sentry client/server/edge, global-error.tsx | ✅ Activo |
 | Tokens Google | RLS estricto por advisor_id | ✅ Seguro |
 | Service role key | Solo en server-side para operaciones privilegiadas | ✅ Correcto |
 
@@ -184,16 +224,16 @@
 | **Cron jobs** | Solo sync Fintual programado | Datos desactualizados | Agregar crons para AAFM, precios, exchange rates |
 | **Mobile responsive** | No evaluado exhaustivamente | Asesores usan tablets | Auditar responsive en tablets y móviles |
 | **Internacionalización** | Mezcla español/inglés en código | Inconsistencia | Definir idioma único para UI |
-| **Logging/monitoring** | Sin Sentry ni logging estructurado | Difícil debuggear en prod | Agregar Sentry + structured logging |
+| ~~**Logging/monitoring**~~ | ✅ RESUELTO — Sentry client/server/edge | — | — |
 
 ### 5.2 Mejoras de Producto
 
 | Área | Oportunidad | Valor |
 |---|---|---|
 | ~~**Notificaciones**~~ | ✅ RESUELTO — NotificationBell + triggers automáticos | — |
-| **Dashboard de rendimiento** | No hay vista consolidada de rendimiento de todos los clientes | Alto — métricas de negocio del asesor |
+| ~~**Dashboard de rendimiento**~~ | ✅ RESUELTO — Vista consolidada `/advisor/clients-overview` | — |
 | ~~**Reportes periódicos**~~ | ✅ RESUELTO — Cron L-V, email Resend, config por cliente | — |
-| **Alertas de rebalanceo** | No alerta cuando el portafolio se desvía del benchmark | Medio — valor proactivo |
+| ~~**Alertas de rebalanceo**~~ | ✅ RESUELTO — Cron check-drift + tracking ejecuciones | — |
 | **Historial de interacciones** | Seguimiento básico, sin notas enriquecidas | Medio — memoria institucional |
 | **Onboarding flow** | Sin flujo guiado para nuevos asesores | Medio — adopción |
 | **Multi-moneda** | Manejo parcial de USD/CLP/UF | Medio — clientes con inversiones mixtas |
@@ -203,11 +243,11 @@
 
 ### 5.3 Deuda Técnica Identificada
 
-1. **Archivos sin commitear en git** — Hay 10+ archivos untracked (scripts de test, componentes nuevos, API routes) que sugieren features en desarrollo activo sin mergear.
+1. **Archivos sin commitear en git** — Hay muchos archivos untracked (scripts de test, componentes nuevos, API routes, migraciones) que necesitan commit.
 2. **Scripts sueltos** — Varios scripts de sync/test en `/scripts/` que podrían consolidarse.
-3. **Sin CLAUDE.md** — No hay archivo de contexto para desarrollo con IA, lo que pierde eficiencia en cada sesión.
-4. **Google Fonts cargado externamente** — El `<link>` a Google Fonts en layout.tsx podría usar `next/font` para mejor performance.
-5. **Sin rate limiting global** — Rate limiting existe pero podría no estar aplicado en todas las rutas.
+3. **Google Fonts cargado externamente** — El `<link>` a Google Fonts en layout.tsx podría usar `next/font` para mejor performance.
+4. ~~**Sin rate limiting global**~~ ✅ RESUELTO — Upstash Redis en 68 endpoints.
+5. ~~**Sin CLAUDE.md**~~ ✅ RESUELTO — Memory system + CONTEXTO-CLAUDE-CHAT.md + MEJORAS.md proveen contexto completo.
 
 ---
 
@@ -253,27 +293,27 @@ LOGIN → DASHBOARD ASESOR → [elegir acción]
 ### 6.2 Journey del Cliente (usuario final)
 
 ```
-RECIBE EMAIL → ABRE LINK CUESTIONARIO →
-  → Paso 1: Datos personales
-  → Paso 2: Situación financiera
-  → Paso 3: Experiencia inversora
-  → Paso 4: Tolerancia al riesgo
-  → Paso 5: Objetivos
-  → Paso 6: Horizonte temporal
-  → Paso 7: Resumen + confirmación
-→ PERFIL GENERADO → Asesor recibe resultado
+RECIBE EMAIL INVITACIÓN → Configura contraseña (nuevo) o Login directo (existente)
+  → LOGIN PORTAL (email/password, "¿Olvidaste tu contraseña?")
+  → BIENVENIDA (onboarding steps contextuales)
+  ├── Completar perfil de riesgo (7 pasos, detecta si ya completado)
+  ├── Subir cartolas (PDF/Excel)
+  ├── Ver dashboard (valor, evolución, composición, cartera recomendada)
+  ├── Leer reportes del asesor
+  ├── Mensajes con el asesor
+  ├── Historial de cartolas (propias + asesor con badge)
+  ├── Cambiar contraseña
+  └── [Si dual-role] Cambiar a Vista Asesor
 ```
-
-**Actualizado (2026-03-31):** Portal de cliente activo con dashboard, reportes, subida de cartolas, mensajería, y perfil de riesgo.
 
 ### 6.3 Puntos de Fricción Identificados
 
-1. **Sin portal de cliente** — El cliente no puede ver su propia información post-cuestionario.
-2. **Sin notificaciones** — El asesor debe revisar manualmente si un cliente completó el cuestionario.
+1. ~~**Sin portal de cliente**~~ ✅ RESUELTO — Portal completo
+2. ~~**Sin notificaciones**~~ ✅ RESUELTO — NotificationBell + triggers automáticos
 3. **Navegación densa** — Muchas herramientas pero sin guía de flujo de trabajo recomendado.
 4. **Sin onboarding** — Un asesor nuevo no sabe por dónde empezar.
 5. **Cartola manual** — El cliente o asesor debe subir la cartola manualmente, no hay conexión directa con bancos/corredoras.
-6. **Sin chat/mensajería** — No hay canal de comunicación integrado asesor-cliente.
+6. ~~**Sin chat/mensajería**~~ ✅ RESUELTO — Sistema de mensajes integrado
 
 ---
 
@@ -307,6 +347,10 @@ RECIBE EMAIL → ABRE LINK CUESTIONARIO →
 - `advisor_notifications` — Notificaciones in-app del asesor
 - `recommendation_versions` — Historial de recomendaciones
 
+### Tablas de Ejecución y Seguimiento
+- `rebalance_executions` — Operaciones buy/sell ejecutadas post-recomendación
+- `fondos_rentabilidades_agregadas` — Rentabilidades históricas AAFM
+
 ### Tablas de Soporte
 - `advisor_google_tokens` — OAuth tokens (RLS estricto)
 - `advisor_meetings` — Reuniones
@@ -319,14 +363,14 @@ RECIBE EMAIL → ABRE LINK CUESTIONARIO →
 
 | Métrica | Valor |
 |---|---|
-| Rutas de página | ~15 |
-| API endpoints | ~65+ |
-| Componentes React | ~50+ |
-| Tablas en BD | ~22 |
+| Rutas de página | ~20 |
+| API endpoints | ~70+ |
+| Componentes React | ~55+ |
+| Tablas en BD | ~25 |
 | Integraciones externas | 10 |
-| Dependencias (prod) | 12 |
+| Dependencias (prod) | 15+ |
 | Dependencias (dev) | 12 |
-| Líneas de código estimadas | ~15,000-20,000 |
+| Líneas de código estimadas | ~20,000-25,000 |
 
 ---
 
@@ -342,11 +386,13 @@ RECIBE EMAIL → ABRE LINK CUESTIONARIO →
 - Stack técnico moderno y mantenible
 
 ### Lo que más impacto tendría mejorar:
-1. **Portal de cliente** — Hoy el cliente solo interactúa vía cuestionario. Un portal donde vea su portafolio, rendimientos y comunicación con el asesor sería transformacional.
-2. **Notificaciones automáticas** — Alertas de rebalanceo, reportes periódicos, confirmación de cuestionario completado.
-3. **Reportes automáticos** — Generación mensual/trimestral de reportes PDF para enviar a clientes.
-4. **Mejor UX de carga** — Skeleton loaders, optimistic updates, caché con SWR/React Query.
-5. **Monitoring en producción** — Sentry + logging estructurado para detectar problemas antes que los usuarios.
+1. ~~**Portal de cliente**~~ ✅ RESUELTO — Portal completo con dashboard, reportes, cartolas, mensajes, dual-role
+2. ~~**Notificaciones automáticas**~~ ✅ RESUELTO — Alertas de rebalanceo, reportes periódicos, cuestionario completado
+3. ~~**Reportes automáticos**~~ ✅ RESUELTO — Cron L-V, email con Resend, configuración por cliente
+4. **Mejor UX de carga** — Skeleton loaders, optimistic updates, caché con SWR/React Query
+5. ~~**Monitoring en producción**~~ ✅ RESUELTO — Sentry + Upstash Redis rate limiting
+6. **Onboarding de asesor** — Flujo guiado para primer uso de la plataforma
+7. **Firma electrónica** — Integración con servicio de firma para contratos
 
 ---
 

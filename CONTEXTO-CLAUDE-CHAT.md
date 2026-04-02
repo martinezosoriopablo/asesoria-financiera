@@ -39,8 +39,10 @@ Resolución de precios en cascada: Fintual → Bolsa Santiago → Yahoo → Alph
 
 ### Seguridad
 - Supabase Auth (email/password), middleware de sesión
-- Roles: admin/advisor con RLS en PostgreSQL
+- Roles: admin/advisor/client con RLS en PostgreSQL
+- **Dual-role:** un mismo email puede ser asesor y cliente. `user_metadata.roles: ["advisor", "client"]` + `active_role` determina routing. Switch vía `/api/auth/switch-role`
 - Rate limiting: Upstash Redis (production) with in-memory fallback (dev), API auth helpers (`requireAuth`, `requireAdmin`)
+- Sentry error tracking: client/server/edge configs, 10% trace sampling
 - Tokens OAuth protegidos con RLS estricto
 
 ### Base de datos (Supabase PostgreSQL)
@@ -51,6 +53,7 @@ Resolución de precios en cascada: Fintual → Bolsa Santiago → Yahoo → Alph
 - `security_prices_cache`, `manual_prices`, `security_yahoo_map`
 - `portfolio_dividends`, `advisor_notifications`, `client_reports`, `client_report_config`
 - `recommendation_versions`, `rebalance_executions`, `client_contracts`, `audit_logs`
+- `fondos_rentabilidades_agregadas`
 - `advisor_meetings`, `advisor_google_tokens`
 
 ---
@@ -73,12 +76,15 @@ Login → Dashboard (stats, calendario, acciones rápidas)
 
 ### El cliente (portal activo)
 ```
-Login → Dashboard (valor portafolio, evolución, composición, cartera recomendada vs actual)
+Login (email/password + "¿Olvidaste tu contraseña?") → Dashboard
+  ├── Valor portafolio, evolución, composición, cartera recomendada vs actual
   ├── Completar perfil de riesgo (cuestionario 7 pasos, detecta si ya completado)
   ├── Subir cartolas (PDF/Excel)
   ├── Ver reportes del asesor
   ├── Mensajes con el asesor
-  └── Historial de cartolas (propias + las del asesor con badge)
+  ├── Historial de cartolas (propias + las del asesor con badge)
+  ├── Cambiar contraseña
+  └── [Si dual-role] Botón "Vista Asesor" para cambiar a interfaz de asesor
 ```
 
 ---
@@ -98,22 +104,24 @@ Login → Dashboard (valor portafolio, evolución, composición, cartera recomen
 
 ### UX/Producto — Alto impacto
 1. ~~**Sin portal de cliente**~~ ✅ RESUELTO — Portal completo con dashboard, reportes, cartolas, mensajes
-2. ~~**Sin notificaciones**~~ ✅ RESUELTO — NotificationBell con polling, triggers automáticos en upload/cuestionario
+2. ~~**Sin notificaciones**~~ ✅ RESUELTO — NotificationBell con polling, triggers automáticos en upload/cuestionario/rebalanceo
 3. ~~**Sin reportes automáticos**~~ ✅ RESUELTO — Cron L-V 12pm, email con Resend, configuración por cliente
-4. ~~**Sin alertas de rebalanceo**~~ ✅ RESUELTO — Tabla de rebalanceo por holding en Seguimiento + resumen post-guardado en Portfolio Designer + cron diario check-drift con alertas automáticas + tracking de ejecuciones (buy/sell) + drift_threshold configurable por asesor.
-5. ~~**Sin dashboard consolidado de rendimiento**~~ ✅ RESUELTO — Vista consolidada `/advisor/clients-overview` con métricas (AUM, TWR promedio, drift), filtros por perfil/estado, ordenamiento por 6 columnas, iconos de estado.
-6. **Sin onboarding** — Un asesor nuevo no tiene flujo guiado.
+4. ~~**Sin alertas de rebalanceo**~~ ✅ RESUELTO — Tabla de rebalanceo por holding en Seguimiento + resumen post-guardado en Portfolio Designer + cron diario check-drift con alertas automáticas + tracking de ejecuciones (buy/sell) + drift_threshold configurable por asesor
+5. ~~**Sin dashboard consolidado de rendimiento**~~ ✅ RESUELTO — Vista consolidada `/advisor/clients-overview` con métricas (AUM, TWR promedio, drift), filtros por perfil/estado, ordenamiento por 6 columnas, iconos de estado
+6. **Sin onboarding** — Un asesor nuevo no tiene flujo guiado
 7. ~~**Sin chat/mensajería**~~ ✅ RESUELTO — Sistema de mensajes integrado asesor-cliente
-8. **Cartola manual** — Mejorado: cliente puede subir desde portal, pero sin conexión directa con bancos.
+8. **Cartola manual** — Mejorado: cliente puede subir desde portal, pero sin conexión directa con bancos
+9. ~~**Sin dual-role**~~ ✅ RESUELTO — Mismo email puede ser asesor y cliente, switch de rol en header, middleware inteligente
 
 ### Técnico — Medio impacto
-9. **Sin skeleton loaders** — Las cargas son abruptas, sin feedback visual consistente.
-10. **Sin SWR/React Query** — Fetch directo sin caché, re-fetching innecesario.
-11. ~~**Sin Sentry/monitoring**~~ ✅ RESUELTO — Sentry integrado con client/server/edge configs, global-error.tsx, instrumentation.ts, 10% trace sampling.
-12. **Google Fonts via `<link>`** — Debería usar `next/font` para mejor performance.
-13. **Mezcla español/inglés en código** — UI en español, código mixto.
-14. **Tests limitados** — Vitest configurado pero cobertura incierta, especialmente en cálculos financieros.
-15. ~~**Sin cron jobs completos**~~ ✅ RESUELTO — Cron de reportes L-V 12pm + cron check-drift L-V 1pm + sync Fintual L-V 10am. AAFM sync manual desde admin.
+9. **Sin skeleton loaders** — Las cargas son abruptas, sin feedback visual consistente
+10. **Sin SWR/React Query** — Fetch directo sin caché, re-fetching innecesario
+11. ~~**Sin Sentry/monitoring**~~ ✅ RESUELTO — Sentry integrado con client/server/edge configs, global-error.tsx, instrumentation.ts, 10% trace sampling
+12. **Google Fonts via `<link>`** — Debería usar `next/font` para mejor performance
+13. **Mezcla español/inglés en código** — UI en español, código mixto
+14. **Tests limitados** — Vitest configurado pero cobertura incierta, especialmente en cálculos financieros
+15. ~~**Sin cron jobs completos**~~ ✅ RESUELTO — Cron de reportes L-V 12pm + cron check-drift L-V 1pm + sync Fintual L-V 10am. AAFM sync manual desde admin
+16. ~~**Sin rate limiting robusto**~~ ✅ RESUELTO — Upstash Redis con sliding window, fallback in-memory, 68 endpoints migrados
 
 ### Patrones recurrentes de bugs (para futuras sesiones de Claude)
 - **Normalización de strings**: assetClass viene como `"Equity"` / `"Fixed Income"` de las cartolas pero el código interno usa `"equity"` / `"fixedIncome"`. SIEMPRE usar comparación case-insensitive o normalizar.
@@ -129,13 +137,13 @@ Login → Dashboard (valor portafolio, evolución, composición, cartera recomen
 ---
 
 ## Números clave
-- ~15 páginas/rutas
-- 65+ API endpoints
-- 50+ componentes React
-- ~22 tablas en BD
+- ~20 páginas/rutas
+- 70+ API endpoints
+- 55+ componentes React
+- ~25 tablas en BD
 - 10 integraciones externas
-- 12 dependencias de producción
-- ~15,000-20,000 líneas de código estimadas
+- 15+ dependencias de producción (incluye Sentry, Upstash)
+- ~20,000-25,000 líneas de código estimadas
 
 ---
 

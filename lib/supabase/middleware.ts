@@ -45,7 +45,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const role = user?.user_metadata?.role as string | undefined;
+
+  // Determine active role: active_role > role (legacy) > null
+  const meta = user?.user_metadata;
+  const activeRole = (meta?.active_role as string) || (meta?.role as string) || null;
 
   // Public routes that don't require authentication
   const publicPaths = [
@@ -65,23 +68,24 @@ export async function updateSession(request: NextRequest) {
   const isApi = pathname.startsWith("/api/");
   const isProtected = !isPublic && !isApi;
 
-  // Portal routes: only clients
+  // Portal routes: only active clients
   if (pathname.startsWith("/portal") && pathname !== "/portal/login") {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/portal/login";
       return NextResponse.redirect(url);
     }
-    if (role !== "client") {
+    if (activeRole !== "client") {
+      // If user is an advisor trying to access portal, redirect to advisor
       const url = request.nextUrl.clone();
       url.pathname = "/advisor";
       return NextResponse.redirect(url);
     }
   }
 
-  // Advisor routes: block clients
+  // Advisor routes: block active clients
   if (pathname.startsWith("/advisor") || pathname.startsWith("/clients") || pathname.startsWith("/portfolio-designer") || pathname.startsWith("/fund-center") || pathname.startsWith("/market-dashboard")) {
-    if (user && role === "client") {
+    if (user && activeRole === "client") {
       const url = request.nextUrl.clone();
       url.pathname = "/portal/dashboard";
       return NextResponse.redirect(url);
@@ -95,10 +99,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If logged in and visiting /login, redirect based on role
+  // If logged in and visiting /login, redirect based on active role
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = role === "client" ? "/portal/dashboard" : "/advisor";
+    url.pathname = activeRole === "client" ? "/portal/dashboard" : "/advisor";
     return NextResponse.redirect(url);
   }
 

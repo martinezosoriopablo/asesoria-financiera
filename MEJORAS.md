@@ -203,6 +203,17 @@ Ultima auditoria: 2026-04-01
 - [x] **Cron check-drift** — verificación diaria de drift L-V 1pm configurada en `vercel.json` (2026-04-01)
 - [x] **`.env.example` actualizado** — documentadas variables de Upstash Redis y Sentry (opcionales) (2026-04-01)
 
+### Sistema Dual-Role (Asesor + Cliente)
+- [x] **Endpoint `/api/auth/switch-role`** — cambia `active_role` en `user_metadata`, valida que el usuario tenga el rol solicitado en BD (advisors/clients), retorna URL de redirección (2026-04-01)
+- [x] **Middleware actualizado** — usa `active_role > role (legacy)` para determinar routing portal vs advisor (2026-04-01)
+- [x] **Invite dual-role** — si el email ya existe (e.g., es asesor), agrega "client" a `roles[]` sin sobreescribir metadata existente, envía email con link a login (no recovery) (2026-04-01)
+- [x] **Portal login dual-role** — `handleLogin` verifica `roles[]` array (no solo `role`), llama switch-role para setear `active_role: "client"` al entrar (2026-04-01)
+- [x] **require-client dual-role** — verifica `active_role` o `roles.includes("client")` (2026-04-01)
+- [x] **Botón "Ir a mi Portal Cliente"** — en AdvisorHeader (desktop dropdown + mobile), auto-detecta `roles[]` sin necesidad de prop en call sites (2026-04-01)
+- [x] **Botón "Vista Asesor"** — en PortalTopbar (desktop + mobile), auto-detecta rol advisor del usuario (2026-04-01)
+- [x] **"¿Olvidaste tu contraseña?"** — link agregado en portal login apuntando a `/forgot-password` (2026-04-01)
+- [x] **`useAdvisor` hook** — ahora expone `hasClientRole` derivado de `user_metadata.roles` (2026-04-01)
+
 ## PENDIENTES
 
 ### Próximos pasos del flujo
@@ -210,6 +221,7 @@ Ultima auditoria: 2026-04-01
 - [ ] **Aprobación de cartera por cliente** — flujo para que el cliente acepte/rechace la recomendación del asesor desde el portal
 - [ ] **ModelMode tilts → cartera recomendada** — guardar resultado de tilts en ModelMode directamente como cartera_recomendada
 - [ ] **Dashboard de performance consolidado** — gráfico histórico de AUM total y TWR promedio del asesor
+- [ ] **Onboarding de asesor nuevo** — flujo guiado para primer uso de la plataforma
 
 _Próxima auditoría sugerida: 2026-04-06._
 

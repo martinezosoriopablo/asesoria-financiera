@@ -16,6 +16,7 @@ interface AdvisorInfo {
   role: AdvisorRole;
   isAdmin: boolean;
   parentAdvisorId?: string | null;
+  hasClientRole: boolean;
 }
 
 export function useAdvisor() {
@@ -39,6 +40,8 @@ export function useAdvisor() {
           .then(({ data }) => {
             if (!isMounted.current) return;
             const role: AdvisorRole = data?.rol || 'advisor';
+            const userRoles = (user.user_metadata?.roles as string[]) || [];
+            const hasClientRole = userRoles.includes('client');
             setAdvisor({
               user,
               id: data?.id || '',
@@ -54,6 +57,7 @@ export function useAdvisor() {
               role,
               isAdmin: role === 'admin',
               parentAdvisorId: data?.parent_advisor_id || null,
+              hasClientRole,
             });
             setLoading(false);
           });

@@ -198,14 +198,15 @@ export async function PUT(
       .single();
 
     if (error) {
+      console.error("Error updating client:", error.code, error.message, error.details);
       if (error.code === "PGRST116") {
         return errorResponse("Cliente no encontrado", 404);
       }
-      throw error;
+      return errorResponse("Error al actualizar: " + error.message, 400);
     }
 
-    // Registrar la actualización
-    await supabase.from("client_interactions").insert([
+    // Registrar la actualización (fire-and-forget, no bloquea el response)
+    supabase.from("client_interactions").insert([
       {
         client_id: id,
         tipo: "otro",
@@ -214,7 +215,9 @@ export async function PUT(
         resultado: "exitoso",
         created_by: advisor!.email,
       },
-    ]);
+    ]).then(({ error: intErr }) => {
+      if (intErr) console.error("Error logging interaction:", intErr.message);
+    });
 
     return successResponse({ client: updatedClient });
   });
