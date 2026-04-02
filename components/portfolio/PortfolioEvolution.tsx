@@ -429,7 +429,7 @@ export default function PortfolioEvolution({
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("es-CL", {
       style: "currency",
-      currency: "USD",
+      currency: "CLP",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -862,7 +862,7 @@ export default function PortfolioEvolution({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gb-black mb-1">Monto (USD)</label>
+                <label className="block text-sm font-medium text-gb-black mb-1">Monto (CLP)</label>
                 <input
                   type="number"
                   step="0.01"
