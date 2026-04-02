@@ -178,10 +178,17 @@ export async function PUT(
       'status', 'notas'
     ];
 
+    // Campos que Postgres espera como null (no string vacío)
+    const nullableFields = new Set([
+      'fecha_nacimiento', 'patrimonio_estimado', 'ingreso_mensual',
+      'horizonte_temporal', 'puntaje_riesgo', 'tolerancia_perdida',
+      'parent_client_id',
+    ]);
+
     const updateData: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
-        updateData[field] = body[field];
+        updateData[field] = (body[field] === "" && nullableFields.has(field)) ? null : body[field];
       }
     }
 
