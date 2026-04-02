@@ -129,6 +129,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Helper: convert empty strings to null for date/numeric fields
+    const emptyToNull = (v: unknown) => (v === "" || v === undefined) ? null : v;
+
     // Crear cliente asignado al advisor autenticado
     const { data: newClient, error } = await supabase
       .from("clients")
@@ -139,18 +142,18 @@ export async function POST(request: NextRequest) {
           email: body.email,
           telefono: body.telefono || null,
           rut: body.rut || null,
-          fecha_nacimiento: body.fecha_nacimiento || null,
-          patrimonio_estimado: body.patrimonio_estimado || null,
-          ingreso_mensual: body.ingreso_mensual || null,
+          fecha_nacimiento: emptyToNull(body.fecha_nacimiento),
+          patrimonio_estimado: emptyToNull(body.patrimonio_estimado),
+          ingreso_mensual: emptyToNull(body.ingreso_mensual),
           objetivo_inversion: body.objetivo_inversion || null,
           horizonte_temporal: body.horizonte_temporal || "largo_plazo",
           perfil_riesgo: body.perfil_riesgo || null,
-          puntaje_riesgo: body.puntaje_riesgo || null,
-          tolerancia_perdida: body.tolerancia_perdida || null,
+          puntaje_riesgo: emptyToNull(body.puntaje_riesgo),
+          tolerancia_perdida: emptyToNull(body.tolerancia_perdida),
           status: body.status || "prospecto",
           notas: body.notas || null,
           asesor_id: advisor!.id, // Siempre asignar al advisor autenticado
-          parent_client_id: body.parent_client_id || null, // Para grupos familiares
+          parent_client_id: emptyToNull(body.parent_client_id),
         },
       ])
       .select()
