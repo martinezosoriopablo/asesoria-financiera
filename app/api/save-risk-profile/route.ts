@@ -48,9 +48,10 @@ export async function POST(req: NextRequest) {
     }
     const requestOrigin = origin || (referer ? new URL(referer).origin : null);
     if (requestOrigin && requestOrigin !== allowedOrigin) {
-      // In development, also allow localhost
-      const isDev = allowedOrigin.includes("localhost") || requestOrigin.includes("localhost");
-      if (!isDev) {
+      const host = req.headers.get("host") || "";
+      const isSameHost = requestOrigin.includes(host) && host.length > 0;
+      const isDev = requestOrigin.includes("localhost") || process.env.NODE_ENV === "development";
+      if (!isSameHost && !isDev) {
         return NextResponse.json({ error: "Origen no autorizado" }, { status: 403 });
       }
     }

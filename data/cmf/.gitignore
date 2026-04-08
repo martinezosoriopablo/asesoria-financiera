@@ -1,0 +1,5 @@
+# CMF downloaded data files (large, not for git)
+*.txt
+*.csv
+metadata.json
+.download-tmp/
