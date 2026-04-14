@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
     }
 
     // --- HMAC token verification ---
-    const hmacSecret = process.env.CRON_SECRET || "fallback";
+    const hmacSecret = process.env.HMAC_SECRET || process.env.CRON_SECRET;
+    if (!hmacSecret) {
+      return NextResponse.json({ error: "Configuración de servidor incompleta" }, { status: 500 });
+    }
     const tokenPayload = advisorEmailFromClient ? `${email}:${advisorEmailFromClient}` : email;
     const expectedToken = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
     if (!token || typeof token !== "string" || !crypto.timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expectedToken, "hex"))) {

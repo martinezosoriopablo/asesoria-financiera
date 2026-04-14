@@ -1,7 +1,7 @@
 # Auditoría Completa — Greybark Advisors
 ## Plataforma de Asesoría Financiera
 
-**Fecha:** 23 de marzo 2026 (actualizado 1 de abril 2026)
+**Fecha:** 23 de marzo 2026 (actualizado 14 de abril 2026)
 **Stack:** Next.js 16 + React 19 + Supabase + TypeScript + Tailwind CSS v4
 **Deployment:** Vercel (asesoria-financiera.vercel.app)
 **Marca:** Greybark Advisors
@@ -134,6 +134,7 @@
 | Cron reportes L-V 12pm | ✅ Funciona | `/api/cron/send-reports` |
 | Cron check-drift L-V 1pm | ✅ Funciona | `/api/cron/check-drift` |
 | Cron sync Fintual L-V 10am | ✅ Funciona | `/api/cron/sync-fintual` |
+| Sync FI CMF diario 21:00 (local) | ✅ Funciona | Task Scheduler + `scripts/sync-fi-diario.bat` |
 
 ### 1.13 Otras Herramientas
 | Funcionalidad | Estado | Ruta |
@@ -153,6 +154,7 @@
 |---|---|---|
 | **Fintual API** | Catálogo de fondos mutuos chilenos + precios | ✅ Activo |
 | **AAFM** | Precios diarios, rentabilidades, patrimonio | ✅ Activo |
+| **CMF** | Fondos de inversión FIRES (152 fondos, precios diarios via scraping + 2captcha) | ✅ Activo |
 | **Yahoo Finance** | Precios internacionales (acciones, ETFs) | ✅ Activo |
 | **Alpha Vantage** | Fallback de precios cuando Yahoo no disponible | ✅ Activo |
 | **Bolsa de Santiago** | Precios en tiempo real acciones chilenas | ✅ Activo |
@@ -326,10 +328,14 @@ RECIBE EMAIL INVITACIÓN → Configura contraseña (nuevo) o Login directo (exis
 - `portfolio_snapshots` — Cartolas parseadas (holdings JSONB, valores, retornos)
 - `portfolio_models` — Plantillas de portafolio guardadas
 
-### Tablas de Fondos
+### Tablas de Fondos Mutuos
 - `fintual_providers` — AGFs (administradoras)
 - `fintual_funds` — Catálogo de fondos/series
 - `fintual_prices` — Precios históricos diarios
+
+### Tablas de Fondos de Inversión (CMF)
+- `fondos_inversion` — Catálogo de 152 fondos FIRES (rut, nombre, administradora, tipo, series_detectadas, sync status)
+- `fondos_inversion_precios` — Precios diarios por serie (valor_libro, valor_economico, patrimonio_neto, n_aportantes, rent_diaria)
 
 ### Tablas de Inversión Directa
 - `direct_portfolios` — Portafolios de acciones/bonos
@@ -366,8 +372,8 @@ RECIBE EMAIL INVITACIÓN → Configura contraseña (nuevo) o Login directo (exis
 | Rutas de página | ~20 |
 | API endpoints | ~70+ |
 | Componentes React | ~55+ |
-| Tablas en BD | ~25 |
-| Integraciones externas | 10 |
+| Tablas en BD | ~27 |
+| Integraciones externas | 11 |
 | Dependencias (prod) | 15+ |
 | Dependencias (dev) | 12 |
 | Líneas de código estimadas | ~20,000-25,000 |

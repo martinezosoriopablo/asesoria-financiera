@@ -34,11 +34,13 @@ export async function GET() {
   let questionnaireLink: string | null = null;
   if (!riskProfile && advisor) {
     const crypto = await import("crypto");
-    const hmacSecret = process.env.CRON_SECRET || "fallback";
-    const tokenPayload = `${client!.email}:${advisor.email}`;
-    const token = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(client!.email)}&advisor=${encodeURIComponent(advisor.email)}&token=${token}`;
+    const hmacSecret = process.env.HMAC_SECRET || process.env.CRON_SECRET;
+    if (hmacSecret) {
+      const tokenPayload = `${client!.email}:${advisor.email}`;
+      const token = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(client!.email)}&advisor=${encodeURIComponent(advisor.email)}&token=${token}`;
+    }
   }
 
   // Count unread reports for badge

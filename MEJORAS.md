@@ -214,6 +214,20 @@ Ultima auditoria: 2026-04-01
 - [x] **"¿Olvidaste tu contraseña?"** — link agregado en portal login apuntando a `/forgot-password` (2026-04-01)
 - [x] **`useAdvisor` hook** — ahora expone `hasClientRole` derivado de `user_metadata.roles` (2026-04-01)
 
+## RESUELTOS (2026-04-14)
+
+### Fondos de Inversión CMF — Carga completa
+- [x] **Pipeline de scraping CMF FI** — Scraper (`lib/cmf-fi-auto.ts`) + importador (`lib/cmf-fi-import.ts`) para descargar precios de fondos de inversión directamente desde CMF via 2captcha (reCAPTCHA v2) (2026-04-10)
+- [x] **Catálogo de 152 fondos FIRES** — `data/cmf/fondos-inversion.json` con RUT, nombre, administradora, tipo. Bootstrap via `scripts/bootstrap-fondos-inversion.ts` (2026-04-10)
+- [x] **DB: tablas `fondos_inversion` + `fondos_inversion_precios`** — Catálogo + precios diarios por serie (valor_libro, valor_economico, patrimonio_neto, n_aportantes, rent_diaria). Unique constraint `(fondo_id, serie, fecha)` (2026-04-10)
+- [x] **Script CLI `scripts/sync-fi-diario.ts`** — Sync batch con flags: `--limit`, `--rut`, `--days`, `--continue-on-error`. ~40s/fondo (captcha dominated), ~$0.45 para 152 fondos (2026-04-10)
+- [x] **Carga inicial completa** — 152/152 fondos procesados: 140 con precios + 12 empty (sin datos en rango). Total 2,841 filas de precios cargadas. 6 fondos fallaron por timeout y se reintentaron exitosamente (2026-04-14)
+- [x] **Admin UI `/admin/fondos`** — Búsqueda dual (FM + FI), precios por serie, historial 15 días, badge de sync (2026-04-10)
+- [x] **API `/api/fondos-inversion/lookup`** — Búsqueda por nombre/RUT/administradora + detalle con historial (2026-04-10)
+- [x] **Automatización diaria** — Task Scheduler Windows `SyncFI-CMF-Diario` a las 21:00, logs en `logs/sync-fi-YYYYMMDD.log`, script wrapper `scripts/sync-fi-diario.bat` (2026-04-14)
+
+---
+
 ## PENDIENTES
 
 ### Próximos pasos del flujo

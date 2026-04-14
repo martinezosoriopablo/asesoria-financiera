@@ -15,13 +15,20 @@ export async function GET(req: NextRequest) {
   }
 
   // Validate HMAC token (same logic as save-risk-profile)
-  const hmacSecret = process.env.CRON_SECRET || "fallback";
+  const hmacSecret = process.env.HMAC_SECRET || process.env.CRON_SECRET;
+  if (!hmacSecret) {
+    return NextResponse.json({ exists: false });
+  }
   const expectedToken = crypto
     .createHmac("sha256", hmacSecret)
     .update(`${email}:${advisor}`)
     .digest("hex");
 
-  if (token !== expectedToken) {
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(token, "hex"), Buffer.from(expectedToken, "hex"))) {
+      return NextResponse.json({ exists: false });
+    }
+  } catch {
     return NextResponse.json({ exists: false });
   }
 

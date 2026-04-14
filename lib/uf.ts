@@ -13,7 +13,7 @@ export async function getUFValue(): Promise<number> {
     const data = await res.json();
     const valor = data?.serie?.[0]?.valor;
     if (typeof valor === "number" && valor > 0) {
-      cachedUF = { value: Math.round(valor), timestamp: Date.now() };
+      cachedUF = { value: Math.round(valor * 100) / 100, timestamp: Date.now() };
       return cachedUF.value;
     }
   } catch {

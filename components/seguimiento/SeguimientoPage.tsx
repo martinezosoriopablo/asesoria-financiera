@@ -134,7 +134,9 @@ export default function SeguimientoPage({ clientId }: Props) {
       const res = await fetch(`/api/clients/${clientId}/rebalance-executions`);
       const result = await res.json();
       if (result.executions) setExecutions(result.executions);
-    } catch {}
+    } catch (err) {
+      console.error("Error fetching executions:", err);
+    }
   }, [clientId]);
 
   const fetchData = useCallback(async () => {
@@ -781,7 +783,9 @@ export default function SeguimientoPage({ clientId }: Props) {
                         if (res.ok) {
                           fetchExecutions();
                         }
-                      } catch {} finally {
+                      } catch (err) {
+                        console.error("Error saving execution:", err);
+                      } finally {
                         setSavingExecution(false);
                       }
                     }}

@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     // Generate HMAC token to authenticate the questionnaire submission
-    const hmacSecret = process.env.CRON_SECRET || "fallback";
+    const hmacSecret = process.env.HMAC_SECRET || process.env.CRON_SECRET;
+    if (!hmacSecret) {
+      return NextResponse.json({ error: "Configuración de servidor incompleta" }, { status: 500 });
+    }
     const tokenPayload = advisorEmail ? `${email}:${advisorEmail}` : email;
     const token = crypto.createHmac("sha256", hmacSecret).update(tokenPayload).digest("hex");
     const questionnaireLink = `${appUrl}/mi-perfil-inversor?email=${encodeURIComponent(email)}${advisorEmail ? `&advisor=${encodeURIComponent(advisorEmail)}` : ""}&token=${token}`;

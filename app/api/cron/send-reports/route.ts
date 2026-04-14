@@ -29,9 +29,9 @@ function shouldSendToday(frequency: string, lastSentAt: string | null, sendDayOf
 
   switch (frequency) {
     case "weekly":
-      return diffDays >= 5; // at least 5 days since last send
+      return diffDays >= 6; // at least 6 days since last send (allows for slight timing drift)
     case "monthly":
-      return diffDays >= 25; // at least 25 days since last send
+      return diffDays >= 27; // at least 27 days since last send
     default:
       return false;
   }
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   // Verify cron secret
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
