@@ -22,6 +22,7 @@ import {
   Settings,
   RefreshCw,
   ArrowRightLeft,
+  Search,
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
@@ -44,6 +45,7 @@ const NAV_ITEMS = [
 ];
 
 const TOOL_ITEMS = [
+  { href: '/admin/fondos', label: 'Consulta de Fondos', icon: Search },
   { href: '/market-dashboard', label: 'Market Dashboard', icon: Activity },
   { href: '/fund-center', label: 'Centro de Fondos', icon: TrendingUp },
   { href: '/calculadora-apv', label: 'Calculadora APV', icon: Calculator },
@@ -239,6 +241,14 @@ export default function AdvisorHeader({
                           >
                             <Settings className="w-4 h-4" />
                             Gestión Asesores
+                          </Link>
+                          <Link
+                            href="/admin/fondos"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gray-50"
+                          >
+                            <TrendingUp className="w-4 h-4" />
+                            Consulta de Fondos
                           </Link>
                           <Link
                             href="/admin/data-sync"

@@ -9,11 +9,12 @@ import UploadTACModal from '@/components/market/UploadTACModal';
 interface SyncStatus {
   fintual: { funds: number; providers: number; lastUpdate: string | null } | null;
   aafm: { totalFunds: number; withPrice: number; todayPrices: number; latestPriceDate: string | null } | null;
+  cmf: { latestDate: string | null; totalFondos: number; todayPrices: number; yesterdayPrices: number; autoSyncAvailable: boolean } | null;
 }
 
 export default function DataSyncPage() {
   const { advisor } = useAdvisor();
-  const [status, setStatus] = useState<SyncStatus>({ fintual: null, aafm: null });
+  const [status, setStatus] = useState<SyncStatus>({ fintual: null, aafm: null, cmf: null });
   const [loading, setLoading] = useState(true);
 
   // Sync states
@@ -21,6 +22,8 @@ export default function DataSyncPage() {
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [syncingAAFM, setSyncingAAFM] = useState(false);
   const [syncingFillPrices, setSyncingFillPrices] = useState(false);
+  const [uploadingCMF, setUploadingCMF] = useState(false);
+  const [syncingCMFAuto, setSyncingCMFAuto] = useState(false);
 
   // Results
   const [results, setResults] = useState<Array<{ key: string; msg: string; ok: boolean; ts: number }>>([]);
@@ -37,13 +40,15 @@ export default function DataSyncPage() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const [fintualRes, aafmRes] = await Promise.all([
+        const [fintualRes, aafmRes, cmfRes] = await Promise.all([
           fetch('/api/fintual/sync').then(r => r.json()).catch(() => null),
           fetch('/api/aafm/sync').then(r => r.json()).catch(() => null),
+          fetch('/api/cmf/auto-sync').then(r => r.json()).catch(() => null),
         ]);
         setStatus({
           fintual: fintualRes?.success ? fintualRes.stats : null,
           aafm: aafmRes?.success ? aafmRes : null,
+          cmf: cmfRes?.success ? cmfRes : null,
         });
       } catch { /* ignore */ }
       setLoading(false);
@@ -111,6 +116,65 @@ export default function DataSyncPage() {
     setSyncingAAFM(false);
   };
 
+  const handleAutoSyncCMF = async () => {
+    setSyncingCMFAuto(true);
+    try {
+      const res = await fetch('/api/cmf/auto-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const parts = [
+          `${data.import?.dailyPricesUpserted || 0} precios`,
+          `${data.fondos} fondos`,
+          `${data.rango?.inicio} → ${data.rango?.termino}`,
+        ];
+        if (data.captchaSolveMs) parts.push(`captcha: ${(data.captchaSolveMs / 1000).toFixed(1)}s`);
+        addResult('cmf-auto', parts.join(', '), true);
+        // Refresh status
+        fetch('/api/cmf/auto-sync').then(r => r.json()).then(d => {
+          if (d.success) setStatus(prev => ({ ...prev, cmf: d }));
+        }).catch(() => {});
+      } else {
+        addResult('cmf-auto', data.error, false);
+      }
+    } catch {
+      addResult('cmf-auto', 'Error de conexión', false);
+    }
+    setSyncingCMFAuto(false);
+  };
+
+  const handleUploadCMF = async (file: File) => {
+    setUploadingCMF(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/cmf/import', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        const r = data.result;
+        const parts = [
+          `${r.dailyPricesUpserted} precios`,
+          `${r.fondosCreated} fondos nuevos`,
+          `${r.historyUpserted} historial`,
+        ];
+        if (data.metadata) parts.push(`${data.metadata.fechaInicio} → ${data.metadata.fechaTermino}`);
+        addResult('cmf', parts.join(', '), true);
+        // Refresh status
+        fetch('/api/cmf/import').then(r => r.json()).then(d => {
+          if (d.success) setStatus(prev => ({ ...prev, cmf: d }));
+        }).catch(() => {});
+      } else {
+        addResult('cmf', data.error, false);
+      }
+    } catch {
+      addResult('cmf', 'Error de conexión', false);
+    }
+    setUploadingCMF(false);
+  };
+
   const handleFillPrices = async () => {
     setSyncingFillPrices(true);
     try {
@@ -149,6 +213,30 @@ export default function DataSyncPage() {
             Ejecutar desde computador local para fuentes que requieren IP residencial (AAFM).
           </p>
         </div>
+
+        {/* CMF Status card — primary source */}
+        {!loading && status.cmf && (
+          <div style={{ background: 'white', borderRadius: '12px', border: '2px solid #10b981', padding: '20px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', marginBottom: '8px' }}>
+                  CMF CARTOLA DIARIA — FUENTE PRINCIPAL
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: '#1a1a1a' }}>
+                  {status.cmf.totalFondos} fondos
+                </div>
+                <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                  {status.cmf.latestDate && <>Último: {status.cmf.latestDate}</>}
+                  {status.cmf.todayPrices > 0 && <> — Hoy: {status.cmf.todayPrices} precios</>}
+                  {status.cmf.yesterdayPrices > 0 && <> — Ayer: {status.cmf.yesterdayPrices} precios</>}
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: status.cmf.autoSyncAvailable ? '#10b981' : '#f59e0b', textAlign: 'right', fontWeight: '600' }}>
+                {status.cmf.autoSyncAvailable ? '2captcha configurado' : '2captcha no configurado'}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status cards */}
         {!loading && (
@@ -219,9 +307,73 @@ export default function DataSyncPage() {
           </div>
         </div>
 
+        {/* CMF Sync — Primary */}
+        <div style={{ background: 'white', borderRadius: '12px', border: '2px solid #10b981', padding: '24px', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
+            CMF Cartola Diaria
+          </h2>
+          <p style={{ fontSize: '13px', color: '#666', marginBottom: '16px' }}>
+            Fuente principal de precios. Cubre 2,500+ fondos (100% del mercado chileno).
+          </p>
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Auto-sync button — primary */}
+            <button
+              onClick={handleAutoSyncCMF}
+              disabled={syncingCMFAuto}
+              style={{
+                padding: '12px 24px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: syncingCMFAuto ? '#94a3b8' : '#10b981',
+                color: 'white',
+                cursor: syncingCMFAuto ? 'not-allowed' : 'pointer',
+                fontWeight: '700',
+                fontSize: '14px',
+              }}
+            >
+              {syncingCMFAuto ? 'Descargando + importando...' : 'Auto-Sync CMF (2captcha)'}
+            </button>
+
+            {/* Manual upload — fallback */}
+            <label
+              style={{
+                padding: '12px 24px',
+                borderRadius: '8px',
+                border: '1px solid #d1d5db',
+                backgroundColor: uploadingCMF ? '#f3f4f6' : 'white',
+                color: uploadingCMF ? '#94a3b8' : '#374151',
+                cursor: uploadingCMF ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                display: 'inline-block',
+              }}
+            >
+              {uploadingCMF ? 'Importando...' : 'Subir .txt manual'}
+              <input
+                type="file"
+                accept=".txt,.csv"
+                style={{ display: 'none' }}
+                disabled={uploadingCMF}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUploadCMF(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+
+          {syncingCMFAuto && (
+            <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: '13px', color: '#166534' }}>
+              Resolviendo CAPTCHA via 2captcha + descargando cartola + importando a Supabase... (puede tardar ~30s)
+            </div>
+          )}
+        </div>
+
         {/* Manual upload */}
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '24px', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', marginBottom: '16px' }}>Carga manual</h2>
+          <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', marginBottom: '16px' }}>Carga manual (otros)</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <button
               onClick={() => setUploadRentOpen(true)}

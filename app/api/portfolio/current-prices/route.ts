@@ -79,16 +79,94 @@ async function fetchLivePrice(
   }
 }
 
-// Fetch price from AAFM data: fintual_funds (name match) → get RUN → fondos_mutuos → fondos_rentabilidades_diarias
-// This is the most reliable path for Chilean mutual fund prices
-async function fetchAAFMPrice(
+// Fetch price from fondos_rentabilidades_diarias (fed by CMF cartola + AAFM sync)
+// CMF covers ALL 2500+ funds, AAFM ~1000. This is the most complete source.
+// Search paths: 1) Direct fondos_mutuos name match, 2) fintual_funds RUN → fondos_mutuos
+async function fetchDailyPrice(
   fundName: string,
   supabase: ReturnType<typeof createAdminClient>
-): Promise<{ price: number; date: string; fundName?: string; serie?: string } | null> {
+): Promise<{ price: number; date: string; fundName?: string; serie?: string; source: string } | null> {
   try {
     const targetSerie = detectSerieCode(fundName);
 
-    // Step 1: Find the fund in fintual_funds by name (has complete names + RUN)
+    // Path 1: Search fondos_mutuos directly by name (covers CMF-imported funds too)
+    const nameNorm = stripAccents(fundName.toLowerCase());
+    const words = nameNorm.split(/\s+/).filter(
+      (w) => w.length > 3 && !/^(fondo|mutuo|de|del|la|los|las|el|en|con|por|serie?)$/i.test(w)
+    );
+
+    if (words.length >= 2) {
+      let fondoQuery = supabase
+        .from("fondos_mutuos")
+        .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf");
+
+      for (const term of words.slice(0, Math.min(words.length, 3))) {
+        fondoQuery = fondoQuery.ilike("nombre_fondo", `%${term}%`);
+      }
+
+      const { data: fondos } = await fondoQuery.limit(20);
+
+      // If too few results with 3 terms, retry with 2
+      let matches = fondos;
+      if ((!matches || matches.length === 0) && words.length >= 3) {
+        let fallback = supabase
+          .from("fondos_mutuos")
+          .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf");
+        for (const term of words.slice(0, 2)) {
+          fallback = fallback.ilike("nombre_fondo", `%${term}%`);
+        }
+        const { data: fb } = await fallback.limit(20);
+        matches = fb;
+      }
+
+      if (matches && matches.length > 0) {
+        // Score and pick best match
+        let bestFondo = matches[0];
+        let bestScore = 0;
+
+        for (const f of matches) {
+          const fNorm = stripAccents(f.nombre_fondo.toLowerCase());
+          let score = 0;
+          for (const w of words) {
+            if (fNorm.includes(w)) score++;
+          }
+          // Serie match bonus
+          if (targetSerie && f.fm_serie) {
+            if (f.fm_serie.toUpperCase() === targetSerie) score += 5;
+          }
+          // Penalize wrong serie
+          if (targetSerie && f.fm_serie && f.fm_serie.toUpperCase() !== targetSerie) {
+            score -= 1;
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestFondo = f;
+          }
+        }
+
+        if (bestScore >= 2) {
+          const { data: priceData } = await supabase
+            .from("fondos_rentabilidades_diarias")
+            .select("valor_cuota, fecha")
+            .eq("fondo_id", bestFondo.id)
+            .order("fecha", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (priceData && priceData.valor_cuota > 0) {
+            return {
+              price: priceData.valor_cuota,
+              date: priceData.fecha,
+              fundName: bestFondo.nombre_fondo,
+              serie: bestFondo.fm_serie,
+              source: "daily_price",
+            };
+          }
+        }
+      }
+    }
+
+    // Path 2: Fallback via fintual_funds RUN → fondos_mutuos (for funds with Fintual mapping)
     const coreName = fundName
       .replace(/\b(FONDO\s+MUTUO|SERIE?)\b/gi, "")
       .replace(/\s*-\s*(BANCA\s+PRIVADA|BPRIVADA|ALTO\s+PATRIMONIO|APV|INSTITUCIONAL|CLASICA|COLABORADOR|INVERSIONIST\w*|BPRIV|ALPAT|INSTI|[A-Z])\s*$/i, "")
@@ -101,7 +179,6 @@ async function fetchAAFMPrice(
 
     if (searchTerms.length < 2) return null;
 
-    // Use up to 3 search terms for the ilike query (more precise than 2)
     let query = supabase
       .from("fintual_funds")
       .select("run, fund_name, symbol, serie_name");
@@ -114,9 +191,8 @@ async function fetchAAFMPrice(
 
     const { data: fintualMatches } = await query.limit(20);
 
-    // If too few results with 3 terms, retry with 2
-    let matches = fintualMatches;
-    if ((!matches || matches.length === 0) && searchTerms.length >= 3) {
+    let fMatches = fintualMatches;
+    if ((!fMatches || fMatches.length === 0) && searchTerms.length >= 3) {
       let fallbackQuery = supabase
         .from("fintual_funds")
         .select("run, fund_name, symbol, serie_name");
@@ -126,28 +202,26 @@ async function fetchAAFMPrice(
       if (targetSerie) {
         fallbackQuery = fallbackQuery.ilike("symbol", `%${targetSerie}%`);
       }
-      const { data: fallbackMatches } = await fallbackQuery.limit(20);
-      matches = fallbackMatches;
+      const { data: fb } = await fallbackQuery.limit(20);
+      fMatches = fb;
     }
 
-    if (!matches || matches.length === 0) return null;
+    if (!fMatches || fMatches.length === 0) return null;
 
-    // Score matches by word overlap with the original fund name
-    const nameNorm = stripAccents(coreName.toLowerCase());
-    const nameWords = nameNorm.split(/\s+/).filter((w) => w.length > 2);
+    const coreNorm = stripAccents(coreName.toLowerCase());
+    const coreWords = coreNorm.split(/\s+/).filter((w) => w.length > 2);
 
-    let bestMatch = matches[0];
+    let bestMatch = fMatches[0];
     let bestScore = -1;
 
-    for (const m of matches) {
+    for (const m of fMatches) {
       const mNorm = stripAccents(m.fund_name.toLowerCase());
       let score = 0;
-      for (const w of nameWords) {
+      for (const w of coreWords) {
         if (mNorm.includes(w)) score++;
       }
-      // Penalize if fund_name has many extra words (less specific match)
       const mWords = mNorm.split(/\s+/).filter((w) => w.length > 2);
-      const extraWords = mWords.filter((w) => !nameNorm.includes(w)).length;
+      const extraWords = mWords.filter((w) => !coreNorm.includes(w)).length;
       score -= extraWords * 0.3;
 
       if (score > bestScore) {
@@ -159,7 +233,6 @@ async function fetchAAFMPrice(
     const cleanRun = (bestMatch.run || "").replace(/-[\dK]$/i, "").trim();
     if (!cleanRun) return null;
 
-    // Step 2: Find in fondos_mutuos by RUN + serie
     const serieCode = targetSerie || "";
     let fondoQuery = supabase
       .from("fondos_mutuos")
@@ -175,7 +248,6 @@ async function fetchAAFMPrice(
 
     const fondo = fondos[0];
 
-    // Step 3: Get latest daily price
     const { data: priceData } = await supabase
       .from("fondos_rentabilidades_diarias")
       .select("valor_cuota, fecha")
@@ -191,6 +263,7 @@ async function fetchAAFMPrice(
       date: priceData.fecha,
       fundName: fondo.nombre_fondo,
       serie: fondo.fm_serie,
+      source: "daily_price",
     };
   } catch {
     return null;
@@ -350,16 +423,17 @@ export async function POST(request: NextRequest) {
         source: "none",
       };
 
-      // 0. FIRST: Try AAFM daily price via fintual_funds RUN → fondos_mutuos → fondos_rentabilidades_diarias
-      //    This is the most reliable source for Chilean mutual fund prices
+      // 0. FIRST: Try fondos_rentabilidades_diarias (fed by both CMF cartola and AAFM sync)
+      //    CMF covers ALL registered funds (2500+), AAFM only ~1000.
+      //    This table is the single source of truth for daily valor cuota.
       {
-        const aafmPrice = await fetchAAFMPrice(holding.fundName, supabase);
-        if (aafmPrice && aafmPrice.price > 0) {
-          result.currentPrice = aafmPrice.price;
-          result.lastPriceDate = aafmPrice.date;
-          result.fintualName = aafmPrice.fundName || holding.fundName;
-          result.serieName = aafmPrice.serie || null;
-          result.source = "aafm";
+        const dailyPrice = await fetchDailyPrice(holding.fundName, supabase);
+        if (dailyPrice && dailyPrice.price > 0) {
+          result.currentPrice = dailyPrice.price;
+          result.lastPriceDate = dailyPrice.date;
+          result.fintualName = dailyPrice.fundName || holding.fundName;
+          result.serieName = dailyPrice.serie || null;
+          result.source = dailyPrice.source;
           results.push(result);
           continue;
         }

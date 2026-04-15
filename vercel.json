@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/check-drift",
       "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/cmf/auto-sync",
+      "schedule": "0 21 * * 1-5"
     }
   ]
 }
