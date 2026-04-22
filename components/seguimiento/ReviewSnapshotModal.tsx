@@ -1123,10 +1123,14 @@ export default function ReviewSnapshotModal({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <input
-                        type="number"
-                        value={holding.marketValue}
-                        onChange={(e) => handleValueChange(index, parseFloat(e.target.value) || 0)}
-                        className="w-28 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:ring-1 focus:ring-blue-500"
+                        type="text"
+                        inputMode="numeric"
+                        value={holding.marketValue ? holding.marketValue.toLocaleString("es-CL") : "0"}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\./g, "").replace(/,/g, ".");
+                          handleValueChange(index, parseFloat(raw) || 0);
+                        }}
+                        className="w-32 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:ring-1 focus:ring-blue-500"
                       />
                     </td>
                     <td className="px-3 py-2 text-center">
