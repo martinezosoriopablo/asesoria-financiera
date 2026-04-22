@@ -141,6 +141,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "clientId y totalValue requeridos" }, { status: 400 });
     }
 
+    // Ensure composition exists with safe defaults
+    if (!composition) {
+      return NextResponse.json({ success: false, error: "composition requerida" }, { status: 400 });
+    }
+
     const date = snapshotDate || new Date().toISOString().split("T")[0];
 
     // Calculate total cuotas from holdings
@@ -158,7 +163,12 @@ export async function POST(request: NextRequest) {
 
     // Calculate cuotas change from previous snapshot
     const prevCuotas = prevSnapshot?.total_cuotas || 0;
-    const cuotasChange = totalCuotas - prevCuotas;
+    const rawCuotasChange = totalCuotas - prevCuotas;
+    // Apply tolerance: ignore tiny cuota differences (<0.1% of total) caused by
+    // rounding in PDF parsing. Without this, sub-cent rounding differences generate
+    // phantom cash flows that distort TWR calculations.
+    const cuotasTolerance = prevCuotas > 0 ? prevCuotas * 0.001 : 0.01;
+    const cuotasChange = Math.abs(rawCuotasChange) < cuotasTolerance ? 0 : rawCuotasChange;
 
     // Estimate cash flows from cuota changes if not provided
     // If cuotas increased, the value of new cuotas is a deposit
@@ -282,16 +292,6 @@ export async function POST(request: NextRequest) {
       source,
     };
 
-    // Check if this is the first snapshot for this client → auto-mark as baseline
-    const { count: existingCount } = await supabase
-      .from("portfolio_snapshots")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId);
-
-    if (existingCount === 0) {
-      (snapshotData as Record<string, unknown>).is_baseline = true;
-    }
-
     // Insertar o actualizar snapshot
     const { data: snapshot, error } = await supabase
       .from("portfolio_snapshots")
@@ -305,6 +305,22 @@ export async function POST(request: NextRequest) {
       console.error("Error creating snapshot:", error);
       console.error("Snapshot data that failed:", JSON.stringify(snapshotData, null, 2));
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    // Auto-mark as baseline if this is the first snapshot for this client
+    // Done AFTER insert to avoid race condition between count and insert
+    const { count: existingCount } = await supabase
+      .from("portfolio_snapshots")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId);
+
+    if (existingCount === 1 && snapshot) {
+      // Exactly one snapshot exists (the one we just created) → mark as baseline
+      await supabase
+        .from("portfolio_snapshots")
+        .update({ is_baseline: true })
+        .eq("id", snapshot.id);
+      snapshot.is_baseline = true;
     }
 
     return NextResponse.json({
@@ -377,9 +393,23 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     };
   }
 
-  const firstValue = snapshots[0].total_value;
-  const lastValue = snapshots[snapshots.length - 1].total_value;
+  const firstValue = snapshots[0].total_value || 0;
+  const lastValue = snapshots[snapshots.length - 1].total_value || 0;
   const latestSnapshot = snapshots[snapshots.length - 1];
+
+  // Guard: if first value is 0, we can't calculate returns
+  if (firstValue <= 0) {
+    return {
+      totalReturn: 0, annualizedReturn: 0, twr: 0, twrAnnualized: 0,
+      volatility: 0, maxDrawdown: 0, sharpeRatio: 0,
+      currentValue: lastValue, initialValue: firstValue,
+      dataPoints: snapshots.length,
+    };
+  }
+
+  // Period calculation (needed for volatility annualization)
+  const daysDiff = (new Date(snapshots[snapshots.length - 1].snapshot_date).getTime() -
+                   new Date(snapshots[0].snapshot_date).getTime()) / (1000 * 60 * 60 * 24);
 
   // Retorno total simple
   const totalReturn = ((lastValue - firstValue) / firstValue) * 100;
@@ -387,50 +417,71 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
   // TWR (Time-Weighted Return) - use stored value if available, otherwise calculate
   let twr = latestSnapshot.twr_cumulative || 0;
 
-  // If no stored TWR, calculate it from scratch using sub-period returns
+  // If no stored TWR, calculate from scratch using unit-value method (preferred)
+  // then fallback to cash-flow-adjusted formula
   if (!twr && snapshots.length >= 2) {
     let twrFactor = 1;
     for (let i = 1; i < snapshots.length; i++) {
-      const prevValue = snapshots[i - 1].total_value;
-      const currValue = snapshots[i].total_value;
-      const netFlow = snapshots[i].net_cash_flow || 0;
+      const prevSnapshot = snapshots[i - 1];
+      const currSnapshot = snapshots[i];
+      const prevCuotas = prevSnapshot.total_cuotas || 0;
+      const currCuotas = currSnapshot.total_cuotas || 0;
 
-      if (prevValue > 0) {
-        // Sub-period return adjusted for cash flows
-        // (End Value - Net Flow) / Beginning Value
-        const adjustedEndValue = currValue - netFlow;
-        const subPeriodReturn = adjustedEndValue / prevValue;
-        twrFactor *= subPeriodReturn;
+      let subPeriodReturn = 1;
+
+      // Prefer unit-value method (most accurate, isolates performance from cash flows)
+      if (prevCuotas > 0 && currCuotas > 0) {
+        const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+        const currUnitValue = currSnapshot.total_value / currCuotas;
+        if (prevUnitValue > 0) {
+          subPeriodReturn = currUnitValue / prevUnitValue;
+        }
+      } else if (prevSnapshot.total_value > 0) {
+        // Fallback: cash-flow-adjusted
+        const netFlow = currSnapshot.net_cash_flow || 0;
+        const adjustedEndValue = currSnapshot.total_value - netFlow;
+        subPeriodReturn = adjustedEndValue / prevSnapshot.total_value;
       }
+
+      twrFactor *= subPeriodReturn;
     }
     twr = (twrFactor - 1) * 100;
   }
 
-  // Calculate TWR-based daily returns for volatility
-  const twrDailyReturns: number[] = [];
+  // Calculate TWR-based period returns for volatility
+  const twrPeriodReturns: number[] = [];
   for (let i = 1; i < snapshots.length; i++) {
-    const prevValue = snapshots[i - 1].total_value;
-    const currValue = snapshots[i].total_value;
-    const netFlow = snapshots[i].net_cash_flow || 0;
+    const prevSnapshot = snapshots[i - 1];
+    const currSnapshot = snapshots[i];
+    const prevCuotas = prevSnapshot.total_cuotas || 0;
+    const currCuotas = currSnapshot.total_cuotas || 0;
 
-    if (prevValue > 0) {
-      const adjustedEndValue = currValue - netFlow;
-      twrDailyReturns.push((adjustedEndValue / prevValue) - 1);
+    // Use unit-value method when possible
+    if (prevCuotas > 0 && currCuotas > 0) {
+      const prevUnitValue = prevSnapshot.total_value / prevCuotas;
+      const currUnitValue = currSnapshot.total_value / currCuotas;
+      if (prevUnitValue > 0) {
+        twrPeriodReturns.push((currUnitValue / prevUnitValue) - 1);
+      }
+    } else if (prevSnapshot.total_value > 0) {
+      const netFlow = currSnapshot.net_cash_flow || 0;
+      const adjustedEndValue = currSnapshot.total_value - netFlow;
+      twrPeriodReturns.push((adjustedEndValue / prevSnapshot.total_value) - 1);
     }
   }
 
   // Volatilidad (desviación estándar de retornos TWR anualizada)
   let annualizedVol = 0;
-  if (twrDailyReturns.length > 0) {
-    const avgReturn = twrDailyReturns.reduce((a, b) => a + b, 0) / twrDailyReturns.length;
-    const variance = twrDailyReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / twrDailyReturns.length;
-    const dailyVol = Math.sqrt(variance);
-    annualizedVol = dailyVol * Math.sqrt(252) * 100; // 252 trading days
+  if (twrPeriodReturns.length > 0) {
+    const avgReturn = twrPeriodReturns.reduce((a, b) => a + b, 0) / twrPeriodReturns.length;
+    const variance = twrPeriodReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / twrPeriodReturns.length;
+    const periodVol = Math.sqrt(variance);
+    // Annualize based on actual data frequency, not assuming daily
+    const avgDaysBetweenSnapshots = daysDiff / (snapshots.length - 1);
+    const periodsPerYear = avgDaysBetweenSnapshots > 0 ? 365 / avgDaysBetweenSnapshots : 12;
+    annualizedVol = periodVol * Math.sqrt(Math.min(periodsPerYear, 252)) * 100;
   }
 
-  // Period calculation
-  const daysDiff = (new Date(snapshots[snapshots.length - 1].snapshot_date).getTime() -
-                   new Date(snapshots[0].snapshot_date).getTime()) / (1000 * 60 * 60 * 24);
   const yearsElapsed = daysDiff / 365;
 
   // Retorno anualizado simple
@@ -443,17 +494,37 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     ? (Math.pow(1 + twr / 100, 1 / yearsElapsed) - 1) * 100
     : twr;
 
-  // Max Drawdown
+  // Max Drawdown — use unit value to isolate market returns from cash flows
   let maxDrawdown = 0;
-  let peak = snapshots[0].total_value;
+  const useUnitValue = snapshots.every(s => s.total_cuotas && s.total_cuotas > 0);
 
-  for (const snapshot of snapshots) {
-    if (snapshot.total_value > peak) {
-      peak = snapshot.total_value;
+  if (useUnitValue) {
+    let peakUnitValue = snapshots[0].total_value / snapshots[0].total_cuotas!;
+    for (const snapshot of snapshots) {
+      const unitValue = snapshot.total_value / snapshot.total_cuotas!;
+      if (unitValue > peakUnitValue) {
+        peakUnitValue = unitValue;
+      }
+      const drawdown = ((peakUnitValue - unitValue) / peakUnitValue) * 100;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
     }
-    const drawdown = ((peak - snapshot.total_value) / peak) * 100;
-    if (drawdown > maxDrawdown) {
-      maxDrawdown = drawdown;
+  } else {
+    // Fallback: adjust for cumulative cash flows
+    let peak = snapshots[0].total_value;
+    let cumulativeFlow = 0;
+    for (let i = 1; i < snapshots.length; i++) {
+      const flow = snapshots[i].net_cash_flow || 0;
+      cumulativeFlow += flow;
+      const adjustedValue = snapshots[i].total_value - cumulativeFlow;
+      if (adjustedValue > peak) {
+        peak = adjustedValue;
+      }
+      const drawdown = ((peak - adjustedValue) / peak) * 100;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
     }
   }
 

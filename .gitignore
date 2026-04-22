@@ -45,3 +45,13 @@ next-env.d.ts
 *.log
 temp_*.json
 sync_output*
+
+# OCR data
+eng.traineddata
+
+# debug/probe files
+data/cmf/*debug*
+data/cmf/probe-*
+
+# supabase temp
+supabase/.temp/

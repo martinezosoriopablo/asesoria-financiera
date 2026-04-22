@@ -541,23 +541,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Get all existing snapshots from cartolas (source = 'statement' or 'manual' or 'excel')
-    const { data: snapshots, error: snapError } = await supabase
+    // 1. Get only cartola snapshots (source = 'statement' or 'manual' or 'excel')
+    //    Filter at SQL level to avoid loading unnecessary api-prices snapshots into memory
+    const { data: rawCartolaSnapshots, error: snapError } = await supabase
       .from("portfolio_snapshots")
       .select("*")
       .eq("client_id", clientId)
+      .in("source", ["manual", "statement", "excel"])
       .order("snapshot_date", { ascending: true });
 
     if (snapError) throw snapError;
-    if (!snapshots || snapshots.length === 0) {
-      return NextResponse.json(
-        { success: false, error: "No hay cartolas para este cliente" },
-        { status: 400 }
-      );
-    }
 
-    // Separate cartola snapshots (have holdings) from filled ones
-    const cartolaSnapshots = snapshots.filter(
+    // Filter to only those with valid holdings
+    const cartolaSnapshots = (rawCartolaSnapshots || []).filter(
       (s) => s.holdings && Array.isArray(s.holdings) && s.holdings.length > 0
     );
 
@@ -1020,9 +1016,10 @@ export async function POST(request: NextRequest) {
 
       const allDates = Array.from(allDatesSet).sort();
 
-      // Remove dates that already have snapshots
+      // Remove dates that already have cartola snapshots (manual/statement/excel).
+      // api-prices snapshots should be re-calculated each run with fresh market prices.
       const existingDates = new Set(
-        snapshots.map((s) => s.snapshot_date)
+        cartolaSnapshots.map((s) => s.snapshot_date)
       );
 
       const newDates = allDates.filter((d) => !existingDates.has(d));
@@ -1195,15 +1192,26 @@ export async function POST(request: NextRequest) {
         const totalCuotas = dailyHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
 
         // For backward fill: first computed value becomes the chain base (TWR = 0)
+        // We DON'T reset prevTwrCumulative — instead we chain from the cartola's cumulative TWR
+        // so the backward-filled snapshots connect seamlessly to the forward chain.
         if (range.direction === "backward" && firstBackwardValue === null) {
           firstBackwardValue = totalValue;
           prevValue = totalValue;
-          prevTwrCumulative = 0;
+          prevCuotas = totalCuotas;
+          // Don't reset prevTwrCumulative — keep chaining from the cartola snapshot
         }
 
-        // Calculate portfolio TWR
+        // Calculate portfolio TWR using unit-value method (isolates performance from cash flows)
+        // Between cartolas, quantities don't change, so unit value = totalValue / totalCuotas
         let twrPeriod = 0;
-        if (prevValue > 0) {
+        if (prevValue > 0 && prevCuotas > 0 && totalCuotas > 0) {
+          const currentUnitValue = totalValue / totalCuotas;
+          const prevUnitValue = prevValue / prevCuotas;
+          if (prevUnitValue > 0 && Number.isFinite(currentUnitValue) && Number.isFinite(prevUnitValue)) {
+            twrPeriod = ((currentUnitValue / prevUnitValue) - 1) * 100;
+          }
+        } else if (prevValue > 0) {
+          // Fallback: simple return (no cuota data)
           twrPeriod = ((totalValue / prevValue) - 1) * 100;
         }
         // Clamp

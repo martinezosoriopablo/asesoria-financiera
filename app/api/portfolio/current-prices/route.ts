@@ -65,12 +65,16 @@ async function fetchLivePrice(
     const price = latest.attributes.price;
     const date = latest.attributes.date;
 
-    // Update cache in DB (fire-and-forget)
+    // Update cache in DB (fire-and-forget with error logging)
     supabase
       .from("fintual_funds")
       .update({ last_price: price, last_price_date: date })
       .eq("fintual_id", fintualId)
-      .then(() => {});
+      .then(({ error: updateErr }) => {
+        if (updateErr) {
+          console.error(`Failed to update price cache for fintual_id=${fintualId}:`, updateErr.message);
+        }
+      });
 
     return { price, date };
   } catch (err) {
@@ -543,42 +547,53 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 3. If Fintual data is stale (>30 days), try CMF as supplement
+      // 3. If Fintual data is stale (>7 days), try CMF as supplement
+      //    CMF is the most reliable source — covers 2500+ funds including fondos de inversión
       if (result.fintualId && result.lastPriceDate) {
         const priceDate = new Date(result.lastPriceDate);
         const daysSincePrice = (Date.now() - priceDate.getTime()) / (1000 * 60 * 60 * 24);
 
-        if (daysSincePrice > 30) {
-          const cmfPrice = await fetchCMFPrice(holding.fundName, result.serieName, supabase);
-          if (cmfPrice && cmfPrice.price > 0) {
-            // Use CMF price if it's more recent
-            const cmfDate = new Date(cmfPrice.date);
-            if (cmfDate > priceDate) {
-              result.currentPrice = cmfPrice.price;
-              result.lastPriceDate = cmfPrice.date;
-              result.source = "cmf";
+        if (daysSincePrice > 7) {
+          try {
+            const cmfPrice = await fetchCMFPrice(holding.fundName, result.serieName, supabase);
+            if (cmfPrice && cmfPrice.price > 0) {
+              // Use CMF price if it's more recent
+              const cmfDate = new Date(cmfPrice.date);
+              if (cmfDate > priceDate) {
+                result.currentPrice = cmfPrice.price;
+                result.lastPriceDate = cmfPrice.date;
+                result.source = "cmf";
+              }
             }
+          } catch (cmfErr) {
+            console.error(`CMF fallback failed for ${holding.fundName}:`, cmfErr);
           }
         }
       }
 
       // 4. If no Fintual match at all, try CMF directly
       if (!result.fintualId) {
-        const cmfPrice = await fetchCMFPrice(holding.fundName, null, supabase);
-        if (cmfPrice && cmfPrice.price > 0) {
-          result.currentPrice = cmfPrice.price;
-          result.lastPriceDate = cmfPrice.date;
-          result.fintualName = holding.fundName;
-          result.source = "cmf";
+        try {
+          const cmfPrice = await fetchCMFPrice(holding.fundName, null, supabase);
+          if (cmfPrice && cmfPrice.price > 0) {
+            result.currentPrice = cmfPrice.price;
+            result.lastPriceDate = cmfPrice.date;
+            result.fintualName = holding.fundName;
+            result.source = "cmf";
+          }
+        } catch (cmfErr) {
+          console.error(`CMF direct lookup failed for ${holding.fundName}:`, cmfErr);
         }
       }
 
       // 5. Last resort: if still no price and we have clientId, use the latest snapshot holding price
+      //    Note: this is a stale fallback — the date reflects the snapshot, not a live market price
       if (!result.currentPrice && clientId) {
         const { data: latestSnap } = await supabase
           .from("portfolio_snapshots")
           .select("snapshot_date, holdings")
           .eq("client_id", clientId)
+          .in("source", ["manual", "statement", "excel"])
           .order("snapshot_date", { ascending: false })
           .limit(1)
           .single();
@@ -591,7 +606,7 @@ export async function POST(request: NextRequest) {
             if (price > 0) {
               result.currentPrice = price;
               result.lastPriceDate = latestSnap.snapshot_date;
-              result.source = "snapshot";
+              result.source = "snapshot_fallback";
             }
           }
         }

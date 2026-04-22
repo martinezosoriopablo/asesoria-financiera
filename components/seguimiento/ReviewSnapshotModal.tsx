@@ -187,6 +187,7 @@ export default function ReviewSnapshotModal({
   // Auto-match state
   const [matchSuggestions, setMatchSuggestions] = useState<MatchSuggestion[]>([]);
   const [autoMatchLoading, setAutoMatchLoading] = useState(false);
+  const [usingFallbackRates, setUsingFallbackRates] = useState(false);
   const [autoMatchComplete, setAutoMatchComplete] = useState(false);
 
   // Fetch exchange rates on mount
@@ -202,13 +203,19 @@ export default function ReviewSnapshotModal({
             eur: data.eur || 1060,
             uf: data.uf || 38500,
           });
+          // Warn if API returned but values look like fallbacks
+          if (!data.usd || !data.eur || !data.uf) {
+            setUsingFallbackRates(true);
+          }
         } else {
-          setRatesError("Error al obtener tipos de cambio");
+          setRatesError("Error al obtener tipos de cambio — usando valores estimados");
           setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
+          setUsingFallbackRates(true);
         }
       } catch {
-        setRatesError("Error de conexión");
+        setRatesError("Error de conexión — usando tipos de cambio estimados");
         setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
+        setUsingFallbackRates(true);
       } finally {
         setLoadingRates(false);
       }
@@ -757,10 +764,10 @@ export default function ReviewSnapshotModal({
               <span>UF: {formatRate(exchangeRates.uf)}</span>
             </div>
           )}
-          {ratesError && (
+          {(ratesError || usingFallbackRates) && (
             <p className="mt-1 text-xs text-amber-600">
               <AlertTriangle className="w-3 h-3 inline mr-1" />
-              {ratesError} - usando valores aproximados
+              {ratesError || "Tipos de cambio pueden estar desactualizados"} — los valores en CLP son aproximados
             </p>
           )}
         </div>
@@ -1229,7 +1236,7 @@ export default function ReviewSnapshotModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || holdings.length === 0 || loadingRates}
+              disabled={saving || holdings.length === 0 || loadingRates || totalInCLP <= 0}
               className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
               {saving ? (

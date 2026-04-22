@@ -15,6 +15,7 @@ import HoldingReturnsPanel from "./HoldingReturnsPanel";
 import HoldingDiagnosticPanel from "./HoldingDiagnosticPanel";
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
+import RadiografiaCartola from "./RadiografiaCartola";
 import {
   ArrowLeft,
   Loader,
@@ -129,6 +130,9 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [savingExecution, setSavingExecution] = useState(false);
   const [showExecutions, setShowExecutions] = useState(false);
 
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
+  const [autoFillTriggered, setAutoFillTriggered] = useState(false);
+
   const fetchExecutions = useCallback(async () => {
     try {
       const res = await fetch(`/api/clients/${clientId}/rebalance-executions`);
@@ -150,6 +154,14 @@ export default function SeguimientoPage({ clientId }: Props) {
 
       if (result.success) {
         setData(result.data);
+        // Track the most recent api-prices snapshot date for staleness indicator
+        const apiPriceSnaps = (result.data.snapshots || []).filter(
+          (s: Snapshot) => s.source === "api-prices"
+        );
+        if (apiPriceSnaps.length > 0) {
+          const latest = apiPriceSnaps[apiPriceSnaps.length - 1];
+          setLastPriceUpdate(latest.created_at || latest.snapshot_date);
+        }
       } else {
         setError(result.error || "Error al cargar datos");
       }
@@ -166,6 +178,54 @@ export default function SeguimientoPage({ clientId }: Props) {
     fetchExecutions();
   }, [fetchData, fetchExecutions]);
 
+  // Auto-fill prices if snapshots exist but prices are stale (>24h since last api-prices snapshot)
+  useEffect(() => {
+    if (autoFillTriggered || !data || fillingPrices) return;
+    const snaps = data.snapshots || [];
+    if (snaps.length === 0) return;
+
+    const cartolaSnaps = snaps.filter(
+      (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
+    );
+    if (cartolaSnaps.length === 0) return;
+
+    const apiPriceSnaps = snaps.filter((s) => s.source === "api-prices");
+    const latestCartola = cartolaSnaps[cartolaSnaps.length - 1];
+
+    // Check if fill-prices needs to run:
+    // 1) No api-prices snapshots at all (never filled)
+    // 2) Latest api-prices is older than latest cartola (new cartola uploaded)
+    // 3) Latest api-prices is >24h old and there are business days to fill
+    let shouldAutoFill = false;
+
+    if (apiPriceSnaps.length === 0) {
+      shouldAutoFill = true;
+    } else {
+      const latestApiPrice = apiPriceSnaps[apiPriceSnaps.length - 1];
+      const latestApiDate = new Date(latestApiPrice.snapshot_date);
+      const latestCartolaDate = new Date(latestCartola.snapshot_date);
+      const now = new Date();
+      const hoursSinceUpdate = (now.getTime() - new Date(latestApiPrice.created_at || latestApiPrice.snapshot_date).getTime()) / (1000 * 60 * 60);
+
+      if (latestCartolaDate > latestApiDate) {
+        shouldAutoFill = true;
+      } else if (hoursSinceUpdate > 24) {
+        // Check if there are business days to fill (today vs latest api-prices date)
+        const daysSinceLastPrice = (now.getTime() - latestApiDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceLastPrice > 1) {
+          shouldAutoFill = true;
+        }
+      }
+    }
+
+    if (shouldAutoFill) {
+      setAutoFillTriggered(true);
+      // Trigger fill-prices silently in the background (no banner unless critical error)
+      handleFillPrices(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, autoFillTriggered, fillingPrices]);
+
   const handleSnapshotAdded = () => {
     setShowAddModal(false);
     fetchData();
@@ -176,11 +236,13 @@ export default function SeguimientoPage({ clientId }: Props) {
     fetchData();
   };
 
-  const handleFillPrices = async () => {
+  const handleFillPrices = async (silent = false) => {
     if (fillingPrices) return;
     setFillingPrices(true);
-    setFillResult(null);
-    setFillDetails(null);
+    if (!silent) {
+      setFillResult(null);
+      setFillDetails(null);
+    }
     try {
       const res = await fetch("/api/portfolio/fill-prices", {
         method: "POST",
@@ -196,14 +258,22 @@ export default function SeguimientoPage({ clientId }: Props) {
         let msg = `${result.result.filled} snapshots creados (${matched}/${matches.length} holdings con precios)`;
         if (errors.length > 0) msg += ` — ${errors.length} errores`;
         if (warnings.length > 0) console.log(`Fill-prices: ${warnings.length} price warnings (normal)`, warnings.slice(0, 5));
-        setFillResult(msg);
-        setFillDetails(matches);
+        // Warn clearly if no holdings matched any price source
+        if (matched === 0 && matches.length > 0) {
+          msg = `Error: Ningún holding tiene fuente de precios. Sube precios manuales o verifica los nombres de fondos.`;
+        } else if (result.result.filled === 0 && matched > 0) {
+          msg = `Sin días nuevos para llenar (precios ya están al día)`;
+        }
+        if (!silent || (matched === 0 && matches.length > 0)) {
+          setFillResult(msg);
+          setFillDetails(matches);
+        }
         fetchData();
       } else {
-        setFillResult(`Error: ${result.error}`);
+        if (!silent) setFillResult(`Error: ${result.error}`);
       }
     } catch {
-      setFillResult("Error de conexión");
+      if (!silent) setFillResult("Error de conexión");
     } finally {
       setFillingPrices(false);
     }
@@ -407,15 +477,35 @@ export default function SeguimientoPage({ clientId }: Props) {
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               Actualizar
             </button>
-            <button
-              onClick={handleFillPrices}
-              disabled={fillingPrices || snapshots.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
-              title="Fuentes: Fintual API > CMF/AAFM > Manual. Interpola precios entre cartolas."
-            >
-              <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
-              {fillingPrices ? "Llenando..." : "Llenar Precios"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleFillPrices(false)}
+                disabled={fillingPrices || snapshots.length === 0}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
+                title="Fuentes: CMF > Fintual API > Yahoo > Manual. Interpola precios entre cartolas."
+              >
+                <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
+                {fillingPrices ? "Llenando..." : "Llenar Precios"}
+              </button>
+              {lastPriceUpdate && (
+                <span className={`text-xs ${
+                  (() => {
+                    const hours = (Date.now() - new Date(lastPriceUpdate).getTime()) / (1000 * 60 * 60);
+                    if (hours < 24) return "text-green-600";
+                    if (hours < 72) return "text-amber-600";
+                    return "text-red-500";
+                  })()
+                }`} title={`Última actualización de precios: ${new Date(lastPriceUpdate).toLocaleString("es-CL")}`}>
+                  {(() => {
+                    const hours = Math.floor((Date.now() - new Date(lastPriceUpdate).getTime()) / (1000 * 60 * 60));
+                    if (hours < 1) return "Precios actualizados";
+                    if (hours < 24) return `Precios: hace ${hours}h`;
+                    const days = Math.floor(hours / 24);
+                    return `Precios: hace ${days}d`;
+                  })()}
+                </span>
+              )}
+            </div>
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -496,8 +586,8 @@ export default function SeguimientoPage({ clientId }: Props) {
             {/* Period return - TWR */}
             <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
               <p className="text-xs text-gb-gray font-medium uppercase mb-1">TWR</p>
-              <p className={`text-2xl font-bold ${(metrics.twr || metrics.totalReturn) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatPercent(metrics.twr || metrics.totalReturn)}
+              <p className={`text-2xl font-bold ${(metrics.twr !== null && metrics.twr !== undefined ? metrics.twr : metrics.totalReturn) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatPercent(metrics.twr !== null && metrics.twr !== undefined ? metrics.twr : metrics.totalReturn)}
               </p>
               <p className="text-xs text-gb-gray mt-1">
                 {metrics.periodDays > 0 ? `${metrics.periodDays} días` : "Sin período"}
@@ -880,6 +970,16 @@ export default function SeguimientoPage({ clientId }: Props) {
             snapshot={snapshots[snapshots.length - 1] as Parameters<typeof HoldingDiagnosticPanel>[0]["snapshot"]}
             onUpdate={fetchData}
           />
+        )}
+
+        {/* Radiografía del Portafolio - X-ray de costos y alternativas */}
+        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
+          <div className="mb-6">
+            <RadiografiaCartola
+              holdings={(snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; securityId?: string | null; quantity?: number; marketPrice?: number; marketValue: number; assetClass?: string; currency?: string }>)}
+              clientName={data?.client ? `${data.client.nombre} ${data.client.apellido}` : undefined}
+            />
+          </div>
         )}
 
         {/* Holding Returns Panel */}

@@ -19,11 +19,13 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete, onSetBasel
   );
 
   // Calculate unit value and period returns
+  // Use stored twr_period as the single source of truth (calculated at creation time
+  // with full context: cuotas, cash flows, etc.). Only recalculate if not stored.
   const snapshotsWithReturns = sortedSnapshots.map((snapshot, index) => {
     const prevSnapshot = sortedSnapshots[index + 1];
     const currentCuotas = snapshot.total_cuotas || 0;
 
-    // Calculate current unit value (valor cuota)
+    // Calculate current unit value (valor cuota) for display
     const unitValue = currentCuotas > 0 ? snapshot.total_value / currentCuotas : null;
 
     if (!prevSnapshot) {
@@ -38,16 +40,16 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete, onSetBasel
     const prevCuotas = prevSnapshot.total_cuotas || 0;
     const prevUnitValue = prevCuotas > 0 ? prevSnapshot.total_value / prevCuotas : null;
 
+    // Use stored TWR as primary source — it was calculated with full context at creation time
     let periodReturn: number | null = null;
 
-    // If we have unit values, calculate price-based return (true performance)
-    if (unitValue !== null && prevUnitValue !== null) {
-      periodReturn = ((unitValue - prevUnitValue) / prevUnitValue) * 100;
-    } else if (snapshot.twr_period !== undefined && snapshot.twr_period !== 0) {
-      // Use stored TWR if available
+    if (snapshot.twr_period !== undefined && snapshot.twr_period !== null) {
       periodReturn = snapshot.twr_period;
-    } else {
-      // Fallback to simple return (less accurate)
+    } else if (unitValue !== null && prevUnitValue !== null && prevUnitValue > 0) {
+      // Fallback: recalculate from unit values if twr_period not stored
+      periodReturn = ((unitValue - prevUnitValue) / prevUnitValue) * 100;
+    } else if (prevSnapshot.total_value > 0) {
+      // Last resort: simple return
       periodReturn = ((snapshot.total_value - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
     }
 

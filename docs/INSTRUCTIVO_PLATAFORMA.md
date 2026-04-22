@@ -275,6 +275,88 @@ Si el portafolio está desalineado, el sistema sugiere:
 
 ---
 
+## 5.5 Seguimiento de Cartolas
+
+**Ruta:** `/clients/[id]/seguimiento`
+
+Permite al asesor hacer seguimiento periódico del portafolio de un cliente.
+
+### Agregar Cartola
+
+1. Haz clic en **"Agregar Cartola"**
+2. Sube PDF, Excel, o ingresa manualmente
+3. Revisa los holdings en el modal de revisión (asset class, moneda, cantidades)
+4. Guarda — el sistema auto-marca el primer snapshot como baseline
+
+### Actualización de Precios
+
+- **Automática**: Al abrir la página, si los precios tienen >24h, se ejecuta "Llenar Precios" automáticamente
+- **Manual**: Botón "Llenar Precios" para forzar actualización
+- **Indicador**: Junto al botón se muestra cuándo se actualizaron los precios por última vez (verde <24h, amarillo <72h, rojo >72h)
+
+Pipeline de precios (prioridad):
+1. **CMF** — fuente más completa (2500+ fondos, incluye fondos de inversión)
+2. **Fintual API** — fondos mutuos chilenos
+3. **Yahoo Finance** — acciones y ETFs internacionales
+4. **Bolsa de Santiago** — acciones chilenas
+5. **Precios manuales** — cargados por el asesor
+
+### Métricas Calculadas
+
+- **TWR (Time-Weighted Return)**: Retorno real descontando flujos de caja, calculado con método de valor cuota (unit-value). Si un cliente deposita o retira, el TWR refleja solo el rendimiento del mercado, no los flujos.
+- **Volatilidad**: Desviación estándar anualizada, ajustada a la frecuencia real de los datos (no asume datos diarios)
+- **Max Drawdown**: Caída máxima desde peak, usando valor cuota para aislar de flujos de caja
+- **Sharpe Ratio**: Retorno ajustado por riesgo (risk-free = 4%)
+
+### Cálculo del TWR — Detalle Técnico
+
+El TWR se calcula en **tres lugares** que ahora usan la misma fórmula:
+
+1. **Al crear snapshot** (`POST /api/portfolio/snapshots`): Calcula `twr_period` y `twr_cumulative` usando valor cuota vs snapshot anterior
+2. **Al llenar precios** (`POST /api/portfolio/fill-prices`): Calcula TWR diario entre cartolas usando unit-value
+3. **Al mostrar métricas** (`GET /api/clients/[id]/seguimiento`): Usa `twr_cumulative` almacenado, o recalcula desde unit-values como fallback
+
+Fórmula principal (unit-value):
+```
+TWR_periodo = (valor_cuota_actual / valor_cuota_anterior) - 1
+TWR_acumulado = (1 + TWR_acum_anterior) × (1 + TWR_periodo) - 1
+```
+
+La tabla de snapshots muestra el `twr_period` almacenado como fuente de verdad (no recalcula en el frontend).
+
+### Composición
+
+Muestra desglose Renta Variable / Renta Fija / Alternativas / Caja vs la cartera recomendada.
+
+### Radiografía del Portafolio (X-Ray)
+
+Análisis semiautomático que muestra al asesor el estado actual de la cartera del cliente. Se encuentra en la página de seguimiento, visible cuando hay al menos un snapshot con holdings.
+
+**Qué muestra:**
+- **Valor total** del portafolio y cantidad de holdings
+- **TAC promedio ponderado** — cuánto paga el cliente en comisiones anuales
+- **Costo anual y proyección a 10 años** — impacto real del TAC en pesos
+- **Ahorro potencial** — cuánto se ahorraría con alternativas más baratas
+- **Composición** — barra visual Renta Variable / Fija / Balanceado / Alternativos
+- **Detalle por holding** — TAC, categoría, elegibilidad APV, alternativas más económicas
+
+**Cómo usarlo:**
+1. En la página de seguimiento del cliente, busca la sección "Radiografía del Portafolio"
+2. Haz clic en "Generar Radiografía"
+3. El sistema matchea cada holding contra la base CMF (5000+ fondos), busca su TAC y alternativas más baratas en la misma categoría
+4. Expande cada holding para ver las alternativas sugeridas con su TAC y rentabilidad
+
+**Flujo recomendado para cliente nuevo:**
+Crear cliente → subir primera cartola → **generar radiografía** → perfil de riesgo → cartera recomendada → seguimiento periódico
+
+### Consideraciones
+
+- Los tipos de cambio (USD, EUR, UF) se obtienen de la API `/api/exchange-rates`. Si falla, se usan valores aproximados y se muestra un aviso amarillo.
+- Diferencias de cuotas < 0.1% se ignoran (evita flujos fantasma por redondeo del parser PDF).
+- El baseline (portafolio inicial) se marca automáticamente al crear el primer snapshot.
+
+---
+
 ## 6. Diseñador de Portafolios
 
 **Ruta:** `/portfolio-designer`

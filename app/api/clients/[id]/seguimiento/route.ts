@@ -220,9 +220,34 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     };
   }
 
-  const firstValue = snapshots[0].total_value;
-  const lastValue = snapshots[snapshots.length - 1].total_value;
+  const firstValue = snapshots[0].total_value || 0;
+  const lastValue = snapshots[snapshots.length - 1].total_value || 0;
   const latestSnapshot = snapshots[snapshots.length - 1];
+
+  // Guard: if first value is 0, we can't calculate returns
+  if (firstValue <= 0) {
+    return {
+      totalReturn: 0,
+      annualizedReturn: 0,
+      twr: 0,
+      twrAnnualized: 0,
+      volatility: 0,
+      maxDrawdown: 0,
+      sharpeRatio: 0,
+      currentValue: lastValue,
+      initialValue: firstValue,
+      dataPoints: snapshots.length,
+      periodDays: 0,
+      composition: latestSnapshot
+        ? {
+            equity: latestSnapshot.equity_percent || 0,
+            fixedIncome: latestSnapshot.fixed_income_percent || 0,
+            alternatives: latestSnapshot.alternatives_percent || 0,
+            cash: latestSnapshot.cash_percent || 0,
+          }
+        : undefined,
+    };
+  }
 
   // Retorno total simple
   const totalReturn = ((lastValue - firstValue) / firstValue) * 100;

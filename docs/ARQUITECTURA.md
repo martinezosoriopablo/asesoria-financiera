@@ -156,6 +156,7 @@ URL canónica para el cuestionario de perfil de riesgo.
 | `/advisor` | Dashboard del asesor | AdvisorDashboardSimple |
 | `/clients` | Gestión de clientes | ClientsManager |
 | `/clients/[id]` | Detalle de cliente | ClientDetail |
+| `/clients/[id]/seguimiento` | Seguimiento de cartolas y TWR | SeguimientoPage |
 | `/analisis-cartola` | Análisis de cartola y riesgo | AnalizadorCartola |
 | `/portfolio-designer` | Diseñador de portfolios | PortfolioDesignerPage |
 
@@ -222,8 +223,49 @@ URL canónica para el cuestionario de perfil de riesgo.
 ```
 /api/save-risk-profile          POST - Guardar perfil de riesgo
 /api/portfolio-comparison       GET - Comparación de portfolio
-/api/parse-portfolio-statement  POST - Parsear cartola
+/api/parse-portfolio-statement  POST - Parsear cartola PDF
+/api/parse-portfolio-excel      POST - Parsear cartola Excel
 ```
+
+### APIs de Seguimiento (Cartolas & Snapshots)
+```
+/api/portfolio/snapshots             GET, POST - CRUD de snapshots
+/api/portfolio/snapshots/[id]        GET, PUT, PATCH, DELETE - Snapshot individual
+/api/portfolio/fill-prices           POST - Llenar precios intermedios entre cartolas (TWR diario)
+/api/portfolio/fill-prices/coverage  GET - Cobertura de precios por holding
+/api/portfolio/current-prices        POST - Precios actuales para holdings
+/api/portfolio/manual-prices         GET, POST - Precios manuales del asesor
+/api/clients/[id]/seguimiento       GET - Datos consolidados de seguimiento + métricas
+/api/clients/[id]/snapshots         DELETE - Eliminar todos los snapshots
+/api/clients/[id]/cartolas          GET, POST - Gestión de cartolas
+/api/portfolio/xray                  POST - Radiografía del portafolio (costos, TAC, alternativas)
+```
+
+### APIs de Precios y Datos de Mercado
+```
+/api/cron/sync-fintual          GET - Sync diario catálogo y precios Fintual (10:00 L-V)
+/api/cron/send-reports          GET - Envío automático reportes clientes (12:00 L-V)
+/api/cron/check-drift           GET - Alertas drift vs recomendación (13:00 L-V)
+/api/cmf/auto-sync              GET - Sync CMF fondos mutuos/inversión (21:00 L-V)
+/api/aafm/sync                  POST - Sync AAFM (solo localhost, Vercel bloqueado)
+```
+
+Pipeline de precios (prioridad):
+1. CMF (fondos_rentabilidades_diarias) — fuente más confiable, 2500+ fondos incl. FI
+2. Fintual API — fondos mutuos con API abierta
+3. Yahoo Finance — acciones, ETFs internacionales
+4. Bolsa de Santiago — acciones chilenas
+5. Manual prices — precios cargados por el asesor
+6. Snapshot fallback — último precio conocido del portafolio
+
+Auto-fill: Al abrir seguimiento, si los precios tienen >24h se ejecuta fill-prices automáticamente.
+
+Cálculo de TWR (Time-Weighted Return):
+- **Método principal**: Unit-value (valor cuota) — `(currentUnitValue / prevUnitValue) - 1`
+- **Fallback**: Cash-flow-adjusted — `((endValue - netFlow) / beginValue) - 1`
+- **Encadenamiento**: Geométrico — `(1 + TWR_cum_prev) × (1 + TWR_period) - 1`
+- **Fuente de verdad**: Campo `twr_period` y `twr_cumulative` en `portfolio_snapshots`
+- **SnapshotsTable**: Usa `twr_period` almacenado como fuente primaria, no recalcula
 
 ### APIs Auxiliares
 ```
@@ -263,8 +305,22 @@ components/
 ├── portfolio/
 │   ├── CommentaryPanel.tsx
 │   ├── FundSelector.tsx
+│   ├── PortfolioEvolution.tsx
 │   ├── ProposedFundFormV2.tsx
 │   └── SavedModels.tsx
+├── seguimiento/
+│   ├── SeguimientoPage.tsx       # Página principal de seguimiento (auto-fill precios)
+│   ├── AddSnapshotModal.tsx      # Modal para agregar cartola (PDF/Excel/manual)
+│   ├── ReviewSnapshotModal.tsx   # Revisión y validación de holdings
+│   ├── SnapshotsTable.tsx        # Tabla de snapshots con métricas
+│   ├── EvolucionChart.tsx        # Gráfico evolución del portafolio
+│   ├── PerformanceAttribution.tsx # Atribución de rendimiento
+│   ├── HoldingReturnsPanel.tsx   # Retornos por holding
+│   ├── HoldingDiagnosticPanel.tsx # Diagnóstico de holdings
+│   ├── RadiografiaCartola.tsx    # Radiografía: costos TAC, alternativas baratas, ahorro potencial
+│   ├── BaselineComparison.tsx    # Comparación vs baseline
+│   ├── ComparacionBar.tsx        # Actual vs recomendado
+│   └── RecommendationHistory.tsx # Historial de recomendaciones
 ├── risk/
 │   ├── ProfileGauge.tsx
 │   ├── RetirementSummary.tsx
@@ -380,8 +436,57 @@ className="bg-[var(--gb-light)] text-[var(--gb-black)]"
 - **PDF:** @react-pdf/renderer
 - **Database:** Supabase (PostgreSQL)
 - **Auth:** Supabase Auth
-- **APIs externas:** Alpha Vantage, Yahoo Finance
+- **APIs externas:** CMF, AAFM, Fintual, Yahoo Finance, Alpha Vantage, Bolsa de Santiago
+- **Email:** Resend
+- **CAPTCHA:** 2captcha (para CMF auto-sync)
 
 ---
 
-*Última actualización: Febrero 2026*
+## Radiografía del Portafolio (X-Ray)
+
+Análisis semiautomático de la cartola del cliente ANTES del perfil de riesgo. Se activa desde la página de seguimiento cuando hay al menos un snapshot con holdings.
+
+**API**: `POST /api/portfolio/xray`
+- Input: array de holdings (`fundName`, `marketValue`, `currency`, etc.)
+- Matching: fuzzy por nombre contra `vw_fondos_completo` (5000+ fondos CMF)
+- Output: allocation, TAC promedio ponderado, costo anual, ahorro potencial, alternativas más baratas
+
+**Componente**: `RadiografiaCartola.tsx`
+- Tarjetas resumen: valor total, TAC promedio, costo anual, ahorro potencial
+- Barra de composición: Renta Variable / Fija / Balanceado / Alternativos / Otros
+- Tabla expandible por holding: TAC, categoría, APV, alternativas con TAC menor
+- Ahorro proyectado a 10 años por holding y total
+
+**Flujo recomendado**:
+1. Crear cliente → subir cartola → **Radiografía** → perfil de riesgo → cartera recomendada → seguimiento
+
+---
+
+## Bugs Corregidos (Auditoría Abril 2026)
+
+### TWR (Time-Weighted Return)
+- **fill-prices usaba retorno simple**: Cambiado de `totalValue/prevValue - 1` a unit-value `(currentUnitValue/prevUnitValue) - 1` para aislar rendimiento de flujos de caja
+- **Backward fill reseteaba cadena TWR**: Ya no resetea `prevTwrCumulative` al llenar hacia atrás, mantiene encadenamiento geométrico
+- **SnapshotsTable recalculaba TWR**: Ahora usa `twr_period` almacenado como fuente primaria en vez de recalcular en cada render
+- **Dos calculateMetrics inconsistentes**: Unificadas ambas (snapshots/route.ts y seguimiento/route.ts) para usar unit-value como método principal
+- **Max Drawdown no ajustaba por cash flows**: Ahora usa unit-value cuando disponible, fallback con flujos acumulados
+- **Metric card mostraba totalReturn cuando TWR=0**: Corregido check de `metrics.twr || totalReturn` a `metrics.twr !== null`
+- **Volatilidad asumía datos diarios**: Ahora calcula frecuencia real de datos para anualizar
+
+### Precios y Seguimiento
+- **Sin auto-fill al ver portafolio**: Ahora ejecuta fill-prices automáticamente si precios >24h al abrir seguimiento
+- **Sin indicador de frescura de precios**: Badge verde/amarillo/rojo junto al botón "Llenar Precios"
+- **Fire-and-forget sin error handling**: Cache de precios en current-prices ahora logea errores
+- **CMF fallback sin try/catch**: Agregado error handling en lookup CMF
+- **CMF activado tarde (30 días)**: Reducido threshold a 7 días (CMF es fuente más confiable)
+- **Snapshot fallback indistinguible**: Nuevo source `snapshot_fallback` diferenciado de `snapshot`
+- **api-prices cargados innecesariamente en fill-prices**: Filtro SQL directo `in("source", [...])` en vez de cargar todo y filtrar en memoria
+
+### Snapshots
+- **Race condition en baseline**: Marca `is_baseline` después del insert (si count=1), no antes
+- **Cash flows fantasma por redondeo**: Tolerancia de 0.1% en diferencia de cuotas
+- **Warning de tipos de cambio fallback**: Indicador visual cuando se usan valores estimados
+
+---
+
+*Última actualización: Abril 2026*
