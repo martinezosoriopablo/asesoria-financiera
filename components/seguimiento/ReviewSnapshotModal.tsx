@@ -15,6 +15,7 @@ interface Holding {
   assetClass?: string;
   currency?: string;
   source?: string; // Custodian name
+  isPrevisional?: boolean;
 }
 
 interface ParsedData {
@@ -1063,9 +1064,16 @@ export default function ReviewSnapshotModal({
                           <p className="text-xs font-medium text-gb-black truncate" title={holding.fundName}>
                             {holding.fundName}
                           </p>
-                          {holding.securityId && (
-                            <p className="text-xs text-gb-gray">{holding.securityId}</p>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {holding.securityId && (
+                              <span className="text-xs text-gb-gray">{holding.securityId}</span>
+                            )}
+                            {holding.isPrevisional && (
+                              <span className="text-[10px] px-1 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">
+                                Previsional
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <button
                           onClick={() => searchFundPrice(index, holding.fundName)}

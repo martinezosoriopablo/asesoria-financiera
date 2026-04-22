@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        max_tokens: 16384,
         messages: [
           {
             role: "user",
@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
                 type: "text",
                 text: `Analiza esta cartola o estado de cuenta de inversiones y extrae los datos como JSON.
 El documento puede ser de cualquier institución financiera (corredora de bolsa, banco, custodio, clearing house, etc.).
+IMPORTANTE: El documento puede tener MÚLTIPLES PÁGINAS. Debes extraer TODOS los holdings de TODAS las páginas, no solo la primera.
 
 RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
 {
@@ -208,7 +209,8 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
       "costBasis": number,
       "marketPrice": number,
       "marketValue": number,
-      "unrealizedGainLoss": number
+      "unrealizedGainLoss": number,
+      "isPrevisional": boolean
     }
   ]
 }
@@ -264,9 +266,25 @@ Clasifica CADA holding en uno de estos mercados:
 - "US" = Acción o ETF listado en bolsa estadounidense (NYSE/NASDAQ)
   Indicadores: ticker corto 1-5 letras (AAPL, VOO, VTI, BND), precio en USD
 
+REGLAS PARA "isPrevisional" (FONDOS PREVISIONALES vs VOLUNTARIOS):
+Determina si cada holding es un fondo previsional (ahorro obligatorio/pensión) o voluntario:
+- isPrevisional = true si:
+  * El fondo pertenece a una AFP (Habitat, Capital, Cuprum, Modelo, PlanVital, Provida, Uno)
+  * El nombre incluye "APV", "Ahorro Previsional", "Cuenta 2", "Cuenta Obligatoria"
+  * La sección del documento dice "Ahorro Previsional", "Fondos de Pensiones", "AFP"
+  * Es un fondo tipo A, B, C, D, E de una AFP
+- isPrevisional = false si:
+  * Es un fondo mutuo de una AGF (administradora general de fondos)
+  * Es una acción, ETF, bono, o instrumento de renta fija
+  * La sección dice "Inversiones Voluntarias", "Cartera de Inversión", "Fondos Mutuos"
+  * No hay indicadores previsionales
+
 OTRAS REGLAS:
-- Extrae TODOS los holdings/posiciones listados
+- RECORRE TODAS LAS PÁGINAS del documento, no solo la primera
+- Extrae TODOS los holdings/posiciones listados en todo el documento
 - Busca secciones como "Portfolio Holdings", "Investment Positions", "Asset Detail", "Detalle de Inversiones", "Posiciones", etc.
+- Si hay holdings en varias páginas (continuación de tabla), inclúyelos todos
+- Verifica que el número total de holdings extraídos coincida con lo que muestra el documento
 
 RESPONDE SOLO CON EL JSON, NADA MÁS.`,
               },
