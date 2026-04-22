@@ -227,6 +227,20 @@ export async function getSubordinateAdvisorIds(adminId: string): Promise<string[
 }
 
 /**
+ * Obtiene IDs de clientes compartidos con este advisor.
+ */
+export async function getSharedClientIds(advisorId: string): Promise<string[]> {
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { data: shares } = await supabaseAdmin
+    .from("client_advisors")
+    .select("client_id")
+    .eq("advisor_id", advisorId);
+
+  return shares?.map(s => s.client_id) || [];
+}
+
+/**
  * Crea un cliente Supabase con service role para operaciones admin.
  * SOLO usar después de verificar autenticación con requireAuth() o requireAdvisor().
  */

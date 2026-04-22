@@ -29,6 +29,8 @@ import {
   Download,
   CheckCircle2,
   X,
+  Share2,
+  UserPlus,
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ReportConfigPanel from "@/components/clients/ReportConfigPanel";
@@ -137,6 +139,11 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [portalLink, setPortalLink] = useState<string | null>(null);
   const [uploadingContract, setUploadingContract] = useState(false);
   const [contractError, setContractError] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareAdvisors, setShareAdvisors] = useState<Array<{ id: string; nombre: string; apellido: string; email: string }>>([]);
+  const [currentShares, setCurrentShares] = useState<Array<{ id: string; advisor_id: string; role: string; advisor: { id: string; nombre: string; apellido: string; email: string } }>>([]);
+  const [sharingWith, setSharingWith] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
   const [savingFamily, setSavingFamily] = useState(false);
   const [familyForm, setFamilyForm] = useState({
     nombre: "",
@@ -165,6 +172,60 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   useEffect(() => {
     fetchClient();
   }, [fetchClient]);
+
+  const fetchShareData = useCallback(async () => {
+    setShareLoading(true);
+    try {
+      const [sharesRes, advisorsRes] = await Promise.all([
+        fetch(`/api/clients/${clientId}/share`),
+        fetch("/api/advisors"),
+      ]);
+      const sharesData = await sharesRes.json();
+      const advisorsData = await advisorsRes.json();
+      if (sharesData.success) setCurrentShares(sharesData.shares || []);
+      if (advisorsData.success) setShareAdvisors(advisorsData.advisors || []);
+    } catch (error) {
+      console.error("Error fetching share data:", error);
+    } finally {
+      setShareLoading(false);
+    }
+  }, [clientId]);
+
+  const handleShare = async (targetAdvisorId: string) => {
+    setSharingWith(targetAdvisorId);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ advisor_id: targetAdvisorId, role: "editor" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchShareData();
+      }
+    } catch (error) {
+      console.error("Error sharing client:", error);
+    } finally {
+      setSharingWith(null);
+    }
+  };
+
+  const handleUnshare = async (targetAdvisorId: string) => {
+    setSharingWith(targetAdvisorId);
+    try {
+      const res = await fetch(`/api/clients/${clientId}/share?advisor_id=${targetAdvisorId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchShareData();
+      }
+    } catch (error) {
+      console.error("Error unsharing client:", error);
+    } finally {
+      setSharingWith(null);
+    }
+  };
 
   const handleAddInteraction = async () => {
     try {
@@ -426,6 +487,16 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
               Editar
             </button>
             <button
+              onClick={() => {
+                fetchShareData();
+                setShowShareModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-purple-200 text-purple-600 rounded-md hover:bg-purple-50 transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              Compartir
+            </button>
+            <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors"
             >
@@ -434,6 +505,111 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
             </button>
           </div>
         </div>
+
+        {/* Share client modal */}
+        {showShareModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl w-full">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gb-black flex items-center gap-2">
+                  <Share2 className="w-5 h-5 text-purple-600" />
+                  Compartir Cliente
+                </h3>
+                <button onClick={() => setShowShareModal(false)} className="text-gb-gray hover:text-gb-black">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {shareLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader className="w-5 h-5 animate-spin text-purple-500" />
+                </div>
+              ) : (
+                <>
+                  {/* Current shares */}
+                  {currentShares.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-gb-gray uppercase mb-2">Compartido con</p>
+                      <div className="space-y-2">
+                        {currentShares.map((share) => (
+                          <div key={share.id} className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-md px-3 py-2">
+                            <div>
+                              <p className="text-sm font-medium text-gb-black">
+                                {share.advisor?.nombre} {share.advisor?.apellido}
+                              </p>
+                              <p className="text-xs text-gb-gray">{share.advisor?.email}</p>
+                            </div>
+                            <button
+                              onClick={() => handleUnshare(share.advisor_id)}
+                              disabled={sharingWith === share.advisor_id}
+                              className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {sharingWith === share.advisor_id ? (
+                                <Loader className="w-3 h-3 animate-spin" />
+                              ) : (
+                                "Quitar"
+                              )}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Available advisors to share with */}
+                  {(() => {
+                    const sharedIds = new Set(currentShares.map(s => s.advisor_id));
+                    const available = shareAdvisors.filter(
+                      a => a.id !== advisor?.id && !sharedIds.has(a.id)
+                    );
+
+                    if (available.length === 0) {
+                      return (
+                        <p className="text-sm text-gb-gray text-center py-4">
+                          {shareAdvisors.length <= 1
+                            ? "No hay otros asesores registrados"
+                            : "Ya compartido con todos los asesores"}
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div>
+                        <p className="text-xs font-semibold text-gb-gray uppercase mb-2">Agregar asesor</p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {available.map((a) => (
+                            <div key={a.id} className="flex items-center justify-between border border-slate-200 rounded-md px-3 py-2 hover:bg-slate-50">
+                              <div>
+                                <p className="text-sm font-medium text-gb-black">
+                                  {a.nombre} {a.apellido}
+                                </p>
+                                <p className="text-xs text-gb-gray">{a.email}</p>
+                              </div>
+                              <button
+                                onClick={() => handleShare(a.id)}
+                                disabled={sharingWith === a.id}
+                                className="flex items-center gap-1 text-xs px-2 py-1 text-purple-600 border border-purple-200 rounded hover:bg-purple-50 disabled:opacity-50"
+                              >
+                                {sharingWith === a.id ? (
+                                  <Loader className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <UserPlus className="w-3 h-3" />
+                                    Compartir
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Delete confirmation modal */}
         {showDeleteConfirm && (

@@ -2,7 +2,7 @@
 // Endpoint consolidado para seguimiento de cartolas
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedClientIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
@@ -101,12 +101,17 @@ export async function GET(
     }
 
     if (client.asesor_id && client.asesor_id !== advisor!.id) {
+      let authorized = false;
       if (advisor!.rol === "admin") {
         const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
-        if (!allowedIds.includes(client.asesor_id)) {
-          return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
-        }
-      } else {
+        authorized = allowedIds.includes(client.asesor_id);
+      }
+      if (!authorized) {
+        // Check shared access
+        const sharedIds = await getSharedClientIds(advisor!.id);
+        authorized = sharedIds.includes(clientId);
+      }
+      if (!authorized) {
         return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
       }
     }

@@ -1,7 +1,7 @@
 // app/api/clients/[id]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedClientIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { logAuditEvent } from "@/lib/audit";
@@ -47,9 +47,16 @@ async function verifyClientAccess(
     ? allowedAdvisorIds.includes(client.asesor_id)
     : false;
 
+  // Check shared access
+  let isShared = false;
+  if (!isOwned && !isOrphan && !isSubordinate) {
+    const sharedIds = await getSharedClientIds(advisorId);
+    isShared = sharedIds.includes(clientId);
+  }
+
   return {
     exists: true,
-    canAccess: isOwned || isOrphan || isSubordinate,
+    canAccess: isOwned || isOrphan || isSubordinate || isShared,
     isOrphan,
   };
 }

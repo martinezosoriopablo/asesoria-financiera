@@ -1,7 +1,7 @@
 // app/api/clients/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedClientIds } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { logAuditEvent } from "@/lib/audit";
@@ -34,15 +34,22 @@ export async function GET(request: NextRequest) {
       allowedAdvisorIds = await getSubordinateAdvisorIds(advisor!.id);
     }
 
+    // Obtener clientes compartidos conmigo
+    const sharedClientIds = await getSharedClientIds(advisor!.id);
+
     // Construir filtro de asesores
     let advisorFilterStr: string;
     if (advisorFilter && advisor!.rol === 'admin' && allowedAdvisorIds.includes(advisorFilter)) {
       // Admin filtrando por un asesor específico
       advisorFilterStr = `asesor_id.eq.${advisorFilter}`;
     } else {
-      // Mostrar todos los permitidos + huérfanos
-      const idsFilter = allowedAdvisorIds.map(id => `asesor_id.eq.${id}`).join(',');
-      advisorFilterStr = `${idsFilter},asesor_id.is.null`;
+      // Mostrar todos los permitidos + huérfanos + compartidos
+      const parts = allowedAdvisorIds.map(id => `asesor_id.eq.${id}`);
+      parts.push('asesor_id.is.null');
+      if (sharedClientIds.length > 0) {
+        parts.push(...sharedClientIds.map(id => `id.eq.${id}`));
+      }
+      advisorFilterStr = parts.join(',');
     }
 
     let query = supabase
