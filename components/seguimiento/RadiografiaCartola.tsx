@@ -51,6 +51,32 @@ interface HoldingAnalysis {
   potentialSaving10Y: number | null;
 }
 
+interface ProposalHolding {
+  originalFund: string;
+  proposedFund: string;
+  proposedAgf: string;
+  proposedSerie: string;
+  categoria: string;
+  marketValue: number;
+  weight: number;
+  currentTac: number | null;
+  proposedTac: number;
+  currentRent12m: number | null;
+  proposedRent12m: number | null;
+  proposedSharpe: number | null;
+  tacSavingBps: number;
+  changed: boolean;
+}
+
+interface OptimizedProposal {
+  holdings: ProposalHolding[];
+  currentTacPromedio: number;
+  proposedTacPromedio: number;
+  currentCostoAnual: number;
+  proposedCostoAnual: number;
+  ahorroFondosAnual: number;
+}
+
 interface XrayData {
   totalValue: number;
   totalValueCLP: number;
@@ -70,6 +96,7 @@ interface XrayData {
   holdingsConTac: number;
   holdingsSinTac: number;
   holdingsConAlternativa: number;
+  proposal: OptimizedProposal;
 }
 
 interface Holding {
@@ -102,6 +129,9 @@ export default function RadiografiaCartola({ holdings, clientName }: Props) {
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Advisory fee state (editable, default 1%)
+  const [advisoryFee, setAdvisoryFee] = useState<number>(1.0);
+
   const runXray = async () => {
     setLoading(true);
     setError(null);
@@ -131,7 +161,7 @@ export default function RadiografiaCartola({ holdings, clientName }: Props) {
       const res = await fetch("/api/portfolio/xray-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ xrayData, clientName }),
+        body: JSON.stringify({ xrayData, clientName, advisoryFee }),
       });
       const result = await res.json();
       if (result.success) {
@@ -531,6 +561,173 @@ export default function RadiografiaCartola({ holdings, clientName }: Props) {
             })}
         </div>
       </div>
+
+      {/* Proposal Section — "Nuestra Propuesta" */}
+      {data.proposal && (
+        <div className="bg-white rounded-lg border border-gb-border shadow-sm">
+          <div className="px-4 py-3 border-b border-gb-border">
+            <h3 className="text-sm font-semibold text-gb-black">
+              Propuesta de Optimización
+            </h3>
+            <p className="text-xs text-gb-gray mt-0.5">
+              Comparación entre fondos actuales y alternativas de menor costo con igual o mejor rendimiento
+            </p>
+          </div>
+
+          {/* Proposal comparison table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-gb-border">
+                  <th className="text-left px-3 py-2 font-semibold text-gb-gray">Actual</th>
+                  <th className="text-left px-3 py-2 font-semibold text-gb-gray">Propuesto</th>
+                  <th className="text-center px-3 py-2 font-semibold text-gb-gray">Categoría</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gb-gray">Peso</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gb-gray">TAC Actual</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gb-gray">TAC Propuesto</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gb-gray">Rent. 12M</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gb-gray">Ahorro</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gb-border">
+                {data.proposal.holdings
+                  .sort((a, b) => b.weight - a.weight)
+                  .map((ph, i) => (
+                    <tr key={i} className={ph.changed ? "bg-green-50/50" : ""}>
+                      <td className="px-3 py-2">
+                        <span className="font-medium text-gb-black truncate block max-w-[180px]" title={ph.originalFund}>
+                          {ph.originalFund.length > 28 ? ph.originalFund.substring(0, 28) + "..." : ph.originalFund}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {ph.changed ? (
+                          <div>
+                            <span className="font-medium text-green-700 truncate block max-w-[180px]" title={ph.proposedFund}>
+                              {ph.proposedFund.length > 28 ? ph.proposedFund.substring(0, 28) + "..." : ph.proposedFund}
+                            </span>
+                            <span className="text-[10px] text-gb-gray">{ph.proposedAgf} — {ph.proposedSerie}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gb-gray italic">Sin cambio</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          ph.categoria === "Renta Variable" ? "bg-blue-100 text-blue-700" :
+                          ph.categoria === "Renta Fija" ? "bg-green-100 text-green-700" :
+                          ph.categoria === "Balanceado" ? "bg-purple-100 text-purple-700" :
+                          "bg-slate-100 text-slate-700"
+                        }`}>
+                          {ph.categoria === "Renta Variable" ? "RV" :
+                           ph.categoria === "Renta Fija" ? "RF" :
+                           ph.categoria === "Balanceado" ? "Bal" :
+                           ph.categoria === "Alternativos" ? "Alt" : "Otro"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right text-gb-gray">{formatNumber(ph.weight, 1)}%</td>
+                      <td className="px-3 py-2 text-right">
+                        {ph.currentTac !== null ? (
+                          <span className={ph.currentTac > 2 ? "text-red-600 font-semibold" : ph.currentTac > 1 ? "text-amber-600" : "text-gb-black"}>
+                            {formatNumber(ph.currentTac, 2)}%
+                          </span>
+                        ) : <span className="text-gb-gray">-</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <span className={ph.changed ? "text-green-700 font-semibold" : "text-gb-gray"}>
+                          {formatNumber(ph.proposedTac, 2)}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {ph.proposedRent12m !== null ? (
+                          <span className={ph.proposedRent12m >= 0 ? "text-green-600" : "text-red-600"}>
+                            {formatPercent(ph.proposedRent12m)}
+                          </span>
+                        ) : <span className="text-gb-gray">-</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {ph.tacSavingBps > 0 ? (
+                          <span className="text-green-700 font-semibold">-{ph.tacSavingBps} bps</span>
+                        ) : <span className="text-gb-gray">-</span>}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Cost comparison summary */}
+          <div className="px-4 py-4 border-t border-gb-border bg-slate-50">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Current Cost */}
+              <div className="bg-white rounded-lg border border-gb-border p-3">
+                <p className="text-[10px] text-gb-gray font-medium uppercase mb-1">Costo Actual (Fondos)</p>
+                <p className="text-lg font-bold text-red-600">
+                  {formatNumber(data.proposal.currentTacPromedio, 2)}%
+                </p>
+                <p className="text-xs text-gb-gray">
+                  {formatCurrency(data.proposal.currentCostoAnual)}/año
+                </p>
+              </div>
+
+              {/* Proposed Cost with Advisory Fee */}
+              <div className="bg-white rounded-lg border border-green-200 p-3">
+                <p className="text-[10px] text-gb-gray font-medium uppercase mb-1">Costo Propuesto (Fondos + Fee)</p>
+                <p className="text-lg font-bold text-green-600">
+                  {formatNumber(data.proposal.proposedTacPromedio + advisoryFee, 2)}%
+                </p>
+                <div className="text-xs text-gb-gray space-y-0.5">
+                  <p>Fondos: {formatNumber(data.proposal.proposedTacPromedio, 2)}% ({formatCurrency(data.proposal.proposedCostoAnual)}/año)</p>
+                  <div className="flex items-center gap-1">
+                    <span>Advisory Fee:</span>
+                    <input
+                      type="number"
+                      value={advisoryFee}
+                      onChange={(e) => setAdvisoryFee(Math.max(0, Math.min(5, parseFloat(e.target.value) || 0)))}
+                      className="w-14 px-1 py-0.5 text-xs border border-gb-border rounded text-right"
+                      step="0.1"
+                      min="0"
+                      max="5"
+                    />
+                    <span>% ({formatCurrency(Math.round(data.totalValue * advisoryFee / 100))}/año)</span>
+                  </div>
+                  <p className="font-medium text-gb-black">
+                    Total: {formatCurrency(data.proposal.proposedCostoAnual + Math.round(data.totalValue * advisoryFee / 100))}/año
+                  </p>
+                </div>
+              </div>
+
+              {/* Net Savings */}
+              <div className="bg-white rounded-lg border border-gb-border p-3">
+                <p className="text-[10px] text-gb-gray font-medium uppercase mb-1">Ahorro Neto del Cliente</p>
+                {(() => {
+                  const costoActual = data.proposal.currentCostoAnual;
+                  const costoPropuesto = data.proposal.proposedCostoAnual + Math.round(data.totalValue * advisoryFee / 100);
+                  const ahorroNeto = costoActual - costoPropuesto;
+                  const ahorro10Y = ahorroNeto * 10 * 1.05;
+                  return (
+                    <>
+                      <p className={`text-lg font-bold ${ahorroNeto > 0 ? "text-green-600" : "text-red-600"}`}>
+                        {ahorroNeto > 0 ? "+" : ""}{formatCurrency(ahorroNeto)}/año
+                      </p>
+                      <p className="text-xs text-gb-gray">
+                        {ahorroNeto > 0
+                          ? `El cliente ahorra ${formatCurrency(Math.abs(ahorroNeto))}/año (${formatCurrency(Math.round(ahorro10Y))} en 10 años)`
+                          : ahorroNeto === 0
+                            ? "Costo equivalente con asesoría profesional"
+                            : `Costo adicional de ${formatCurrency(Math.abs(ahorroNeto))}/año por asesoría profesional`
+                        }
+                      </p>
+                      <p className="text-[10px] text-gb-gray mt-1">
+                        Diferencia TAC: {formatNumber(data.proposal.currentTacPromedio - data.proposal.proposedTacPromedio - advisoryFee, 2)}% puntos
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Report Section */}
       <div className="bg-white rounded-lg border border-gb-border shadow-sm">

@@ -62,6 +62,33 @@ interface HoldingAnalysis {
   potentialSaving10Y: number | null;
 }
 
+interface ProposalHolding {
+  originalFund: string;
+  proposedFund: string;
+  proposedAgf: string;
+  proposedSerie: string;
+  categoria: string;
+  marketValue: number;
+  weight: number;
+  currentTac: number | null;
+  proposedTac: number;
+  currentRent12m: number | null;
+  proposedRent12m: number | null;
+  proposedSharpe: number | null;
+  tacSavingBps: number; // basis points saved
+  changed: boolean; // false if no cheaper alternative found (keep current)
+}
+
+interface OptimizedProposal {
+  holdings: ProposalHolding[];
+  currentTacPromedio: number;
+  proposedTacPromedio: number;
+  currentCostoAnual: number;
+  proposedCostoAnual: number; // funds cost only (without advisory fee)
+  ahorroFondosAnual: number; // savings on fund costs
+  // Advisor can set their fee — frontend calculates total
+}
+
 interface XrayResult {
   totalValue: number;
   totalValueCLP: number;
@@ -86,6 +113,8 @@ interface XrayResult {
   holdingsConTac: number;
   holdingsSinTac: number;
   holdingsConAlternativa: number;
+  // Optimized proposal
+  proposal: OptimizedProposal;
 }
 
 function getCategoriaSimple(familia: string | null): string {
@@ -316,6 +345,71 @@ export async function POST(request: NextRequest) {
     const ahorroAnual = analyzedHoldings.reduce((s, h) => s + (h.potentialSavingAnnual || 0), 0);
     const ahorro10Y = analyzedHoldings.reduce((s, h) => s + (h.potentialSaving10Y || 0), 0);
 
+    // Build optimized proposal: for each holding, pick the best alternative
+    // Best = lowest TAC that still has decent returns (Sharpe > 0 or rent_12m >= current)
+    const proposalHoldings: ProposalHolding[] = analyzedHoldings.map((h) => {
+      const alts = h.cheaperAlternatives;
+      let bestAlt: Alternative | null = null;
+
+      if (alts.length > 0) {
+        // Prefer alternatives with good Sharpe AND significantly lower TAC
+        // Sort by: best Sharpe first, then lowest TAC
+        const ranked = [...alts].sort((a, b) => {
+          // If both have Sharpe, prefer higher Sharpe
+          if (a.sharpe_365d !== null && b.sharpe_365d !== null) {
+            if (Math.abs(a.sharpe_365d - b.sharpe_365d) > 0.1) {
+              return b.sharpe_365d - a.sharpe_365d;
+            }
+          }
+          // Then lowest TAC
+          return a.tac_sintetica - b.tac_sintetica;
+        });
+        bestAlt = ranked[0];
+      }
+
+      // Get current fund rent_12m if matched
+      let currentRent12m: number | null = null;
+      if (h.matched) {
+        const matchedFondo = fondosIndex.find(f => f.nombre_fondo === h.matchedFund);
+        if (matchedFondo) {
+          currentRent12m = matchedFondo.rent_12m_nominal;
+        }
+      }
+
+      return {
+        originalFund: h.fundName,
+        proposedFund: bestAlt ? bestAlt.nombre_fondo : h.fundName,
+        proposedAgf: bestAlt ? bestAlt.nombre_agf : (h.matchedAgf || ""),
+        proposedSerie: bestAlt ? bestAlt.fm_serie : "",
+        categoria: h.categoria,
+        marketValue: h.marketValue,
+        weight: h.weight,
+        currentTac: h.tac,
+        proposedTac: bestAlt ? bestAlt.tac_sintetica : (h.tac || 0),
+        currentRent12m,
+        proposedRent12m: bestAlt ? bestAlt.rent_12m : currentRent12m,
+        proposedSharpe: bestAlt ? bestAlt.sharpe_365d : null,
+        tacSavingBps: bestAlt && h.tac ? Math.round((h.tac - bestAlt.tac_sintetica) * 100) : 0,
+        changed: !!bestAlt,
+      };
+    });
+
+    const proposedCostoAnual = proposalHoldings.reduce(
+      (s, h) => s + (h.proposedTac / 100) * h.marketValue, 0
+    );
+    const proposedWeightedTac = proposalHoldings.reduce(
+      (s, h) => s + h.proposedTac * (h.weight / 100), 0
+    );
+
+    const proposal: OptimizedProposal = {
+      holdings: proposalHoldings,
+      currentTacPromedio: Math.round(weightedTac * 100) / 100,
+      proposedTacPromedio: Math.round(proposedWeightedTac * 100) / 100,
+      currentCostoAnual: Math.round(costoAnual),
+      proposedCostoAnual: Math.round(proposedCostoAnual),
+      ahorroFondosAnual: Math.round(costoAnual - proposedCostoAnual),
+    };
+
     const result: XrayResult = {
       totalValue,
       totalValueCLP: totalValue, // TODO: convert if multi-currency
@@ -329,6 +423,7 @@ export async function POST(request: NextRequest) {
       holdingsConTac: holdingsConTac.length,
       holdingsSinTac: analyzedHoldings.length - holdingsConTac.length,
       holdingsConAlternativa: analyzedHoldings.filter((h) => h.cheaperAlternatives.length > 0).length,
+      proposal,
     };
 
     return NextResponse.json({ success: true, data: result });
