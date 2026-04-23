@@ -240,8 +240,10 @@ export default function ReviewSnapshotModal({
               securityId: h.securityId,
               quantity: h.quantity,
               marketValue: h.marketValue,
+              marketPrice: h.marketPrice,
             })),
             cartolaSource: sources,
+            cartolaDate: fechaCartola,
           }),
         });
 

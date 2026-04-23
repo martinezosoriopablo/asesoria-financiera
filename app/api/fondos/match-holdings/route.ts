@@ -12,6 +12,7 @@ interface HoldingInput {
   securityId?: string | null;
   quantity?: number;
   marketValue?: number;
+  marketPrice?: number;
 }
 
 // Known AGF name mappings (cartola source name -> DB nombre_agf patterns)
@@ -167,9 +168,10 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
-    const { holdings, cartolaSource } = await request.json() as {
+    const { holdings, cartolaSource, cartolaDate } = await request.json() as {
       holdings: HoldingInput[];
       cartolaSource?: string | string[];
+      cartolaDate?: string; // YYYY-MM-DD
     };
 
     if (!holdings || !Array.isArray(holdings)) {
@@ -300,65 +302,168 @@ export async function POST(request: NextRequest) {
             }
 
             if (fondos && fondos.length > 0) {
-              // Find best match by comparing names
-              let bestMatch = fondos[0];
-              let bestScore = 0;
+              // Score each candidate by name + verify by price
+              const holdingPrice = holding.marketPrice;
+              const scoredCandidates: Array<{
+                fondo: typeof fondos[0];
+                nameScore: number;
+                priceMatch: boolean;
+                dbPrice?: number;
+              }> = [];
 
               for (const fondo of fondos) {
                 const fondoNameLower = fondo.nombre_fondo.toLowerCase();
-                let score = 0;
+                let nameScore = 0;
 
-                // Score based on word overlap
                 const fundWords = nameLower.split(/\s+/);
                 const fondoWords = fondoNameLower.split(/\s+/);
 
                 for (const word of fundWords) {
                   if (word.length > 3 && fondoWords.some((fw: string) => fw.includes(word) || word.includes(fw))) {
-                    score += 1;
+                    nameScore += 1;
                   }
                 }
 
-                // Bonus for AGF match from cartola source
                 if (agfSearchPatterns && !mentionsOtherAgf) {
                   const fondoAgfLower = (fondo.nombre_agf || "").toLowerCase();
                   if (agfSearchPatterns.some(p => fondoAgfLower.includes(p))) {
-                    score += 3; // Strong bonus for matching the cartola's AGF
+                    nameScore += 3;
                   }
                 }
 
-                // Bonus for explicit AGF match in fund name
                 if (fondo.nombre_agf && nameLower.includes(fondo.nombre_agf.toLowerCase())) {
-                  score += 2;
+                  nameScore += 2;
                 }
 
-                if (score > bestScore) {
-                  bestScore = score;
-                  bestMatch = fondo;
+                // Price verification: if cartola has a marketPrice, check if it matches
+                let priceMatch = false;
+                let dbPrice: number | undefined;
+
+                if (holdingPrice && holdingPrice > 0) {
+                  // Get price at cartola date (or closest)
+                  let priceQuery = supabase
+                    .from("fondos_rentabilidades_diarias")
+                    .select("valor_cuota, fecha")
+                    .eq("fondo_id", fondo.id);
+
+                  if (cartolaDate) {
+                    priceQuery = priceQuery.lte("fecha", cartolaDate);
+                  }
+
+                  const { data: priceRow } = await priceQuery
+                    .order("fecha", { ascending: false })
+                    .limit(1)
+                    .single();
+
+                  if (priceRow?.valor_cuota) {
+                    dbPrice = priceRow.valor_cuota;
+                    // Match if within 0.5% tolerance (rounding differences)
+                    const priceDiff = Math.abs(priceRow.valor_cuota - holdingPrice) / holdingPrice;
+                    priceMatch = priceDiff < 0.005;
+                  }
                 }
+
+                scoredCandidates.push({ fondo, nameScore, priceMatch, dbPrice });
               }
 
-              // Get price for best match
-              const { data: priceData } = await supabase
-                .from("fondos_rentabilidades_diarias")
-                .select("valor_cuota, fecha")
-                .eq("fondo_id", bestMatch.id)
-                .order("fecha", { ascending: false })
-                .limit(1)
-                .single();
+              // Sort: price match first, then by name score
+              scoredCandidates.sort((a, b) => {
+                if (a.priceMatch !== b.priceMatch) return a.priceMatch ? -1 : 1;
+                return b.nameScore - a.nameScore;
+              });
 
-              const confidence = bestScore >= 3 ? "high" : bestScore >= 1 ? "medium" : "low";
+              const best = scoredCandidates[0];
+
+              // Determine confidence
+              let confidence: "high" | "medium" | "low";
+              if (best.priceMatch) {
+                confidence = "high"; // Price match is definitive proof
+              } else if (best.nameScore >= 3) {
+                confidence = "high";
+              } else if (best.nameScore >= 1) {
+                confidence = "medium";
+              } else {
+                confidence = "low";
+              }
+
+              // If we don't have the price yet (no price verification was done), fetch it
+              let returnPrice = best.dbPrice;
+              if (!returnPrice) {
+                const { data: priceData } = await supabase
+                  .from("fondos_rentabilidades_diarias")
+                  .select("valor_cuota")
+                  .eq("fondo_id", best.fondo.id)
+                  .order("fecha", { ascending: false })
+                  .limit(1)
+                  .single();
+                returnPrice = priceData?.valor_cuota;
+              }
 
               return {
                 index,
                 matched: true,
-                matchType: "fund",
+                matchType: "fund" as const,
                 confidence,
-                matchedName: bestMatch.nombre_fondo,
-                matchedId: bestMatch.fo_run?.toString(),
-                price: priceData?.valor_cuota || undefined,
-                currency: bestMatch.moneda_funcional || "CLP",
-                source: bestMatch.nombre_agf,
+                matchedName: best.fondo.nombre_fondo,
+                matchedId: best.fondo.fo_run?.toString(),
+                price: returnPrice || undefined,
+                currency: best.fondo.moneda_funcional || "CLP",
+                source: best.fondo.nombre_agf,
               };
+            }
+
+            // Last resort: if holding has a price, search ALL funds of the cartola's AGF by price
+            if (holding.marketPrice && holding.marketPrice > 0 && agfSearchPatterns && cartolaDate) {
+              const agfFilter = agfSearchPatterns
+                .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
+                .join(",");
+
+              // Get all funds from this AGF
+              const { data: agfFondos } = await supabase
+                .from("fondos_mutuos")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+                .or(agfFilter)
+                .limit(100);
+
+              if (agfFondos && agfFondos.length > 0) {
+                const fondoIds = agfFondos.map(f => f.id);
+
+                // Search for price matches at the cartola date
+                const { data: priceMatches } = await supabase
+                  .from("fondos_rentabilidades_diarias")
+                  .select("fondo_id, valor_cuota, fecha")
+                  .in("fondo_id", fondoIds)
+                  .lte("fecha", cartolaDate)
+                  .gte("fecha", cartolaDate.slice(0, 8) + "01") // Same month
+                  .order("fecha", { ascending: false });
+
+                if (priceMatches) {
+                  // Find funds whose valor_cuota matches within 0.5%
+                  const seen = new Set<string>();
+                  for (const pm of priceMatches) {
+                    if (seen.has(pm.fondo_id)) continue;
+                    seen.add(pm.fondo_id);
+
+                    const diff = Math.abs(pm.valor_cuota - holding.marketPrice) / holding.marketPrice;
+                    if (diff < 0.005) {
+                      const matchedFondo = agfFondos.find(f => f.id === pm.fondo_id);
+                      if (matchedFondo) {
+                        return {
+                          index,
+                          matched: true,
+                          matchType: "fund" as const,
+                          confidence: "high" as const,
+                          matchedName: matchedFondo.nombre_fondo,
+                          matchedId: matchedFondo.fo_run?.toString(),
+                          price: pm.valor_cuota,
+                          currency: matchedFondo.moneda_funcional || "CLP",
+                          source: matchedFondo.nombre_agf,
+                        };
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
 
