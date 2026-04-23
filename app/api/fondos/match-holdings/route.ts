@@ -313,62 +313,42 @@ export async function POST(request: NextRequest) {
             const familiaFilter = detectFamiliaFilter(searchTerms);
 
             if (agfSearchPatterns && !mentionsOtherAgf) {
-              // Priority search: get funds from the cartola's AGF, filtered by familia if possible
+              // Priority search: get ALL funds from the cartola's AGF
+              // IMPORTANT: Only ONE .or() call — never chain two .or() (Supabase bug: creates OR, not AND)
               const agfFilter = agfSearchPatterns
                 .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
                 .join(",");
 
-              let agfQuery = supabase
+              const { data: agfFunds } = await supabase
                 .from("vw_fondos_completo")
                 .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
                 .or(agfFilter)
-                .limit(200);
-
-              // If we detected an asset class, filter by familia_estudios too
-              if (familiaFilter) {
-                agfQuery = agfQuery.or(familiaFilter);
-              }
-
-              const { data: agfFunds } = await agfQuery;
+                .limit(500);
 
               if (agfFunds && agfFunds.length > 0) {
-                // If we used familia filter, the results are already filtered by both AGF and familia
-                // But Supabase .or() on two separate calls doesn't AND them — so filter in code
-                let filteredByAgf = agfFunds.filter(f => {
-                  const agfLower = (f.nombre_agf || "").toLowerCase();
-                  return agfSearchPatterns.some(p => agfLower.includes(p));
-                });
-
-                // Then filter by familia_estudios in code if we have a classification
-                if (familiaFilter && filteredByAgf.length > 0) {
-                  const familiaFiltered = filteredByAgf.filter(f => {
+                // Step 1: Filter by familia_estudios in code if we detected asset class
+                let candidates = agfFunds;
+                if (familiaFilter) {
+                  const familiaFiltered = agfFunds.filter(f => {
                     if (!f.familia_estudios) return false;
                     const fam = f.familia_estudios.toLowerCase();
-                    // Check the same patterns we use in familiaFilter
-                    if (familiaFilter.includes("accionario") || familiaFilter.includes("renta variable")) {
-                      return fam.includes("accionario") || fam.includes("renta variable");
-                    }
-                    if (familiaFilter.includes("deuda") || familiaFilter.includes("renta fija")) {
-                      return fam.includes("deuda") || fam.includes("renta fija");
-                    }
-                    if (familiaFilter.includes("balanceado")) {
-                      return fam.includes("balanceado");
-                    }
+                    if (familiaFilter.includes("accionario")) return fam.includes("accionario") || fam.includes("renta variable");
+                    if (familiaFilter.includes("deuda")) return fam.includes("deuda") || fam.includes("renta fija");
+                    if (familiaFilter.includes("balanceado")) return fam.includes("balanceado");
                     return true;
                   });
-                  // Use familia-filtered if it found results, otherwise fall back to all AGF funds
                   if (familiaFiltered.length > 0) {
-                    filteredByAgf = familiaFiltered;
+                    candidates = familiaFiltered;
                   }
                 }
 
-                // Further filter by name keywords using synonyms
+                // Step 2: Further filter by name keywords using synonyms
                 const relevantTerms = searchTerms
                   .filter(t => !agfSearchPatterns.some(p => t.includes(p)));
 
                 if (relevantTerms.length > 0) {
                   const expandedTermSets = relevantTerms.map(t => expandSynonyms(t));
-                  const nameFiltered = filteredByAgf.filter(f => {
+                  const nameFiltered = candidates.filter(f => {
                     const fName = f.nombre_fondo.toLowerCase();
                     return expandedTermSets.some(synonyms =>
                       synonyms.some(syn => fName.includes(syn))
@@ -379,9 +359,9 @@ export async function POST(request: NextRequest) {
                   }
                 }
 
-                // If keyword filter found nothing, use all AGF+familia funds
+                // If keyword filter found nothing, use all AGF+familia candidates
                 if (!fondos || fondos.length === 0) {
-                  fondos = filteredByAgf;
+                  fondos = candidates;
                 }
               }
             }
