@@ -262,32 +262,33 @@ export async function POST(request: NextRequest) {
             }> | null = null;
 
             if (agfSearchPatterns && !mentionsOtherAgf) {
-              // Priority search: within the cartola's AGF
+              // Priority search: get ALL funds from the cartola's AGF, then filter by name in code
               const agfFilter = agfSearchPatterns
                 .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
                 .join(",");
-              const termFilter = searchTerms
-                .filter(t => !agfSearchPatterns.some(p => t.includes(p)))
-                .slice(0, 2)
-                .map(t => `nombre_fondo.ilike.%${sanitizeSearchInput(t)}%`)
-                .join(",");
 
-              if (termFilter) {
-                const { data } = await supabase
-                  .from("fondos_mutuos")
-                  .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
-                  .or(agfFilter)
-                  .or(termFilter)
-                  .limit(10);
-                fondos = data;
-              } else {
-                // No type keywords found - search all funds of this AGF
-                const { data } = await supabase
-                  .from("fondos_mutuos")
-                  .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
-                  .or(agfFilter)
-                  .limit(20);
-                fondos = data;
+              const { data: agfFunds } = await supabase
+                .from("fondos_mutuos")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+                .or(agfFilter)
+                .limit(200);
+
+              if (agfFunds && agfFunds.length > 0) {
+                // Filter by name keywords in code (AND logic: must be from this AGF AND match keywords)
+                const relevantTerms = searchTerms
+                  .filter(t => !agfSearchPatterns.some(p => t.includes(p)));
+
+                if (relevantTerms.length > 0) {
+                  fondos = agfFunds.filter(f => {
+                    const fName = f.nombre_fondo.toLowerCase();
+                    return relevantTerms.some(t => fName.includes(t));
+                  });
+                }
+
+                // If keyword filter found nothing, use all AGF funds (will be scored below)
+                if (!fondos || fondos.length === 0) {
+                  fondos = agfFunds;
+                }
               }
             }
 
