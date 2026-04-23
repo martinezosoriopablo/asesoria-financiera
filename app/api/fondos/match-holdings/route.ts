@@ -48,6 +48,25 @@ interface MatchResult {
   source?: string;
 }
 
+// Synonym groups: if the cartola says "acciones", it should also match "accionario" in DB
+const SYNONYM_GROUPS: string[][] = [
+  ["accionario", "acciones", "accion", "equity", "renta variable"],
+  ["renta fija", "fixed income", "bond", "deuda", "bonos"],
+  ["money market", "liquidez", "cash", "mercado monetario"],
+  ["balanceado", "balanced", "mixto"],
+  ["nacional", "chile", "chileno", "local"],
+  ["internacional", "global", "extranjero", "int"],
+  ["emergente", "emerging"],
+  ["latam", "latinoamerica", "latin"],
+  ["usa", "estados unidos", "eeuu", "norteamerica"],
+];
+
+// Given a term, return all its synonyms (including itself)
+function expandSynonyms(term: string): string[] {
+  const group = SYNONYM_GROUPS.find(g => g.some(s => s === term || term.includes(s) || s.includes(term)));
+  return group || [term];
+}
+
 // Common fund name patterns to extract search terms
 function extractSearchTerms(fundName: string): string[] {
   const name = fundName.toLowerCase();
@@ -67,13 +86,16 @@ function extractSearchTerms(fundName: string): string[] {
     }
   }
 
-  // Extract fund type keywords
+  // Extract fund type keywords (expanded with synonyms)
   const typeKeywords = [
-    "accionario", "equity", "renta variable",
-    "renta fija", "fixed income", "bond", "deuda",
-    "money market", "liquidez", "cash",
+    "accionario", "acciones", "equity", "renta variable",
+    "renta fija", "fixed income", "bond", "bonos", "deuda",
+    "money market", "liquidez", "cash", "mercado monetario",
     "balanceado", "balanced", "mixto",
-    "global", "emergente", "latam", "usa", "chile"
+    "global", "emergente", "latam", "usa", "chile",
+    "nacional", "internacional",
+    "apv", "ahorro previsional",
+    "deposito", "depósito", "plazo",
   ];
   for (const keyword of typeKeywords) {
     if (name.includes(keyword)) {
@@ -275,13 +297,21 @@ export async function POST(request: NextRequest) {
 
               if (agfFunds && agfFunds.length > 0) {
                 // Filter by name keywords in code (AND logic: must be from this AGF AND match keywords)
+                // Use synonyms: "acciones" in cartola should match "accionario" in DB name
                 const relevantTerms = searchTerms
                   .filter(t => !agfSearchPatterns.some(p => t.includes(p)));
 
                 if (relevantTerms.length > 0) {
+                  // Expand each term with its synonyms
+                  const expandedTermSets = relevantTerms.map(t => expandSynonyms(t));
+
                   fondos = agfFunds.filter(f => {
                     const fName = f.nombre_fondo.toLowerCase();
-                    return relevantTerms.some(t => fName.includes(t));
+                    // A fund matches if for ANY of the search terms, the fund name contains
+                    // that term OR any of its synonyms
+                    return expandedTermSets.some(synonyms =>
+                      synonyms.some(syn => fName.includes(syn))
+                    );
                   });
                 }
 
@@ -320,8 +350,17 @@ export async function POST(request: NextRequest) {
                 const fondoWords = fondoNameLower.split(/\s+/);
 
                 for (const word of fundWords) {
-                  if (word.length > 3 && fondoWords.some((fw: string) => fw.includes(word) || word.includes(fw))) {
-                    nameScore += 1;
+                  if (word.length > 3) {
+                    // Direct match
+                    if (fondoWords.some((fw: string) => fw.includes(word) || word.includes(fw))) {
+                      nameScore += 1;
+                    } else {
+                      // Synonym match: "acciones" in cartola matches "accionario" in DB
+                      const syns = expandSynonyms(word);
+                      if (syns.length > 1 && syns.some(syn => fondoNameLower.includes(syn))) {
+                        nameScore += 1;
+                      }
+                    }
                   }
                 }
 
