@@ -67,6 +67,31 @@ function expandSynonyms(term: string): string[] {
   return group || [term];
 }
 
+// Map holding keywords to familia_estudios filter for vw_fondos_completo
+// Returns a Supabase .or() filter string, or null if no classification detected
+function detectFamiliaFilter(terms: string[]): string | null {
+  for (const t of terms) {
+    const syns = expandSynonyms(t);
+    // Renta Variable: acciones, accionario, equity, renta variable
+    if (syns.some(s => ["accionario", "acciones", "accion", "equity", "renta variable"].includes(s))) {
+      return "familia_estudios.ilike.%accionario%,familia_estudios.ilike.%renta variable%";
+    }
+    // Renta Fija: deuda, renta fija, bond, bonos
+    if (syns.some(s => ["renta fija", "fixed income", "bond", "deuda", "bonos"].includes(s))) {
+      return "familia_estudios.ilike.%deuda%,familia_estudios.ilike.%renta fija%";
+    }
+    // Money Market: liquidez, cash, money market
+    if (syns.some(s => ["money market", "liquidez", "cash", "mercado monetario"].includes(s))) {
+      return "familia_estudios.ilike.%deuda%"; // money market is short-term debt in CMF
+    }
+    // Balanceado
+    if (syns.some(s => ["balanceado", "balanced", "mixto"].includes(s))) {
+      return "familia_estudios.ilike.%balanceado%";
+    }
+  }
+  return null;
+}
+
 // Common fund name patterns to extract search terms
 function extractSearchTerms(fundName: string): string[] {
   const name = fundName.toLowerCase();
@@ -277,59 +302,114 @@ export async function POST(request: NextRequest) {
             );
 
             // Strategy: if cartola is from a specific AGF and fund doesn't mention another AGF,
-            // search within that AGF's funds first
+            // search within that AGF's funds first using vw_fondos_completo (has familia_estudios)
             let fondos: Array<{
               id: string; fo_run: number; fm_serie: string;
               nombre_fondo: string; nombre_agf: string; moneda_funcional: string;
+              familia_estudios?: string;
             }> | null = null;
 
+            // Detect asset class from holding name (e.g., "Acciones USA" → renta variable)
+            const familiaFilter = detectFamiliaFilter(searchTerms);
+
             if (agfSearchPatterns && !mentionsOtherAgf) {
-              // Priority search: get ALL funds from the cartola's AGF, then filter by name in code
+              // Priority search: get funds from the cartola's AGF, filtered by familia if possible
               const agfFilter = agfSearchPatterns
                 .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
                 .join(",");
 
-              const { data: agfFunds } = await supabase
-                .from("fondos_mutuos")
-                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+              let agfQuery = supabase
+                .from("vw_fondos_completo")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
                 .or(agfFilter)
                 .limit(200);
 
+              // If we detected an asset class, filter by familia_estudios too
+              if (familiaFilter) {
+                agfQuery = agfQuery.or(familiaFilter);
+              }
+
+              const { data: agfFunds } = await agfQuery;
+
               if (agfFunds && agfFunds.length > 0) {
-                // Filter by name keywords in code (AND logic: must be from this AGF AND match keywords)
-                // Use synonyms: "acciones" in cartola should match "accionario" in DB name
+                // If we used familia filter, the results are already filtered by both AGF and familia
+                // But Supabase .or() on two separate calls doesn't AND them — so filter in code
+                let filteredByAgf = agfFunds.filter(f => {
+                  const agfLower = (f.nombre_agf || "").toLowerCase();
+                  return agfSearchPatterns.some(p => agfLower.includes(p));
+                });
+
+                // Then filter by familia_estudios in code if we have a classification
+                if (familiaFilter && filteredByAgf.length > 0) {
+                  const familiaFiltered = filteredByAgf.filter(f => {
+                    if (!f.familia_estudios) return false;
+                    const fam = f.familia_estudios.toLowerCase();
+                    // Check the same patterns we use in familiaFilter
+                    if (familiaFilter.includes("accionario") || familiaFilter.includes("renta variable")) {
+                      return fam.includes("accionario") || fam.includes("renta variable");
+                    }
+                    if (familiaFilter.includes("deuda") || familiaFilter.includes("renta fija")) {
+                      return fam.includes("deuda") || fam.includes("renta fija");
+                    }
+                    if (familiaFilter.includes("balanceado")) {
+                      return fam.includes("balanceado");
+                    }
+                    return true;
+                  });
+                  // Use familia-filtered if it found results, otherwise fall back to all AGF funds
+                  if (familiaFiltered.length > 0) {
+                    filteredByAgf = familiaFiltered;
+                  }
+                }
+
+                // Further filter by name keywords using synonyms
                 const relevantTerms = searchTerms
                   .filter(t => !agfSearchPatterns.some(p => t.includes(p)));
 
                 if (relevantTerms.length > 0) {
-                  // Expand each term with its synonyms
                   const expandedTermSets = relevantTerms.map(t => expandSynonyms(t));
-
-                  fondos = agfFunds.filter(f => {
+                  const nameFiltered = filteredByAgf.filter(f => {
                     const fName = f.nombre_fondo.toLowerCase();
-                    // A fund matches if for ANY of the search terms, the fund name contains
-                    // that term OR any of its synonyms
                     return expandedTermSets.some(synonyms =>
                       synonyms.some(syn => fName.includes(syn))
                     );
                   });
+                  if (nameFiltered.length > 0) {
+                    fondos = nameFiltered;
+                  }
                 }
 
-                // If keyword filter found nothing, use all AGF funds (will be scored below)
+                // If keyword filter found nothing, use all AGF+familia funds
                 if (!fondos || fondos.length === 0) {
-                  fondos = agfFunds;
+                  fondos = filteredByAgf;
                 }
               }
             }
 
             // Fallback: general search if AGF-specific search found nothing
             if (!fondos || fondos.length === 0) {
-              const { data } = await supabase
-                .from("fondos_mutuos")
-                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+              let fallbackQuery = supabase
+                .from("vw_fondos_completo")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
                 .or(`nombre_fondo.ilike.%${sanitizeSearchInput(searchTerms[0])}%`)
-                .limit(10);
-              fondos = data;
+                .limit(20);
+
+              const { data: fallbackData } = await fallbackQuery;
+
+              // If we have a familia filter, prefer matches of the right asset class
+              if (fallbackData && fallbackData.length > 0 && familiaFilter) {
+                const classFiltered = fallbackData.filter(f => {
+                  if (!f.familia_estudios) return false;
+                  const fam = f.familia_estudios.toLowerCase();
+                  if (familiaFilter.includes("accionario")) return fam.includes("accionario") || fam.includes("renta variable");
+                  if (familiaFilter.includes("deuda")) return fam.includes("deuda") || fam.includes("renta fija");
+                  if (familiaFilter.includes("balanceado")) return fam.includes("balanceado");
+                  return true;
+                });
+                fondos = classFiltered.length > 0 ? classFiltered : fallbackData;
+              } else {
+                fondos = fallbackData;
+              }
             }
 
             if (fondos && fondos.length > 0) {
@@ -373,6 +453,20 @@ export async function POST(request: NextRequest) {
 
                 if (fondo.nombre_agf && nameLower.includes(fondo.nombre_agf.toLowerCase())) {
                   nameScore += 2;
+                }
+
+                // Bonus for matching familia_estudios (asset class)
+                if (familiaFilter && fondo.familia_estudios) {
+                  const fam = fondo.familia_estudios.toLowerCase();
+                  const matchesFamilia =
+                    (familiaFilter.includes("accionario") && (fam.includes("accionario") || fam.includes("renta variable"))) ||
+                    (familiaFilter.includes("deuda") && (fam.includes("deuda") || fam.includes("renta fija"))) ||
+                    (familiaFilter.includes("balanceado") && fam.includes("balanceado"));
+                  if (matchesFamilia) {
+                    nameScore += 3; // Strong bonus for correct asset class
+                  } else {
+                    nameScore -= 2; // Penalty for wrong asset class
+                  }
                 }
 
                 // Price verification: if cartola has a marketPrice, check if it matches
@@ -458,12 +552,12 @@ export async function POST(request: NextRequest) {
                 .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
                 .join(",");
 
-              // Get all funds from this AGF
+              // Get all funds from this AGF (use vw_fondos_completo for familia_estudios)
               const { data: agfFondos } = await supabase
-                .from("fondos_mutuos")
-                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+                .from("vw_fondos_completo")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
                 .or(agfFilter)
-                .limit(100);
+                .limit(200);
 
               if (agfFondos && agfFondos.length > 0) {
                 const fondoIds = agfFondos.map(f => f.id);
