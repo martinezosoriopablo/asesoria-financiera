@@ -239,7 +239,23 @@ URL canónica para el cuestionario de perfil de riesgo.
 /api/clients/[id]/snapshots         DELETE - Eliminar todos los snapshots
 /api/clients/[id]/cartolas          GET, POST - Gestión de cartolas
 /api/portfolio/xray                  POST - Radiografía del portafolio (costos, TAC, alternativas)
+/api/fondos/match-holdings           POST - Match automático de holdings a fondos mutuos/acciones
+/api/fondos/lookup                   GET  - Búsqueda de fondos por nombre o RUN
+/api/clients/[id]/share              GET, POST, DELETE - Compartir cliente con otros asesores
+/api/advisors                        GET  - Lista asesores del equipo
 ```
+
+### Estrategia de Matching de Holdings
+
+Al subir una cartola, el sistema intenta identificar cada holding automáticamente:
+
+1. **Universo de búsqueda**: Si la cartola es de una AGF (ej: Security), todos los holdings se buscan dentro de los fondos de esa AGF, salvo que el nombre mencione explícitamente otra AGF
+2. **Precio es prueba definitiva**: Se compara el `valor_cuota` del holding con el precio en DB a la fecha de la cartola (tolerancia 0.5%). Si el precio coincide → match confirmado (high confidence)
+3. **Si precio no coincide**: No se asume el fondo. Se sugiere al asesor buscar por RUN manualmente
+4. **Clasificación desde DB**: El tipo de fondo (RV/RF/Balanceado) viene de `familia_estudios` en `vw_fondos_completo`, no se infiere del nombre
+5. **Nombre como confirmación**: El nombre se usa solo para desempatar entre múltiples matches por precio, no como criterio principal
+
+La vista `vw_fondos_completo` contiene `familia_estudios` con valores CMF: "Accionario internacional", "Deuda < 365 dias", "Balanceado moderado", etc.
 
 ### APIs de Precios y Datos de Mercado
 ```

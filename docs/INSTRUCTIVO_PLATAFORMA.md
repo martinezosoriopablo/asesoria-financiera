@@ -285,8 +285,18 @@ Permite al asesor hacer seguimiento periódico del portafolio de un cliente.
 
 1. Haz clic en **"Agregar Cartola"**
 2. Sube PDF, Excel, o ingresa manualmente
-3. Revisa los holdings en el modal de revisión (asset class, moneda, cantidades)
-4. Guarda — el sistema auto-marca el primer snapshot como baseline
+3. El sistema intenta identificar cada fondo automáticamente:
+   - Si la cartola es de una AGF (ej: Security), busca dentro de los fondos de esa AGF
+   - **Compara el precio (valor cuota)** del holding con los precios en la DB a la fecha de la cartola
+   - Si el precio coincide → match confirmado, se asigna fondo, precio y clasificación automáticamente
+   - Si no coincide → se muestra "Sin precio" y el asesor debe buscar por **RUN** del fondo
+   - La clasificación (Renta Variable, Renta Fija, etc.) viene de la DB (datos CMF), no del nombre
+4. Revisa los holdings en el modal: verifica asset class, moneda, cantidades, y precios
+5. Guarda — el sistema auto-marca el primer snapshot como baseline
+
+### Compartir Cliente
+
+Se puede compartir un cliente con otro asesor del equipo desde el botón "Compartir" en el detalle del cliente. El asesor compartido puede ver y editar el cliente según el rol asignado.
 
 ### Actualización de Precios
 

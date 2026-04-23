@@ -1,5 +1,14 @@
 // app/api/fondos/match-holdings/route.ts
 // Batch match holdings to funds/stocks and get prices
+//
+// MATCHING STRATEGY:
+// 1. If cartola is from AGF X and holding doesn't mention another AGF → search within AGF X's funds
+// 2. PRICE IS THE DEFINITIVE PROOF: compare holding's marketPrice (valor cuota) with DB price at cartola date
+//    - If price matches within 0.5% → confirmed match (high confidence)
+//    - If price doesn't match → NOT the fund, keep searching
+// 3. Name is used as a secondary filter/confirmation, not as primary criterion
+// 4. Classification (RV/RF/etc) comes from DB's familia_estudios, not from guessing by name
+// 5. If no price match found → return "no match" so advisor can search by RUN manually
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
@@ -42,123 +51,37 @@ interface MatchResult {
   matchType?: "fund" | "stock";
   confidence: "high" | "medium" | "low";
   matchedName?: string;
-  matchedId?: string;
+  matchedId?: string; // fo_run as string
   price?: number;
   currency?: string;
   source?: string;
+  assetClass?: string; // from DB familia_estudios: "equity" | "fixedIncome" | "balanced" | "alternatives" | "cash"
+  familiaEstudios?: string; // raw familia_estudios from DB
 }
 
-// Synonym groups: if the cartola says "acciones", it should also match "accionario" in DB
-const SYNONYM_GROUPS: string[][] = [
-  ["accionario", "acciones", "accion", "equity", "renta variable"],
-  ["renta fija", "fixed income", "bond", "deuda", "bonos"],
-  ["money market", "liquidez", "cash", "mercado monetario"],
-  ["balanceado", "balanced", "mixto"],
-  ["nacional", "chile", "chileno", "local"],
-  ["internacional", "global", "extranjero", "int"],
-  ["emergente", "emerging"],
-  ["latam", "latinoamerica", "latin"],
-  ["usa", "estados unidos", "eeuu", "norteamerica"],
-];
-
-// Given a term, return all its synonyms (including itself)
-function expandSynonyms(term: string): string[] {
-  const group = SYNONYM_GROUPS.find(g => g.some(s => s === term || term.includes(s) || s.includes(term)));
-  return group || [term];
-}
-
-// Map holding keywords to familia_estudios filter for vw_fondos_completo
-// Returns a Supabase .or() filter string, or null if no classification detected
-function detectFamiliaFilter(terms: string[]): string | null {
-  for (const t of terms) {
-    const syns = expandSynonyms(t);
-    // Renta Variable: acciones, accionario, equity, renta variable
-    if (syns.some(s => ["accionario", "acciones", "accion", "equity", "renta variable"].includes(s))) {
-      return "familia_estudios.ilike.%accionario%,familia_estudios.ilike.%renta variable%";
-    }
-    // Renta Fija: deuda, renta fija, bond, bonos
-    if (syns.some(s => ["renta fija", "fixed income", "bond", "deuda", "bonos"].includes(s))) {
-      return "familia_estudios.ilike.%deuda%,familia_estudios.ilike.%renta fija%";
-    }
-    // Money Market: liquidez, cash, money market
-    if (syns.some(s => ["money market", "liquidez", "cash", "mercado monetario"].includes(s))) {
-      return "familia_estudios.ilike.%deuda%"; // money market is short-term debt in CMF
-    }
-    // Balanceado
-    if (syns.some(s => ["balanceado", "balanced", "mixto"].includes(s))) {
-      return "familia_estudios.ilike.%balanceado%";
-    }
-  }
-  return null;
-}
-
-// Common fund name patterns to extract search terms
-function extractSearchTerms(fundName: string): string[] {
-  const name = fundName.toLowerCase();
-  const terms: string[] = [];
-
-  // Extract AGF names
-  const agfPatterns = [
-    "banchile", "btg", "larrainvial", "santander", "security", "sura",
-    "itau", "principal", "bice", "credicorp", "scotia", "compass",
-    "moneda", "euroamerica", "nevasa", "renta4", "vector", "tanner",
-    "fintual", "davivalores", "bci"
-  ];
-  for (const agf of agfPatterns) {
-    if (name.includes(agf)) {
-      terms.push(agf);
-      break;
-    }
-  }
-
-  // Extract fund type keywords (expanded with synonyms)
-  const typeKeywords = [
-    "accionario", "acciones", "equity", "renta variable",
-    "renta fija", "fixed income", "bond", "bonos", "deuda",
-    "money market", "liquidez", "cash", "mercado monetario",
-    "balanceado", "balanced", "mixto",
-    "global", "emergente", "latam", "usa", "chile",
-    "nacional", "internacional",
-    "apv", "ahorro previsional",
-    "deposito", "depósito", "plazo",
-  ];
-  for (const keyword of typeKeywords) {
-    if (name.includes(keyword)) {
-      terms.push(keyword);
-    }
-  }
-
-  // Use first significant words if no patterns found
-  if (terms.length === 0) {
-    const words = fundName.split(/\s+/).filter(w => w.length > 3);
-    terms.push(...words.slice(0, 2));
-  }
-
-  return terms;
+// Map familia_estudios from DB to normalized asset class for frontend
+function familiaToAssetClass(familia: string | null | undefined): string | undefined {
+  if (!familia) return undefined;
+  const f = familia.toLowerCase();
+  if (f.includes("accionario") || f.includes("renta variable")) return "equity";
+  if (f.includes("deuda") || f.includes("renta fija")) return "fixedIncome";
+  if (f.includes("balanceado")) return "balanced";
+  if (f.includes("estructurado") || f.includes("otro")) return "alternatives";
+  return undefined;
 }
 
 // Check if string looks like a stock ticker
 function extractTicker(name: string, securityId?: string | null): string | null {
-  // If securityId looks like a ticker, use it
   if (securityId) {
     const id = securityId.toUpperCase().trim();
     if (/^[A-Z]{1,5}$/.test(id) || /^[A-Z]{2,10}(-[A-B])?$/.test(id)) {
       return id;
     }
   }
-
-  // Look for ticker pattern in name (e.g., "AAPL - Apple Inc")
   const tickerMatch = name.match(/^([A-Z]{1,5})\s*[-–]\s*/);
-  if (tickerMatch) {
-    return tickerMatch[1];
-  }
-
-  // Look for ticker in parentheses (e.g., "Apple Inc (AAPL)")
+  if (tickerMatch) return tickerMatch[1];
   const parenMatch = name.match(/\(([A-Z]{1,5})\)/);
-  if (parenMatch) {
-    return parenMatch[1];
-  }
-
+  if (parenMatch) return parenMatch[1];
   return null;
 }
 
@@ -175,12 +98,9 @@ async function fetchYahooQuote(ticker: string): Promise<{
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
     });
-
     if (!response.ok) return null;
-
     const data = await response.json();
     if (data.chart.error || !data.chart.result?.length) return null;
-
     const meta = data.chart.result[0].meta;
     return {
       name: meta.longName || meta.shortName || meta.symbol,
@@ -192,7 +112,6 @@ async function fetchYahooQuote(ticker: string): Promise<{
   }
 }
 
-// Known Chilean tickers
 const CHILEAN_TICKERS = [
   "BSANTANDER", "COPEC", "FALABELLA", "CENCOSUD", "SQM-A", "SQM-B",
   "CMPC", "CHILE", "ENELAM", "CCU", "VAPORES", "CAP", "COLBUN",
@@ -203,6 +122,27 @@ const CHILEAN_TICKERS = [
 function isChileanTicker(ticker: string): boolean {
   const upper = ticker.toUpperCase();
   return CHILEAN_TICKERS.includes(upper) || upper.endsWith(".SN") || upper.endsWith(".CL");
+}
+
+// Simple name scoring for secondary confirmation
+function scoreNameMatch(holdingName: string, fondoName: string): number {
+  const hWords = holdingName.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const fLower = fondoName.toLowerCase();
+  let score = 0;
+  for (const word of hWords) {
+    if (fLower.includes(word)) score += 1;
+  }
+  return score;
+}
+
+interface FondoRow {
+  id: string;
+  fo_run: number;
+  fm_serie: string;
+  nombre_fondo: string;
+  nombre_agf: string;
+  moneda_funcional: string;
+  familia_estudios: string | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -222,20 +162,60 @@ export async function POST(request: NextRequest) {
     };
 
     if (!holdings || !Array.isArray(holdings)) {
-      return NextResponse.json({
-        success: false,
-        error: "Holdings array is required",
-      });
+      return NextResponse.json({ success: false, error: "Holdings array is required" });
     }
 
-    // Detect the AGF from the cartola source (e.g., "Security", "Banchile")
+    // Detect the AGF from the cartola source
     const sourceNames = Array.isArray(cartolaSource) ? cartolaSource : cartolaSource ? [cartolaSource] : [];
-    const detectedAgf = sourceNames
+    const detectedAgfKey = sourceNames
       .map(s => s.toLowerCase().trim())
-      .find(s => Object.keys(AGF_NAME_MAP).some(agf => s.includes(agf)));
-    const agfSearchPatterns = detectedAgf
-      ? AGF_NAME_MAP[Object.keys(AGF_NAME_MAP).find(k => detectedAgf.includes(k))!]
-      : null;
+      .reduce<string | null>((found, s) => {
+        if (found) return found;
+        return Object.keys(AGF_NAME_MAP).find(agf => s.includes(agf)) || null;
+      }, null);
+    const agfSearchPatterns = detectedAgfKey ? AGF_NAME_MAP[detectedAgfKey] : null;
+
+    // Pre-fetch ALL funds from the cartola's AGF (one query for all holdings)
+    let agfFunds: FondoRow[] = [];
+    if (agfSearchPatterns) {
+      const agfFilter = agfSearchPatterns
+        .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
+        .join(",");
+
+      const { data } = await supabase
+        .from("vw_fondos_completo")
+        .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
+        .or(agfFilter)
+        .limit(1000);
+
+      agfFunds = data || [];
+    }
+
+    // Pre-fetch prices for ALL AGF funds at cartola date (one bulk query)
+    // This avoids N+1 queries — fetch once, look up in memory
+    const priceMap = new Map<string, number>(); // fondo_id -> valor_cuota at cartola date
+    if (agfFunds.length > 0 && cartolaDate) {
+      const fondoIds = agfFunds.map(f => f.id);
+
+      // Fetch latest price on or before cartola date for each fund
+      // Use a window of the same month to get closest price
+      const { data: prices } = await supabase
+        .from("fondos_rentabilidades_diarias")
+        .select("fondo_id, valor_cuota, fecha")
+        .in("fondo_id", fondoIds)
+        .lte("fecha", cartolaDate)
+        .gte("fecha", cartolaDate.slice(0, 7) + "-01") // same month start
+        .order("fecha", { ascending: false });
+
+      if (prices) {
+        // Keep only the latest price per fondo_id
+        for (const p of prices) {
+          if (!priceMap.has(p.fondo_id)) {
+            priceMap.set(p.fondo_id, p.valor_cuota);
+          }
+        }
+      }
+    }
 
     const results: MatchResult[] = [];
 
@@ -248,27 +228,17 @@ export async function POST(request: NextRequest) {
           const index = i + batchIndex;
           const { fundName, securityId } = holding;
 
-          // Try to extract a ticker first
+          // === STEP 1: Try stock ticker lookup ===
           const ticker = extractTicker(fundName, securityId);
-
           if (ticker) {
-            // Try stock lookup
             let stockQuote = null;
-
             if (isChileanTicker(ticker)) {
               try {
                 const quote = await getResumenAccion(ticker);
                 if (quote) {
-                  stockQuote = {
-                    name: quote.name,
-                    price: quote.price,
-                    currency: quote.currency,
-                  };
+                  stockQuote = { name: quote.name, price: quote.price, currency: quote.currency };
                 }
-              } catch {
-                // Fallback to Yahoo
-              }
-
+              } catch { /* fallback */ }
               if (!stockQuote) {
                 const yahooTicker = ticker.endsWith(".SN") ? ticker : `${ticker}.SN`;
                 stockQuote = await fetchYahooQuote(yahooTicker);
@@ -276,7 +246,6 @@ export async function POST(request: NextRequest) {
             } else {
               stockQuote = await fetchYahooQuote(ticker);
             }
-
             if (stockQuote && stockQuote.price > 0) {
               return {
                 index,
@@ -288,322 +257,202 @@ export async function POST(request: NextRequest) {
                 price: stockQuote.price,
                 currency: stockQuote.currency,
                 source: isChileanTicker(ticker) ? "Bolsa Santiago" : "Yahoo Finance",
+                assetClass: "equity",
               };
             }
           }
 
-          // Try fund lookup
-          const searchTerms = extractSearchTerms(fundName);
-          if (searchTerms.length > 0) {
-            // Check if the fund name explicitly mentions another AGF
-            const nameLower = fundName.toLowerCase();
-            const mentionsOtherAgf = Object.keys(AGF_NAME_MAP).some(
-              agf => nameLower.includes(agf) && agf !== Object.keys(AGF_NAME_MAP).find(k => detectedAgf?.includes(k))
-            );
+          // === STEP 2: Fund matching — PRICE IS KING ===
+          const nameLower = fundName.toLowerCase();
 
-            // Strategy: if cartola is from a specific AGF and fund doesn't mention another AGF,
-            // search within that AGF's funds first using vw_fondos_completo (has familia_estudios)
-            let fondos: Array<{
-              id: string; fo_run: number; fm_serie: string;
-              nombre_fondo: string; nombre_agf: string; moneda_funcional: string;
-              familia_estudios?: string;
-            }> | null = null;
+          // Check if holding mentions another AGF explicitly
+          const mentionsOtherAgf = detectedAgfKey
+            ? Object.keys(AGF_NAME_MAP).some(
+                agf => nameLower.includes(agf) && agf !== detectedAgfKey
+              )
+            : false;
 
-            // Detect asset class from holding name (e.g., "Acciones USA" → renta variable)
-            const familiaFilter = detectFamiliaFilter(searchTerms);
+          // Determine search universe
+          const searchUniverse = (agfSearchPatterns && !mentionsOtherAgf) ? agfFunds : [];
 
-            if (agfSearchPatterns && !mentionsOtherAgf) {
-              // Priority search: get ALL funds from the cartola's AGF
-              // IMPORTANT: Only ONE .or() call — never chain two .or() (Supabase bug: creates OR, not AND)
-              const agfFilter = agfSearchPatterns
-                .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
-                .join(",");
+          // If we have a price from the cartola → use it as definitive matching criterion
+          const holdingPrice = holding.marketPrice;
 
-              const { data: agfFunds } = await supabase
-                .from("vw_fondos_completo")
-                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
-                .or(agfFilter)
-                .limit(500);
+          if (holdingPrice && holdingPrice > 0 && searchUniverse.length > 0) {
+            // Find funds where price matches within 0.5% tolerance
+            const priceMatches: Array<{ fondo: FondoRow; dbPrice: number; nameScore: number }> = [];
 
-              if (agfFunds && agfFunds.length > 0) {
-                // Step 1: Filter by familia_estudios in code if we detected asset class
-                let candidates = agfFunds;
-                if (familiaFilter) {
-                  const familiaFiltered = agfFunds.filter(f => {
-                    if (!f.familia_estudios) return false;
-                    const fam = f.familia_estudios.toLowerCase();
-                    if (familiaFilter.includes("accionario")) return fam.includes("accionario") || fam.includes("renta variable");
-                    if (familiaFilter.includes("deuda")) return fam.includes("deuda") || fam.includes("renta fija");
-                    if (familiaFilter.includes("balanceado")) return fam.includes("balanceado");
-                    return true;
+            for (const fondo of searchUniverse) {
+              const dbPrice = priceMap.get(fondo.id);
+              if (dbPrice && dbPrice > 0) {
+                const priceDiff = Math.abs(dbPrice - holdingPrice) / holdingPrice;
+                if (priceDiff < 0.005) {
+                  priceMatches.push({
+                    fondo,
+                    dbPrice,
+                    nameScore: scoreNameMatch(fundName, fondo.nombre_fondo),
                   });
-                  if (familiaFiltered.length > 0) {
-                    candidates = familiaFiltered;
-                  }
-                }
-
-                // Step 2: Further filter by name keywords using synonyms
-                const relevantTerms = searchTerms
-                  .filter(t => !agfSearchPatterns.some(p => t.includes(p)));
-
-                if (relevantTerms.length > 0) {
-                  const expandedTermSets = relevantTerms.map(t => expandSynonyms(t));
-                  const nameFiltered = candidates.filter(f => {
-                    const fName = f.nombre_fondo.toLowerCase();
-                    return expandedTermSets.some(synonyms =>
-                      synonyms.some(syn => fName.includes(syn))
-                    );
-                  });
-                  if (nameFiltered.length > 0) {
-                    fondos = nameFiltered;
-                  }
-                }
-
-                // If keyword filter found nothing, use all AGF+familia candidates
-                if (!fondos || fondos.length === 0) {
-                  fondos = candidates;
                 }
               }
             }
 
-            // Fallback: general search if AGF-specific search found nothing
-            if (!fondos || fondos.length === 0) {
-              let fallbackQuery = supabase
+            if (priceMatches.length > 0) {
+              // Sort by name score (highest first) to pick the best among price matches
+              priceMatches.sort((a, b) => b.nameScore - a.nameScore);
+              const best = priceMatches[0];
+
+              return {
+                index,
+                matched: true,
+                matchType: "fund",
+                confidence: "high", // Price match = definitive
+                matchedName: best.fondo.nombre_fondo,
+                matchedId: best.fondo.fo_run?.toString(),
+                price: best.dbPrice,
+                currency: best.fondo.moneda_funcional || "CLP",
+                source: best.fondo.nombre_agf,
+                assetClass: familiaToAssetClass(best.fondo.familia_estudios),
+                familiaEstudios: best.fondo.familia_estudios || undefined,
+              };
+            }
+
+            // Price exists in cartola but NO fund in this AGF has matching price
+            // → Don't guess. Tell advisor to search by RUN.
+            // Still try a name-only match as a suggestion (low confidence)
+            const nameOnlyMatches = searchUniverse
+              .map(f => ({ fondo: f, nameScore: scoreNameMatch(fundName, f.nombre_fondo) }))
+              .filter(m => m.nameScore >= 2)
+              .sort((a, b) => b.nameScore - a.nameScore);
+
+            if (nameOnlyMatches.length > 0) {
+              const best = nameOnlyMatches[0];
+              return {
+                index,
+                matched: true,
+                matchType: "fund",
+                confidence: "low", // Name-only, no price confirmation → low
+                matchedName: best.fondo.nombre_fondo,
+                matchedId: best.fondo.fo_run?.toString(),
+                price: undefined, // Don't return price — it didn't match
+                currency: best.fondo.moneda_funcional || "CLP",
+                source: best.fondo.nombre_agf,
+                assetClass: familiaToAssetClass(best.fondo.familia_estudios),
+                familiaEstudios: best.fondo.familia_estudios || undefined,
+              };
+            }
+          }
+
+          // === STEP 3: No price in cartola — try name matching within AGF ===
+          if (searchUniverse.length > 0 && (!holdingPrice || holdingPrice <= 0)) {
+            const nameMatches = searchUniverse
+              .map(f => ({ fondo: f, nameScore: scoreNameMatch(fundName, f.nombre_fondo) }))
+              .filter(m => m.nameScore >= 1)
+              .sort((a, b) => b.nameScore - a.nameScore);
+
+            if (nameMatches.length > 0) {
+              const best = nameMatches[0];
+              const dbPrice = priceMap.get(best.fondo.id);
+              const confidence = best.nameScore >= 3 ? "medium" : "low";
+
+              return {
+                index,
+                matched: true,
+                matchType: "fund",
+                confidence: confidence as "medium" | "low",
+                matchedName: best.fondo.nombre_fondo,
+                matchedId: best.fondo.fo_run?.toString(),
+                price: dbPrice || undefined,
+                currency: best.fondo.moneda_funcional || "CLP",
+                source: best.fondo.nombre_agf,
+                assetClass: familiaToAssetClass(best.fondo.familia_estudios),
+                familiaEstudios: best.fondo.familia_estudios || undefined,
+              };
+            }
+          }
+
+          // === STEP 4: No AGF context — general search (fallback) ===
+          if (searchUniverse.length === 0) {
+            const searchTerms = fundName.split(/\s+/).filter(w => w.length > 3);
+            if (searchTerms.length > 0) {
+              const { data: generalFunds } = await supabase
                 .from("vw_fondos_completo")
                 .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
                 .or(`nombre_fondo.ilike.%${sanitizeSearchInput(searchTerms[0])}%`)
                 .limit(20);
 
-              const { data: fallbackData } = await fallbackQuery;
+              if (generalFunds && generalFunds.length > 0) {
+                // Try price match first
+                if (holdingPrice && holdingPrice > 0 && cartolaDate) {
+                  for (const fondo of generalFunds) {
+                    const { data: priceRow } = await supabase
+                      .from("fondos_rentabilidades_diarias")
+                      .select("valor_cuota")
+                      .eq("fondo_id", fondo.id)
+                      .lte("fecha", cartolaDate)
+                      .order("fecha", { ascending: false })
+                      .limit(1)
+                      .single();
 
-              // If we have a familia filter, prefer matches of the right asset class
-              if (fallbackData && fallbackData.length > 0 && familiaFilter) {
-                const classFiltered = fallbackData.filter(f => {
-                  if (!f.familia_estudios) return false;
-                  const fam = f.familia_estudios.toLowerCase();
-                  if (familiaFilter.includes("accionario")) return fam.includes("accionario") || fam.includes("renta variable");
-                  if (familiaFilter.includes("deuda")) return fam.includes("deuda") || fam.includes("renta fija");
-                  if (familiaFilter.includes("balanceado")) return fam.includes("balanceado");
-                  return true;
-                });
-                fondos = classFiltered.length > 0 ? classFiltered : fallbackData;
-              } else {
-                fondos = fallbackData;
-              }
-            }
-
-            if (fondos && fondos.length > 0) {
-              // Score each candidate by name + verify by price
-              const holdingPrice = holding.marketPrice;
-              const scoredCandidates: Array<{
-                fondo: typeof fondos[0];
-                nameScore: number;
-                priceMatch: boolean;
-                dbPrice?: number;
-              }> = [];
-
-              for (const fondo of fondos) {
-                const fondoNameLower = fondo.nombre_fondo.toLowerCase();
-                let nameScore = 0;
-
-                const fundWords = nameLower.split(/\s+/);
-                const fondoWords = fondoNameLower.split(/\s+/);
-
-                for (const word of fundWords) {
-                  if (word.length > 3) {
-                    // Direct match
-                    if (fondoWords.some((fw: string) => fw.includes(word) || word.includes(fw))) {
-                      nameScore += 1;
-                    } else {
-                      // Synonym match: "acciones" in cartola matches "accionario" in DB
-                      const syns = expandSynonyms(word);
-                      if (syns.length > 1 && syns.some(syn => fondoNameLower.includes(syn))) {
-                        nameScore += 1;
-                      }
-                    }
-                  }
-                }
-
-                if (agfSearchPatterns && !mentionsOtherAgf) {
-                  const fondoAgfLower = (fondo.nombre_agf || "").toLowerCase();
-                  if (agfSearchPatterns.some(p => fondoAgfLower.includes(p))) {
-                    nameScore += 3;
-                  }
-                }
-
-                if (fondo.nombre_agf && nameLower.includes(fondo.nombre_agf.toLowerCase())) {
-                  nameScore += 2;
-                }
-
-                // Bonus for matching familia_estudios (asset class)
-                if (familiaFilter && fondo.familia_estudios) {
-                  const fam = fondo.familia_estudios.toLowerCase();
-                  const matchesFamilia =
-                    (familiaFilter.includes("accionario") && (fam.includes("accionario") || fam.includes("renta variable"))) ||
-                    (familiaFilter.includes("deuda") && (fam.includes("deuda") || fam.includes("renta fija"))) ||
-                    (familiaFilter.includes("balanceado") && fam.includes("balanceado"));
-                  if (matchesFamilia) {
-                    nameScore += 3; // Strong bonus for correct asset class
-                  } else {
-                    nameScore -= 2; // Penalty for wrong asset class
-                  }
-                }
-
-                // Price verification: if cartola has a marketPrice, check if it matches
-                let priceMatch = false;
-                let dbPrice: number | undefined;
-
-                if (holdingPrice && holdingPrice > 0) {
-                  // Get price at cartola date (or closest)
-                  let priceQuery = supabase
-                    .from("fondos_rentabilidades_diarias")
-                    .select("valor_cuota, fecha")
-                    .eq("fondo_id", fondo.id);
-
-                  if (cartolaDate) {
-                    priceQuery = priceQuery.lte("fecha", cartolaDate);
-                  }
-
-                  const { data: priceRow } = await priceQuery
-                    .order("fecha", { ascending: false })
-                    .limit(1)
-                    .single();
-
-                  if (priceRow?.valor_cuota) {
-                    dbPrice = priceRow.valor_cuota;
-                    // Match if within 0.5% tolerance (rounding differences)
-                    const priceDiff = Math.abs(priceRow.valor_cuota - holdingPrice) / holdingPrice;
-                    priceMatch = priceDiff < 0.005;
-                  }
-                }
-
-                scoredCandidates.push({ fondo, nameScore, priceMatch, dbPrice });
-              }
-
-              // Sort: price match first, then by name score
-              scoredCandidates.sort((a, b) => {
-                if (a.priceMatch !== b.priceMatch) return a.priceMatch ? -1 : 1;
-                return b.nameScore - a.nameScore;
-              });
-
-              const best = scoredCandidates[0];
-
-              // Determine confidence
-              let confidence: "high" | "medium" | "low";
-              if (best.priceMatch) {
-                confidence = "high"; // Price match is definitive proof
-              } else if (best.nameScore >= 3) {
-                confidence = "high";
-              } else if (best.nameScore >= 1) {
-                confidence = "medium";
-              } else {
-                confidence = "low";
-              }
-
-              // If we don't have the price yet (no price verification was done), fetch it
-              let returnPrice = best.dbPrice;
-              if (!returnPrice) {
-                const { data: priceData } = await supabase
-                  .from("fondos_rentabilidades_diarias")
-                  .select("valor_cuota")
-                  .eq("fondo_id", best.fondo.id)
-                  .order("fecha", { ascending: false })
-                  .limit(1)
-                  .single();
-                returnPrice = priceData?.valor_cuota;
-              }
-
-              return {
-                index,
-                matched: true,
-                matchType: "fund" as const,
-                confidence,
-                matchedName: best.fondo.nombre_fondo,
-                matchedId: best.fondo.fo_run?.toString(),
-                price: returnPrice || undefined,
-                currency: best.fondo.moneda_funcional || "CLP",
-                source: best.fondo.nombre_agf,
-              };
-            }
-
-            // Last resort: if holding has a price, search ALL funds of the cartola's AGF by price
-            if (holding.marketPrice && holding.marketPrice > 0 && agfSearchPatterns && cartolaDate) {
-              const agfFilter = agfSearchPatterns
-                .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
-                .join(",");
-
-              // Get all funds from this AGF (use vw_fondos_completo for familia_estudios)
-              const { data: agfFondos } = await supabase
-                .from("vw_fondos_completo")
-                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
-                .or(agfFilter)
-                .limit(200);
-
-              if (agfFondos && agfFondos.length > 0) {
-                const fondoIds = agfFondos.map(f => f.id);
-
-                // Search for price matches at the cartola date
-                const { data: priceMatches } = await supabase
-                  .from("fondos_rentabilidades_diarias")
-                  .select("fondo_id, valor_cuota, fecha")
-                  .in("fondo_id", fondoIds)
-                  .lte("fecha", cartolaDate)
-                  .gte("fecha", cartolaDate.slice(0, 8) + "01") // Same month
-                  .order("fecha", { ascending: false });
-
-                if (priceMatches) {
-                  // Find funds whose valor_cuota matches within 0.5%
-                  const seen = new Set<string>();
-                  for (const pm of priceMatches) {
-                    if (seen.has(pm.fondo_id)) continue;
-                    seen.add(pm.fondo_id);
-
-                    const diff = Math.abs(pm.valor_cuota - holding.marketPrice) / holding.marketPrice;
-                    if (diff < 0.005) {
-                      const matchedFondo = agfFondos.find(f => f.id === pm.fondo_id);
-                      if (matchedFondo) {
+                    if (priceRow?.valor_cuota) {
+                      const diff = Math.abs(priceRow.valor_cuota - holdingPrice) / holdingPrice;
+                      if (diff < 0.005) {
                         return {
                           index,
                           matched: true,
-                          matchType: "fund" as const,
-                          confidence: "high" as const,
-                          matchedName: matchedFondo.nombre_fondo,
-                          matchedId: matchedFondo.fo_run?.toString(),
-                          price: pm.valor_cuota,
-                          currency: matchedFondo.moneda_funcional || "CLP",
-                          source: matchedFondo.nombre_agf,
+                          matchType: "fund",
+                          confidence: "high",
+                          matchedName: fondo.nombre_fondo,
+                          matchedId: fondo.fo_run?.toString(),
+                          price: priceRow.valor_cuota,
+                          currency: fondo.moneda_funcional || "CLP",
+                          source: fondo.nombre_agf,
+                          assetClass: familiaToAssetClass(fondo.familia_estudios),
+                          familiaEstudios: fondo.familia_estudios || undefined,
                         };
                       }
                     }
                   }
+                }
+
+                // Name-only fallback
+                const scored = generalFunds
+                  .map(f => ({ fondo: f, nameScore: scoreNameMatch(fundName, f.nombre_fondo) }))
+                  .filter(m => m.nameScore >= 2)
+                  .sort((a, b) => b.nameScore - a.nameScore);
+
+                if (scored.length > 0) {
+                  const best = scored[0];
+                  return {
+                    index,
+                    matched: true,
+                    matchType: "fund",
+                    confidence: "low",
+                    matchedName: best.fondo.nombre_fondo,
+                    matchedId: best.fondo.fo_run?.toString(),
+                    price: undefined,
+                    currency: best.fondo.moneda_funcional || "CLP",
+                    source: best.fondo.nombre_agf,
+                    assetClass: familiaToAssetClass(best.fondo.familia_estudios),
+                    familiaEstudios: best.fondo.familia_estudios || undefined,
+                  };
                 }
               }
             }
           }
 
           // No match found
-          return {
-            index,
-            matched: false,
-            confidence: "low",
-          };
+          return { index, matched: false, confidence: "low" };
         })
       );
 
       results.push(...batchResults);
     }
 
-    return NextResponse.json({
-      success: true,
-      matches: results,
-    });
+    return NextResponse.json({ success: true, matches: results });
   } catch (error) {
     console.error("Error in match-holdings:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error matching holdings",
-      },
+      { success: false, error: error instanceof Error ? error.message : "Error matching holdings" },
       { status: 500 }
     );
   }

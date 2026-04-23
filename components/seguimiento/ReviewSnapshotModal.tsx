@@ -67,6 +67,8 @@ interface MatchSuggestion {
   price?: number;
   currency?: string;
   source?: string;
+  assetClass?: string; // from DB familia_estudios
+  familiaEstudios?: string;
   applied?: boolean;
   dismissed?: boolean;
 }
@@ -249,11 +251,25 @@ export default function ReviewSnapshotModal({
 
         const data = await res.json();
         if (data.success && data.matches) {
-          // Filter to only show matches with prices and medium/high confidence
+          // Show all matched results — high confidence have price-verified matches
+          // Low confidence are name-only suggestions the advisor can review
           const relevantMatches = data.matches.filter(
-            (m: MatchSuggestion) => m.matched && m.price && m.confidence !== "low"
+            (m: MatchSuggestion) => m.matched && (m.price || m.confidence !== "low")
           );
           setMatchSuggestions(relevantMatches);
+
+          // Auto-apply high-confidence matches (price-verified) and set assetClass
+          const updated = [...holdings];
+          let changed = false;
+          for (const m of data.matches as MatchSuggestion[]) {
+            if (m.matched && m.confidence === "high" && m.assetClass && updated[m.index]) {
+              if (!updated[m.index].assetClass || updated[m.index].assetClass === "") {
+                updated[m.index] = { ...updated[m.index], assetClass: m.assetClass };
+                changed = true;
+              }
+            }
+          }
+          if (changed) setHoldings(updated);
         }
       } catch (err) {
         console.error("Error auto-matching holdings:", err);
@@ -545,6 +561,8 @@ export default function ReviewSnapshotModal({
       marketPrice: suggestion.price || holding.marketPrice,
       securityId: suggestion.matchedId || holding.securityId,
       currency: suggestion.currency || holding.currency,
+      // Set asset class from DB classification if available
+      ...(suggestion.assetClass ? { assetClass: suggestion.assetClass } : {}),
     };
 
     // Recalculate market value if we have quantity and price
@@ -837,14 +855,30 @@ export default function ReviewSnapshotModal({
                         {" → "}
                         {suggestion.matchedName?.substring(0, 30)}
                       </p>
-                      <p className="text-[10px] text-gb-gray">{suggestion.source}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] text-gb-gray">{suggestion.source}</span>
+                        {suggestion.matchedId && (
+                          <span className="text-[10px] text-gb-gray">• RUN {suggestion.matchedId}</span>
+                        )}
+                        {suggestion.familiaEstudios && (
+                          <span className="text-[10px] px-1 py-0.5 bg-slate-100 text-slate-600 rounded">
+                            {suggestion.familiaEstudios}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 ml-2">
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-green-600">
-                          {formatNumber(suggestion.price || 0, suggestion.matchType === "stock" ? 2 : 4)}
-                        </p>
-                        <p className="text-[10px] text-gb-gray">{suggestion.currency}</p>
+                        {suggestion.price ? (
+                          <>
+                            <p className="text-sm font-semibold text-green-600">
+                              {formatNumber(suggestion.price, suggestion.matchType === "stock" ? 2 : 4)}
+                            </p>
+                            <p className="text-[10px] text-gb-gray">{suggestion.currency}</p>
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-amber-600 font-medium">Sin precio</p>
+                        )}
                       </div>
                       <button
                         onClick={() => applyMatchSuggestion(suggestion)}
