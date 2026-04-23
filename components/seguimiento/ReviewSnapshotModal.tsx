@@ -241,6 +241,7 @@ export default function ReviewSnapshotModal({
               quantity: h.quantity,
               marketValue: h.marketValue,
             })),
+            cartolaSource: sources,
           }),
         });
 

@@ -14,6 +14,27 @@ interface HoldingInput {
   marketValue?: number;
 }
 
+// Known AGF name mappings (cartola source name -> DB nombre_agf patterns)
+const AGF_NAME_MAP: Record<string, string[]> = {
+  "security": ["security", "administradora general de fondos security"],
+  "banchile": ["banchile"],
+  "btg": ["btg", "btg pactual"],
+  "larrainvial": ["larrainvial", "larrain vial"],
+  "santander": ["santander"],
+  "sura": ["sura"],
+  "itau": ["itau", "itaú"],
+  "principal": ["principal"],
+  "bice": ["bice"],
+  "credicorp": ["credicorp"],
+  "scotia": ["scotia", "scotiabank"],
+  "compass": ["compass"],
+  "moneda": ["moneda"],
+  "euroamerica": ["euroamerica"],
+  "fintual": ["fintual"],
+  "bci": ["bci"],
+  "nevasa": ["nevasa"],
+};
+
 interface MatchResult {
   index: number;
   matched: boolean;
@@ -146,7 +167,10 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
-    const { holdings } = await request.json() as { holdings: HoldingInput[] };
+    const { holdings, cartolaSource } = await request.json() as {
+      holdings: HoldingInput[];
+      cartolaSource?: string | string[];
+    };
 
     if (!holdings || !Array.isArray(holdings)) {
       return NextResponse.json({
@@ -154,6 +178,15 @@ export async function POST(request: NextRequest) {
         error: "Holdings array is required",
       });
     }
+
+    // Detect the AGF from the cartola source (e.g., "Security", "Banchile")
+    const sourceNames = Array.isArray(cartolaSource) ? cartolaSource : cartolaSource ? [cartolaSource] : [];
+    const detectedAgf = sourceNames
+      .map(s => s.toLowerCase().trim())
+      .find(s => Object.keys(AGF_NAME_MAP).some(agf => s.includes(agf)));
+    const agfSearchPatterns = detectedAgf
+      ? AGF_NAME_MAP[Object.keys(AGF_NAME_MAP).find(k => detectedAgf.includes(k))!]
+      : null;
 
     const results: MatchResult[] = [];
 
@@ -213,17 +246,61 @@ export async function POST(request: NextRequest) {
           // Try fund lookup
           const searchTerms = extractSearchTerms(fundName);
           if (searchTerms.length > 0) {
-            const searchQuery = searchTerms.join(" ");
+            // Check if the fund name explicitly mentions another AGF
+            const nameLower = fundName.toLowerCase();
+            const mentionsOtherAgf = Object.keys(AGF_NAME_MAP).some(
+              agf => nameLower.includes(agf) && agf !== Object.keys(AGF_NAME_MAP).find(k => detectedAgf?.includes(k))
+            );
 
-            const { data: fondos } = await supabase
-              .from("fondos_mutuos")
-              .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
-              .or(`nombre_fondo.ilike.%${sanitizeSearchInput(searchTerms[0])}%`)
-              .limit(5);
+            // Strategy: if cartola is from a specific AGF and fund doesn't mention another AGF,
+            // search within that AGF's funds first
+            let fondos: Array<{
+              id: string; fo_run: number; fm_serie: string;
+              nombre_fondo: string; nombre_agf: string; moneda_funcional: string;
+            }> | null = null;
+
+            if (agfSearchPatterns && !mentionsOtherAgf) {
+              // Priority search: within the cartola's AGF
+              const agfFilter = agfSearchPatterns
+                .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
+                .join(",");
+              const termFilter = searchTerms
+                .filter(t => !agfSearchPatterns.some(p => t.includes(p)))
+                .slice(0, 2)
+                .map(t => `nombre_fondo.ilike.%${sanitizeSearchInput(t)}%`)
+                .join(",");
+
+              if (termFilter) {
+                const { data } = await supabase
+                  .from("fondos_mutuos")
+                  .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+                  .or(agfFilter)
+                  .or(termFilter)
+                  .limit(10);
+                fondos = data;
+              } else {
+                // No type keywords found - search all funds of this AGF
+                const { data } = await supabase
+                  .from("fondos_mutuos")
+                  .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+                  .or(agfFilter)
+                  .limit(20);
+                fondos = data;
+              }
+            }
+
+            // Fallback: general search if AGF-specific search found nothing
+            if (!fondos || fondos.length === 0) {
+              const { data } = await supabase
+                .from("fondos_mutuos")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+                .or(`nombre_fondo.ilike.%${sanitizeSearchInput(searchTerms[0])}%`)
+                .limit(10);
+              fondos = data;
+            }
 
             if (fondos && fondos.length > 0) {
               // Find best match by comparing names
-              const nameLower = fundName.toLowerCase();
               let bestMatch = fondos[0];
               let bestScore = 0;
 
@@ -241,7 +318,15 @@ export async function POST(request: NextRequest) {
                   }
                 }
 
-                // Bonus for AGF match
+                // Bonus for AGF match from cartola source
+                if (agfSearchPatterns && !mentionsOtherAgf) {
+                  const fondoAgfLower = (fondo.nombre_agf || "").toLowerCase();
+                  if (agfSearchPatterns.some(p => fondoAgfLower.includes(p))) {
+                    score += 3; // Strong bonus for matching the cartola's AGF
+                  }
+                }
+
+                // Bonus for explicit AGF match in fund name
                 if (fondo.nombre_agf && nameLower.includes(fondo.nombre_agf.toLowerCase())) {
                   score += 2;
                 }
