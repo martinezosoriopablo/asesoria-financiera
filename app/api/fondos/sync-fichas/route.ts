@@ -322,24 +322,24 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Get count of fichas already synced
+  // Get count of fichas already synced (any ficha with data, not just TAC)
   const { count: fichasCount } = await supabase
     .from("fund_fichas")
-    .select("*", { count: "exact", head: true })
-    .not("tac_serie", "is", null);
+    .select("*", { count: "exact", head: true });
 
-  // Get fichas synced per AGF (join fund_fichas with vw_fondos_completo)
+  // Get fichas synced per AGF
   const { data: fichasData } = await supabase
     .from("fund_fichas")
     .select("fo_run")
-    .not("tac_serie", "is", null);
+    .limit(5000);
 
   const syncedRuns = new Set((fichasData || []).map(f => f.fo_run));
 
   // Get distinct AGFs with fund count
   const { data: agfs } = await supabase
     .from("vw_fondos_completo")
-    .select("fo_run, nombre_agf");
+    .select("fo_run, nombre_agf")
+    .limit(10000);
 
   const agfCounts: Record<string, { total: number; synced: number }> = {};
   agfs?.forEach(f => {
