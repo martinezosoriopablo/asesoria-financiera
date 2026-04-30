@@ -37,11 +37,37 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  const [activeTab, setActiveTab] = useState<'grafico' | 'tabla' | 'volatilidad' | 'metricas' | 'comparar'>('grafico');
+  const [activeTab, setActiveTab] = useState<'grafico' | 'tabla' | 'volatilidad' | 'metricas' | 'comparar' | 'ficha'>('grafico');
   const [datos, setDatos] = useState<DatosDiarios[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('todo'); // 1m, 3m, 6m, 1y, todo
   const [metricas, setMetricas] = useState<Metricas | null>(null);
+
+  // Ficha tab state
+  const [fichaLoading, setFichaLoading] = useState(false);
+  const [fichaSaving, setFichaSaving] = useState(false);
+  const [fichaData, setFichaData] = useState({
+    beneficio_107lir: false,
+    beneficio_108lir: false,
+    beneficio_apv: false,
+    beneficio_57bis: false,
+    notas_tributarias: '' as string,
+  });
+  const [fichaPdfUrl, setFichaPdfUrl] = useState<string | null>(null);
+  const [fichaHasPdf, setFichaHasPdf] = useState(false);
+  const [fichaUploading, setFichaUploading] = useState(false);
+  const [fichaSaved, setFichaSaved] = useState(false);
+  const [fichaExtracted, setFichaExtracted] = useState<{
+    tac_serie: number | null;
+    nombre_fondo: string | null;
+    serie_detectada: string | null;
+    rentabilidades: { rent_1m: number | null; rent_3m: number | null; rent_6m: number | null; rent_12m: number | null };
+    rescatable: boolean | null;
+    plazo_rescate: string | null;
+    horizonte_inversion: string | null;
+    tolerancia_riesgo: string | null;
+    objetivo: string | null;
+  } | null>(null);
 
   // Cargar datos
   useEffect(() => {
@@ -72,6 +98,102 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
     
     fetchDatos();
   }, [fondo]);
+
+  // Load ficha data when tab is activated
+  useEffect(() => {
+    if (activeTab !== 'ficha') return;
+    const loadFicha = async () => {
+      setFichaLoading(true);
+      try {
+        const res = await fetch(`/api/fondos/${fondo.fo_run}/${encodeURIComponent(fondo.fm_serie)}/ficha`);
+        const data = await res.json();
+        if (data.success) {
+          setFichaData({
+            beneficio_107lir: data.ficha.beneficio_107lir || false,
+            beneficio_108lir: data.ficha.beneficio_108lir || false,
+            beneficio_apv: data.ficha.beneficio_apv || false,
+            beneficio_57bis: data.ficha.beneficio_57bis || false,
+            notas_tributarias: data.ficha.notas_tributarias || '',
+          });
+          setFichaPdfUrl(data.pdfUrl || null);
+          setFichaHasPdf(!!data.ficha.ficha_pdf_path);
+          if (data.extracted) setFichaExtracted(data.extracted);
+        }
+      } catch (err) {
+        console.error('Error loading ficha:', err);
+      } finally {
+        setFichaLoading(false);
+      }
+    };
+    loadFicha();
+  }, [activeTab, fondo.fo_run, fondo.fm_serie]);
+
+  const saveFicha = async () => {
+    setFichaSaving(true);
+    setFichaSaved(false);
+    try {
+      const res = await fetch(`/api/fondos/${fondo.fo_run}/${encodeURIComponent(fondo.fm_serie)}/ficha`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fichaData),
+      });
+      const data = await res.json();
+      console.log('Save ficha response:', data);
+      if (data.success) {
+        setFichaSaved(true);
+        setTimeout(() => setFichaSaved(false), 2000);
+      } else {
+        alert('Error guardando: ' + (data.error || 'Error desconocido'));
+      }
+    } catch (err) {
+      console.error('Error saving ficha:', err);
+    } finally {
+      setFichaSaving(false);
+    }
+  };
+
+  const uploadFichaPdf = async (file: File) => {
+    setFichaUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/fondos/${fondo.fo_run}/${encodeURIComponent(fondo.fm_serie)}/ficha`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFichaHasPdf(true);
+        // Show extracted data (TAC, rentabilidades, etc.) but don't auto-check benefits
+        if (data.extracted) {
+          setFichaExtracted(data.extracted);
+        }
+        // Reload to get signed URL
+        const res2 = await fetch(`/api/fondos/${fondo.fo_run}/${encodeURIComponent(fondo.fm_serie)}/ficha`);
+        const data2 = await res2.json();
+        if (data2.pdfUrl) setFichaPdfUrl(data2.pdfUrl);
+      }
+    } catch (err) {
+      console.error('Error uploading ficha PDF:', err);
+    } finally {
+      setFichaUploading(false);
+    }
+  };
+
+  const deleteFichaPdf = async () => {
+    try {
+      const res = await fetch(`/api/fondos/${fondo.fo_run}/${encodeURIComponent(fondo.fm_serie)}/ficha`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFichaPdfUrl(null);
+        setFichaHasPdf(false);
+      }
+    } catch (err) {
+      console.error('Error deleting ficha PDF:', err);
+    }
+  };
 
   // Calcular métricas
   const calcularMetricas = (datos: DatosDiarios[]) => {
@@ -272,11 +394,12 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
             { id: 'tabla', label: '📊 Tabla', icon: '📊' },
             { id: 'volatilidad', label: '📉 Volatilidad', icon: '📉' },
             { id: 'metricas', label: '🎯 Métricas', icon: '🎯' },
-            { id: 'comparar', label: '⚖️ Comparar', icon: '⚖️' }
+            { id: 'comparar', label: '⚖️ Comparar', icon: '⚖️' },
+            { id: 'ficha', label: '📋 Ficha', icon: '📋' }
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'grafico' | 'tabla' | 'volatilidad' | 'metricas' | 'comparar')}
+              onClick={() => setActiveTab(tab.id as 'grafico' | 'tabla' | 'volatilidad' | 'metricas' | 'comparar' | 'ficha')}
               style={{
                 padding: '12px 16px',
                 border: 'none',
@@ -771,6 +894,288 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                 <ComparadorFondos fondoActual={fondo} />
               )}
             </>
+          )}
+
+          {/* TAB: FICHA - always available, even without datos */}
+          {activeTab === 'ficha' && (
+            fichaLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#999' }}>
+                Cargando ficha...
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '24px', minHeight: '500px' }}>
+                {/* Left column - Editable data */}
+                <div style={{ flex: '0 0 340px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#1a1a1a', marginBottom: '16px' }}>
+                      Beneficios Tributarios
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {[
+                        { key: 'beneficio_107lir' as const, label: 'Art. 107 LIR', desc: 'Ganancias de capital exentas' },
+                        { key: 'beneficio_108lir' as const, label: 'Art. 108 LIR', desc: 'Canje entre fondos sin tributar' },
+                        { key: 'beneficio_apv' as const, label: 'APV', desc: 'Ahorro previsional voluntario' },
+                        { key: 'beneficio_57bis' as const, label: '57 bis', desc: 'Incentivo al ahorro' },
+                      ].map(item => (
+                        <label key={item.key} style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          backgroundColor: fichaData[item.key] ? '#f0fdf4' : '#f9fafb',
+                          borderRadius: '8px',
+                          border: fichaData[item.key] ? '1px solid #bbf7d0' : '1px solid #e5e7eb',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={fichaData[item.key]}
+                            onChange={e => setFichaData(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                            style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#10b981' }}
+                          />
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a' }}>
+                              {item.label}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              {item.desc}
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#666', marginBottom: '6px' }}>
+                      Notas Tributarias
+                    </div>
+                    <textarea
+                      value={fichaData.notas_tributarias}
+                      onChange={e => setFichaData(prev => ({ ...prev, notas_tributarias: e.target.value }))}
+                      placeholder="Notas adicionales sobre beneficios tributarios..."
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        border: '1px solid #ddd',
+                        fontSize: '13px',
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  </div>
+
+                  <button
+                    onClick={saveFicha}
+                    disabled={fichaSaving}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: fichaSaved ? '#10b981' : '#2563eb',
+                      color: 'white',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: fichaSaving ? 'not-allowed' : 'pointer',
+                      opacity: fichaSaving ? 0.7 : 1,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {fichaSaving ? 'Guardando...' : fichaSaved ? 'Guardado' : 'Guardar Beneficios'}
+                  </button>
+
+                  {/* Extracted data from PDF */}
+                  {fichaExtracted && (
+                    <div style={{
+                      padding: '14px',
+                      backgroundColor: '#f0f9ff',
+                      borderRadius: '8px',
+                      border: '1px solid #bae6fd',
+                      fontSize: '12px',
+                    }}>
+                      <div style={{ fontWeight: '600', color: '#0369a1', marginBottom: '10px', fontSize: '13px' }}>
+                        Datos extraidos del PDF
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: '#334155' }}>
+                        {fichaExtracted.tac_serie !== null && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>TAC Serie (IVA incl.)</span>
+                            <span style={{ fontWeight: '600' }}>{fichaExtracted.tac_serie}%</span>
+                          </div>
+                        )}
+                        {[
+                          { key: 'rent_1m' as const, label: 'Rent. 1M' },
+                          { key: 'rent_3m' as const, label: 'Rent. 3M' },
+                          { key: 'rent_6m' as const, label: 'Rent. 6M' },
+                          { key: 'rent_12m' as const, label: 'Rent. 12M' },
+                        ].map(r => {
+                          const val = fichaExtracted.rentabilidades[r.key];
+                          if (val === null) return null;
+                          return (
+                            <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{r.label}</span>
+                              <span style={{ fontWeight: '600', color: val >= 0 ? '#10b981' : '#ef4444' }}>
+                                {val}%
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {fichaExtracted.tolerancia_riesgo && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Riesgo</span>
+                            <span style={{ fontWeight: '600' }}>{fichaExtracted.tolerancia_riesgo}</span>
+                          </div>
+                        )}
+                        {fichaExtracted.horizonte_inversion && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Horizonte</span>
+                            <span style={{ fontWeight: '600' }}>{fichaExtracted.horizonte_inversion}</span>
+                          </div>
+                        )}
+                        {fichaExtracted.rescatable !== null && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Rescatable</span>
+                            <span style={{ fontWeight: '600' }}>
+                              {fichaExtracted.rescatable ? 'Si' : 'No'}
+                              {fichaExtracted.plazo_rescate ? ` (${fichaExtracted.plazo_rescate})` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {fichaExtracted.objetivo && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span style={{ color: '#64748b', fontWeight: '600' }}>Objetivo: </span>
+                            <span>{fichaExtracted.objetivo}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right column - PDF */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#1a1a1a' }}>
+                      Ficha del Fondo (PDF)
+                    </div>
+                    {fichaHasPdf && (
+                      <button
+                        onClick={deleteFichaPdf}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #fecaca',
+                          backgroundColor: 'white',
+                          color: '#ef4444',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Eliminar PDF
+                      </button>
+                    )}
+                  </div>
+
+                  {fichaPdfUrl ? (
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9fafb',
+                      padding: '40px',
+                      minHeight: '300px',
+                    }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>📄</div>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', marginBottom: '8px' }}>
+                        Ficha PDF subida
+                      </div>
+                      <a
+                        href={fichaPdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '10px 24px',
+                          borderRadius: '8px',
+                          backgroundColor: '#2563eb',
+                          color: 'white',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          textDecoration: 'none',
+                          display: 'inline-block',
+                          marginBottom: '8px',
+                        }}
+                      >
+                        Abrir PDF
+                      </a>
+                      <div style={{ fontSize: '12px', color: '#999' }}>
+                        Se abre en una nueva pestaña
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = '.pdf';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) uploadFichaPdf(file);
+                        };
+                        input.click();
+                      }}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const file = e.dataTransfer.files[0];
+                        if (file && file.type === 'application/pdf') uploadFichaPdf(file);
+                      }}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px dashed #d1d5db',
+                        borderRadius: '8px',
+                        backgroundColor: '#f9fafb',
+                        cursor: fichaUploading ? 'wait' : 'pointer',
+                        minHeight: '300px',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {fichaUploading ? (
+                        <div style={{ fontSize: '14px', color: '#666' }}>Subiendo PDF...</div>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📄</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '4px' }}>
+                            Arrastra el PDF o haz clic para subir
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#999' }}>
+                            Ficha oficial del fondo (máx 10MB)
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
           )}
         </div>
       </div>

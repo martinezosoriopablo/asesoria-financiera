@@ -6,9 +6,54 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getLatestPrice } from "@/lib/fintual-api";
 
+// Cache for dólar observado by date
+const dolarCache = new Map<string, number>();
+
+// Fetch dólar observado for a specific date from mindicador.cl
+async function fetchDolarObservado(fecha: string): Promise<number> {
+  // Check cache
+  const cached = dolarCache.get(fecha);
+  if (cached) return cached;
+
+  try {
+    // mindicador.cl API: /api/dolar/dd-mm-yyyy
+    const [year, month, day] = fecha.split("-");
+    const url = `https://mindicador.cl/api/dolar/${day}-${month}-${year}`;
+    const res = await fetch(url, { next: { revalidate: 86400 } }); // cache 24h
+    if (res.ok) {
+      const data = await res.json();
+      if (data.serie && data.serie.length > 0) {
+        const valor = data.serie[0].valor;
+        dolarCache.set(fecha, valor);
+        return valor;
+      }
+    }
+  } catch (err) {
+    console.error(`Error fetching dólar observado for ${fecha}:`, err);
+  }
+
+  // Fallback: try today's rate
+  try {
+    const res = await fetch("https://mindicador.cl/api", { next: { revalidate: 600 } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.dolar?.valor) {
+        const valor = data.dolar.valor;
+        dolarCache.set(fecha, valor);
+        return valor;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Last resort fallback
+  return 950;
+}
+
 interface HoldingInput {
   fundName: string;
-  securityId?: string | null;
+  securityId?: string | null; // RUN
+  serie?: string | null; // fm_serie (e.g., "B", "BPRIV")
+  currency?: string;
   cartolaPrice?: number; // Price from the original cartola, used for cache validation
 }
 
@@ -427,9 +472,71 @@ export async function POST(request: NextRequest) {
         source: "none",
       };
 
-      // 0. FIRST: Try fondos_rentabilidades_diarias (fed by both CMF cartola and AAFM sync)
+      // 0. FAST PATH: If we already have RUN (+ serie) from match-holdings, go straight to DB
+      //    No fuzzy matching needed — this is the exact fund identified in step 1
+      if (holding.securityId && /^\d{3,6}$/.test(holding.securityId.trim())) {
+        const run = parseInt(holding.securityId.trim(), 10);
+        let fondoQuery = supabase
+          .from("fondos_mutuos")
+          .select("id, fo_run, fm_serie, nombre_fondo, moneda_funcional")
+          .eq("fo_run", run);
+
+        if (holding.serie) {
+          fondoQuery = fondoQuery.eq("fm_serie", holding.serie);
+        }
+
+        const { data: fondos } = await fondoQuery.limit(5);
+
+        if (fondos && fondos.length > 0) {
+          // If no exact serie match, pick the first one
+          const fondo = fondos[0];
+
+          const { data: priceData } = await supabase
+            .from("fondos_rentabilidades_diarias")
+            .select("valor_cuota, fecha")
+            .eq("fondo_id", fondo.id)
+            .order("fecha", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (priceData && priceData.valor_cuota > 0) {
+            let finalPrice = priceData.valor_cuota;
+
+            // Detect currency switch: CMF sometimes reports the same serie
+            // in CLP on one date and USD on another. If the ratio between
+            // cartola price and DB price is ~800-1100x, one is in USD.
+            // In that case, convert the USD price to CLP using dólar observado.
+            if (holding.cartolaPrice && holding.cartolaPrice > 0) {
+              const ratio = holding.cartolaPrice / finalPrice;
+              const inverseRatio = finalPrice / holding.cartolaPrice;
+
+              if (ratio >= 700 && ratio <= 1200) {
+                // Cartola is in CLP, DB price is in USD → multiply by dólar observado
+                const usdClp = await fetchDolarObservado(priceData.fecha);
+                finalPrice = finalPrice * usdClp;
+                result.currency = holding.currency || "CLP";
+              } else if (inverseRatio >= 700 && inverseRatio <= 1200) {
+                // Cartola is in USD, DB price is in CLP → divide by dólar observado
+                const usdClp = await fetchDolarObservado(priceData.fecha);
+                finalPrice = finalPrice / usdClp;
+                result.currency = holding.currency || "USD";
+              }
+            }
+
+            result.currentPrice = finalPrice;
+            result.lastPriceDate = priceData.fecha;
+            result.fintualName = fondo.nombre_fondo;
+            result.serieName = fondo.fm_serie;
+            if (!result.currency) result.currency = fondo.moneda_funcional || "CLP";
+            result.source = "cmf_by_run";
+            results.push(result);
+            continue;
+          }
+        }
+      }
+
+      // 1. FALLBACK: Try fondos_rentabilidades_diarias by name matching
       //    CMF covers ALL registered funds (2500+), AAFM only ~1000.
-      //    This table is the single source of truth for daily valor cuota.
       {
         const dailyPrice = await fetchDailyPrice(holding.fundName, supabase);
         if (dailyPrice && dailyPrice.price > 0) {

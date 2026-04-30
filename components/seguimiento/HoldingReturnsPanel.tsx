@@ -10,7 +10,6 @@ import {
   LineChart,
   Line,
   Legend,
-  ReferenceLine,
 } from "recharts";
 import { TrendingUp, TrendingDown, BarChart3, Loader } from "lucide-react";
 import { formatNumber, formatPercent } from "@/lib/format";
@@ -19,6 +18,7 @@ import type { Snapshot } from "./SeguimientoPage";
 interface HoldingData {
   fundName: string;
   securityId?: string | null;
+  serie?: string;
   quantity?: number;
   marketPrice?: number;
   unitCost?: number;
@@ -31,9 +31,20 @@ interface HoldingData {
   weight?: number;
 }
 
+interface FundMeta {
+  fundName: string;
+  run: string;
+  serie: string;
+  tac: number | null;
+  quantity: number;
+}
+
 interface Props {
   snapshots: Snapshot[];
   clientId?: string;
+  onCurrentValueUpdate?: (totalValue: number) => void;
+  onPriceDateUpdate?: (date: string) => void;
+  fundsMeta?: FundMeta[];
 }
 
 // Colors for the chart lines
@@ -53,11 +64,13 @@ interface FintualPrice {
   currency: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta }: Props) {
   const [selectedHoldings, setSelectedHoldings] = useState<Set<string>>(new Set());
-  const [showChart, setShowChart] = useState(false);
+  const showChart = false; // Chart removed per user request
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
+  const [historicalSeries, setHistoricalSeries] = useState<Array<Record<string, string | number>>>([]);
+  const [loadingHistorical, setLoadingHistorical] = useState(false);
 
   // Extract unique holdings and their returns over time from snapshots
   const { holdingSummaries, chartData, latestRawHoldings } = useMemo(() => {
@@ -202,15 +215,18 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
     const fetchPrices = async () => {
       setLoadingPrices(true);
       try {
-        const holdingsToFetch = holdingSummaries.map((h) => ({
-          fundName: h.fundName,
-          // Try to get securityId from the snapshot holdings
-          securityId: (latestRawHoldings as HoldingData[])?.find(
+        const holdingsToFetch = holdingSummaries.map((h) => {
+          const raw = (latestRawHoldings as HoldingData[])?.find(
             (sh) => sh.fundName === h.fundName
-          )?.securityId || null,
-          // Pass cartola price for cache validation
-          cartolaPrice: h.purchasePrice || 0,
-        }));
+          );
+          return {
+            fundName: h.fundName,
+            securityId: raw?.securityId || null,
+            serie: raw?.serie || null,
+            currency: h.currency || "CLP",
+            cartolaPrice: h.purchasePrice || 0,
+          };
+        });
 
         const res = await fetch("/api/portfolio/current-prices", {
           method: "POST",
@@ -238,33 +254,96 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
     fetchPrices();
   }, [holdingSummaries, latestRawHoldings, clientId]);
 
+  // Fetch historical price series for the chart (cuotas × valor_cuota per date)
+  useEffect(() => {
+    if (holdingSummaries.length === 0) return;
+
+    const holdingsWithRun = holdingSummaries.map((h) => {
+      const raw = (latestRawHoldings as HoldingData[])?.find(
+        (sh) => sh.fundName === h.fundName
+      );
+      const secId = raw?.securityId || "";
+      const isRun = /^\d{3,6}$/.test(secId.trim());
+      return {
+        fundName: h.fundName,
+        run: isRun ? parseInt(secId.trim(), 10) : 0,
+        serie: raw?.serie || "",
+        quantity: h.quantity,
+        currency: h.currency || "CLP",
+      };
+    }).filter((h) => h.run > 0 && h.serie);
+
+    if (holdingsWithRun.length === 0) return;
+
+    // Use the earliest purchase date as fromDate
+    const dates = holdingSummaries
+      .map((h) => h.purchaseDate)
+      .filter(Boolean) as string[];
+    const fromDate = dates.length > 0
+      ? dates.sort()[0]
+      : undefined;
+
+    const fetchHistorical = async () => {
+      setLoadingHistorical(true);
+      try {
+        const res = await fetch("/api/portfolio/historical-prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdings: holdingsWithRun, fromDate }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.series) {
+            setHistoricalSeries(data.series);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching historical prices:", err);
+      } finally {
+        setLoadingHistorical(false);
+      }
+    };
+
+    fetchHistorical();
+  }, [holdingSummaries, latestRawHoldings]);
+
+  // Build TAC map from fundsMeta (match by RUN+serie from raw holdings)
+  const tacByFundName = useMemo(() => {
+    const map = new Map<string, number | null>();
+    if (!fundsMeta || fundsMeta.length === 0 || !latestRawHoldings) return map;
+
+    for (const raw of latestRawHoldings as HoldingData[]) {
+      const secId = (raw.securityId || "").trim();
+      const serie = (raw.serie || "").trim();
+      if (!secId || !serie) continue;
+      const meta = fundsMeta.find((m) => m.run === secId && m.serie.toUpperCase() === serie.toUpperCase());
+      if (meta && raw.fundName) map.set(raw.fundName, meta.tac);
+    }
+    return map;
+  }, [fundsMeta, latestRawHoldings]);
+
   // Merge Fintual prices into summaries
   const enrichedSummaries = useMemo(() => {
-    if (fintualPrices.size === 0) return holdingSummaries;
+    const base = holdingSummaries.map((h) => ({
+      ...h,
+      tac: tacByFundName.get(h.fundName) ?? null as number | null,
+    }));
 
-    return holdingSummaries.map((h) => {
+    if (fintualPrices.size === 0) return base;
+
+    return base.map((h) => {
       const fp = fintualPrices.get(h.fundName);
       if (!fp || !fp.currentPrice || fp.currentPrice <= 0) return h;
 
       const fintualCurrentPrice = fp.currentPrice;
-      const fintualCurrency = fp.currency || "CLP";
-
-      // Validate that the price currency matches the holding currency
-      // If currencies don't match, skip to avoid nonsensical returns
-      const holdingIsUSD = h.currency === "USD";
-      const priceIsUSD = fintualCurrency === "USD";
-      if (holdingIsUSD !== priceIsUSD) {
-        // Currency mismatch — don't use this price
-        return h;
-      }
 
       const returnCalc = h.purchasePrice > 0
         ? ((fintualCurrentPrice / h.purchasePrice) - 1) * 100
         : 0;
 
       // For USD funds, keep the original CLP market value from the snapshot
-      // (quantity * USD price would give USD amount, not CLP)
       // For CLP funds, recalculate with the updated price
+      const holdingIsUSD = h.currency === "USD";
       const newMarketValue = holdingIsUSD
         ? h.marketValue
         : (h.quantity > 0 ? h.quantity * fintualCurrentPrice : h.marketValue);
@@ -279,7 +358,25 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
         lastPriceDate: fp.lastPriceDate,
       };
     });
-  }, [holdingSummaries, fintualPrices]);
+  }, [holdingSummaries, fintualPrices, tacByFundName]);
+
+  // Notify parent of updated total value and price date
+  useEffect(() => {
+    if (enrichedSummaries.length === 0) return;
+    const total = enrichedSummaries.reduce((sum, h) => sum + (h.marketValue || 0), 0);
+    if (total > 0 && onCurrentValueUpdate) onCurrentValueUpdate(total);
+
+    // Report the most recent price date from enriched data
+    if (onPriceDateUpdate) {
+      const dates = enrichedSummaries
+        .map((h) => (h as Record<string, unknown>).lastPriceDate as string | undefined)
+        .filter(Boolean) as string[];
+      if (dates.length > 0) {
+        dates.sort();
+        onPriceDateUpdate(dates[dates.length - 1]);
+      }
+    }
+  }, [enrichedSummaries, onCurrentValueUpdate, onPriceDateUpdate]);
 
   if (holdingSummaries.length === 0) {
     return null;
@@ -305,7 +402,25 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
     setSelectedHoldings(new Set());
   };
 
-  // Holdings to show in chart (selected ones + portfolio)
+  // Build chart data from historical prices (cuotas × valor_cuota)
+  const valueChartData = useMemo(() => {
+    if (historicalSeries.length === 0) return [];
+
+    return historicalSeries.map((point) => {
+      const fecha = point.fecha as string;
+      const formatted = new Date(fecha + "T12:00:00Z").toLocaleDateString("es-CL", {
+        day: "2-digit",
+        month: "short",
+      });
+      return {
+        ...point,
+        date: formatted,
+        fullDate: fecha,
+      };
+    });
+  }, [historicalSeries]);
+
+  // Holdings to show in chart (selected ones)
   const chartHoldings = enrichedSummaries
     .filter((h) => selectedHoldings.has(h.fundName))
     .map((h, i) => ({
@@ -329,6 +444,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
           <h2 className="text-base font-semibold text-gb-black">
             Rentabilidad por Activo
           </h2>
+          <span className="text-xs text-gb-gray ml-1">(desde inicio de cartola)</span>
           {loadingPrices ? (
             <Loader className="w-4 h-4 text-blue-500 animate-spin ml-2" />
           ) : (
@@ -337,16 +453,6 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
             </span>
           )}
         </div>
-        <button
-          onClick={() => setShowChart(!showChart)}
-          className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-            showChart
-              ? "bg-blue-600 text-white"
-              : "text-gb-gray border border-gb-border hover:bg-slate-50"
-          }`}
-        >
-          {showChart ? "Ocultar Grafico" : "Ver Grafico"}
-        </button>
       </div>
 
       {/* Holdings table */}
@@ -384,6 +490,9 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
               </th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
                 Contrib.
+              </th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
+                TAC
               </th>
               <th className="px-3 py-2 text-center text-xs font-semibold text-gb-gray uppercase">
                 Clase
@@ -488,6 +597,13 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
                       <span className="text-xs text-gb-gray">-</span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-right">
+                    {h.tac !== null && h.tac !== undefined ? (
+                      <span className="text-xs font-medium text-gb-black">{formatNumber(h.tac, 2)}%</span>
+                    ) : (
+                      <span className="text-xs text-gb-gray">-</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-center">
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                       /equity/i.test(h.assetClass || "") ? "bg-blue-100 text-blue-700" :
@@ -510,17 +626,26 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
         </table>
       </div>
 
-      {/* Chart */}
-      {showChart && chartData.length > 1 && (
+      {/* Chart - valor del portafolio en el tiempo */}
+      {showChart && (
         <div className="px-6 py-4 border-t border-gb-border">
-          {selectedHoldings.size === 0 ? (
+          {loadingHistorical ? (
+            <div className="flex items-center justify-center gap-2 py-8">
+              <Loader className="w-4 h-4 text-blue-500 animate-spin" />
+              <span className="text-sm text-gb-gray">Cargando serie historica...</span>
+            </div>
+          ) : valueChartData.length < 2 ? (
+            <p className="text-sm text-gb-gray text-center py-8">
+              No hay datos historicos de precios para graficar
+            </p>
+          ) : selectedHoldings.size === 0 ? (
             <p className="text-sm text-gb-gray text-center py-8">
               Selecciona activos de la tabla para ver su evolucion en el grafico
             </p>
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={valueChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
                   <XAxis
                     dataKey="date"
@@ -528,12 +653,12 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
                     tickLine={false}
                   />
                   <YAxis
-                    tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}%`}
+                    tickFormatter={(v) => `$${formatNumber(v, 0)}`}
                     tick={{ fontSize: 10, fill: "#666" }}
                     tickLine={false}
                     axisLine={false}
+                    width={80}
                   />
-                  <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "white",
@@ -541,21 +666,21 @@ export default function HoldingReturnsPanel({ snapshots, clientId }: Props) {
                       borderRadius: "8px",
                       fontSize: "11px",
                     }}
-                    formatter={(value: number | undefined) => [`${(value ?? 0) >= 0 ? "+" : ""}${(value ?? 0).toFixed(2)}%`, ""]}
+                    formatter={(value: number | undefined) => [`$${formatNumber(value ?? 0, 0)}`, ""]}
                     labelFormatter={(label) => `${label}`}
                   />
                   <Legend
                     wrapperStyle={{ fontSize: "11px" }}
                   />
-                  {/* Portfolio line (always shown when holdings selected) */}
+                  {/* Total portfolio line */}
                   <Line
                     type="monotone"
-                    dataKey="Portafolio"
+                    dataKey="total"
                     stroke="#111827"
                     strokeWidth={2.5}
                     strokeDasharray="5 5"
                     dot={false}
-                    name="Portafolio"
+                    name="Total Portafolio"
                   />
                   {chartHoldings.map((h) => (
                     <Line

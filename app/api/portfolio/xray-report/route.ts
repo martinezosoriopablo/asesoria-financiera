@@ -51,10 +51,13 @@ export async function POST(request: NextRequest) {
   if (authError) return authError;
 
   try {
-    const { xrayData, clientName, advisoryFee } = await request.json() as {
+    const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue } = await request.json() as {
       xrayData: XrayData;
       clientName?: string;
       advisoryFee?: number;
+      customContext?: string;
+      ufValue?: number;
+      usdValue?: number;
     };
     const fee = advisoryFee || 1.0;
 
@@ -62,7 +65,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "xrayData is required" }, { status: 400 });
     }
 
-    // Build a data summary for the prompt
+    // === Build structured data for the prompt ===
+
     const allocationSummary = [
       xrayData.allocation.rentaVariable.percent > 0 && `Renta Variable: ${xrayData.allocation.rentaVariable.percent.toFixed(1)}%`,
       xrayData.allocation.rentaFija.percent > 0 && `Renta Fija: ${xrayData.allocation.rentaFija.percent.toFixed(1)}%`,
@@ -71,91 +75,101 @@ export async function POST(request: NextRequest) {
       xrayData.allocation.otros.percent > 0 && `Otros: ${xrayData.allocation.otros.percent.toFixed(1)}%`,
     ].filter(Boolean).join(", ");
 
+    // Current holdings detail (what the client HAS today)
     const holdingsSummary = xrayData.holdings
-      .sort((a, b) => b.weight - a.weight)
+      .sort((a, b) => (b.weight || 0) - (a.weight || 0))
       .map(h => {
-        const tacStr = h.tac !== null ? `TAC ${h.tac.toFixed(2)}%` : "TAC desconocido";
-        const altStr = h.cheaperAlternatives.length > 0
-          ? `(hay ${h.cheaperAlternatives.length} alternativa(s) más barata(s), ahorro ~$${(h.potentialSavingAnnual || 0).toLocaleString("es-CL")}/año)`
-          : "";
-        return `- ${h.fundName} [${h.categoria}]: ${h.weight.toFixed(1)}% del portafolio, $${h.marketValue.toLocaleString("es-CL")}, ${tacStr} ${altStr}`;
+        const tacStr = h.tac != null ? `TAC ${Number(h.tac).toFixed(2)}%` : "TAC no disponible";
+        return `- ${h.fundName} [${h.categoria || "Otros"}]: ${(h.weight || 0).toFixed(1)}% del portafolio, $${(h.marketValue || 0).toLocaleString("es-CL")}, ${tacStr}`;
       })
       .join("\n");
 
-    // Count expensive funds
-    const expensiveFunds = xrayData.holdings.filter(h => h.tac !== null && h.tac > 2);
-    const concentratedHoldings = xrayData.holdings.filter(h => h.weight > 25);
+    const expensiveFunds = xrayData.holdings.filter(h => h.tac != null && h.tac > 2);
+    const concentratedHoldings = xrayData.holdings.filter(h => (h.weight || 0) > 25);
 
-    // Build proposal summary
-    const proposal = (xrayData as { proposal?: { holdings: Array<{ originalFund: string; proposedFund: string; proposedAgf: string; currentTac: number | null; proposedTac: number; proposedRent12m: number | null; changed: boolean; weight: number; marketValue: number; tacSavingBps: number }>; currentTacPromedio: number; proposedTacPromedio: number; currentCostoAnual: number; proposedCostoAnual: number; ahorroFondosAnual: number } }).proposal;
-    const proposalSummary = proposal ? proposal.holdings
-      .filter(h => h.changed)
-      .sort((a, b) => b.weight - a.weight)
-      .map(h => `- ${h.originalFund.substring(0, 40)} (TAC ${(h.currentTac || 0).toFixed(2)}%) → ${h.proposedFund.substring(0, 40)} [${h.proposedAgf}] (TAC ${h.proposedTac.toFixed(2)}%, Rent 12M: ${h.proposedRent12m !== null ? (h.proposedRent12m * 100).toFixed(1) + "%" : "N/D"}, Ahorro: ${h.tacSavingBps} bps)`)
-      .join("\n") : "";
+    // Proposal detail (what we PROPOSE as reference comparison)
+    const proposal = (xrayData as { proposal?: { holdings: Array<{ originalFund: string; proposedFund: string; proposedAgf: string; proposedSerie: string; currentTac: number | null; proposedTac: number; currentRent12m: number | null; proposedRent12m: number | null; changed: boolean; weight: number; marketValue: number; tacSavingBps: number }>; currentTacPromedio: number; proposedTacPromedio: number; currentCostoAnual: number; proposedCostoAnual: number; ahorroFondosAnual: number; currentRent12m?: number | null; proposedRent12m?: number | null } }).proposal;
 
     const feeAnual = Math.round(xrayData.totalValue * fee / 100);
     const costoTotalPropuesto = (proposal?.proposedCostoAnual || 0) + feeAnual;
     const ahorroNeto = (proposal?.currentCostoAnual || 0) - costoTotalPropuesto;
 
-    const prompt = `Eres un asesor financiero chileno experto. Genera un informe profesional de radiografía de portafolio basado en los siguientes datos.
+    // Build per-position comparison table
+    const positionComparison = proposal ? proposal.holdings
+      .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+      .map(h => {
+        const w = (h.weight || 0).toFixed(1);
+        const currentTacStr = h.currentTac != null ? `${Number(h.currentTac).toFixed(2)}%` : "N/D";
+        const currentRentStr = h.currentRent12m != null ? `Rent12M: ${Number(h.currentRent12m).toFixed(1)}%` : "";
+        if (h.changed) {
+          const proposedRentStr = h.proposedRent12m != null ? `, Rent12M: ${Number(h.proposedRent12m).toFixed(1)}%` : "";
+          return `- ${(h.originalFund || "").substring(0, 40)} (${w}%, TAC: ${currentTacStr}${currentRentStr ? `, ${currentRentStr}` : ""}) → ${(h.proposedFund || "").substring(0, 40)} [${h.proposedAgf || ""}${h.proposedSerie ? ` serie ${h.proposedSerie}` : ""}] (TAC: ${(h.proposedTac || 0).toFixed(2)}%${proposedRentStr}, ahorro: ${h.tacSavingBps || 0} bps)`;
+        }
+        return `- ${(h.originalFund || "").substring(0, 40)} (${w}%, TAC: ${currentTacStr}${currentRentStr ? `, ${currentRentStr}` : ""}) → se mantiene`;
+      })
+      .join("\n") : "";
 
-DATOS DEL PORTAFOLIO${clientName ? ` — Cliente: ${clientName}` : ""}:
+    const prompt = `Eres un asesor financiero chileno experto. Genera un informe de radiografía de portafolio.
 
-Valor Total: $${xrayData.totalValue.toLocaleString("es-CL")}
-Composición: ${allocationSummary}
-TAC Promedio Ponderado: ${xrayData.tacPromedioPortfolio.toFixed(2)}%
-Costo Anual Total (fondos): $${xrayData.costoAnualTotal.toLocaleString("es-CL")}
-Costo Proyectado 10 años: $${xrayData.costoProyectado10Y.toLocaleString("es-CL")}
-Holdings con datos TAC: ${xrayData.holdingsConTac}/${xrayData.holdings.length}
-Holdings con alternativa más barata: ${xrayData.holdingsConAlternativa}
+${customContext ? `NOTAS DEL ASESOR (incorpora este contexto en las secciones que corresponda):
+${customContext}
+
+` : ""}PORTAFOLIO ACTUAL DEL CLIENTE${clientName ? ` (${clientName})` : ""}:
+
+Valor Total: $${(xrayData.totalValue || 0).toLocaleString("es-CL")}${ufValue ? ` (UF ${(xrayData.totalValue / ufValue).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}${usdValue ? ` (USD ${(xrayData.totalValue / usdValue).toLocaleString("es-CL", { maximumFractionDigits: 0 })})` : ""}
+Composición Actual: ${allocationSummary}
+TAC Promedio Ponderado del Cliente: ${(xrayData.tacPromedioPortfolio || 0).toFixed(2)}%
+Costo Anual que Paga el Cliente (fondos): $${(xrayData.costoAnualTotal || 0).toLocaleString("es-CL")}
+Costo Proyectado 10 Años: $${(xrayData.costoProyectado10Y || 0).toLocaleString("es-CL")}
+Holdings con datos TAC: ${xrayData.holdingsConTac || 0}/${xrayData.holdings.length}
 Fondos con TAC > 2%: ${expensiveFunds.length}
 Holdings concentrados (>25%): ${concentratedHoldings.length}
 
-DETALLE DE HOLDINGS:
+POSICIONES ACTUALES DEL CLIENTE:
 ${holdingsSummary}
 
-${proposal ? `PROPUESTA DE OPTIMIZACIÓN:
-TAC Promedio Actual: ${proposal.currentTacPromedio.toFixed(2)}%
-TAC Promedio Propuesto (fondos): ${proposal.proposedTacPromedio.toFixed(2)}%
-Advisory Fee: ${fee.toFixed(2)}%
-Costo Total Propuesto (fondos + advisory fee): ${(proposal.proposedTacPromedio + fee).toFixed(2)}%
-Ahorro en fondos: $${proposal.ahorroFondosAnual.toLocaleString("es-CL")}/año
-Costo advisory fee: $${feeAnual.toLocaleString("es-CL")}/año
-Ahorro neto para el cliente: $${ahorroNeto.toLocaleString("es-CL")}/año
+${proposal ? `PORTAFOLIO DE REFERENCIA PROPUESTO (comparativo, no definitivo):
+Nota: Esta propuesta es una referencia de optimización de costos. Los fondos definitivos se definirán con el cliente.
 
-CAMBIOS PROPUESTOS:
-${proposalSummary || "Ningún cambio propuesto"}` : ""}
+Costo actual del cliente (fondos): ${(proposal.currentTacPromedio || 0).toFixed(2)}% ($${(proposal.currentCostoAnual || 0).toLocaleString("es-CL")}/año)
+Costo propuesto (fondos solamente): ${(proposal.proposedTacPromedio || 0).toFixed(2)}% ($${(proposal.proposedCostoAnual || 0).toLocaleString("es-CL")}/año)
+Advisory fee del asesor: ${fee.toFixed(2)}% ($${feeAnual.toLocaleString("es-CL")}/año)
+Costo total propuesto (fondos + fee): ${((proposal.proposedTacPromedio || 0) + fee).toFixed(2)}% ($${costoTotalPropuesto.toLocaleString("es-CL")}/año)
+${ahorroNeto > 0 ? `Ahorro neto para el cliente: $${ahorroNeto.toLocaleString("es-CL")}/año` : ahorroNeto === 0 ? "Costo equivalente al actual, con asesoría profesional incluida" : `Costo adicional vs actual: $${Math.abs(ahorroNeto).toLocaleString("es-CL")}/año (incluye asesoría profesional)`}
+${proposal.currentRent12m != null ? `Rentabilidad 12M ponderada actual: ${Number(proposal.currentRent12m).toFixed(1)}%` : ""}
+${proposal.proposedRent12m != null ? `Rentabilidad 12M ponderada propuesta: ${Number(proposal.proposedRent12m).toFixed(1)}%` : ""}
+
+COMPARACIÓN POSICIÓN POR POSICIÓN:
+${positionComparison || "Sin cambios propuestos"}` : ""}
 
 FORMATO DEL INFORME (usa exactamente estas secciones con ##):
 
 ## Resumen Ejecutivo
-(2-3 oraciones describiendo el portafolio del cliente de forma concisa y profesional)
+(2-3 oraciones. Describe qué tiene el cliente hoy, cuánto le cuesta, y qué podemos mejorar)
 
-## Composición y Diversificación
-(Análisis de la distribución por clase de activo. ¿Está bien diversificado? ¿Hay concentración excesiva en algún holding o clase?)
+## Posiciones del Cliente
+(Analiza cada posición relevante: qué fondo tiene, en qué categoría cae, y si su TAC es competitivo o no. Menciona los fondos más caros y las concentraciones)
 
 ## Análisis de Costos
-(TAC promedio del portafolio vs mercado. Fondos más caros. Impacto de costos a 10 años en pesos)
+(Distingue claramente: 1) lo que el cliente PAGA HOY, 2) lo que PAGARÍA con la propuesta. Cuantifica el impacto a 10 años)
 
-## Nuestra Propuesta
-(Explica los cambios propuestos: qué fondos se reemplazan, por qué, y el ahorro total. Incluye que INCLUSO con el advisory fee de ${fee.toFixed(1)}%, el costo total es menor${ahorroNeto > 0 ? `, generando un ahorro neto de $${ahorroNeto.toLocaleString("es-CL")} anuales` : ""}. Menciona que los fondos propuestos tienen igual o mejor rendimiento)
+## Propuesta de Referencia
+(Describe los cambios sugeridos posición por posición. Aclara que es una referencia y que los fondos definitivos se ajustarán. ${ahorroNeto > 0 ? `Destaca que INCLUSO sumando el advisory fee de ${fee.toFixed(1)}%, el costo total baja, generando un ahorro neto de $${ahorroNeto.toLocaleString("es-CL")} anuales.` : `Explica el valor de la asesoría profesional más allá del costo.`})
 
-## Observaciones
-(Puntos críticos: fondos muy caros, concentración, oportunidades fiscales como APV)
+## Observaciones del Asesor
+(Deja esta sección con 2-3 puntos genéricos sobre el portafolio. El asesor completará con sus propias observaciones después)
 
-## Recomendaciones
-(3-5 recomendaciones concretas basadas en los datos)
+## Próximos Pasos
+(3-4 acciones concretas sugeridas: reunión, definir fondos, implementar cambios, seguimiento)
 
 REGLAS:
-- Escribe en español chileno profesional (no coloquial)
-- Sé específico: menciona nombres de fondos cuando sea relevante
-- Enfócate en datos concretos, no generalidades
-- No uses emojis
-- No inventes datos que no están en la información proporcionada
-- Sé directo y conciso, cada sección máximo 4-5 líneas
-- La sección "Nuestra Propuesta" es CLAVE: es la propuesta de valor para el cliente
-- Las recomendaciones deben ser concretas (ej: "Reemplazar X por Y, ahorrando Z anuales")`;
+- Español chileno profesional
+- Sé específico: usa nombres de fondos y cifras concretas
+- NUNCA confundas los costos actuales del cliente con los propuestos — son datos distintos
+- La sección "Propuesta de Referencia" es la propuesta de valor para el cliente
+- La sección "Observaciones del Asesor" debe quedar con espacio para que el asesor agregue sus propios comentarios al editar
+- Máximo 5-6 líneas por sección
+- No inventes datos, no uses emojis`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

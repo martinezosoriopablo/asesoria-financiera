@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   XAxis,
   YAxis,
@@ -10,24 +10,41 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import { formatNumber, formatCurrency, formatPercent, formatDateShort } from "@/lib/format";
+import { formatNumber, formatCurrency, formatDateShort } from "@/lib/format";
+import { Loader } from "lucide-react";
 import type { Snapshot } from "./SeguimientoPage";
+
+interface HistoricalPoint {
+  fecha: string;
+  total: number;
+  [key: string]: string | number;
+}
 
 interface Props {
   snapshots: Snapshot[];
+  historicalSeries?: HistoricalPoint[];
+  loadingHistorical?: boolean;
 }
 
-export default function EvolucionChart({ snapshots }: Props) {
-  const [mode, setMode] = useState<"return" | "value">("return");
+export default function EvolucionChart({ snapshots, historicalSeries, loadingHistorical }: Props) {
+  // Use historical series if available, otherwise fall back to snapshots
+  const chartData = useMemo(() => {
+    if (historicalSeries && historicalSeries.length > 0) {
+      return historicalSeries.map((p) => ({
+        date: formatDateShort(p.fecha),
+        fullDate: p.fecha,
+        value: p.total,
+      }));
+    }
 
-  const chartData = useMemo(() => snapshots.map((s) => ({
-    date: formatDateShort(s.snapshot_date),
-    fullDate: s.snapshot_date,
-    value: s.total_value,
-    twr: s.twr_cumulative ?? s.cumulative_return ?? 0,
-  })), [snapshots]);
+    return snapshots.map((s) => ({
+      date: formatDateShort(s.snapshot_date),
+      fullDate: s.snapshot_date,
+      value: s.total_value,
+    }));
+  }, [snapshots, historicalSeries]);
 
-  // For value mode: tight Y-axis domain based on min/max with 5% padding
+  // Tight Y-axis domain based on min/max with 5% padding
   const valueDomain = useMemo(() => {
     if (chartData.length === 0) return [0, 0];
     const values = chartData.map((d) => d.value);
@@ -38,7 +55,16 @@ export default function EvolucionChart({ snapshots }: Props) {
     return [Math.floor((min - padding) / 1000) * 1000, Math.ceil((max + padding) / 1000) * 1000];
   }, [chartData]);
 
-  if (snapshots.length === 0) {
+  if (loadingHistorical) {
+    return (
+      <div className="h-64 flex items-center justify-center gap-2 text-gb-gray">
+        <Loader className="w-4 h-4 animate-spin" />
+        Cargando serie historica...
+      </div>
+    );
+  }
+
+  if (chartData.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-gb-gray">
         No hay datos para mostrar
@@ -46,40 +72,12 @@ export default function EvolucionChart({ snapshots }: Props) {
     );
   }
 
-  const isReturn = mode === "return";
-
   return (
     <div>
-      {/* Mode toggle */}
-      <div className="flex items-center justify-end gap-1 mb-3">
-        <div className="flex bg-slate-100 rounded-lg p-0.5">
-          <button
-            onClick={() => setMode("return")}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-              isReturn ? "bg-white text-gb-black shadow-sm" : "text-gb-gray hover:text-gb-black"
-            }`}
-          >
-            Rentabilidad
-          </button>
-          <button
-            onClick={() => setMode("value")}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-              !isReturn ? "bg-white text-gb-black shadow-sm" : "text-gb-gray hover:text-gb-black"
-            }`}
-          >
-            Valor
-          </button>
-        </div>
-      </div>
-
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              <linearGradient id="colorReturnSeg" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
-              </linearGradient>
               <linearGradient id="colorValueSeguimiento" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
@@ -92,12 +90,8 @@ export default function EvolucionChart({ snapshots }: Props) {
               tickLine={false}
             />
             <YAxis
-              domain={isReturn ? ["auto", "auto"] : valueDomain}
-              tickFormatter={
-                isReturn
-                  ? (v) => `${v >= 0 ? "+" : ""}${formatNumber(v, 1)}%`
-                  : (v) => `$${formatNumber(v / 1000, 0)}k`
-              }
+              domain={valueDomain}
+              tickFormatter={(v) => `$${formatNumber(v / 1000000, 1)}M`}
               tick={{ fontSize: 11, fill: "#666" }}
               tickLine={false}
               axisLine={false}
@@ -110,19 +104,17 @@ export default function EvolucionChart({ snapshots }: Props) {
                 fontSize: "12px",
               }}
               formatter={(value: number | undefined) =>
-                isReturn
-                  ? [formatPercent(value ?? 0), "Rentabilidad TWR"]
-                  : [formatCurrency(value ?? 0), "Valor"]
+                [formatCurrency(value ?? 0), "Valor Portafolio"]
               }
               labelFormatter={(label) => `Fecha: ${label}`}
             />
             <Area
               type="monotone"
-              dataKey={isReturn ? "twr" : "value"}
-              stroke={isReturn ? "#16a34a" : "#2563eb"}
+              dataKey="value"
+              stroke="#2563eb"
               strokeWidth={2}
               fillOpacity={1}
-              fill={isReturn ? "url(#colorReturnSeg)" : "url(#colorValueSeguimiento)"}
+              fill="url(#colorValueSeguimiento)"
             />
           </AreaChart>
         </ResponsiveContainer>

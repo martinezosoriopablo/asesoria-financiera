@@ -84,7 +84,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Advisor routes: block active clients
-  if (pathname.startsWith("/advisor") || pathname.startsWith("/clients") || pathname.startsWith("/portfolio-designer") || pathname.startsWith("/fund-center") || pathname.startsWith("/market-dashboard")) {
+  if (pathname.startsWith("/advisor") || pathname.startsWith("/clients") || pathname.startsWith("/portfolio-designer") || pathname.startsWith("/fund-center") || pathname.startsWith("/fund-center")) {
     if (user && activeRole === "client") {
       const url = request.nextUrl.clone();
       url.pathname = "/portal/dashboard";

@@ -6,6 +6,7 @@ import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus,
 interface Holding {
   fundName: string;
   securityId?: string | null;
+  serie?: string; // fm_serie (e.g., "B", "BPRIV") for precise fund lookup
   quantity?: number;
   unitCost?: number;
   costBasis?: number;
@@ -64,6 +65,7 @@ interface MatchSuggestion {
   confidence: "high" | "medium" | "low";
   matchedName?: string;
   matchedId?: string;
+  matchedSerie?: string; // fm_serie (e.g., "B", "BPRIV")
   price?: number;
   currency?: string;
   source?: string;
@@ -192,6 +194,12 @@ export default function ReviewSnapshotModal({
   const [autoMatchLoading, setAutoMatchLoading] = useState(false);
   const [usingFallbackRates, setUsingFallbackRates] = useState(false);
   const [autoMatchComplete, setAutoMatchComplete] = useState(false);
+  // Holdings that couldn't be matched (no price match, or not found at all)
+  const [unmatchedIndices, setUnmatchedIndices] = useState<Set<number>>(new Set());
+  // Count of auto-applied matches (for showing feedback even after auto-apply)
+  const [autoAppliedCount, setAutoAppliedCount] = useState(0);
+  // Index to auto-open search for (set after match completes, used once)
+  const [pendingSearchIndex, setPendingSearchIndex] = useState<number | null>(null);
 
   // Fetch exchange rates on mount
   useEffect(() => {
@@ -226,8 +234,10 @@ export default function ReviewSnapshotModal({
     fetchRates();
   }, []);
 
-  // Auto-match holdings on mount
+  // Auto-match holdings on mount (with abort controller to handle strict mode double-fire)
   useEffect(() => {
+    const controller = new AbortController();
+
     async function autoMatchHoldings() {
       if (holdings.length === 0) return;
 
@@ -247,40 +257,150 @@ export default function ReviewSnapshotModal({
             cartolaSource: sources,
             cartolaDate: fechaCartola,
           }),
+          signal: controller.signal,
         });
 
-        const data = await res.json();
-        if (data.success && data.matches) {
-          // Show all matched results — high confidence have price-verified matches
-          // Low confidence are name-only suggestions the advisor can review
-          const relevantMatches = data.matches.filter(
-            (m: MatchSuggestion) => m.matched && (m.price || m.confidence !== "low")
-          );
-          setMatchSuggestions(relevantMatches);
+        if (controller.signal.aborted) return;
 
-          // Auto-apply high-confidence matches (price-verified) and set assetClass
-          const updated = [...holdings];
-          let changed = false;
-          for (const m of data.matches as MatchSuggestion[]) {
-            if (m.matched && m.confidence === "high" && m.assetClass && updated[m.index]) {
-              if (!updated[m.index].assetClass || updated[m.index].assetClass === "") {
-                updated[m.index] = { ...updated[m.index], assetClass: m.assetClass };
-                changed = true;
-              }
+        const data = await res.json();
+        console.log("[auto-match] API response:", JSON.stringify({
+          success: data.success,
+          matchCount: data.matches?.length,
+          matches: data.matches?.map((m: MatchSuggestion) => ({
+            idx: m.index,
+            matched: m.matched,
+            confidence: m.confidence,
+            name: m.matchedName?.substring(0, 30),
+            price: m.price,
+            assetClass: m.assetClass,
+          })),
+        }));
+
+        if (controller.signal.aborted) return;
+
+        if (data.success && data.matches) {
+          const allMatches = data.matches as MatchSuggestion[];
+
+          // Show ALL matched results as suggestions
+          const relevantMatches = allMatches.filter(
+            (m) => m.matched && m.matchedName
+          );
+
+          // Track truly unmatched holdings (API returned matched: false)
+          // Low confidence with matchedName ARE valid suggestions — don't mark as unmatched
+          const unmatched = new Set<number>();
+          for (const m of allMatches) {
+            if (!m.matched) {
+              unmatched.add(m.index);
             }
           }
-          if (changed) setHoldings(updated);
+
+          // Auto-apply high-confidence matches: update price, securityId, currency, AND assetClass
+          const updated = [...holdings];
+          let appliedCount = 0;
+          for (const m of allMatches) {
+            if (m.matched && m.confidence === "high" && updated[m.index]) {
+              const h = updated[m.index];
+              updated[m.index] = {
+                ...h,
+                marketPrice: m.price || h.marketPrice,
+                securityId: m.matchedId || h.securityId,
+                serie: m.matchedSerie || h.serie,
+                currency: m.currency || h.currency,
+                ...(m.assetClass ? { assetClass: m.assetClass } : {}),
+                ...(h.quantity && h.quantity > 0 && m.price
+                  ? { marketValue: h.quantity * m.price }
+                  : {}),
+              };
+              appliedCount++;
+            }
+            // Also apply assetClass for medium confidence matches (DB classification is reliable)
+            if (m.matched && m.confidence === "medium" && m.assetClass && updated[m.index]) {
+              updated[m.index] = { ...updated[m.index], assetClass: m.assetClass };
+            }
+          }
+
+          if (controller.signal.aborted) return;
+
+          // Mark high-confidence as applied in the suggestions list
+          const suggestionsWithStatus = relevantMatches.map(s =>
+            s.confidence === "high" ? { ...s, applied: true } : s
+          );
+
+          // Batch all state updates together
+          setMatchSuggestions(suggestionsWithStatus);
+          setUnmatchedIndices(unmatched);
+          setAutoAppliedCount(appliedCount);
+          if (appliedCount > 0) setHoldings(updated);
+
+          // Set pending search index for unmatched holdings (separate effect will open it)
+          if (unmatched.size > 0) {
+            const unmatchedArr = Array.from(unmatched).sort((a, b) => a - b);
+            setPendingSearchIndex(unmatchedArr[0]);
+          }
+
+          console.log("[auto-match] Results:", {
+            total: allMatches.length,
+            matched: relevantMatches.length,
+            autoApplied: appliedCount,
+            unmatched: unmatched.size,
+            pendingReview: suggestionsWithStatus.filter(s => !s.applied).length,
+          });
         }
       } catch (err) {
-        console.error("Error auto-matching holdings:", err);
+        if (!controller.signal.aborted) {
+          console.error("Error auto-matching holdings:", err);
+        }
       } finally {
-        setAutoMatchLoading(false);
-        setAutoMatchComplete(true);
+        if (!controller.signal.aborted) {
+          setAutoMatchLoading(false);
+          setAutoMatchComplete(true);
+        }
       }
     }
 
     autoMatchHoldings();
-  }, []); // Only run once on mount
+    return () => controller.abort();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Separate effect to open search dialog for first unmatched holding
+  // This runs AFTER auto-match completes, avoiding state conflicts
+  useEffect(() => {
+    if (pendingSearchIndex === null || !autoMatchComplete) return;
+
+    async function openSearch() {
+      const idx = pendingSearchIndex;
+      if (idx === null) return;
+      setPendingSearchIndex(null); // consume it
+
+      const fundName = holdings[idx]?.fundName || "";
+      const searchTerm = fundName.split(/\s+/).slice(0, 3).join(" ").substring(0, 40);
+
+      setSearchingIndex(idx);
+      setSearchQuery(searchTerm);
+      setSearchResults([]);
+
+      if (searchTerm.length < 2) {
+        setSearchLoading(false);
+        return;
+      }
+
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`/api/fondos/search-price?q=${encodeURIComponent(searchTerm)}&date=${fechaCartola}`);
+        const data = await res.json();
+        if (data.success && data.results) {
+          setSearchResults(data.results);
+        }
+      } catch (err) {
+        console.error("Error searching fund:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    }
+
+    openSearch();
+  }, [pendingSearchIndex, autoMatchComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function parseDate(period: string): string {
     if (!period) return new Date().toISOString().split("T")[0];
@@ -499,21 +619,30 @@ export default function ReviewSnapshotModal({
   }>>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  // State for custom search query in the search dialog
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Search for fund price in database
-  const searchFundPrice = useCallback(async (index: number, fundName: string) => {
+  const searchFundPrice = useCallback(async (index: number, fundName: string, customQuery?: string) => {
     setSearchingIndex(index);
     setSearchLoading(true);
     setSearchResults([]);
 
-    try {
-      // Extract meaningful search terms (first few words)
-      const searchTerm = fundName
-        .split(/\s+/)
-        .slice(0, 3)
-        .join(" ")
-        .substring(0, 40);
+    const query = customQuery || fundName;
+    // Extract meaningful search terms (first few words) unless custom query
+    const searchTerm = customQuery
+      ? customQuery.trim()
+      : query.split(/\s+/).slice(0, 3).join(" ").substring(0, 40);
 
-      const res = await fetch(`/api/fondos/search-price?q=${encodeURIComponent(searchTerm)}`);
+    setSearchQuery(searchTerm);
+
+    if (searchTerm.length < 2) {
+      setSearchLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/fondos/search-price?q=${encodeURIComponent(searchTerm)}&date=${fechaCartola}`);
       const data = await res.json();
 
       if (data.success && data.results) {
@@ -529,26 +658,56 @@ export default function ReviewSnapshotModal({
   // Apply selected fund/stock price
   const applyFundPrice = (index: number, result: typeof searchResults[0]) => {
     const updated = [...holdings];
+    const holdingCurrency = updated[index].currency || "USD";
+    const fundCurrency = result.moneda || "CLP";
+    let price = result.valor_cuota || updated[index].marketPrice;
+
+    // Convert price if fund currency differs from holding currency
+    // e.g., CMF price is CLP but cartola holding is in USD → convert CLP to USD
+    if (price && fundCurrency !== holdingCurrency && exchangeRates) {
+      const priceInCLP = toCLP(price, fundCurrency);
+      price = fromCLP(priceInCLP, holdingCurrency);
+    }
+
     updated[index] = {
       ...updated[index],
-      marketPrice: result.valor_cuota || updated[index].marketPrice,
+      marketPrice: price,
       securityId: result.type === "stock"
         ? result.id.replace("stock-", "")
         : result.fo_run?.toString() || updated[index].securityId,
-      currency: result.moneda || updated[index].currency,
+      serie: result.type === "fund" ? (result.serie || updated[index].serie) : undefined,
+      // Keep the holding's original currency — the price was converted
+      currency: holdingCurrency,
     };
     // Recalculate market value if we have quantity and price
-    if (updated[index].quantity && updated[index].quantity > 0 && result.valor_cuota) {
-      updated[index].marketValue = updated[index].quantity * result.valor_cuota;
+    if (updated[index].quantity && updated[index].quantity > 0 && price) {
+      updated[index].marketValue = updated[index].quantity * price;
     }
     setHoldings(updated);
-    setSearchingIndex(null);
-    setSearchResults([]);
+
+    // Clear unmatched status for this holding
+    setUnmatchedIndices(prev => {
+      const next = new Set(prev);
+      next.delete(index);
+      return next;
+    });
+
+    // If there are more unmatched holdings, auto-open search for the next one
+    const remainingUnmatched = Array.from(unmatchedIndices).filter(i => i !== index).sort((a, b) => a - b);
+    if (remainingUnmatched.length > 0) {
+      const nextIdx = remainingUnmatched[0];
+      searchFundPrice(nextIdx, holdings[nextIdx]?.fundName || "");
+    } else {
+      setSearchingIndex(null);
+      setSearchResults([]);
+      setSearchQuery("");
+    }
   };
 
   const closeSearch = () => {
     setSearchingIndex(null);
     setSearchResults([]);
+    setSearchQuery("");
   };
 
   // Apply a match suggestion
@@ -560,6 +719,7 @@ export default function ReviewSnapshotModal({
       ...holding,
       marketPrice: suggestion.price || holding.marketPrice,
       securityId: suggestion.matchedId || holding.securityId,
+      serie: suggestion.matchedSerie || holding.serie,
       currency: suggestion.currency || holding.currency,
       // Set asset class from DB classification if available
       ...(suggestion.assetClass ? { assetClass: suggestion.assetClass } : {}),
@@ -571,6 +731,13 @@ export default function ReviewSnapshotModal({
     }
 
     setHoldings(updated);
+
+    // Clear unmatched status if this was an unmatched holding
+    setUnmatchedIndices(prev => {
+      const next = new Set(prev);
+      next.delete(suggestion.index);
+      return next;
+    });
 
     // Mark suggestion as applied
     setMatchSuggestions((prev) =>
@@ -603,6 +770,7 @@ export default function ReviewSnapshotModal({
         marketPrice: suggestion.price || holding.marketPrice,
         securityId: suggestion.matchedId || holding.securityId,
         currency: suggestion.currency || holding.currency,
+        ...(suggestion.assetClass ? { assetClass: suggestion.assetClass } : {}),
       };
 
       if (holding.quantity && holding.quantity > 0 && suggestion.price) {
@@ -695,6 +863,35 @@ export default function ReviewSnapshotModal({
             console.warn("Fill prices failed:", err);
           }
         }
+
+        // Backfill CMF historical prices in background (no bloquea al usuario)
+        // Extrae RUNs únicos de los holdings matcheados
+        const uniqueRuns = Array.from(
+          new Set(
+            holdings
+              .map((h) => h.securityId)
+              .filter((id): id is string => !!id && /^\d+$/.test(id))
+              .map(Number)
+          )
+        );
+        if (uniqueRuns.length > 0) {
+          console.log(`[backfill-cmf] Triggering CMF backfill for ${uniqueRuns.length} fondos: ${uniqueRuns.join(", ")}`);
+          fetch("/api/portfolio/backfill-cmf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ runs: uniqueRuns, snapshotDate: fechaCartola }),
+          })
+            .then((r) => r.json())
+            .then((r) => {
+              if (r.success) {
+                console.log(`[backfill-cmf] OK: ${r.totalImported} precios importados en ${r.ranges?.length} rangos`);
+              } else {
+                console.warn("[backfill-cmf] Error:", r.error || r);
+              }
+            })
+            .catch((err) => console.warn("[backfill-cmf] Failed:", err));
+        }
+
         onSuccess();
       } else {
         setError(result.error || "Error al guardar snapshot");
@@ -795,7 +992,7 @@ export default function ReviewSnapshotModal({
         </div>
 
         {/* Auto-Match Suggestions */}
-        {(autoMatchLoading || pendingSuggestions.length > 0) && (
+        {(autoMatchLoading || pendingSuggestions.length > 0 || (autoMatchComplete && autoAppliedCount > 0)) && (
           <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -902,10 +1099,20 @@ export default function ReviewSnapshotModal({
 
             {autoMatchComplete && pendingSuggestions.length === 0 && !autoMatchLoading && (
               <p className="mt-2 text-xs text-purple-600">
-                {matchSuggestions.filter(s => s.applied).length > 0
-                  ? `✓ ${matchSuggestions.filter(s => s.applied).length} precios aplicados`
-                  : "No se encontraron coincidencias de alta confianza"}
+                {autoAppliedCount > 0
+                  ? `✓ ${autoAppliedCount} fondo${autoAppliedCount !== 1 ? "s" : ""} identificado${autoAppliedCount !== 1 ? "s" : ""} por precio (aplicados automáticamente)`
+                  : matchSuggestions.length === 0
+                    ? "No se encontraron coincidencias — usa la lupa en cada holding para buscar por RUN"
+                    : `✓ ${matchSuggestions.filter(s => s.applied).length} precios aplicados`}
               </p>
+            )}
+            {autoMatchComplete && unmatchedIndices.size > 0 && (
+              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="text-xs text-amber-700">
+                  <strong>{unmatchedIndices.size}</strong> fondo{unmatchedIndices.size !== 1 ? "s" : ""} sin coincidencia de precio — requieren búsqueda manual por RUN
+                </span>
+              </div>
             )}
           </div>
         )}
@@ -1093,8 +1300,10 @@ export default function ReviewSnapshotModal({
                 </tr>
               </thead>
               <tbody>
-                {holdings.map((holding, index) => (
-                  <tr key={index} className="border-t border-slate-100 hover:bg-slate-50">
+                {holdings.map((holding, index) => {
+                  const isUnmatched = unmatchedIndices.has(index) && autoMatchComplete;
+                  return (
+                  <tr key={index} className={`border-t border-slate-100 hover:bg-slate-50 ${isUnmatched ? "bg-amber-50" : ""}`}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <div className="flex-1 min-w-0">
@@ -1110,12 +1319,18 @@ export default function ReviewSnapshotModal({
                                 Previsional
                               </span>
                             )}
+                            {isUnmatched && (
+                              <span className="text-[10px] px-1 py-0.5 bg-amber-200 text-amber-800 rounded font-medium flex items-center gap-0.5">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                No encontrado
+                              </span>
+                            )}
                           </div>
                         </div>
                         <button
                           onClick={() => searchFundPrice(index, holding.fundName)}
-                          className="p-1 text-blue-500 hover:bg-blue-50 rounded shrink-0"
-                          title="Buscar precio en base de datos"
+                          className={`p-1 rounded shrink-0 ${isUnmatched ? "text-amber-600 hover:bg-amber-100 animate-pulse" : "text-blue-500 hover:bg-blue-50"}`}
+                          title="Buscar por RUN o nombre"
                         >
                           <Search className="w-3 h-3" />
                         </button>
@@ -1184,23 +1399,57 @@ export default function ReviewSnapshotModal({
                       </select>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Search Results Popup */}
           {searchingIndex !== null && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className={`mt-3 p-3 rounded-lg border ${unmatchedIndices.has(searchingIndex) ? "bg-amber-50 border-amber-300" : "bg-blue-50 border-blue-200"}`}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-800">
-                  Buscando precio para: {holdings[searchingIndex]?.fundName.substring(0, 40)}...
-                </span>
+                <div>
+                  <span className={`text-sm font-medium ${unmatchedIndices.has(searchingIndex) ? "text-amber-800" : "text-blue-800"}`}>
+                    {unmatchedIndices.has(searchingIndex)
+                      ? `Fondo no encontrado: "${holdings[searchingIndex]?.fundName.substring(0, 40)}"`
+                      : `Buscando precio para: ${holdings[searchingIndex]?.fundName.substring(0, 40)}`}
+                  </span>
+                  {unmatchedIndices.has(searchingIndex) && (
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      El precio no coincidió con ningún fondo. Busca por RUN o nombre del fondo.
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={closeSearch}
-                  className="text-blue-600 hover:text-blue-800"
+                  className={`${unmatchedIndices.has(searchingIndex) ? "text-amber-600 hover:text-amber-800" : "text-blue-600 hover:text-blue-800"}`}
                 >
                   <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Search input for RUN or name */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && searchQuery.trim().length >= 2) {
+                      searchFundPrice(searchingIndex, "", searchQuery.trim());
+                    }
+                  }}
+                  placeholder="Buscar por RUN (ej: 8000) o nombre..."
+                  className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  onClick={() => searchQuery.trim().length >= 2 && searchFundPrice(searchingIndex, "", searchQuery.trim())}
+                  disabled={searchQuery.trim().length < 2}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <Search className="w-4 h-4" />
                 </button>
               </div>
 

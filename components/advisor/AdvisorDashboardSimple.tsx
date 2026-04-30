@@ -157,7 +157,7 @@ export default function ImprovedAdvisorDashboard() {
             </Link>
 
             <Link
-              href="/market-dashboard"
+              href="/fund-center"
               className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-md hover:shadow-xl transition-all p-6"
             >
               <div className="flex items-center justify-between">
@@ -242,7 +242,7 @@ export default function ImprovedAdvisorDashboard() {
 
             {/* Market Dashboard */}
             <Link
-              href="/market-dashboard"
+              href="/fund-center"
               className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-orange-500"
             >
               <div className="flex flex-col items-center text-center">

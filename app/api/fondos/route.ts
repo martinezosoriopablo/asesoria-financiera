@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { action, familia, clase, busqueda, ordenar, direccion, pagina, solo_con_datos_diarios } = body;
+    const { action, familia, clase, busqueda, ordenar, direccion, pagina, solo_con_datos_diarios, incluir_fi } = body;
     
     // ACTION: LIST - Obtener lista de fondos
     if (action === 'list') {
@@ -236,6 +236,64 @@ export async function POST(request: NextRequest) {
         })
       }));
       
+      // Include FI results if requested
+      if (incluir_fi) {
+        let fiQuery = supabase
+          .from('fondos_inversion')
+          .select('id, rut, nombre, administradora, tipo')
+          .eq('activo', true);
+
+        if (busqueda) {
+          const sanitized = sanitizeSearchInput(busqueda);
+          fiQuery = fiQuery.or(`nombre.ilike.%${sanitized}%,administradora.ilike.%${sanitized}%`);
+        }
+
+        const { data: fiData } = await fiQuery.limit(50);
+
+        if (fiData && fiData.length > 0) {
+          // Get fichas for these FI
+          const fiRuts = fiData.map(f => f.rut);
+          const { data: fichas } = await supabase
+            .from('fi_fichas')
+            .select('fi_rut, tac_serie, rent_1m, rent_3m, rent_12m, horizonte_inversion')
+            .in('fi_rut', fiRuts);
+
+          const fichaMap: Record<string, { tac: number | null; rent_12m: number | null }> = {};
+          fichas?.forEach((f: { fi_rut: string; tac_serie: number | null; rent_12m: number | null }) => {
+            fichaMap[f.fi_rut] = { tac: f.tac_serie ? Number(f.tac_serie) : null, rent_12m: f.rent_12m ? Number(f.rent_12m) : null };
+          });
+
+          // Map FI to same format as FM
+          const fiMapped = fiData.map(fi => ({
+            id: fi.id,
+            fo_run: parseInt(fi.rut) || 0,
+            fm_serie: '-',
+            nombre_fondo: fi.nombre,
+            nombre_agf: fi.administradora,
+            familia_estudios: null,
+            clase_inversionista: null,
+            rent_7d_nominal: null,
+            rent_30d_nominal: null,
+            rent_3m_nominal: null,
+            rent_12m_nominal: fichaMap[fi.rut]?.rent_12m ?? null,
+            tac_sintetica: fichaMap[fi.rut]?.tac ?? null,
+            categoria_simple: fi.tipo === 'FIRES' ? 'FI Rescatable' : 'FI No Rescatable',
+            datos_diarios_count: 0,
+            tipo_fondo: 'FI',
+          }));
+
+          const combined = [...(fondosConCategoria || []), ...fiMapped];
+
+          return NextResponse.json({
+            success: true,
+            fondos: combined,
+            total: (count || 0) + fiMapped.length,
+            pagina: paginaNum,
+            total_paginas: Math.ceil(((count || 0) + fiMapped.length) / limite)
+          });
+        }
+      }
+
       return NextResponse.json({
         success: true,
         fondos: fondosConCategoria,
@@ -366,9 +424,138 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    return NextResponse.json({ 
+    // ACTION: RANKINGS - Top 10 rentables y baratos (respeta filtros)
+    if (action === 'rankings') {
+      // Helper to apply familia/clase filters
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const applyFilters = (q: any) => {
+        let filtered = q;
+        if (familia && familia !== 'todos') {
+          const f = familia.toLowerCase();
+          if (f.includes('renta variable') || f === 'rv') {
+            filtered = filtered.or('familia_estudios.ilike.%accionario%,familia_estudios.ilike.%renta variable%');
+          } else if (f.includes('renta fija') || f === 'rf') {
+            filtered = filtered.or('familia_estudios.ilike.%deuda%,familia_estudios.ilike.%renta fija%');
+          } else if (f.includes('balanceado')) {
+            filtered = filtered.ilike('familia_estudios', '%balanceado%');
+          } else if (f.includes('alternativos')) {
+            filtered = filtered.or('familia_estudios.ilike.%estructurado%,familia_estudios.ilike.%otro%');
+          }
+        }
+        if (clase && clase !== 'todos') {
+          filtered = filtered.eq('clase_inversionista', clase);
+        }
+        return filtered;
+      };
+
+      // Top 10 más rentables (12m) from vw_fondos_completo
+      const qRent = applyFilters(
+        supabase
+          .from('vw_fondos_completo')
+          .select('fo_run, fm_serie, nombre_fondo, nombre_agf, rent_12m_nominal')
+          .not('rent_12m_nominal', 'is', null)
+          .order('rent_12m_nominal', { ascending: false })
+          .limit(10)
+      );
+      const { data: topRentables } = await qRent;
+
+      // Top 10 menor TAC (> 0.20% para excluir datos basura)
+      const qTac = applyFilters(
+        supabase
+          .from('vw_fondos_completo')
+          .select('fo_run, fm_serie, nombre_fondo, nombre_agf, tac_sintetica')
+          .not('tac_sintetica', 'is', null)
+          .gt('tac_sintetica', 0.20)
+          .order('tac_sintetica', { ascending: true })
+          .limit(10)
+      );
+      const { data: topBaratos } = await qTac;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let topRentablesList = (topRentables || []).map((f: any) => ({
+        fo_run: f.fo_run,
+        fm_serie: f.fm_serie,
+        nombre_fondo: f.nombre_fondo,
+        nombre_agf: f.nombre_agf,
+        valor: f.rent_12m_nominal || 0,
+        tipo: 'FM' as string,
+      }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let topBaratosList = (topBaratos || []).map((f: any) => ({
+        fo_run: f.fo_run,
+        fm_serie: f.fm_serie,
+        nombre_fondo: f.nombre_fondo,
+        nombre_agf: f.nombre_agf,
+        valor: f.tac_sintetica || 0,
+        tipo: 'FM' as string,
+      }));
+
+      // Include FI data if requested
+      if (incluir_fi) {
+        const { data: fiFichas } = await supabase
+          .from('fi_fichas')
+          .select('fi_rut, fi_serie, tac_serie, rent_12m')
+          .not('tac_serie', 'is', null);
+
+        if (fiFichas && fiFichas.length > 0) {
+          // Get FI names
+          const fiRuts = fiFichas.map((f: { fi_rut: string }) => f.fi_rut);
+          const { data: fiNames } = await supabase
+            .from('fondos_inversion')
+            .select('rut, nombre, administradora')
+            .in('rut', fiRuts);
+
+          const nameMap: Record<string, { nombre: string; admin: string }> = {};
+          fiNames?.forEach((f: { rut: string; nombre: string; administradora: string }) => {
+            nameMap[f.rut] = { nombre: f.nombre, admin: f.administradora };
+          });
+
+          // Add FI to TAC rankings
+          const fiBaratos = fiFichas
+            .filter((f: { tac_serie: number | null }) => f.tac_serie != null && f.tac_serie > 0.20)
+            .map((f: { fi_rut: string; fi_serie: string; tac_serie: number }) => ({
+              fo_run: parseInt(f.fi_rut) || 0,
+              fm_serie: f.fi_serie,
+              nombre_fondo: nameMap[f.fi_rut]?.nombre || `FI ${f.fi_rut}`,
+              nombre_agf: nameMap[f.fi_rut]?.admin || '',
+              valor: Number(f.tac_serie),
+              tipo: 'FI',
+            }));
+
+          // Merge and re-sort
+          topBaratosList = [...topBaratosList, ...fiBaratos]
+            .sort((a, b) => a.valor - b.valor)
+            .slice(0, 10);
+
+          // Add FI to rent rankings if they have rent_12m
+          const fiRentables = fiFichas
+            .filter((f: { rent_12m: number | null }) => f.rent_12m != null)
+            .map((f: { fi_rut: string; fi_serie: string; rent_12m: number }) => ({
+              fo_run: parseInt(f.fi_rut) || 0,
+              fm_serie: f.fi_serie,
+              nombre_fondo: nameMap[f.fi_rut]?.nombre || `FI ${f.fi_rut}`,
+              nombre_agf: nameMap[f.fi_rut]?.admin || '',
+              valor: Number(f.rent_12m),
+              tipo: 'FI',
+            }));
+
+          topRentablesList = [...topRentablesList, ...fiRentables]
+            .sort((a, b) => b.valor - a.valor)
+            .slice(0, 10);
+        }
+      }
+
+      const rankings = {
+        top_rentables: topRentablesList,
+        top_baratos: topBaratosList,
+      };
+
+      return NextResponse.json({ success: true, rankings });
+    }
+
+    return NextResponse.json({
       success: false,
-      error: 'Acción no válida' 
+      error: 'Acción no válida'
     }, { status: 400 });
     
   } catch (error: unknown) {

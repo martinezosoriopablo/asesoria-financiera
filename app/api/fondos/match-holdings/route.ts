@@ -52,6 +52,7 @@ interface MatchResult {
   confidence: "high" | "medium" | "low";
   matchedName?: string;
   matchedId?: string; // fo_run as string
+  matchedSerie?: string; // fm_serie (e.g., "B", "BPRIV", "APV")
   price?: number;
   currency?: string;
   source?: string;
@@ -141,7 +142,7 @@ interface FondoRow {
   fm_serie: string;
   nombre_fondo: string;
   nombre_agf: string;
-  moneda_funcional: string;
+  moneda_funcional?: string;
   familia_estudios: string | null;
 }
 
@@ -175,20 +176,61 @@ export async function POST(request: NextRequest) {
       }, null);
     const agfSearchPatterns = detectedAgfKey ? AGF_NAME_MAP[detectedAgfKey] : null;
 
+    console.log("[match-holdings] sources:", sourceNames, "detectedAgf:", detectedAgfKey, "patterns:", agfSearchPatterns);
+
     // Pre-fetch ALL funds from the cartola's AGF (one query for all holdings)
+    // Search in BOTH vw_fondos_completo (CMF) and fintual_funds
     let agfFunds: FondoRow[] = [];
+    let fintualFundsData: Array<{ id: string; run: string | null; last_price: number | null }> = [];
     if (agfSearchPatterns) {
       const agfFilter = agfSearchPatterns
         .map(p => `nombre_agf.ilike.%${sanitizeSearchInput(p)}%`)
         .join(",");
 
-      const { data } = await supabase
+      const { data, error: agfError } = await supabase
         .from("vw_fondos_completo")
-        .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
+        .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, familia_estudios")
         .or(agfFilter)
         .limit(1000);
 
+      if (agfError) console.error("[match-holdings] vw_fondos_completo error:", agfError);
       agfFunds = data || [];
+
+      // Also search in fintual_funds for this AGF
+      const fintualAgfFilter = agfSearchPatterns
+        .map(p => `provider_name.ilike.%${sanitizeSearchInput(p)}%`)
+        .join(",");
+
+      const { data: fintualData, error: fintualError } = await supabase
+        .from("fintual_funds")
+        .select("id, run, serie_name, fund_name, provider_name, currency, last_price, last_price_date")
+        .or(fintualAgfFilter)
+        .limit(1000);
+
+      if (fintualError) console.error("[match-holdings] fintual_funds error:", fintualError);
+      fintualFundsData = fintualData || [];
+
+      // Merge fintual funds into agfFunds (convert to same FondoRow shape)
+      if (fintualData) {
+        for (const f of fintualData) {
+          // Avoid duplicates by RUN
+          const runNum = f.run ? parseInt(f.run) : 0;
+          const exists = agfFunds.some(af => af.fo_run === runNum);
+          if (!exists) {
+            agfFunds.push({
+              id: f.id,
+              fo_run: runNum,
+              fm_serie: f.serie_name || "",
+              nombre_fondo: f.fund_name,
+              nombre_agf: f.provider_name || "",
+              moneda_funcional: f.currency || "CLP",
+              familia_estudios: null, // fintual_funds doesn't have this
+            });
+          }
+        }
+      }
+
+      console.log("[match-holdings] AGF funds found:", agfFunds.length, "sample:", agfFunds.slice(0, 3).map(f => f.nombre_fondo));
     }
 
     // Pre-fetch prices for ALL AGF funds at cartola date (one bulk query)
@@ -197,24 +239,47 @@ export async function POST(request: NextRequest) {
     if (agfFunds.length > 0 && cartolaDate) {
       const fondoIds = agfFunds.map(f => f.id);
 
-      // Fetch latest price on or before cartola date for each fund
-      // Use a window of the same month to get closest price
-      const { data: prices } = await supabase
+      // Calculate date window: 7 days before cartola date (handles month boundaries)
+      const cartolaDateObj = new Date(cartolaDate + "T12:00:00Z");
+      const windowStart = new Date(cartolaDateObj);
+      windowStart.setDate(windowStart.getDate() - 7);
+      const windowStartStr = windowStart.toISOString().split("T")[0];
+
+      // Source 1: fondos_rentabilidades_diarias (CMF prices)
+      const { data: prices, error: priceError } = await supabase
         .from("fondos_rentabilidades_diarias")
         .select("fondo_id, valor_cuota, fecha")
         .in("fondo_id", fondoIds)
         .lte("fecha", cartolaDate)
-        .gte("fecha", cartolaDate.slice(0, 7) + "-01") // same month start
+        .gte("fecha", windowStartStr)
         .order("fecha", { ascending: false });
 
+      if (priceError) console.error("[match-holdings] prices error:", priceError);
+
       if (prices) {
-        // Keep only the latest price per fondo_id
         for (const p of prices) {
           if (!priceMap.has(p.fondo_id)) {
             priceMap.set(p.fondo_id, p.valor_cuota);
           }
         }
       }
+
+      // Source 2: fintual_funds.last_price (for funds not in fondos_rentabilidades_diarias)
+      // These are current prices, good fallback if CMF prices aren't available
+      for (const f of agfFunds) {
+        if (!priceMap.has(f.id)) {
+          // Check if this fund came from fintual_funds (has last_price inline)
+          const fintualMatch = fintualFundsData.find(ff => ff.id === f.id);
+          if (fintualMatch?.last_price && fintualMatch.last_price > 0) {
+            priceMap.set(f.id, fintualMatch.last_price);
+          }
+        }
+      }
+
+      console.log("[match-holdings] priceMap size:", priceMap.size, "of", fondoIds.length, "funds");
+      console.log("[match-holdings] cartolaDate:", cartolaDate, "windowStart:", windowStartStr);
+      // Log holdings prices for comparison
+      console.log("[match-holdings] holding prices:", holdings.map(h => ({ name: h.fundName?.substring(0, 20), price: h.marketPrice })));
     }
 
     const results: MatchResult[] = [];
@@ -279,37 +344,63 @@ export async function POST(request: NextRequest) {
           const holdingPrice = holding.marketPrice;
 
           if (holdingPrice && holdingPrice > 0 && searchUniverse.length > 0) {
-            // Find funds where price matches within 0.5% tolerance
-            const priceMatches: Array<{ fondo: FondoRow; dbPrice: number; nameScore: number }> = [];
+            // Find funds where price matches within tolerance
+            // Tolerance: 1% for prices, but also allow rounding to nearest integer
+            // Also handle CLP/USD mismatch: if holdingPrice/dbPrice ≈ 800-1100x, one is in USD
+            const priceMatches: Array<{ fondo: FondoRow; dbPrice: number; nameScore: number; currency?: string }> = [];
 
+            let closestDiff = Infinity;
+            let closestFondo = "";
             for (const fondo of searchUniverse) {
               const dbPrice = priceMap.get(fondo.id);
               if (dbPrice && dbPrice > 0) {
                 const priceDiff = Math.abs(dbPrice - holdingPrice) / holdingPrice;
-                if (priceDiff < 0.005) {
+                // Track closest for debugging
+                if (priceDiff < closestDiff) {
+                  closestDiff = priceDiff;
+                  closestFondo = fondo.nombre_fondo;
+                }
+                // Allow 1% tolerance OR absolute diff < 1 (rounding)
+                if (priceDiff < 0.01 || Math.abs(dbPrice - holdingPrice) < 1) {
                   priceMatches.push({
                     fondo,
                     dbPrice,
                     nameScore: scoreNameMatch(fundName, fondo.nombre_fondo),
                   });
+                } else {
+                  // Check CLP/USD mismatch: cartola in CLP, DB in USD (ratio ~800-1100x)
+                  const ratio = holdingPrice / dbPrice;
+                  if (ratio >= 700 && ratio <= 1200) {
+                    // DB price is in USD, cartola price is in CLP → likely same fund
+                    priceMatches.push({
+                      fondo,
+                      dbPrice,
+                      nameScore: scoreNameMatch(fundName, fondo.nombre_fondo) + 1, // bonus for currency detection
+                      currency: "USD",
+                    });
+                  }
                 }
               }
             }
+
+            console.log(`[match-holdings] #${index} "${fundName.substring(0, 25)}" price=${holdingPrice} → priceMatches=${priceMatches.length}, fundsWithPrice=${searchUniverse.filter(f => priceMap.has(f.id)).length}/${searchUniverse.length}, closest=${closestDiff.toFixed(4)} "${closestFondo.substring(0, 25)}"`);
 
             if (priceMatches.length > 0) {
               // Sort by name score (highest first) to pick the best among price matches
               priceMatches.sort((a, b) => b.nameScore - a.nameScore);
               const best = priceMatches[0];
+              const isCurrencyMatch = !!best.currency; // matched via CLP/USD conversion
 
               return {
                 index,
                 matched: true,
                 matchType: "fund",
-                confidence: "high", // Price match = definitive
+                confidence: isCurrencyMatch ? "medium" : "high",
                 matchedName: best.fondo.nombre_fondo,
                 matchedId: best.fondo.fo_run?.toString(),
+                matchedSerie: best.fondo.fm_serie || undefined,
                 price: best.dbPrice,
-                currency: best.fondo.moneda_funcional || "CLP",
+                currency: best.currency || best.fondo.moneda_funcional || "CLP",
                 source: best.fondo.nombre_agf,
                 assetClass: familiaToAssetClass(best.fondo.familia_estudios),
                 familiaEstudios: best.fondo.familia_estudios || undefined,
@@ -333,6 +424,7 @@ export async function POST(request: NextRequest) {
                 confidence: "low", // Name-only, no price confirmation → low
                 matchedName: best.fondo.nombre_fondo,
                 matchedId: best.fondo.fo_run?.toString(),
+                matchedSerie: best.fondo.fm_serie || undefined,
                 price: undefined, // Don't return price — it didn't match
                 currency: best.fondo.moneda_funcional || "CLP",
                 source: best.fondo.nombre_agf,
@@ -361,6 +453,7 @@ export async function POST(request: NextRequest) {
                 confidence: confidence as "medium" | "low",
                 matchedName: best.fondo.nombre_fondo,
                 matchedId: best.fondo.fo_run?.toString(),
+                matchedSerie: best.fondo.fm_serie || undefined,
                 price: dbPrice || undefined,
                 currency: best.fondo.moneda_funcional || "CLP",
                 source: best.fondo.nombre_agf,
@@ -376,7 +469,7 @@ export async function POST(request: NextRequest) {
             if (searchTerms.length > 0) {
               const { data: generalFunds } = await supabase
                 .from("vw_fondos_completo")
-                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional, familia_estudios")
+                .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, familia_estudios")
                 .or(`nombre_fondo.ilike.%${sanitizeSearchInput(searchTerms[0])}%`)
                 .limit(20);
 
@@ -403,8 +496,9 @@ export async function POST(request: NextRequest) {
                           confidence: "high",
                           matchedName: fondo.nombre_fondo,
                           matchedId: fondo.fo_run?.toString(),
+                          matchedSerie: fondo.fm_serie || undefined,
                           price: priceRow.valor_cuota,
-                          currency: fondo.moneda_funcional || "CLP",
+                          currency: "CLP",
                           source: fondo.nombre_agf,
                           assetClass: familiaToAssetClass(fondo.familia_estudios),
                           familiaEstudios: fondo.familia_estudios || undefined,
@@ -429,8 +523,9 @@ export async function POST(request: NextRequest) {
                     confidence: "low",
                     matchedName: best.fondo.nombre_fondo,
                     matchedId: best.fondo.fo_run?.toString(),
+                    matchedSerie: best.fondo.fm_serie || undefined,
                     price: undefined,
-                    currency: best.fondo.moneda_funcional || "CLP",
+                    currency: "CLP",
                     source: best.fondo.nombre_agf,
                     assetClass: familiaToAssetClass(best.fondo.familia_estudios),
                     familiaEstudios: best.fondo.familia_estudios || undefined,

@@ -289,7 +289,10 @@ Permite al asesor hacer seguimiento periódico del portafolio de un cliente.
    - Si la cartola es de una AGF (ej: Security), busca dentro de los fondos de esa AGF
    - **Compara el precio (valor cuota)** del holding con los precios en la DB a la fecha de la cartola
    - Si el precio coincide → match confirmado, se asigna fondo, precio y clasificación automáticamente
-   - Si no coincide → se muestra "Sin precio" y el asesor debe buscar por **RUN** del fondo
+   - Si no coincide → el holding se resalta en **amarillo** con etiqueta **"No encontrado"**
+   - Se abre automáticamente un diálogo de búsqueda para el primer fondo sin match
+   - En el diálogo puedes escribir el **RUN del fondo** (ej: "8000") o buscar por nombre
+   - Al seleccionar un fondo, el sistema avanza automáticamente al siguiente holding sin match
    - La clasificación (Renta Variable, Renta Fija, etc.) viene de la DB (datos CMF), no del nombre
 4. Revisa los holdings en el modal: verifica asset class, moneda, cantidades, y precios
 5. Guarda — el sistema auto-marca el primer snapshot como baseline
@@ -305,11 +308,12 @@ Se puede compartir un cliente con otro asesor del equipo desde el botón "Compar
 - **Indicador**: Junto al botón se muestra cuándo se actualizaron los precios por última vez (verde <24h, amarillo <72h, rojo >72h)
 
 Pipeline de precios (prioridad):
-1. **CMF** — fuente más completa (2500+ fondos, incluye fondos de inversión)
-2. **Fintual API** — fondos mutuos chilenos
-3. **Yahoo Finance** — acciones y ETFs internacionales
-4. **Bolsa de Santiago** — acciones chilenas
-5. **Precios manuales** — cargados por el asesor
+1. **CMF fondos mutuos** — fuente más confiable (2500+ fondos mutuos)
+2. **CMF fondos de inversión** — precios scrapeados via 2captcha (on-demand desde radiografía o cron diario)
+3. **Fintual API** — fondos mutuos chilenos
+4. **Yahoo Finance** — acciones y ETFs internacionales
+5. **Bolsa de Santiago** — acciones chilenas
+6. **Precios manuales** — cargados por el asesor
 
 ### Métricas Calculadas
 
@@ -340,21 +344,34 @@ Muestra desglose Renta Variable / Renta Fija / Alternativas / Caja vs la cartera
 
 ### Radiografía del Portafolio (X-Ray)
 
-Análisis semiautomático que muestra al asesor el estado actual de la cartera del cliente. Se encuentra en la página de seguimiento, visible cuando hay al menos un snapshot con holdings.
+Análisis semiautomático que muestra al asesor el estado actual de la cartera del cliente y genera una propuesta comparativa de costos. Se encuentra en la página de seguimiento, visible cuando hay al menos un snapshot con holdings.
 
 **Qué muestra:**
-- **Valor total** del portafolio y cantidad de holdings
+- **Valor total** del portafolio en CLP, UF y USD (tipos de cambio de mindicador.cl)
 - **TAC promedio ponderado** — cuánto paga el cliente en comisiones anuales
-- **Costo anual y proyección a 10 años** — impacto real del TAC en pesos
-- **Ahorro potencial** — cuánto se ahorraría con alternativas más baratas
+- **Costo anual y proyección a 10 años** — impacto real del TAC en pesos y UF
+- **Ahorro potencial** — cuánto se ahorraría con alternativas más baratas (en CLP y UF)
 - **Composición** — barra visual Renta Variable / Fija / Balanceado / Alternativos
-- **Detalle por holding** — TAC, categoría, elegibilidad APV, alternativas más económicas
+- **Rentabilidad por activo** — retorno de cada holding desde inicio de cartola
+- **Rentabilidad por período** (1M/3M/6M/1Y/YTD) — en CLP, UF y USD
+- **Detalle por holding** — TAC editable, categoría, elegibilidad APV, alternativas más económicas, badge FI para fondos de inversión
+- **Propuesta de optimización** — comparación posición por posición con fondos alternativos, selector de período (1M/3M/1Y)
 
 **Cómo usarlo:**
 1. En la página de seguimiento del cliente, busca la sección "Radiografía del Portafolio"
 2. Haz clic en "Generar Radiografía"
-3. El sistema matchea cada holding contra la base CMF (5000+ fondos), busca su TAC y alternativas más baratas en la misma categoría
-4. Expande cada holding para ver las alternativas sugeridas con su TAC y rentabilidad
+3. El sistema matchea cada holding contra la base CMF (5000+ fondos mutuos + fondos de inversión), busca su TAC y alternativas más baratas en la misma categoría
+4. **Fondos de inversión**: Si el portafolio contiene fondos de inversión (ej: ETF Singular Chile Corporativo), el sistema los detecta automáticamente. Si sus precios están desactualizados (>3 días), se scrapean directamente de la CMF usando 2captcha. Se muestra el progreso de cada fondo y luego se recalcula la radiografía con datos frescos. Los fondos de inversión se identifican con badge "FI" en la tabla de detalle.
+5. Expande cada holding para ver las alternativas sugeridas con su TAC y rentabilidad
+6. **Editar TAC**: Si el TAC detectado no es correcto, edítalo directamente en el input (se marca en azul). El cambio se refleja en toda la radiografía.
+7. **Proponer fondos manualmente**: En la tabla de propuesta, haz clic en el ícono de búsqueda junto a cualquier posición. Busca por nombre, RUN o AGF y selecciona el fondo alternativo (muestra TAC, rentabilidad 1M/3M/12M). También puedes editar el TAC del fondo propuesto.
+8. **Selector de período**: En la tabla de propuesta puedes elegir el período de rentabilidad a comparar (1M, 3M, 1Y) con un desplegable, mostrando rentabilidad actual vs propuesta.
+9. **Advisory fee**: Ajusta el fee del asesor. Los costos totales se recalculan automáticamente (fondos propuestos + fee vs costo actual).
+10. **Rentabilidad comparativa**: En el resumen de la propuesta se muestra la rentabilidad ponderada del portafolio actual vs el propuesto, para comparar no solo costos sino también rendimiento.
+11. **Generar informe AI**: Agrega notas/contexto en el textarea (ej: "cliente conservador, próximo a jubilarse"). Estas notas se incluyen al inicio del prompt y se pueden editar antes de regenerar. Haz clic en "Generar Informe" para obtener un informe profesional. El informe es editable después de generado.
+12. **El informe se guarda automáticamente**: Al generar, regenerar o editar, el informe queda guardado para este cliente. La próxima vez que abras la página de seguimiento, el último informe aparecerá directamente sin necesidad de regenerar.
+
+**Nota importante sobre la propuesta:** El portafolio propuesto es una referencia comparativa de costos, no la recomendación definitiva. Los fondos finales se definirán con el cliente considerando su perfil de riesgo y objetivos.
 
 **Flujo recomendado para cliente nuevo:**
 Crear cliente → subir primera cartola → **generar radiografía** → perfil de riesgo → cartera recomendada → seguimiento periódico
@@ -731,4 +748,4 @@ Si tienes problemas o preguntas:
 
 ---
 
-*Última actualización: Febrero 2026*
+*Última actualización: Abril 2026*

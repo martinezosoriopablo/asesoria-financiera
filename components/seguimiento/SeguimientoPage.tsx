@@ -132,6 +132,14 @@ export default function SeguimientoPage({ clientId }: Props) {
 
   const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
   const [autoFillTriggered, setAutoFillTriggered] = useState(false);
+  const [historicalSeries, setHistoricalSeries] = useState<Array<{ fecha: string; total: number; [key: string]: string | number }>>([]);
+  const [fundsMeta, setFundsMeta] = useState<Array<{ fundName: string; run: string; serie: string; tac: number | null; moneda: string; quantity: number }>>([]);
+  const [loadingHistorical, setLoadingHistorical] = useState(false);
+  const [livePortfolioValue, setLivePortfolioValue] = useState<number | null>(null);
+  const [livePriceDate, setLivePriceDate] = useState<string | null>(null);
+  const [deflatorData, setDeflatorData] = useState<{ uf: Map<string, number>; usd: Map<string, number> } | null>(null);
+  const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<{ uf: number; usd: number } | null>(null);
 
   const fetchExecutions = useCallback(async () => {
     try {
@@ -176,6 +184,11 @@ export default function SeguimientoPage({ clientId }: Props) {
   useEffect(() => {
     fetchData();
     fetchExecutions();
+    // Fetch current exchange rates for UF/USD display
+    fetch("/api/exchange-rates")
+      .then(r => r.json())
+      .then(d => { if (d.success) setExchangeRates({ uf: d.uf, usd: d.usd }); })
+      .catch(() => { /* fallback handled */ });
   }, [fetchData, fetchExecutions]);
 
   // Auto-fill prices if snapshots exist but prices are stale (>24h since last api-prices snapshot)
@@ -225,6 +238,253 @@ export default function SeguimientoPage({ clientId }: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, autoFillTriggered, fillingPrices]);
+
+  // Fetch historical price series for the evolution chart
+  useEffect(() => {
+    if (!data || data.snapshots.length === 0) return;
+
+    // Find holdings with RUN+serie from the latest cartola snapshot
+    const cartolaSnaps = data.snapshots.filter(
+      (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
+    );
+    if (cartolaSnaps.length === 0) return;
+
+    const latestCartola = cartolaSnaps[cartolaSnaps.length - 1];
+    const holdings = latestCartola.holdings as Array<{
+      fundName?: string; securityId?: string; serie?: string;
+      quantity?: number; currency?: string;
+      marketPrice?: number; marketValue?: number;
+    }> | null;
+    if (!holdings || holdings.length === 0) return;
+
+    const holdingsWithRun = holdings
+      .filter((h) => {
+        const id = h.securityId || "";
+        return /^\d{3,6}$/.test(id.trim()) && h.serie && (h.quantity || 0) > 0;
+      })
+      .map((h) => ({
+        fundName: h.fundName || "",
+        run: parseInt((h.securityId || "").trim(), 10),
+        serie: h.serie || "",
+        quantity: h.quantity || 0,
+        currency: h.currency || "CLP",
+        cartolaPrice: h.marketPrice || (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0),
+      }));
+
+    if (holdingsWithRun.length === 0) return;
+
+    // Go back 1 year from today for historical data (rent 1Y, 6M, etc.)
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    oneYearAgo.setDate(oneYearAgo.getDate() - 7); // extra week buffer
+    const fromDate = oneYearAgo.toISOString().split("T")[0];
+
+    const fetchHistorical = async () => {
+      setLoadingHistorical(true);
+      try {
+        const res = await fetch("/api/portfolio/historical-prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdings: holdingsWithRun, fromDate }),
+        });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.series) {
+            setHistoricalSeries(result.series);
+            if (result.funds) setFundsMeta(result.funds);
+
+            // If series is too short (< 30 points), trigger CMF backfill to get more data
+            if (result.series.length < 30) {
+              const uniqueRuns = [...new Set(holdingsWithRun.map((h) => h.run))];
+              if (uniqueRuns.length > 0) {
+                setBackfillStatus(`Descargando histórico CMF para ${uniqueRuns.length} fondos...`);
+                fetch("/api/portfolio/backfill-cmf", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ runs: uniqueRuns, snapshotDate: fromDate }),
+                })
+                  .then((r) => r.json())
+                  .then((r) => {
+                    if (r.success && r.totalImported > 0) {
+                      setBackfillStatus(`${r.totalImported} precios importados, actualizando gráfico...`);
+                      // Re-fetch historical after backfill
+                      fetch("/api/portfolio/historical-prices", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ holdings: holdingsWithRun, fromDate }),
+                      })
+                        .then((r2) => r2.json())
+                        .then((r2) => {
+                          if (r2.success && r2.series) {
+                            setHistoricalSeries(r2.series);
+                            if (r2.funds) setFundsMeta(r2.funds);
+                          }
+                          setBackfillStatus(null);
+                        })
+                        .catch(() => setBackfillStatus(null));
+                    } else {
+                      setBackfillStatus(r.error ? `Error CMF: ${r.error}` : null);
+                      setTimeout(() => setBackfillStatus(null), 5000);
+                    }
+                  })
+                  .catch((err) => {
+                    console.warn("[backfill-cmf] Error:", err);
+                    setBackfillStatus(null);
+                  });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching historical prices:", err);
+      } finally {
+        setLoadingHistorical(false);
+      }
+    };
+
+    fetchHistorical();
+  }, [data]);
+
+  // Fetch UF and dólar historical data via our proxy (avoids CORS issues)
+  useEffect(() => {
+    const fetchDeflators = async () => {
+      const currentYear = new Date().getFullYear();
+      const years = [currentYear - 1, currentYear];
+      const ufMap = new Map<string, number>();
+      const usdMap = new Map<string, number>();
+
+      await Promise.all(
+        years.flatMap((year) => [
+          fetch(`/api/exchange-rates/historical?indicator=uf&year=${year}`)
+            .then((r) => r.json())
+            .then((d) => {
+              for (const e of (d.serie || []) as Array<{ fecha: string; valor: number }>) {
+                ufMap.set(e.fecha, e.valor);
+              }
+            })
+            .catch(() => {}),
+          fetch(`/api/exchange-rates/historical?indicator=dolar&year=${year}`)
+            .then((r) => r.json())
+            .then((d) => {
+              for (const e of (d.serie || []) as Array<{ fecha: string; valor: number }>) {
+                usdMap.set(e.fecha, e.valor);
+              }
+            })
+            .catch(() => {}),
+        ])
+      );
+
+      if (ufMap.size > 0 || usdMap.size > 0) {
+        setDeflatorData({ uf: ufMap, usd: usdMap });
+      }
+    };
+
+    fetchDeflators();
+  }, []);
+
+  // Helper: find closest value <= date in a deflator map
+  const findDeflatorValue = useCallback((map: Map<string, number> | undefined, date: string): number | null => {
+    if (!map || map.size === 0) return null;
+    const exact = map.get(date);
+    if (exact) return exact;
+    // Find nearest earlier date (maps aren't sorted, scan all)
+    let bestDate = "";
+    let bestVal: number | null = null;
+    for (const [d, v] of map) {
+      if (d <= date && d > bestDate) { bestDate = d; bestVal = v; }
+    }
+    return bestVal;
+  }, []);
+
+  // Calculate period returns from historical series (nominal + real + USD)
+  type PeriodReturn = { nominal: number; real: number | null; usd: number | null };
+  const periodReturns = useMemo(() => {
+    if (historicalSeries.length < 2) return null;
+
+    const latest = historicalSeries[historicalSeries.length - 1];
+    const latestValue = latest.total as number;
+    const latestDateStr = (latest.fecha as string).split("T")[0];
+    // Parse as local date to avoid timezone shift (e.g. 2026-04-21 UTC -> Apr 20 in Chile)
+    const [ly, lm, ld] = latestDateStr.split("-").map(Number);
+    const latestDate = new Date(ly, lm - 1, ld);
+
+    const getReturnForPeriod = (targetStr: string): PeriodReturn | null => {
+      const point = historicalSeries.find((p) => (p.fecha as string) >= targetStr);
+      if (!point || point === latest) return null;
+
+      const startValue = point.total as number;
+      if (startValue <= 0) return null;
+      const nominal = ((latestValue / startValue) - 1) * 100;
+      const startDateStr = point.fecha as string;
+
+      let real: number | null = null;
+      let usd: number | null = null;
+
+      if (deflatorData) {
+        const ufStart = findDeflatorValue(deflatorData.uf, startDateStr);
+        const ufEnd = findDeflatorValue(deflatorData.uf, latestDateStr);
+        if (ufStart && ufEnd && ufStart > 0) {
+          real = ((1 + nominal / 100) / (ufEnd / ufStart) - 1) * 100;
+        }
+
+        const usdStart = findDeflatorValue(deflatorData.usd, startDateStr);
+        const usdEnd = findDeflatorValue(deflatorData.usd, latestDateStr);
+        if (usdStart && usdEnd && usdStart > 0) {
+          usd = ((1 + nominal / 100) / (usdEnd / usdStart) - 1) * 100;
+        }
+      }
+
+      return { nominal, real, usd };
+    };
+
+    const toLocalDateStr = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    const getForMonths = (months: number) => {
+      const targetDate = new Date(latestDate);
+      targetDate.setMonth(targetDate.getMonth() - months);
+      return getReturnForPeriod(toLocalDateStr(targetDate));
+    };
+
+    return {
+      "1M": getForMonths(1),
+      "3M": getForMonths(3),
+      "6M": getForMonths(6),
+      "1Y": getForMonths(12),
+      "YTD": getReturnForPeriod(`${latestDate.getFullYear()}-01-01`),
+    };
+  }, [historicalSeries, deflatorData, findDeflatorValue]);
+
+  // TAC ponderado del portafolio
+  const weightedTAC = useMemo(() => {
+    if (fundsMeta.length === 0 || historicalSeries.length === 0) return null;
+
+    const latest = historicalSeries[historicalSeries.length - 1];
+    const totalValue = latest.total;
+    if (totalValue <= 0) return null;
+
+    let tacSum = 0;
+    let coveredValue = 0;
+
+    for (const fund of fundsMeta) {
+      if (fund.tac === null || fund.tac === undefined) continue;
+      const fundValue = (latest[fund.fundName] as number) || 0;
+      if (fundValue > 0) {
+        tacSum += fund.tac * fundValue;
+        coveredValue += fundValue;
+      }
+    }
+
+    if (coveredValue <= 0) return null;
+    return {
+      weighted: tacSum / coveredValue,
+      annualCost: Math.round(totalValue * (tacSum / coveredValue) / 100),
+      coverage: coveredValue / totalValue,
+    };
+  }, [fundsMeta, historicalSeries]);
 
   const handleSnapshotAdded = () => {
     setShowAddModal(false);
@@ -568,66 +828,91 @@ export default function SeguimientoPage({ clientId }: Props) {
 
         {/* Summary cards */}
         {metrics && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            {/* Current value */}
-            <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
-              <p className="text-xs text-gb-gray font-medium uppercase mb-1">Valor Total</p>
-              <p className="text-2xl font-bold text-gb-black">
-                {formatCurrency(metrics.currentValue)}
-              </p>
-              {snapshots.length > 0 && (
-                <p className="text-xs text-gb-gray mt-1">
-                  <Calendar className="w-3 h-3 inline mr-1" />
-                  {formatDate(snapshots[snapshots.length - 1].snapshot_date)}
+          <div className="mb-6 space-y-3">
+            {/* Row 1: Valor Inicial + Valor Actual (big cards) + TAC */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {/* Valor Inicial (cartola) */}
+              <div className="bg-white rounded-lg border border-gb-border p-5 shadow-sm">
+                <p className="text-xs text-gb-gray font-medium uppercase mb-1">Valor Cartola</p>
+                <p className="text-2xl font-bold text-gb-black">
+                  {formatCurrency(metrics.initialValue)}
                 </p>
-              )}
-            </div>
+                <p className="text-xs text-gb-gray mt-1">
+                  {exchangeRates && (
+                    <span>UF {(metrics.initialValue / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {(metrics.initialValue / exchangeRates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
+                  )}
+                  {snapshots.length > 0 && (
+                    <span>{exchangeRates ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel")?.snapshot_date || snapshots[0].snapshot_date)}</span>
+                  )}
+                </p>
+              </div>
 
-            {/* Period return - TWR */}
-            <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
-              <p className="text-xs text-gb-gray font-medium uppercase mb-1">TWR</p>
-              <p className={`text-2xl font-bold ${(metrics.twr !== null && metrics.twr !== undefined ? metrics.twr : metrics.totalReturn) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatPercent(metrics.twr !== null && metrics.twr !== undefined ? metrics.twr : metrics.totalReturn)}
-              </p>
-              <p className="text-xs text-gb-gray mt-1">
-                {metrics.periodDays > 0 ? `${metrics.periodDays} días` : "Sin período"}
-                {metrics.netCashFlow && metrics.netCashFlow !== 0 && (
-                  <span className="ml-1">
-                    (Flujo: {metrics.netCashFlow >= 0 ? "+" : ""}{formatCurrency(metrics.netCashFlow)})
-                  </span>
+              {/* Valor Actual */}
+              <div className="bg-white rounded-lg border-2 border-blue-200 p-5 shadow-sm">
+                <p className="text-xs text-blue-600 font-medium uppercase mb-1">Valor Actual</p>
+                <p className="text-2xl font-bold text-gb-black">
+                  {formatCurrency(livePortfolioValue ?? metrics.currentValue)}
+                </p>
+                <p className="text-xs text-gb-gray mt-1">
+                  {exchangeRates && (
+                    <span>UF {((livePortfolioValue ?? metrics.currentValue) / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {((livePortfolioValue ?? metrics.currentValue) / exchangeRates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
+                  )}
+                  {(livePriceDate || historicalSeries.length > 0 || snapshots.length > 0) && (
+                    <span>{exchangeRates ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(
+                      livePriceDate
+                      || (historicalSeries.length > 0 ? historicalSeries[historicalSeries.length - 1].fecha as string : null)
+                      || snapshots[snapshots.length - 1].snapshot_date
+                    )}</span>
+                  )}
+                </p>
+              </div>
+
+              {/* TAC ponderado */}
+              <div className="bg-white rounded-lg border border-gb-border p-5 shadow-sm col-span-2 md:col-span-1">
+                <p className="text-xs text-gb-gray font-medium uppercase mb-1">TAC Ponderado</p>
+                {weightedTAC ? (
+                  <>
+                    <p className="text-2xl font-bold text-gb-black">
+                      {formatNumber(weightedTAC.weighted, 2)}%
+                    </p>
+                    <p className="text-xs text-gb-gray mt-1">
+                      ${formatNumber(weightedTAC.annualCost, 0)}/año{exchangeRates ? ` (UF ${(weightedTAC.annualCost / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-2xl font-bold text-gb-gray">-</p>
                 )}
-              </p>
+              </div>
             </div>
 
-            {/* Volatility */}
-            <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
-              <p className="text-xs text-gb-gray font-medium uppercase mb-1">Volatilidad</p>
-              <p className="text-2xl font-bold text-gb-black">
-                {formatNumber(metrics.volatility, 1)}%
-              </p>
-              <p className="text-xs text-gb-gray mt-1">Anualizada</p>
-            </div>
-
-            {/* Cash Flows */}
-            <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
-              <p className="text-xs text-gb-gray font-medium uppercase mb-1">Flujos de Caja</p>
-              {metrics.totalDeposits || metrics.totalWithdrawals ? (
-                <div>
-                  {metrics.totalDeposits ? (
-                    <p className="text-sm font-semibold text-green-600">
-                      + {formatCurrency(metrics.totalDeposits)}
+            {/* Row 2: Rentabilidades (compact) — nominal / real / USD */}
+            <div className="grid grid-cols-5 gap-2">
+              {(["1M", "3M", "6M", "1Y", "YTD"] as const).map((p) => {
+                const ret = periodReturns?.[p] ?? null;
+                const renderVal = (v: number | null | undefined, label: string, bold?: boolean) => {
+                  if (v === null || v === undefined) return null;
+                  return (
+                    <p className={`${bold ? "text-sm font-bold" : "text-[10px] font-medium"} ${v >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {!bold && <span className="text-gb-gray mr-0.5">{label}</span>}
+                      {v >= 0 ? "+" : ""}{formatNumber(v, 1)}%
                     </p>
-                  ) : null}
-                  {metrics.totalWithdrawals ? (
-                    <p className="text-sm font-semibold text-red-600">
-                      - {formatCurrency(metrics.totalWithdrawals)}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="text-2xl font-bold text-gb-black">-</p>
-              )}
-              <p className="text-xs text-gb-gray mt-1">{snapshots.length} snapshots</p>
+                  );
+                };
+                return (
+                  <div key={p} className="bg-white rounded-lg border border-gb-border px-3 py-2 shadow-sm text-center">
+                    <p className="text-[10px] text-gb-gray font-medium uppercase mb-0.5">{p}</p>
+                    {ret !== null ? (
+                      <>
+                        {renderVal(ret.nominal, "", true)}
+                        {renderVal(ret.real, "UF ")}
+                        {renderVal(ret.usd, "USD ")}
+                      </>
+                    ) : (
+                      <p className="text-sm font-bold text-gb-gray">-</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -661,6 +946,11 @@ export default function SeguimientoPage({ clientId }: Props) {
           );
         })()}
 
+        {/* Holding Returns Panel */}
+        {snapshots.length > 0 && (
+          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} fundsMeta={fundsMeta} />
+        )}
+
         {/* Evolution chart */}
         {snapshots.length > 0 && (
           <div className="bg-white rounded-lg border border-gb-border shadow-sm mb-6">
@@ -683,7 +973,17 @@ export default function SeguimientoPage({ clientId }: Props) {
               </div>
             </div>
             <div className="p-6">
-              <EvolucionChart snapshots={chartSnapshots} />
+              {backfillStatus && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                  <Loader className="w-4 h-4 animate-spin flex-shrink-0" />
+                  {backfillStatus}
+                </div>
+              )}
+              <EvolucionChart
+                snapshots={chartSnapshots}
+                historicalSeries={historicalSeries}
+                loadingHistorical={loadingHistorical}
+              />
             </div>
           </div>
         )}
@@ -978,14 +1278,13 @@ export default function SeguimientoPage({ clientId }: Props) {
             <RadiografiaCartola
               holdings={(snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; securityId?: string | null; quantity?: number; marketPrice?: number; marketValue: number; assetClass?: string; currency?: string }>)}
               clientName={data?.client ? `${data.client.nombre} ${data.client.apellido}` : undefined}
+              clientId={clientId}
+              fundsMeta={fundsMeta}
             />
           </div>
         )}
 
-        {/* Holding Returns Panel */}
-        {snapshots.length > 0 && (
-          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} />
-        )}
+        {/* Holding Returns Panel — moved to composition section */}
 
         {/* Performance Attribution */}
         {snapshots.length >= 2 && (

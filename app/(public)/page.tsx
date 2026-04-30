@@ -32,7 +32,7 @@ export default function LandingPage() {
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
               <Link
-                href="/market-dashboard"
+                href="/fund-center"
                 className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
               >
                 Panorama del Mercado
@@ -81,7 +81,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/market-dashboard"
+                href="/fund-center"
                 className="px-8 py-4 bg-white border-2 border-slate-300 text-slate-900 font-bold text-lg rounded-xl hover:border-slate-400 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
               >
                 <Globe className="w-6 h-6" />
@@ -217,7 +217,7 @@ export default function LandingPage() {
                 promedio, rentabilidades y identifica las mejores opciones.
               </p>
               <Link
-                href="/market-dashboard"
+                href="/fund-center"
                 className="text-blue-600 font-semibold hover:text-blue-700 inline-flex items-center gap-2"
               >
                 Explorar mercado
@@ -399,7 +399,7 @@ export default function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link
-                    href="/market-dashboard"
+                    href="/fund-center"
                     className="hover:text-white transition-colors"
                   >
                     Panorama del Mercado

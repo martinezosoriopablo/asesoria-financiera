@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const q = searchParams.get("q");
     const type = searchParams.get("type"); // "fund", "stock", or null for both
+    const date = searchParams.get("date"); // YYYY-MM-DD — cartola date, to fetch price at that date
 
     if (!q || q.length < 2) {
       return NextResponse.json({
@@ -123,74 +124,124 @@ export async function GET(request: NextRequest) {
       valor_cuota: number | null;
       fecha_precio: string | null;
       fintual_id?: string; // For fetching real-time prices from Fintual API
+      tac?: number | null;
+      rent_1m?: number | null;
+      rent_3m?: number | null;
+      rent_12m?: number | null;
     }> = [];
 
     // Search mutual funds (unless type=stock)
     if (type !== "stock") {
-      // Search in fintual_funds first (has 5000+ funds)
-      const { data: fintualFunds, error: fintualError } = await supabase
-        .from("fintual_funds")
-        .select("id, fintual_id, run, serie_name, fund_name, provider_name, currency, last_price, last_price_date")
-        .or(`fund_name.ilike.%${sanitizeSearchInput(q)}%,provider_name.ilike.%${sanitizeSearchInput(q)}%,run.ilike.%${sanitizeSearchInput(q)}%`)
-        .limit(10);
+      // Check if query looks like a RUN number (numeric)
+      const isRunSearch = /^\d{3,6}$/.test(q.trim());
+      const sanitized = sanitizeSearchInput(q);
 
-      if (!fintualError && fintualFunds && fintualFunds.length > 0) {
-        fintualFunds.forEach((f) => {
+      // PRIMARY SOURCE: fondos_mutuos (CMF) — same as /api/fondos/lookup
+      // This ensures search-price returns the same funds as "Consulta de Fondos"
+      const fondosFilter = isRunSearch
+        ? `fo_run.eq.${sanitizeSearchInput(q.trim())}`
+        : `nombre_fondo.ilike.%${sanitized}%,nombre_agf.ilike.%${sanitized}%,fm_serie.ilike.%${sanitized}%`;
+
+      const { data: fondos, error: fondosError } = await supabase
+        .from("fondos_mutuos")
+        .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
+        .or(fondosFilter)
+        .limit(30);
+
+      if (!fondosError && fondos && fondos.length > 0) {
+        const fondoIds = fondos.map((f) => f.id);
+
+        // If cartola date provided, get price at that date (7-day window); otherwise latest
+        let priceQuery = supabase
+          .from("fondos_rentabilidades_diarias")
+          .select("fondo_id, fecha, valor_cuota")
+          .in("fondo_id", fondoIds);
+
+        if (date) {
+          const windowStart = new Date(date + "T12:00:00Z");
+          windowStart.setDate(windowStart.getDate() - 7);
+          priceQuery = priceQuery
+            .lte("fecha", date)
+            .gte("fecha", windowStart.toISOString().split("T")[0]);
+        }
+
+        const { data: prices } = await priceQuery.order("fecha", { ascending: false });
+
+        const latestPrices: Record<string, { fecha: string; valor_cuota: number }> = {};
+        if (prices) {
+          for (const p of prices) {
+            if (!latestPrices[p.fondo_id]) {
+              latestPrices[p.fondo_id] = { fecha: p.fecha, valor_cuota: p.valor_cuota };
+            }
+          }
+        }
+
+        // Lookup TAC and returns from vw_fondos_completo for these fondos
+        const tacMap: Record<string, number | null> = {};
+        const rent1mMap: Record<string, number | null> = {};
+        const rent3mMap: Record<string, number | null> = {};
+        const rent12mMap: Record<string, number | null> = {};
+        const { data: tacData } = await supabase
+          .from("vw_fondos_completo")
+          .select("id, tac_sintetica, rent_30d_nominal, rent_3m_nominal, rent_12m_nominal")
+          .in("id", fondoIds);
+        if (tacData) {
+          for (const t of tacData) {
+            tacMap[t.id] = t.tac_sintetica;
+            rent1mMap[t.id] = t.rent_30d_nominal;
+            rent3mMap[t.id] = t.rent_3m_nominal;
+            rent12mMap[t.id] = t.rent_12m_nominal;
+          }
+        }
+
+        fondos.forEach((f) => {
           results.push({
             id: f.id,
             type: "fund",
-            fo_run: f.run ? parseInt(f.run) : undefined,
-            serie: f.serie_name,
-            nombre: f.fund_name,
-            agf: f.provider_name,
-            moneda: f.currency || "CLP",
-            valor_cuota: f.last_price,
-            fecha_precio: f.last_price_date,
-            fintual_id: f.fintual_id, // Add fintual_id for price fetching
+            fo_run: f.fo_run,
+            serie: f.fm_serie,
+            nombre: f.nombre_fondo,
+            agf: f.nombre_agf,
+            moneda: f.moneda_funcional || "CLP",
+            valor_cuota: latestPrices[f.id]?.valor_cuota || null,
+            fecha_precio: latestPrices[f.id]?.fecha || null,
+            tac: tacMap[f.id] ?? null,
+            rent_1m: rent1mMap[f.id] ?? null,
+            rent_3m: rent3mMap[f.id] ?? null,
+            rent_12m: rent12mMap[f.id] ?? null,
           });
         });
       }
 
-      // Also search in fondos_mutuos (legacy table) if few results
-      if (results.length < 5) {
-        const { data: fondos, error: fondosError } = await supabase
-          .from("fondos_mutuos")
-          .select("id, fo_run, fm_serie, nombre_fondo, nombre_agf, moneda_funcional")
-          .or(`nombre_fondo.ilike.%${sanitizeSearchInput(q)}%,nombre_agf.ilike.%${sanitizeSearchInput(q)}%`)
-          .limit(5);
+      // SECONDARY SOURCE: fintual_funds — add any funds not already found in CMF
+      if (results.length < 10) {
+        const fintualFilter = isRunSearch
+          ? `run.eq.${sanitizeSearchInput(q.trim())},run.ilike.${sanitizeSearchInput(q.trim())}%`
+          : `fund_name.ilike.%${sanitized}%,provider_name.ilike.%${sanitized}%,run.ilike.%${sanitized}%`;
 
-        if (!fondosError && fondos && fondos.length > 0) {
-          const fondoIds = fondos.map((f) => f.id);
+        const { data: fintualFunds, error: fintualError } = await supabase
+          .from("fintual_funds")
+          .select("id, fintual_id, run, serie_name, fund_name, provider_name, currency, last_price, last_price_date")
+          .or(fintualFilter)
+          .limit(10);
 
-          const { data: prices } = await supabase
-            .from("fondos_rentabilidades_diarias")
-            .select("fondo_id, fecha, valor_cuota")
-            .in("fondo_id", fondoIds)
-            .order("fecha", { ascending: false });
-
-          const latestPrices: Record<string, { fecha: string; valor_cuota: number }> = {};
-          if (prices) {
-            for (const p of prices) {
-              if (!latestPrices[p.fondo_id]) {
-                latestPrices[p.fondo_id] = { fecha: p.fecha, valor_cuota: p.valor_cuota };
-              }
-            }
-          }
-
-          fondos.forEach((f) => {
-            // Avoid duplicates (check by RUN)
-            const exists = results.some(r => r.fo_run === f.fo_run);
+        if (!fintualError && fintualFunds && fintualFunds.length > 0) {
+          fintualFunds.forEach((f) => {
+            // Avoid duplicates: check by RUN + serie
+            const runNum = f.run ? parseInt(f.run) : 0;
+            const exists = results.some(r => r.fo_run === runNum && r.serie === f.serie_name);
             if (!exists) {
               results.push({
                 id: f.id,
                 type: "fund",
-                fo_run: f.fo_run,
-                serie: f.fm_serie,
-                nombre: f.nombre_fondo,
-                agf: f.nombre_agf,
-                moneda: f.moneda_funcional || "CLP",
-                valor_cuota: latestPrices[f.id]?.valor_cuota || null,
-                fecha_precio: latestPrices[f.id]?.fecha || null,
+                fo_run: runNum || undefined,
+                serie: f.serie_name,
+                nombre: f.fund_name,
+                agf: f.provider_name,
+                moneda: f.currency || "CLP",
+                valor_cuota: f.last_price,
+                fecha_precio: f.last_price_date,
+                fintual_id: f.fintual_id,
               });
             }
           });

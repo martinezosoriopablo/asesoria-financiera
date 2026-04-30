@@ -1,16 +1,13 @@
-// app/fund-center/page.tsx
-// Centro de Fondos - Herramienta unificada para búsqueda, comparación y análisis
-
 "use client";
 
 import React, { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { Search, BarChart3, FileText, Loader } from "lucide-react";
-import SearchMode from "./components/SearchMode";
-import CompareMode from "./components/CompareMode";
-import AnalyzeMode from "./components/AnalyzeMode";
+import { BarChart3, Search, TrendingUp, Loader } from "lucide-react";
+import ExplorarTab from "@/components/fund-center/ExplorarTab";
+import BuscarTab from "@/components/fund-center/BuscarTab";
+import CompararTab from "@/components/fund-center/CompararTab";
 
 // ============================================================
 // TAB NAVIGATION
@@ -20,13 +17,12 @@ interface TabConfig {
   id: string;
   label: string;
   icon: React.ElementType;
-  description: string;
 }
 
 const TABS: TabConfig[] = [
-  { id: "search", label: "Búsqueda", icon: Search, description: "Buscar fondos" },
-  { id: "compare", label: "Comparador", icon: BarChart3, description: "Comparar ETFs" },
-  { id: "analyze", label: "Análisis", icon: FileText, description: "Analizar PDF" },
+  { id: "explorar", label: "Explorar", icon: BarChart3 },
+  { id: "buscar", label: "Buscar", icon: Search },
+  { id: "comparar", label: "Comparar", icon: TrendingUp },
 ];
 
 function TabNavigation({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
@@ -37,18 +33,15 @@ function TabNavigation({ activeTab, onTabChange }: { activeTab: string; onTabCha
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-
             return (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`
-                  flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all
-                  ${isActive
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  isActive
                     ? "bg-gb-black text-white"
                     : "text-gb-gray hover:bg-gb-light hover:text-gb-black"
-                  }
-                `}
+                }`}
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
@@ -70,7 +63,7 @@ function FundCenterContent() {
   const router = useRouter();
   const { advisor, loading: authLoading } = useAdvisor();
 
-  const activeTab = searchParams.get("mode") || "search";
+  const activeTab = searchParams.get("mode") || "explorar";
 
   const handleTabChange = (tab: string) => {
     router.push(`/fund-center?mode=${tab}`);
@@ -100,7 +93,7 @@ function FundCenterContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <h1 className="text-2xl font-semibold text-gb-black">Centro de Fondos</h1>
           <p className="text-sm text-gb-gray mt-1">
-            Busca, compara y analiza fondos de inversión
+            Explora, busca y compara fondos mutuos, fondos de inversión y ETFs
           </p>
         </div>
       </div>
@@ -110,9 +103,9 @@ function FundCenterContent() {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === "search" && <SearchMode />}
-        {activeTab === "compare" && <CompareMode />}
-        {activeTab === "analyze" && <AnalyzeMode />}
+        {activeTab === "explorar" && <ExplorarTab />}
+        {activeTab === "buscar" && <BuscarTab />}
+        {activeTab === "comparar" && <CompararTab />}
       </div>
     </div>
   );

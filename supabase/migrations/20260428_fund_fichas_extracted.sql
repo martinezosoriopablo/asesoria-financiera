@@ -1,0 +1,14 @@
+-- Add extracted PDF data columns to fund_fichas
+ALTER TABLE fund_fichas
+  ADD COLUMN IF NOT EXISTS tac_serie NUMERIC,
+  ADD COLUMN IF NOT EXISTS nombre_fondo_pdf TEXT,
+  ADD COLUMN IF NOT EXISTS serie_detectada TEXT,
+  ADD COLUMN IF NOT EXISTS rent_1m NUMERIC,
+  ADD COLUMN IF NOT EXISTS rent_3m NUMERIC,
+  ADD COLUMN IF NOT EXISTS rent_6m NUMERIC,
+  ADD COLUMN IF NOT EXISTS rent_12m NUMERIC,
+  ADD COLUMN IF NOT EXISTS rescatable BOOLEAN,
+  ADD COLUMN IF NOT EXISTS plazo_rescate TEXT,
+  ADD COLUMN IF NOT EXISTS horizonte_inversion TEXT,
+  ADD COLUMN IF NOT EXISTS tolerancia_riesgo TEXT,
+  ADD COLUMN IF NOT EXISTS objetivo TEXT;

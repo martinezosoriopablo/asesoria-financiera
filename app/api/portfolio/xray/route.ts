@@ -8,6 +8,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 interface HoldingInput {
   fundName: string;
   securityId?: string | null;
+  serie?: string | null;
   quantity?: number;
   marketPrice?: number;
   marketValue: number;
@@ -23,8 +24,9 @@ interface FondoMatch {
   nombre_agf: string;
   familia_estudios: string | null;
   tac_sintetica: number | null;
-  rent_12m_nominal: number | null;
   rent_30d_nominal: number | null;
+  rent_3m_nominal: number | null;
+  rent_12m_nominal: number | null;
   clase_inversionista: string | null;
 }
 
@@ -33,6 +35,8 @@ interface Alternative {
   nombre_agf: string;
   fm_serie: string;
   tac_sintetica: number;
+  rent_1m: number | null;
+  rent_3m: number | null;
   rent_12m: number | null;
   sharpe_365d: number | null;
   patrimonio_mm: number | null;
@@ -49,11 +53,22 @@ interface HoldingAnalysis {
   matchedFund: string | null;
   matchedAgf: string | null;
   categoria: string; // Renta Variable, Renta Fija, Balanceado, Alternativos, Otros
+  // Fondo de inversión detection
+  isFondoInversion?: boolean;
+  fiRut?: string;
+  fiPrecioFecha?: string | null;
+  fiValorLibro?: number | null;
+  fiStale?: boolean; // true if price data is older than 3 days
+  fiRent1m?: number | null;
+  fiRent3m?: number | null;
+  fiRent12m?: number | null;
   // Cost
   tac: number | null; // Annual cost %
   tacImpactAnnual: number | null; // $ annual cost
   tacImpact10Y: number | null; // $ 10-year projected cost
-  // Tax
+  // Tax (from fund_fichas DB or name detection fallback)
+  beneficio107lir: boolean;
+  beneficio108lir: boolean;
   isApvEligible: boolean;
   regimen57bis: boolean;
   // Alternatives
@@ -72,7 +87,11 @@ interface ProposalHolding {
   weight: number;
   currentTac: number | null;
   proposedTac: number;
+  currentRent1m: number | null;
+  currentRent3m: number | null;
   currentRent12m: number | null;
+  proposedRent1m: number | null;
+  proposedRent3m: number | null;
   proposedRent12m: number | null;
   proposedSharpe: number | null;
   tacSavingBps: number; // basis points saved
@@ -113,6 +132,8 @@ interface XrayResult {
   holdingsConTac: number;
   holdingsSinTac: number;
   holdingsConAlternativa: number;
+  // Fondos de inversión detected
+  fondosInversionDetected: Array<{ rut: string; nombre: string; stale: boolean }>;
   // Optimized proposal
   proposal: OptimizedProposal;
 }
@@ -183,7 +204,7 @@ export async function POST(request: NextRequest) {
     const { data: allFondos } = await supabase
       .from("vw_fondos_completo")
       .select(
-        "id, fo_run, fm_serie, nombre_fondo, nombre_agf, familia_estudios, tac_sintetica, rent_12m_nominal, rent_30d_nominal, clase_inversionista"
+        "id, fo_run, fm_serie, nombre_fondo, nombre_agf, familia_estudios, tac_sintetica, rent_30d_nominal, rent_3m_nominal, rent_12m_nominal, clase_inversionista"
       )
       .limit(5000);
 
@@ -200,6 +221,103 @@ export async function POST(request: NextRequest) {
 
     const fondosIndex = allFondos || [];
 
+    // Pre-fetch fondos de inversión catalog for FI detection
+    const { data: allFI } = await supabase
+      .from("fondos_inversion")
+      .select("id, rut, nombre, administradora, tipo, cmf_row, ultimo_sync")
+      .eq("activo", true)
+      .limit(500);
+
+    // Pre-fetch FI prices (full history for return calculation, prefer serie A)
+    const fiIndex = allFI || [];
+    const fiIds = fiIndex.map(f => f.id);
+    let fiLatestPrices: Record<string, { fecha: string; valor_libro: number; serie: string }> = {};
+    // fiPriceHistory: fondo_id → sorted array of { fecha, valor_libro } (serie A preferred)
+    const fiPriceHistory: Record<string, Array<{ fecha: string; valor_libro: number }>> = {};
+    if (fiIds.length > 0) {
+      const { data: fiPrices } = await supabase
+        .from("fondos_inversion_precios")
+        .select("fondo_id, serie, fecha, valor_libro")
+        .in("fondo_id", fiIds)
+        .order("fecha", { ascending: false })
+        .limit(10000);
+
+      if (fiPrices) {
+        // Group by fondo_id, pick preferred serie per fondo (A if available)
+        const fiSerieByFondo: Record<string, string> = {};
+        for (const p of fiPrices) {
+          const existing = fiLatestPrices[p.fondo_id];
+          if (!existing) {
+            fiLatestPrices[p.fondo_id] = { fecha: p.fecha, valor_libro: Number(p.valor_libro), serie: p.serie };
+            fiSerieByFondo[p.fondo_id] = p.serie;
+          } else if (existing.fecha === p.fecha && p.serie === "A" && existing.serie !== "A") {
+            fiLatestPrices[p.fondo_id] = { fecha: p.fecha, valor_libro: Number(p.valor_libro), serie: p.serie };
+            fiSerieByFondo[p.fondo_id] = "A";
+          }
+        }
+        // Build price history per fondo using preferred serie
+        for (const p of fiPrices) {
+          const preferredSerie = fiSerieByFondo[p.fondo_id];
+          if (p.serie !== preferredSerie) continue;
+          if (!fiPriceHistory[p.fondo_id]) fiPriceHistory[p.fondo_id] = [];
+          fiPriceHistory[p.fondo_id].push({ fecha: p.fecha, valor_libro: Number(p.valor_libro) });
+        }
+        // Sort ascending by date for return calculation
+        for (const id of Object.keys(fiPriceHistory)) {
+          fiPriceHistory[id].sort((a, b) => a.fecha.localeCompare(b.fecha));
+        }
+      }
+    }
+
+    // Pre-fetch fund_fichas for tax benefit info
+    const { data: allFichas } = await supabase
+      .from("fund_fichas")
+      .select("fo_run, fm_serie, beneficio_107lir, beneficio_108lir, beneficio_apv, beneficio_57bis")
+      .limit(5000);
+
+    const fichasMap = new Map<string, { beneficio_107lir: boolean; beneficio_108lir: boolean; beneficio_apv: boolean; beneficio_57bis: boolean }>();
+    for (const f of allFichas || []) {
+      fichasMap.set(`${f.fo_run}|${f.fm_serie}`, f);
+    }
+
+    // Compute FI returns from price history
+    const computeFIReturns = (fondoId: string): { rent1m: number | null; rent3m: number | null; rent12m: number | null } => {
+      const history = fiPriceHistory[fondoId];
+      if (!history || history.length < 2) return { rent1m: null, rent3m: null, rent12m: null };
+
+      const latest = history[history.length - 1];
+      const latestDate = new Date(latest.fecha + "T12:00:00");
+
+      const findPriceNearDate = (targetDate: Date): number | null => {
+        // Find the closest price on or before targetDate (within 7 day tolerance)
+        const targetStr = targetDate.toISOString().slice(0, 10);
+        let best: typeof history[0] | null = null;
+        for (const p of history) {
+          if (p.fecha <= targetStr) best = p;
+        }
+        if (!best) return null;
+        const daysDiff = Math.floor((latestDate.getTime() - new Date(best.fecha + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24));
+        // Don't use if the gap between target and found is too large
+        const targetDays = Math.floor((latestDate.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (Math.abs(daysDiff - targetDays) > 7) return null;
+        return best.valor_libro;
+      }
+
+      const d30 = new Date(latestDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const d90 = new Date(latestDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const d365 = new Date(latestDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+      const p30 = findPriceNearDate(d30);
+      const p90 = findPriceNearDate(d90);
+      const p365 = findPriceNearDate(d365);
+
+      return {
+        rent1m: p30 ? Math.round(((latest.valor_libro - p30) / p30) * 10000) / 100 : null,
+        rent3m: p90 ? Math.round(((latest.valor_libro - p90) / p90) * 10000) / 100 : null,
+        rent12m: p365 ? Math.round(((latest.valor_libro - p365) / p365) * 10000) / 100 : null,
+      };
+    }
+
     // Match each holding to a fondo
     const analyzeHolding = (holding: HoldingInput): HoldingAnalysis => {
       const weight = totalValue > 0 ? (holding.marketValue / totalValue) * 100 : 0;
@@ -210,32 +328,100 @@ export async function POST(request: NextRequest) {
 
       // Find best matching fondo
       let bestMatch: FondoMatch | null = null;
-      let bestScore = 0;
 
-      for (const f of fondosIndex) {
-        const fNorm = stripAccents(f.nombre_fondo.toLowerCase());
-        let score = 0;
-        for (const w of words) {
-          if (fNorm.includes(w)) score++;
-        }
-        // Serie matching
-        if (holding.fundName.match(/\s-\s*([A-Z]+)\s*$/i)) {
-          const serie = RegExp.$1.toUpperCase();
-          if (f.fm_serie && f.fm_serie.toUpperCase().includes(serie)) score += 3;
-        }
-        if (score > bestScore && score >= 2) {
-          bestScore = score;
-          bestMatch = f;
+      // 1) Exact match by RUN + serie (if securityId is a RUN number)
+      if (holding.securityId) {
+        const runNum = parseInt(holding.securityId);
+        if (!isNaN(runNum)) {
+          const exactMatches = fondosIndex.filter(f => f.fo_run === runNum);
+          if (exactMatches.length > 0) {
+            if (holding.serie) {
+              const serieMatch = exactMatches.find(f => f.fm_serie && f.fm_serie.toUpperCase() === holding.serie!.toUpperCase());
+              bestMatch = serieMatch || exactMatches[0];
+            } else {
+              bestMatch = exactMatches[0];
+            }
+          }
         }
       }
 
+      // 2) Fallback: fuzzy name matching
+      if (!bestMatch) {
+        let bestScore = 0;
+        // For short fund names (1 unique word like "Gold"), accept score >= 1
+        const minScore = words.length <= 1 ? 1 : 2;
+        for (const f of fondosIndex) {
+          const fNorm = stripAccents(f.nombre_fondo.toLowerCase());
+          let score = 0;
+          for (const w of words) {
+            if (fNorm.includes(w)) score++;
+          }
+          // Serie matching (from holding.serie or name pattern like " - B")
+          const holdingSerie = holding.serie?.toUpperCase() ||
+            (holding.fundName.match(/\s-\s*([A-Z]+)\s*$/i) ? RegExp.$1.toUpperCase() : null);
+          if (holdingSerie && f.fm_serie && f.fm_serie.toUpperCase() === holdingSerie) {
+            score += 3;
+          }
+          if (score > bestScore && score >= minScore) {
+            bestScore = score;
+            bestMatch = f;
+          }
+        }
+      }
+
+      // 3) If no match in fondos_mutuos, check fondos de inversión by RUT
+      let fiMatch: typeof fiIndex[0] | null = null;
+      let fiPrice: typeof fiLatestPrices[string] | null = null;
+      let fiStale = false;
+
+      if (!bestMatch && holding.securityId) {
+        const rutStr = holding.securityId.replace(/\D/g, "");
+        fiMatch = fiIndex.find(f => f.rut === rutStr) || null;
+        if (fiMatch) {
+          fiPrice = fiLatestPrices[fiMatch.id] || null;
+          if (fiPrice) {
+            const daysSincePrice = Math.floor((Date.now() - new Date(fiPrice.fecha + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24));
+            fiStale = daysSincePrice > 3;
+          } else {
+            fiStale = true; // No prices at all
+          }
+        }
+      }
+
+      // Also try matching FI by name if no RUT match
+      if (!bestMatch && !fiMatch) {
+        for (const fi of fiIndex) {
+          const fiNorm = stripAccents(fi.nombre.toLowerCase());
+          let score = 0;
+          for (const w of words) {
+            if (fiNorm.includes(w)) score++;
+          }
+          if (score >= 2) {
+            fiMatch = fi;
+            fiPrice = fiLatestPrices[fi.id] || null;
+            fiStale = !fiPrice || Math.floor((Date.now() - new Date(fiPrice.fecha + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24)) > 3;
+            break;
+          }
+        }
+      }
+
+      // Compute FI returns if matched
+      const fiReturns = fiMatch ? computeFIReturns(fiMatch.id) : null;
+
       const categoria = bestMatch
         ? getCategoriaSimple(bestMatch.familia_estudios)
-        : holding.assetClass === "equity"
-          ? "Renta Variable"
-          : holding.assetClass === "fixedIncome"
-            ? "Renta Fija"
-            : "Otros";
+        : fiMatch
+          ? "Alternativos" // FI default category
+          : holding.assetClass === "equity"
+            ? "Renta Variable"
+            : holding.assetClass === "fixedIncome"
+              ? "Renta Fija"
+              : "Otros";
+
+      // Lookup fund ficha for tax benefits
+      const fichaEntry = bestMatch
+        ? fichasMap.get(`${bestMatch.fo_run}|${bestMatch.fm_serie}`)
+        : undefined;
 
       const tac = bestMatch?.tac_sintetica || null;
       const tacAnnual = tac && holding.marketValue ? (tac / 100) * holding.marketValue : null;
@@ -267,6 +453,8 @@ export async function POST(request: NextRequest) {
               nombre_agf: c.nombre_agf,
               fm_serie: c.fm_serie,
               tac_sintetica: c.tac_sintetica!,
+              rent_1m: c.rent_30d_nominal,
+              rent_3m: c.rent_3m_nominal,
               rent_12m: c.rent_12m_nominal,
               sharpe_365d: returns?.sharpe_365d || null,
               patrimonio_mm: returns?.patrimonio_mm || null,
@@ -289,15 +477,27 @@ export async function POST(request: NextRequest) {
         marketValue: holding.marketValue,
         weight: Math.round(weight * 100) / 100,
         currency: holding.currency || "CLP",
-        matched: !!bestMatch,
-        matchedFund: bestMatch?.nombre_fondo || null,
-        matchedAgf: bestMatch?.nombre_agf || null,
+        matched: !!bestMatch || !!fiMatch,
+        matchedFund: bestMatch?.nombre_fondo || fiMatch?.nombre || null,
+        matchedAgf: bestMatch?.nombre_agf || fiMatch?.administradora || null,
         categoria,
+        // Fondo de inversión fields
+        isFondoInversion: !!fiMatch,
+        fiRut: fiMatch?.rut || undefined,
+        fiPrecioFecha: fiPrice?.fecha || null,
+        fiValorLibro: fiPrice?.valor_libro || null,
+        fiStale: fiMatch ? fiStale : undefined,
+        fiRent1m: fiReturns?.rent1m ?? undefined,
+        fiRent3m: fiReturns?.rent3m ?? undefined,
+        fiRent12m: fiReturns?.rent12m ?? undefined,
+        // Cost
         tac,
         tacImpactAnnual: tacAnnual ? Math.round(tacAnnual) : null,
         tacImpact10Y: tac10Y ? Math.round(tac10Y) : null,
-        isApvEligible: detectApvEligible(holding.fundName),
-        regimen57bis: false, // Cannot auto-detect from cartola, needs manual input
+        beneficio107lir: fichaEntry?.beneficio_107lir || false,
+        beneficio108lir: fichaEntry?.beneficio_108lir || false,
+        isApvEligible: fichaEntry?.beneficio_apv || detectApvEligible(holding.fundName),
+        regimen57bis: fichaEntry?.beneficio_57bis || false,
         cheaperAlternatives: alternatives,
         potentialSavingAnnual: potentialSavingAnnual ? Math.round(potentialSavingAnnual) : null,
         potentialSaving10Y: potentialSaving10Y ? Math.round(potentialSaving10Y) : null,
@@ -367,11 +567,19 @@ export async function POST(request: NextRequest) {
         bestAlt = ranked[0];
       }
 
-      // Get current fund rent_12m if matched
+      // Get current fund returns if matched (fondo mutuo or fondo de inversión)
+      let currentRent1m: number | null = null;
+      let currentRent3m: number | null = null;
       let currentRent12m: number | null = null;
-      if (h.matched) {
+      if (h.isFondoInversion) {
+        currentRent1m = h.fiRent1m ?? null;
+        currentRent3m = h.fiRent3m ?? null;
+        currentRent12m = h.fiRent12m ?? null;
+      } else if (h.matched) {
         const matchedFondo = fondosIndex.find(f => f.nombre_fondo === h.matchedFund);
         if (matchedFondo) {
+          currentRent1m = matchedFondo.rent_30d_nominal;
+          currentRent3m = matchedFondo.rent_3m_nominal;
           currentRent12m = matchedFondo.rent_12m_nominal;
         }
       }
@@ -386,7 +594,11 @@ export async function POST(request: NextRequest) {
         weight: h.weight,
         currentTac: h.tac,
         proposedTac: bestAlt ? bestAlt.tac_sintetica : (h.tac || 0),
+        currentRent1m,
+        currentRent3m,
         currentRent12m,
+        proposedRent1m: bestAlt ? bestAlt.rent_1m : currentRent1m,
+        proposedRent3m: bestAlt ? bestAlt.rent_3m : currentRent3m,
         proposedRent12m: bestAlt ? bestAlt.rent_12m : currentRent12m,
         proposedSharpe: bestAlt ? bestAlt.sharpe_365d : null,
         tacSavingBps: bestAlt && h.tac ? Math.round((h.tac - bestAlt.tac_sintetica) * 100) : 0,
@@ -423,6 +635,9 @@ export async function POST(request: NextRequest) {
       holdingsConTac: holdingsConTac.length,
       holdingsSinTac: analyzedHoldings.length - holdingsConTac.length,
       holdingsConAlternativa: analyzedHoldings.filter((h) => h.cheaperAlternatives.length > 0).length,
+      fondosInversionDetected: analyzedHoldings
+        .filter(h => h.isFondoInversion && h.fiRut)
+        .map(h => ({ rut: h.fiRut!, nombre: h.matchedFund || h.fundName, stale: !!h.fiStale })),
       proposal,
     };
 
