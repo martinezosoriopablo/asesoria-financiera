@@ -77,11 +77,9 @@ export interface Snapshot {
 interface Metrics {
   totalReturn: number;
   annualizedReturn: number;
-  twr: number;
-  twrAnnualized: number;
+  isAnnualized: boolean;
   volatility: number;
   maxDrawdown: number;
-  sharpeRatio: number;
   currentValue: number;
   initialValue: number;
   unrealizedGainLoss: number | null;
@@ -1292,7 +1290,7 @@ export default function SeguimientoPage({ clientId }: Props) {
             snapshots={snapshots}
             recommendation={recommendation}
             previousPortfolio={snapshots.find(s => s.is_baseline) || null}
-            twr={metrics?.twr || metrics?.totalReturn}
+            totalReturn={metrics?.totalReturn}
           />
         )}
 

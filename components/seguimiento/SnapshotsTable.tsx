@@ -19,8 +19,7 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete, onSetBasel
   );
 
   // Calculate unit value and period returns
-  // Use stored twr_period as the single source of truth (calculated at creation time
-  // with full context: cuotas, cash flows, etc.). Only recalculate if not stored.
+  // Calculate simple period return adjusted for cash flows
   const snapshotsWithReturns = sortedSnapshots.map((snapshot, index) => {
     const prevSnapshot = sortedSnapshots[index + 1];
     const currentCuotas = snapshot.total_cuotas || 0;
@@ -40,17 +39,13 @@ export default function SnapshotsTable({ snapshots, onEdit, onDelete, onSetBasel
     const prevCuotas = prevSnapshot.total_cuotas || 0;
     const prevUnitValue = prevCuotas > 0 ? prevSnapshot.total_value / prevCuotas : null;
 
-    // Use stored TWR as primary source — it was calculated with full context at creation time
+    // Simple return between snapshots (adjusted for cash flows)
     let periodReturn: number | null = null;
 
-    if (snapshot.twr_period !== undefined && snapshot.twr_period !== null) {
-      periodReturn = snapshot.twr_period;
-    } else if (unitValue !== null && prevUnitValue !== null && prevUnitValue > 0) {
-      // Fallback: recalculate from unit values if twr_period not stored
-      periodReturn = ((unitValue - prevUnitValue) / prevUnitValue) * 100;
-    } else if (prevSnapshot.total_value > 0) {
-      // Last resort: simple return
-      periodReturn = ((snapshot.total_value - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
+    if (prevSnapshot.total_value > 0) {
+      const netFlow = snapshot.net_cash_flow || 0;
+      const adjustedValue = snapshot.total_value - netFlow;
+      periodReturn = ((adjustedValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100;
     }
 
     return {

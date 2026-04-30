@@ -47,7 +47,7 @@ interface Props {
   snapshots: Snapshot[];
   recommendation?: BenchmarkAllocation | null;
   previousPortfolio?: Snapshot | null; // Portfolio inicial o anterior para comparar
-  twr?: number; // TWR from metrics for consistent return display
+  totalReturn?: number;
 }
 
 /**
@@ -89,7 +89,7 @@ export default function PerformanceAttribution({
   snapshots,
   recommendation,
   previousPortfolio,
-  twr,
+  totalReturn: totalReturnProp,
 }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>("assetClass");
 
@@ -112,7 +112,7 @@ export default function PerformanceAttribution({
     const initialValue = firstSnapshot.total_value;
     const finalValue = lastSnapshot.total_value;
     // Use TWR from metrics when available for consistency with top-level cards
-    const totalReturn = twr != null ? twr : ((finalValue - initialValue) / initialValue) * 100;
+    const totalReturn = totalReturnProp != null ? totalReturnProp : ((finalValue - initialValue) / initialValue) * 100;
 
     // Calculate contribution from each asset class
     // Contribution = (Weight * Return) for each class
@@ -176,7 +176,7 @@ export default function PerformanceAttribution({
       initialValue,
       finalValue,
     };
-  }, [snapshotsWithAssetData, firstSnapshot, lastSnapshot, twr]);
+  }, [snapshotsWithAssetData, firstSnapshot, lastSnapshot, totalReturnProp]);
 
   // ============================================
   // 2. ATTRIBUTION BY INDIVIDUAL POSITION
