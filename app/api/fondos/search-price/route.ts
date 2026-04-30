@@ -6,6 +6,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { CHILEAN_TICKERS, isChileanTicker } from "@/lib/constants/chilean-finance";
 
 // Detect if query looks like a stock ticker
 function looksLikeTicker(q: string): boolean {
@@ -14,20 +15,6 @@ function looksLikeTicker(q: string): boolean {
   // Also common patterns like SQM-B, ANDINA-B
   const chileanTickerPattern = /^[A-Z]{2,10}(-[A-B])?$/i;
   return tickerPattern.test(q) || chileanTickerPattern.test(q);
-}
-
-// Known Chilean stock tickers for quick detection
-const CHILEAN_TICKERS = [
-  "BSANTANDER", "COPEC", "FALABELLA", "CENCOSUD", "SQM-A", "SQM-B",
-  "CMPC", "CHILE", "ENELAM", "CCU", "VAPORES", "CAP", "COLBUN",
-  "PARAUCO", "ITAUCORP", "ENELCHILE", "AGUAS-A", "SECURITY", "BCI",
-  "HABITAT", "QUINENCO", "ANDINA-B", "SONDA", "LTM", "RIPLEY",
-  "SM-CHILE B", "ORO BLANCO", "MASISA", "SALFACORP", "BESALCO"
-];
-
-function isChileanTicker(ticker: string): boolean {
-  const upper = ticker.toUpperCase().replace(".SN", "").replace(".CL", "");
-  return CHILEAN_TICKERS.includes(upper) || ticker.toUpperCase().endsWith(".SN") || ticker.toUpperCase().endsWith(".CL");
 }
 
 // Fetch stock quote from Yahoo Finance

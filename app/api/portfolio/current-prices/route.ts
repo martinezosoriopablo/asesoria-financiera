@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getLatestPrice } from "@/lib/fintual-api";
+import { stripAccents } from "@/lib/text";
+import { detectSerieCode } from "@/lib/fund-utils";
 
 // Cache for dólar observado by date
 const dolarCache = new Map<string, number>();
@@ -66,36 +68,6 @@ interface PriceResult {
   lastPriceDate: string | null;
   currency: string;
   source: string; // "fintual_api" | "fintual_db" | "cmf" | "none"
-}
-
-// Serie keywords for matching
-const SERIE_KEYWORDS: Array<{ pattern: RegExp; serieCode: string }> = [
-  { pattern: /BANCA\s*PRIVADA|BPRIVADA/i, serieCode: "BPRIV" },
-  { pattern: /ALTO\s*PATRIMONIO|ALTOPATRIM/i, serieCode: "ALPAT" },
-  { pattern: /INSTITUCIONAL/i, serieCode: "INSTI" },
-  { pattern: /INVERSIONIST/i, serieCode: "INVER" },
-  { pattern: /COLABORADOR/i, serieCode: "COLAB" },
-  { pattern: /CLASICA|CLASIC/i, serieCode: "CLASI" },
-  { pattern: /\bAPV\b/i, serieCode: "APV" },
-  // Abbreviated series from cartola names (e.g., "PATRIMONIAL BALANCEADA - B")
-  { pattern: /\s-\s*BPRIV$/i, serieCode: "BPRIV" },
-  { pattern: /\s-\s*ALPAT$/i, serieCode: "ALPAT" },
-  { pattern: /\s-\s*INSTI$/i, serieCode: "INSTI" },
-  { pattern: /\s-\s*B$/i, serieCode: "BPRIV" },
-  { pattern: /\s-\s*A$/i, serieCode: "ALPAT" },
-  { pattern: /\s-\s*I$/i, serieCode: "INSTI" },
-];
-
-function detectSerieCode(name: string): string | null {
-  for (const { pattern, serieCode } of SERIE_KEYWORDS) {
-    if (pattern.test(name)) return serieCode;
-  }
-  return null;
-}
-
-// Strip diacritics/accents for fuzzy comparison
-function stripAccents(str: string): string {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 // Fetch live price from Fintual API and update DB cache

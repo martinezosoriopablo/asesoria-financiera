@@ -1,12 +1,13 @@
 // app/api/portfolio/fill-prices/route.ts
 // Llena snapshots intermedios entre cartolas usando precios de mercado
-// Esto permite calcular TWR diario real entre cartolas
+// Esto permite calcular rentabilidad diaria real entre cartolas
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getSeriesPrices } from "@/lib/fintual-api";
 import { getHistoricalPrices as getBolsaSantiagoHistorical } from "@/lib/bolsa-santiago/client";
+import { detectSerieCode } from "@/lib/fund-utils";
 
 // --- Named constants (avoid magic numbers) ---
 /** Minimum ratio of API price to cartola price to accept (reject if below, likely wrong match) */
@@ -170,25 +171,6 @@ async function fetchFintualHistorical(
   } catch {
     return [];
   }
-}
-
-// Serie keywords map: detect the serie from the holding name
-// e.g., "BANCA PRIVADA" → BPRIV, "ALTO PATRIMONIO" → ALPAT
-const SERIE_KEYWORDS: Array<{ pattern: RegExp; serieCode: string }> = [
-  { pattern: /BANCA\s*PRIVADA|BPRIVADA/i, serieCode: "BPRIV" },
-  { pattern: /ALTO\s*PATRIMONIO|ALTOPATRIM/i, serieCode: "ALPAT" },
-  { pattern: /INSTITUCIONAL/i, serieCode: "INSTI" },
-  { pattern: /INVERSIONIST/i, serieCode: "INVER" },
-  { pattern: /COLABORADOR/i, serieCode: "COLAB" },
-  { pattern: /CLASICA|CLASIC/i, serieCode: "CLASI" },
-  { pattern: /\bAPV\b/i, serieCode: "APV" },
-];
-
-function detectSerieCode(holdingName: string): string | null {
-  for (const { pattern, serieCode } of SERIE_KEYWORDS) {
-    if (pattern.test(holdingName)) return serieCode;
-  }
-  return null;
 }
 
 // --- Yahoo Finance map for international funds (CUSIP → Yahoo ticker) ---
@@ -1065,10 +1047,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Previous snapshot values for TWR chain
+      // Previous snapshot values for return chain
       let prevValue = baseValue;
       let prevCuotas = baseHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
-      let prevTwrCumulative = startSnapshot.twr_cumulative || 0;
+      let prevCumulativeReturn = startSnapshot.twr_cumulative || 0;
       let firstBackwardValue: number | null = null; // For backward fill: first computed value becomes the base
 
       for (const date of newDates) {

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import * as XLSX from "xlsx";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { normalizeText } from "@/lib/text";
 
 interface Holding {
   fundName: string;
@@ -205,15 +206,6 @@ function detectAssetClass(fundName: string): string {
 
   // Default: Renta Variable (equity, acciones, ETF, etc.)
   return "Equity";
-}
-
-// Normalize text for matching
-function normalizeText(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Remove accents
-    .trim();
 }
 
 // Find column index using mappings

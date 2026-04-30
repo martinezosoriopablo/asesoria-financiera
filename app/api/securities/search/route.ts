@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { searchChileanStocks } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { CHILEAN_TICKERS } from "@/lib/constants/chilean-finance";
 
 interface YahooQuote {
   symbol: string;
@@ -113,12 +114,8 @@ async function searchBolsaSantiagoYahoo(query: string): Promise<SecuritySearchRe
   try {
     const clQuery = query.toUpperCase();
 
-    // Ticker comunes de Chile si no tienen .SN
-    const commonChileanTickers = [
-      "BSANTANDER.SN", "COPEC.SN", "FALABELLA.SN", "CENCOSUD.SN",
-      "SQM-B.SN", "CMPC.SN", "CHILE.SN", "ENELAM.SN", "CCU.SN",
-      "VAPORES.SN", "CAP.SN", "COLBUN.SN", "PARAUCO.SN", "ITAUCORP.SN"
-    ];
+    // Build .SN suffixed tickers from shared constant
+    const commonChileanTickers = CHILEAN_TICKERS.map(t => `${t}.SN`);
 
     // Si es un ticker corto, buscar coincidencias en los comunes
     const matches = commonChileanTickers.filter(t =>

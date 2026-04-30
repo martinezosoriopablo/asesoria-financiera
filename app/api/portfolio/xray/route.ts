@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { stripAccents } from "@/lib/text";
 
 interface HoldingInput {
   fundName: string;
@@ -146,10 +147,6 @@ function getCategoriaSimple(familia: string | null): string {
   if (f.includes("balanceado")) return "Balanceado";
   if (f.includes("estructurado") || f.includes("otro")) return "Alternativos";
   return "Otros";
-}
-
-function stripAccents(str: string): string {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 // Detect if fund name suggests APV eligibility
