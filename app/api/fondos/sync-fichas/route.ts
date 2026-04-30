@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
     .from("fund_fichas")
     .select("fo_run")
     .in("fo_run", allRuns);
-  const alreadySynced = new Set((existingFichas || []).map(f => f.fo_run));
+  const alreadySynced = new Set((existingFichas || []).map(f => Number(f.fo_run)));
 
   const results: { fo_run: number; serie: string; status: string; extracted?: ExtractedFichaData }[] = [];
   let synced = 0;
@@ -349,10 +349,10 @@ export async function GET(request: NextRequest) {
     .select("fo_run")
     .limit(5000);
 
-  const syncedRuns = new Set((fichasData || []).map(f => f.fo_run));
+  const syncedRuns = new Set((fichasData || []).map(f => Number(f.fo_run)));
 
   // Get distinct AGFs with fund count
-  const { data: agfs } = await supabase
+  const { data: agfs, error: agfError } = await supabase
     .from("vw_fondos_completo")
     .select("fo_run, nombre_agf")
     .limit(10000);
@@ -362,7 +362,7 @@ export async function GET(request: NextRequest) {
     if (f.nombre_agf) {
       if (!agfCounts[f.nombre_agf]) agfCounts[f.nombre_agf] = { total: 0, synced: 0 };
       agfCounts[f.nombre_agf].total++;
-      if (syncedRuns.has(f.fo_run)) agfCounts[f.nombre_agf].synced++;
+      if (syncedRuns.has(Number(f.fo_run))) agfCounts[f.nombre_agf].synced++;
     }
   });
 
@@ -378,6 +378,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     success: true,
     fichas_synced: fichasCount || 0,
+    fichas_unique_runs: syncedRuns.size,
+    fondos_total: agfs?.length || 0,
     agf_list: agfList,
     agf_rut_map: AGF_RUT_MAP,
   });
