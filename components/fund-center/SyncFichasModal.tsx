@@ -6,6 +6,7 @@ import { X, RefreshCw, Download } from 'lucide-react';
 interface AdminInfo {
   nombre: string;
   count: number;
+  synced: number;
 }
 
 interface SyncResultDetail {
@@ -40,12 +41,16 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
       const data = await res.json();
       if (data.success) {
         if (fundType === 'fm') {
-          setAdminList((data.agf_list || []).map((a: { nombre: string; count: number }) => ({
+          setAdminList((data.agf_list || []).map((a: { nombre: string; count: number; synced?: number }) => ({
             nombre: a.nombre,
             count: a.count,
+            synced: a.synced || 0,
           })));
         } else {
-          setAdminList(data.admin_list || []);
+          setAdminList((data.admin_list || []).map((a: { nombre: string; count: number; synced?: number }) => ({
+            ...a,
+            synced: a.synced || 0,
+          })));
         }
         setFichasSynced(data.fichas_synced || 0);
       }
@@ -151,6 +156,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                         {fundType === 'fm' ? 'AGF' : 'Administradora'}
                       </th>
                       <th className="text-right px-4 py-2 text-xs font-medium text-gb-gray">Fondos</th>
+                      <th className="text-right px-4 py-2 text-xs font-medium text-gb-gray">Fichas</th>
                       <th className="text-right px-4 py-2 text-xs font-medium text-gb-gray">Accion</th>
                     </tr>
                   </thead>
@@ -159,6 +165,15 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                       <tr key={admin.nombre} className="hover:bg-gray-50">
                         <td className="px-4 py-2 text-gb-black text-xs truncate max-w-[280px]">{admin.nombre}</td>
                         <td className="px-4 py-2 text-right text-gb-gray text-xs">{admin.count}</td>
+                        <td className="px-4 py-2 text-right text-xs">
+                          {admin.synced > 0 ? (
+                            <span className={admin.synced >= admin.count ? 'text-green-600 font-medium' : 'text-amber-600'}>
+                              {admin.synced}/{admin.count}
+                            </span>
+                          ) : (
+                            <span className="text-gb-gray">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right">
                           <button
                             onClick={() => syncAdmin(admin.nombre)}

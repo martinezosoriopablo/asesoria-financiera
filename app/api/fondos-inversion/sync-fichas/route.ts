@@ -289,21 +289,31 @@ export async function GET(request: NextRequest) {
     .select("*", { count: "exact", head: true })
     .not("tac_serie", "is", null);
 
+  // Get synced FI RUTs
+  const { data: fichasData } = await supabase
+    .from("fi_fichas")
+    .select("fi_rut")
+    .not("tac_serie", "is", null);
+
+  const syncedRuts = new Set((fichasData || []).map(f => f.fi_rut));
+
   // Get distinct administradoras with fund count
   const { data: fondos } = await supabase
     .from("fondos_inversion")
-    .select("administradora")
+    .select("rut, administradora")
     .eq("activo", true);
 
-  const adminCounts: Record<string, number> = {};
-  fondos?.forEach((f: { administradora: string | null }) => {
+  const adminCounts: Record<string, { total: number; synced: number }> = {};
+  fondos?.forEach((f: { rut: string; administradora: string | null }) => {
     if (f.administradora) {
-      adminCounts[f.administradora] = (adminCounts[f.administradora] || 0) + 1;
+      if (!adminCounts[f.administradora]) adminCounts[f.administradora] = { total: 0, synced: 0 };
+      adminCounts[f.administradora].total++;
+      if (syncedRuts.has(f.rut)) adminCounts[f.administradora].synced++;
     }
   });
 
   const adminList = Object.entries(adminCounts)
-    .map(([nombre, count]) => ({ nombre, count }))
+    .map(([nombre, { total, synced }]) => ({ nombre, count: total, synced }))
     .sort((a, b) => b.count - a.count);
 
   return NextResponse.json({

@@ -328,22 +328,33 @@ export async function GET(request: NextRequest) {
     .select("*", { count: "exact", head: true })
     .not("tac_serie", "is", null);
 
+  // Get fichas synced per AGF (join fund_fichas with vw_fondos_completo)
+  const { data: fichasData } = await supabase
+    .from("fund_fichas")
+    .select("fo_run")
+    .not("tac_serie", "is", null);
+
+  const syncedRuns = new Set((fichasData || []).map(f => f.fo_run));
+
   // Get distinct AGFs with fund count
   const { data: agfs } = await supabase
     .from("vw_fondos_completo")
-    .select("nombre_agf");
+    .select("fo_run, nombre_agf");
 
-  const agfCounts: Record<string, number> = {};
+  const agfCounts: Record<string, { total: number; synced: number }> = {};
   agfs?.forEach(f => {
     if (f.nombre_agf) {
-      agfCounts[f.nombre_agf] = (agfCounts[f.nombre_agf] || 0) + 1;
+      if (!agfCounts[f.nombre_agf]) agfCounts[f.nombre_agf] = { total: 0, synced: 0 };
+      agfCounts[f.nombre_agf].total++;
+      if (syncedRuns.has(f.fo_run)) agfCounts[f.nombre_agf].synced++;
     }
   });
 
   const agfList = Object.entries(agfCounts)
-    .map(([nombre, count]) => ({
+    .map(([nombre, { total, synced }]) => ({
       nombre,
-      count,
+      count: total,
+      synced,
       rut_known: !!findRutAdmin(nombre),
     }))
     .sort((a, b) => b.count - a.count);
