@@ -7,6 +7,8 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractText } from "unpdf";
 
+export const maxDuration = 120;
+
 // Known AGF RUT mappings (CMF uses these for folleto download)
 // Discovered by scraping the folleto page for each AGF
 const AGF_RUT_MAP: Record<string, string> = {

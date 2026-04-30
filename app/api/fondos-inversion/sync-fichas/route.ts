@@ -7,6 +7,8 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractText } from "unpdf";
 
+export const maxDuration = 120;
+
 interface ExtractedFichaData {
   tac_serie: number | null;
   nombre_fondo_pdf: string | null;
