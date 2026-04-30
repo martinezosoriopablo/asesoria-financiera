@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "tac-post", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdmin();
+  const { advisor, error: authError } = await requireAdmin();
   if (authError) return authError;
 
   const supabase = createAdminClient();
@@ -173,6 +173,21 @@ export async function POST(request: NextRequest) {
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+
+    // Audit trail — best-effort, never breaks the upload
+    try {
+      await supabase.from("tac_upload_log").insert({
+        advisor_id: advisor!.id,
+        records_updated: actualizados,
+        records_errored: errores,
+        fecha_actualizacion: fecha_actualizacion,
+        filename: file.name || "unknown",
+        fondos_no_encontrados: fondosNoEncontrados,
+        duration_seconds: parseFloat(totalTime),
+      });
+    } catch (auditError) {
+      console.error("Error logging TAC upload audit:", auditError);
+    }
 
     return NextResponse.json({
       success: true,
