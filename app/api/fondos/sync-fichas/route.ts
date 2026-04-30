@@ -338,48 +338,54 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Get count of fichas already synced (any ficha with data, not just TAC)
-  const { count: fichasCount } = await supabase
-    .from("fund_fichas")
-    .select("*", { count: "exact", head: true });
+  // Use raw SQL via rpc to get accurate counts with JOIN
+  const { data: sqlResult, error: sqlError } = await supabase.rpc("get_fichas_sync_status");
 
-  // Get fichas synced per AGF
-  const { data: fichasData } = await supabase
-    .from("fund_fichas")
-    .select("fo_run")
-    .limit(5000);
+  if (sqlError || !sqlResult) {
+    // Fallback: simple count without per-AGF breakdown
+    const { count: fichasCount } = await supabase
+      .from("fund_fichas")
+      .select("*", { count: "exact", head: true });
 
-  const syncedRuns = new Set((fichasData || []).map(f => Number(f.fo_run)));
+    const { data: agfs } = await supabase
+      .from("vw_fondos_completo")
+      .select("nombre_agf")
+      .limit(10000);
 
-  // Get distinct AGFs with fund count
-  const { data: agfs, error: agfError } = await supabase
-    .from("vw_fondos_completo")
-    .select("fo_run, nombre_agf")
-    .limit(10000);
+    const agfCounts: Record<string, number> = {};
+    agfs?.forEach(f => {
+      if (f.nombre_agf) agfCounts[f.nombre_agf] = (agfCounts[f.nombre_agf] || 0) + 1;
+    });
 
-  const agfCounts: Record<string, { total: number; synced: number }> = {};
-  agfs?.forEach(f => {
-    if (f.nombre_agf) {
-      if (!agfCounts[f.nombre_agf]) agfCounts[f.nombre_agf] = { total: 0, synced: 0 };
-      agfCounts[f.nombre_agf].total++;
-      if (syncedRuns.has(Number(f.fo_run))) agfCounts[f.nombre_agf].synced++;
-    }
-  });
+    const agfList = Object.entries(agfCounts)
+      .map(([nombre, count]) => ({ nombre, count, synced: 0, rut_known: !!findRutAdmin(nombre) }))
+      .sort((a, b) => b.count - a.count);
 
-  const agfList = Object.entries(agfCounts)
-    .map(([nombre, { total, synced }]) => ({
-      nombre,
-      count: total,
-      synced,
-      rut_known: !!findRutAdmin(nombre),
+    return NextResponse.json({
+      success: true,
+      fichas_synced: fichasCount || 0,
+      agf_list: agfList,
+      agf_rut_map: AGF_RUT_MAP,
+      fallback: true,
+      sql_error: sqlError?.message,
+    });
+  }
+
+  // sqlResult is array of { nombre_agf, total, synced }
+  const agfList = (sqlResult as { nombre_agf: string; total: number; synced: number }[])
+    .map(r => ({
+      nombre: r.nombre_agf,
+      count: Number(r.total),
+      synced: Number(r.synced),
+      rut_known: !!findRutAdmin(r.nombre_agf),
     }))
     .sort((a, b) => b.count - a.count);
 
+  const totalSynced = agfList.reduce((sum, a) => sum + a.synced, 0);
+
   return NextResponse.json({
     success: true,
-    fichas_synced: fichasCount || 0,
-    fichas_unique_runs: syncedRuns.size,
-    fondos_total: agfs?.length || 0,
+    fichas_synced: totalSynced,
     agf_list: agfList,
     agf_rut_map: AGF_RUT_MAP,
   });
