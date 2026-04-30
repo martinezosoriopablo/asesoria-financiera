@@ -20,8 +20,8 @@ interface Snapshot {
   fixed_income_percent: number;
   alternatives_percent: number;
   cash_percent: number;
-  twr_cumulative: number | null;
-  twr_period: number | null;
+  cumulative_return: number | null;
+  daily_return: number | null;
   holdings: Array<{
     nombre: string;
     tipo: string;
@@ -33,7 +33,7 @@ interface Snapshot {
 interface HistoryPoint {
   date: string;
   value: number;
-  twr: number | null;
+  returnPct: number | null;
 }
 
 interface CarteraRecomendada {
@@ -159,23 +159,23 @@ export default function PortalDashboardPage() {
 
               <div className="bg-white rounded-lg border border-gb-border p-4">
                 <p className="text-xs text-gb-gray mb-1">Retorno Período</p>
-                <p className={`text-xl font-bold ${getReturnColor(snapshot.twr_period)}`}>
-                  {formatPercent(snapshot.twr_period)}
+                <p className={`text-xl font-bold ${getReturnColor(snapshot.daily_return)}`}>
+                  {formatPercent(snapshot.daily_return)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  {getReturnIcon(snapshot.twr_period)}
-                  <span className="text-xs text-gb-gray">TWR período</span>
+                  {getReturnIcon(snapshot.daily_return)}
+                  <span className="text-xs text-gb-gray">ultimo periodo</span>
                 </div>
               </div>
 
               <div className="bg-white rounded-lg border border-gb-border p-4">
                 <p className="text-xs text-gb-gray mb-1">Retorno Acumulado</p>
-                <p className={`text-xl font-bold ${getReturnColor(snapshot.twr_cumulative)}`}>
-                  {formatPercent(snapshot.twr_cumulative)}
+                <p className={`text-xl font-bold ${getReturnColor(snapshot.cumulative_return)}`}>
+                  {formatPercent(snapshot.cumulative_return)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  {getReturnIcon(snapshot.twr_cumulative)}
-                  <span className="text-xs text-gb-gray">TWR acumulado</span>
+                  {getReturnIcon(snapshot.cumulative_return)}
+                  <span className="text-xs text-gb-gray">desde inicio</span>
                 </div>
               </div>
             </div>

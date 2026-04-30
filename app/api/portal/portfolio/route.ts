@@ -11,7 +11,7 @@ export async function GET() {
   // All snapshots for evolution chart (last 24 months max)
   const { data: allSnapshots } = await admin
     .from("portfolio_snapshots")
-    .select("snapshot_date, total_value, twr_cumulative")
+    .select("snapshot_date, total_value, cumulative_return")
     .eq("client_id", client!.id)
     .order("snapshot_date", { ascending: true })
     .limit(100);
@@ -58,8 +58,8 @@ export async function GET() {
       fixed_income_percent: latestSnapshot.fixed_income_percent || 0,
       alternatives_percent: latestSnapshot.alternatives_percent || 0,
       cash_percent: latestSnapshot.cash_percent || 0,
-      twr_cumulative: latestSnapshot.twr_cumulative,
-      twr_period: latestSnapshot.twr_period,
+      cumulative_return: latestSnapshot.cumulative_return,
+      daily_return: latestSnapshot.daily_return,
       holdings: holdings.map((h: Record<string, unknown>) => ({
         nombre: (h.fundName || h.nombre || h.name || "Sin nombre") as string,
         tipo: (h.assetClass || h.tipo || "—") as string,
@@ -74,7 +74,7 @@ export async function GET() {
     history: (allSnapshots || []).map(s => ({
       date: s.snapshot_date,
       value: s.total_value,
-      twr: s.twr_cumulative,
+      returnPct: s.cumulative_return,
     })),
     benchmark: riskProfile?.benchmark_allocation || null,
     carteraRecomendada: clientData?.cartera_recomendada || null,
