@@ -122,18 +122,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Debug: Log portfolio_data
-    console.error("=== DEBUG: Client Data ===");
-    console.error("Client ID:", client.id);
-    console.error("Client Name:", client.nombre, client.apellido);
-    console.error("Portfolio Data exists:", !!client.portfolio_data);
-    console.error("Portfolio Data raw:", JSON.stringify(client.portfolio_data, null, 2));
-    if (client.portfolio_data) {
-      console.error("Portfolio composition:", client.portfolio_data.composition);
-      console.error("Portfolio holdings count:", client.portfolio_data.statement?.holdings?.length || 0);
-    }
-    console.error("========================");
-
     // 2. Obtener los 4 reportes del comité
     const { data: reports, error: reportsError } = await supabase
       .from("comite_reports")
