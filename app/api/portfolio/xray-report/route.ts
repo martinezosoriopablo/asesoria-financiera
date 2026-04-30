@@ -2,7 +2,7 @@
 // Generates a professional radiografia report using Claude based on xray data
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { trackAIUsage } from "@/lib/ai-usage";
 
@@ -50,6 +50,16 @@ export async function POST(request: NextRequest) {
 
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
+
+  // Fetch advisor's preferred AI model
+  const supabase = createAdminClient();
+  const { data: advisorProfile } = await supabase
+    .from("advisors")
+    .select("preferred_ai_model")
+    .eq("id", advisor!.id)
+    .single();
+
+  const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
 
   try {
     const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue } = await request.json() as {
@@ -180,7 +190,7 @@ REGLAS:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: model,
         max_tokens: 2048,
         messages: [
           { role: "user", content: prompt },
@@ -202,7 +212,7 @@ REGLAS:
         advisorId: advisor!.id,
         inputTokens: data.usage.input_tokens,
         outputTokens: data.usage.output_tokens,
-        model: "claude-sonnet-4-20250514",
+        model: model,
       });
     }
 

@@ -16,6 +16,7 @@ interface AdvisorProfile {
   especialidad: string;
   bio?: string;
   linkedin_url?: string;
+  preferred_ai_model?: string;
 }
 
 export default function AdvisorProfilePage() {
@@ -83,6 +84,7 @@ export default function AdvisorProfilePage() {
           especialidad: profile.especialidad,
           bio: profile.bio,
           linkedin_url: profile.linkedin_url,
+          preferred_ai_model: profile.preferred_ai_model,
         }),
       });
       const data = await res.json();
@@ -367,6 +369,46 @@ export default function AdvisorProfilePage() {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* AI Model Preference */}
+        <div className="bg-white rounded-lg border border-gb-border p-6 mt-6">
+          <h2 className="text-base font-semibold text-gb-black mb-4">Modelo de IA</h2>
+          <p className="text-sm text-gb-gray mb-4">
+            Elige el modelo de IA para generar recomendaciones de cartera y radiografias.
+          </p>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50"
+              style={{ borderColor: profile.preferred_ai_model === 'claude-sonnet-4-20250514' || !profile.preferred_ai_model ? '#1a1a1a' : '#e5e5e5' }}>
+              <input
+                type="radio"
+                name="preferred_ai_model"
+                value="claude-sonnet-4-20250514"
+                checked={profile.preferred_ai_model === 'claude-sonnet-4-20250514' || !profile.preferred_ai_model}
+                onChange={(e) => setProfile({ ...profile, preferred_ai_model: e.target.value })}
+                className="mt-1"
+              />
+              <div>
+                <p className="text-sm font-semibold text-gb-black">Sonnet 4 (Recomendado)</p>
+                <p className="text-xs text-gb-gray">Rapido y eficiente. ~$0.10 por recomendacion. Ideal para la mayoria de los casos.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50"
+              style={{ borderColor: profile.preferred_ai_model === 'claude-opus-4-20250514' ? '#1a1a1a' : '#e5e5e5' }}>
+              <input
+                type="radio"
+                name="preferred_ai_model"
+                value="claude-opus-4-20250514"
+                checked={profile.preferred_ai_model === 'claude-opus-4-20250514'}
+                onChange={(e) => setProfile({ ...profile, preferred_ai_model: e.target.value })}
+                className="mt-1"
+              />
+              <div>
+                <p className="text-sm font-semibold text-gb-black">Opus 4 (Premium)</p>
+                <p className="text-xs text-gb-gray">Mejor razonamiento para decisiones complejas. ~$0.53 por recomendacion.</p>
+              </div>
+            </label>
+          </div>
         </div>
 
         {/* Change Password */}

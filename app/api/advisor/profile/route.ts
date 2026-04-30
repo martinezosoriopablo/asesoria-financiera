@@ -34,7 +34,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
 
     // Campos permitidos para actualización (whitelist)
-    const allowedFields = ['nombre', 'apellido', 'telefono', 'especialidad', 'bio', 'linkedin_url'];
+    const allowedFields = ['nombre', 'apellido', 'telefono', 'especialidad', 'bio', 'linkedin_url', 'preferred_ai_model'];
     const updateData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {

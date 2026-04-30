@@ -98,6 +98,15 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
+    // Fetch advisor's preferred AI model
+    const { data: advisorProfile } = await supabase
+      .from("advisors")
+      .select("preferred_ai_model")
+      .eq("id", advisor!.id)
+      .single();
+
+    const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
+
     // Obtener datos del request
     const body = await request.json();
     const { clientId, montoInversion } = body;
@@ -159,7 +168,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: model,
         max_tokens: 8192,
         messages: [
           {
@@ -187,7 +196,7 @@ export async function POST(request: NextRequest) {
         advisorId: advisor!.id,
         inputTokens: claudeResponse.usage.input_tokens,
         outputTokens: claudeResponse.usage.output_tokens,
-        model: "claude-sonnet-4-20250514",
+        model: model,
       });
     }
 
