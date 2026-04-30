@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { trackAIUsage } from "@/lib/ai-usage";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -206,6 +207,17 @@ INSTRUCCIONES:
       });
 
       const claudeResponse = await response.json();
+
+      // Track AI usage (non-blocking)
+      if (claudeResponse.usage) {
+        trackAIUsage({
+          advisorId: advisor!.id,
+          inputTokens: claudeResponse.usage.input_tokens,
+          outputTokens: claudeResponse.usage.output_tokens,
+          model: "claude-sonnet-4-20250514",
+        });
+      }
+
       marketCommentary = claudeResponse.content?.[0]?.text || "";
     }
 

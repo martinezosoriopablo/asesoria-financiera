@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { trackAIUsage } from "@/lib/ai-usage";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { user, error: authError } = await requireAdvisor();
+    const { user, advisor, error: authError } = await requireAdvisor();
     if (authError) return authError;
 
     const supabase = createAdminClient();
@@ -179,6 +180,17 @@ export async function POST(request: NextRequest) {
     }
 
     const claudeResponse = await response.json();
+
+    // Track AI usage (non-blocking)
+    if (claudeResponse.usage) {
+      trackAIUsage({
+        advisorId: advisor!.id,
+        inputTokens: claudeResponse.usage.input_tokens,
+        outputTokens: claudeResponse.usage.output_tokens,
+        model: "claude-sonnet-4-20250514",
+      });
+    }
+
     const content = claudeResponse.content?.[0]?.text || "";
 
     // 5. Parsear la respuesta JSON

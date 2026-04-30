@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { trackAIUsage } from "@/lib/ai-usage";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "xray-report", { limit: 3, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
   try {
@@ -194,6 +195,17 @@ REGLAS:
     }
 
     const data = await response.json();
+
+    // Track AI usage (non-blocking)
+    if (data.usage) {
+      trackAIUsage({
+        advisorId: advisor!.id,
+        inputTokens: data.usage.input_tokens,
+        outputTokens: data.usage.output_tokens,
+        model: "claude-sonnet-4-20250514",
+      });
+    }
+
     const report = data.content.find((c: { type: string; text?: string }) => c.type === "text")?.text || "";
 
     return NextResponse.json({ success: true, report });
