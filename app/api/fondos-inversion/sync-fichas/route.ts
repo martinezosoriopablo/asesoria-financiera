@@ -283,42 +283,50 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Count fichas already synced
-  const { count: fichasCount } = await supabase
-    .from("fi_fichas")
-    .select("*", { count: "exact", head: true })
-    .not("tac_serie", "is", null);
+  // Use SQL RPC for accurate counts with JOIN
+  const { data: sqlResult, error: sqlError } = await supabase.rpc("get_fi_fichas_sync_status");
 
-  // Get synced FI RUTs
-  const { data: fichasData } = await supabase
-    .from("fi_fichas")
-    .select("fi_rut")
-    .not("tac_serie", "is", null);
+  if (sqlError || !sqlResult) {
+    // Fallback: simple count without per-admin breakdown
+    const { count: fichasCount } = await supabase
+      .from("fi_fichas")
+      .select("*", { count: "exact", head: true });
 
-  const syncedRuts = new Set((fichasData || []).map(f => f.fi_rut));
+    const { data: fondos } = await supabase
+      .from("fondos_inversion")
+      .select("administradora")
+      .eq("activo", true);
 
-  // Get distinct administradoras with fund count
-  const { data: fondos } = await supabase
-    .from("fondos_inversion")
-    .select("rut, administradora")
-    .eq("activo", true);
+    const adminCounts: Record<string, number> = {};
+    fondos?.forEach((f: { administradora: string | null }) => {
+      if (f.administradora) adminCounts[f.administradora] = (adminCounts[f.administradora] || 0) + 1;
+    });
 
-  const adminCounts: Record<string, { total: number; synced: number }> = {};
-  fondos?.forEach((f: { rut: string; administradora: string | null }) => {
-    if (f.administradora) {
-      if (!adminCounts[f.administradora]) adminCounts[f.administradora] = { total: 0, synced: 0 };
-      adminCounts[f.administradora].total++;
-      if (syncedRuts.has(f.rut)) adminCounts[f.administradora].synced++;
-    }
-  });
+    const adminList = Object.entries(adminCounts)
+      .map(([nombre, count]) => ({ nombre, count, synced: 0 }))
+      .sort((a, b) => b.count - a.count);
 
-  const adminList = Object.entries(adminCounts)
-    .map(([nombre, { total, synced }]) => ({ nombre, count: total, synced }))
+    return NextResponse.json({
+      success: true,
+      fichas_synced: fichasCount || 0,
+      admin_list: adminList,
+      fallback: true,
+    });
+  }
+
+  const adminList = (sqlResult as { administradora: string; total: number; synced: number }[])
+    .map(r => ({
+      nombre: r.administradora,
+      count: Number(r.total),
+      synced: Number(r.synced),
+    }))
     .sort((a, b) => b.count - a.count);
+
+  const totalSynced = adminList.reduce((sum, a) => sum + a.synced, 0);
 
   return NextResponse.json({
     success: true,
-    fichas_synced: fichasCount || 0,
+    fichas_synced: totalSynced,
     admin_list: adminList,
   });
 }
