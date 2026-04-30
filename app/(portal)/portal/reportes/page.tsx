@@ -35,7 +35,7 @@ interface SnapshotSummary {
   alternatives_value: number;
   cash_value: number;
   holdings: Holding[] | null;
-  twr_cumulative: number | null;
+  cumulative_return: number | null;
   prev_value: number | null;
   prev_date: string | null;
 }

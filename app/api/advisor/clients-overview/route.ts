@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   // We need the latest snapshot per client - use a different approach
   const { data: allSnapshots } = await admin
     .from("portfolio_snapshots")
-    .select("client_id, snapshot_date, total_value, twr_cumulative, equity_percent, fixed_income_percent, alternatives_percent, cash_percent")
+    .select("client_id, snapshot_date, total_value, cumulative_return, equity_percent, fixed_income_percent, alternatives_percent, cash_percent")
     .in("client_id", clientIds)
     .order("snapshot_date", { ascending: false });
 
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
       createdAt: client.created_at,
       // Portfolio
       totalValue: snap?.total_value || null,
-      twrCumulative: snap?.twr_cumulative || null,
+      cumulativeReturn: snap?.cumulative_return || null,
       lastSnapshotDate: snap?.snapshot_date || null,
       equityPercent: snap?.equity_percent || null,
       fixedIncomePercent: snap?.fixed_income_percent || null,

@@ -141,7 +141,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       alternatives_value: latestSnapshot.alternatives_value,
       cash_value: latestSnapshot.cash_value,
       holdings: latestSnapshot.holdings,
-      twr_cumulative: latestSnapshot.twr_cumulative,
+      cumulative_return: latestSnapshot.cumulative_return,
       prev_value: prevSnapshot?.total_value,
       prev_date: prevSnapshot?.snapshot_date,
     } : null;
