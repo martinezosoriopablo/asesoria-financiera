@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     // Obtener snapshot anterior para calcular retorno diario y cambio de cuotas
     const { data: prevSnapshot } = await supabase
       .from("portfolio_snapshots")
-      .select("total_value, cumulative_return, twr_cumulative, total_cuotas")
+      .select("total_value, cumulative_return, total_cuotas")
       .eq("client_id", clientId)
       .lt("snapshot_date", date)
       .order("snapshot_date", { ascending: false })
@@ -198,41 +198,16 @@ export async function POST(request: NextRequest) {
       return Math.max(-9999.99, Math.min(9999.99, value));
     };
 
-    // Calcular retornos
+    // Calcular retornos simples
     let dailyReturn = 0;
     let cumulativeReturn = 0;
-    let twrPeriod = 0;
-    let twrCumulative = 0;
 
     if (prevSnapshot && prevSnapshot.total_value > 0) {
-      // Simple return (for backwards compatibility)
-      dailyReturn = clampPercent(((totalValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100);
+      // Simple return vs previous snapshot (adjusted for cash flows)
+      const adjustedEndValue = totalValue - estimatedNetFlow;
+      dailyReturn = clampPercent(((adjustedEndValue - prevSnapshot.total_value) / prevSnapshot.total_value) * 100);
 
-      // TWR (Time-Weighted Return) calculation
-      // For mutual funds: use cuota value change (most accurate)
-      // Formula: (Current Unit Value / Previous Unit Value) - 1
-      // Only use cuota-based calc if we have meaningful cuota values (> 0.001)
-      if (totalCuotas > 0.001 && prevCuotas > 0.001) {
-        const currentUnitValue = totalValue / totalCuotas;
-        const prevUnitValue = prevSnapshot.total_value / prevCuotas;
-        // Sanity check: unit values should be positive and finite
-        if (Number.isFinite(currentUnitValue) && Number.isFinite(prevUnitValue) && prevUnitValue > 0) {
-          twrPeriod = clampPercent(((currentUnitValue / prevUnitValue) - 1) * 100);
-        }
-      } else if (prevSnapshot.total_value > 0) {
-        // Fallback: use cash flow adjusted formula
-        // (End Value - Net Flow) / Beginning Value - 1
-        const adjustedEndValue = totalValue - estimatedNetFlow;
-        twrPeriod = clampPercent(((adjustedEndValue / prevSnapshot.total_value) - 1) * 100);
-      }
-
-      // Cumulative TWR using geometric linking
-      // (1 + TWR_cumulative_new) = (1 + TWR_cumulative_prev) * (1 + TWR_period)
-      const prevTwrFactor = 1 + ((prevSnapshot.twr_cumulative || 0) / 100);
-      const periodTwrFactor = 1 + (twrPeriod / 100);
-      twrCumulative = clampPercent((prevTwrFactor * periodTwrFactor - 1) * 100);
-
-      // Obtener primer snapshot para calcular retorno acumulado simple
+      // Cumulative return vs first snapshot
       const { data: firstSnapshot } = await supabase
         .from("portfolio_snapshots")
         .select("total_value")
@@ -283,9 +258,9 @@ export async function POST(request: NextRequest) {
       deposits: clampMoney(estimatedDeposits),
       withdrawals: clampMoney(estimatedWithdrawals),
       net_cash_flow: clampMoney(estimatedNetFlow),
-      // TWR metrics
-      twr_period: clampPercent(twrPeriod),
-      twr_cumulative: clampPercent(twrCumulative),
+      // TWR columns deprecated — write 0 to avoid null issues in existing queries
+      twr_period: 0,
+      twr_cumulative: 0,
       // Cuotas tracking
       total_cuotas: clampCuotas(totalCuotas),
       cuotas_change: clampCuotas(cuotasChange),
@@ -356,11 +331,9 @@ interface SnapshotRecord {
 interface PortfolioMetrics {
   totalReturn: number;
   annualizedReturn: number;
-  twr: number; // Time-Weighted Return
-  twrAnnualized: number;
+  isAnnualized: boolean;
   volatility: number;
   maxDrawdown: number;
-  sharpeRatio: number;
   currentValue: number;
   initialValue: number;
   dataPoints: number;
@@ -382,11 +355,9 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
     return {
       totalReturn: 0,
       annualizedReturn: 0,
-      twr: 0,
-      twrAnnualized: 0,
+      isAnnualized: false,
       volatility: 0,
       maxDrawdown: 0,
-      sharpeRatio: 0,
       currentValue: snapshots[0]?.total_value || 0,
       initialValue: snapshots[0]?.total_value || 0,
       dataPoints: snapshots.length,
@@ -400,138 +371,66 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
   // Guard: if first value is 0, we can't calculate returns
   if (firstValue <= 0) {
     return {
-      totalReturn: 0, annualizedReturn: 0, twr: 0, twrAnnualized: 0,
-      volatility: 0, maxDrawdown: 0, sharpeRatio: 0,
+      totalReturn: 0, annualizedReturn: 0, isAnnualized: false,
+      volatility: 0, maxDrawdown: 0,
       currentValue: lastValue, initialValue: firstValue,
       dataPoints: snapshots.length,
     };
   }
 
-  // Period calculation (needed for volatility annualization)
+  // Period calculation
   const daysDiff = (new Date(snapshots[snapshots.length - 1].snapshot_date).getTime() -
                    new Date(snapshots[0].snapshot_date).getTime()) / (1000 * 60 * 60 * 24);
 
   // Retorno total simple
   const totalReturn = ((lastValue - firstValue) / firstValue) * 100;
 
-  // TWR (Time-Weighted Return) - use stored value if available, otherwise calculate
-  let twr = latestSnapshot.twr_cumulative || 0;
+  // Annualize only if >= 365 days
+  const yearsElapsed = daysDiff / 365;
+  const isAnnualized = daysDiff >= 365;
+  const annualizedReturn = isAnnualized
+    ? (Math.pow(lastValue / firstValue, 1 / yearsElapsed) - 1) * 100
+    : totalReturn;
 
-  // If no stored TWR, calculate from scratch using unit-value method (preferred)
-  // then fallback to cash-flow-adjusted formula
-  if (!twr && snapshots.length >= 2) {
-    let twrFactor = 1;
-    for (let i = 1; i < snapshots.length; i++) {
-      const prevSnapshot = snapshots[i - 1];
-      const currSnapshot = snapshots[i];
-      const prevCuotas = prevSnapshot.total_cuotas || 0;
-      const currCuotas = currSnapshot.total_cuotas || 0;
-
-      let subPeriodReturn = 1;
-
-      // Prefer unit-value method (most accurate, isolates performance from cash flows)
-      if (prevCuotas > 0 && currCuotas > 0) {
-        const prevUnitValue = prevSnapshot.total_value / prevCuotas;
-        const currUnitValue = currSnapshot.total_value / currCuotas;
-        if (prevUnitValue > 0) {
-          subPeriodReturn = currUnitValue / prevUnitValue;
-        }
-      } else if (prevSnapshot.total_value > 0) {
-        // Fallback: cash-flow-adjusted
-        const netFlow = currSnapshot.net_cash_flow || 0;
-        const adjustedEndValue = currSnapshot.total_value - netFlow;
-        subPeriodReturn = adjustedEndValue / prevSnapshot.total_value;
-      }
-
-      twrFactor *= subPeriodReturn;
-    }
-    twr = (twrFactor - 1) * 100;
-  }
-
-  // Calculate TWR-based period returns for volatility
-  const twrPeriodReturns: number[] = [];
+  // Simple period returns for volatility (cash-flow adjusted)
+  const periodReturns: number[] = [];
   for (let i = 1; i < snapshots.length; i++) {
-    const prevSnapshot = snapshots[i - 1];
-    const currSnapshot = snapshots[i];
-    const prevCuotas = prevSnapshot.total_cuotas || 0;
-    const currCuotas = currSnapshot.total_cuotas || 0;
-
-    // Use unit-value method when possible
-    if (prevCuotas > 0 && currCuotas > 0) {
-      const prevUnitValue = prevSnapshot.total_value / prevCuotas;
-      const currUnitValue = currSnapshot.total_value / currCuotas;
-      if (prevUnitValue > 0) {
-        twrPeriodReturns.push((currUnitValue / prevUnitValue) - 1);
-      }
-    } else if (prevSnapshot.total_value > 0) {
-      const netFlow = currSnapshot.net_cash_flow || 0;
-      const adjustedEndValue = currSnapshot.total_value - netFlow;
-      twrPeriodReturns.push((adjustedEndValue / prevSnapshot.total_value) - 1);
+    const prev = snapshots[i - 1];
+    const curr = snapshots[i];
+    if (prev.total_value > 0) {
+      const netFlow = curr.net_cash_flow || 0;
+      const adjustedEndValue = curr.total_value - netFlow;
+      periodReturns.push((adjustedEndValue / prev.total_value) - 1);
     }
   }
 
-  // Volatilidad (desviación estándar de retornos TWR anualizada)
+  // Volatilidad (desviación estándar anualizada)
   let annualizedVol = 0;
-  if (twrPeriodReturns.length > 0) {
-    const avgReturn = twrPeriodReturns.reduce((a, b) => a + b, 0) / twrPeriodReturns.length;
-    const variance = twrPeriodReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / twrPeriodReturns.length;
+  if (periodReturns.length > 0) {
+    const avgReturn = periodReturns.reduce((a, b) => a + b, 0) / periodReturns.length;
+    const variance = periodReturns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / periodReturns.length;
     const periodVol = Math.sqrt(variance);
-    // Annualize based on actual data frequency, not assuming daily
     const avgDaysBetweenSnapshots = daysDiff / (snapshots.length - 1);
     const periodsPerYear = avgDaysBetweenSnapshots > 0 ? 365 / avgDaysBetweenSnapshots : 12;
     annualizedVol = periodVol * Math.sqrt(Math.min(periodsPerYear, 252)) * 100;
   }
 
-  const yearsElapsed = daysDiff / 365;
-
-  // Retorno anualizado simple
-  const annualizedReturn = yearsElapsed > 0
-    ? (Math.pow(lastValue / firstValue, 1 / yearsElapsed) - 1) * 100
-    : totalReturn;
-
-  // TWR anualizado
-  const twrAnnualized = yearsElapsed > 0
-    ? (Math.pow(1 + twr / 100, 1 / yearsElapsed) - 1) * 100
-    : twr;
-
-  // Max Drawdown — use unit value to isolate market returns from cash flows
+  // Max Drawdown — simple peak-to-trough, cash flow adjusted
   let maxDrawdown = 0;
-  const useUnitValue = snapshots.every(s => s.total_cuotas && s.total_cuotas > 0);
-
-  if (useUnitValue) {
-    let peakUnitValue = snapshots[0].total_value / snapshots[0].total_cuotas!;
-    for (const snapshot of snapshots) {
-      const unitValue = snapshot.total_value / snapshot.total_cuotas!;
-      if (unitValue > peakUnitValue) {
-        peakUnitValue = unitValue;
-      }
-      const drawdown = ((peakUnitValue - unitValue) / peakUnitValue) * 100;
-      if (drawdown > maxDrawdown) {
-        maxDrawdown = drawdown;
-      }
+  let peak = snapshots[0].total_value;
+  let cumulativeFlow = 0;
+  for (let i = 1; i < snapshots.length; i++) {
+    const flow = snapshots[i].net_cash_flow || 0;
+    cumulativeFlow += flow;
+    const adjustedValue = snapshots[i].total_value - cumulativeFlow;
+    if (adjustedValue > peak) {
+      peak = adjustedValue;
     }
-  } else {
-    // Fallback: adjust for cumulative cash flows
-    let peak = snapshots[0].total_value;
-    let cumulativeFlow = 0;
-    for (let i = 1; i < snapshots.length; i++) {
-      const flow = snapshots[i].net_cash_flow || 0;
-      cumulativeFlow += flow;
-      const adjustedValue = snapshots[i].total_value - cumulativeFlow;
-      if (adjustedValue > peak) {
-        peak = adjustedValue;
-      }
-      const drawdown = ((peak - adjustedValue) / peak) * 100;
-      if (drawdown > maxDrawdown) {
-        maxDrawdown = drawdown;
-      }
+    const drawdown = ((peak - adjustedValue) / peak) * 100;
+    if (drawdown > maxDrawdown) {
+      maxDrawdown = drawdown;
     }
   }
-
-  // Sharpe Ratio usando TWR (asumiendo tasa libre de riesgo de 4%)
-  const riskFreeRate = 4;
-  const excessReturn = twrAnnualized - riskFreeRate;
-  const sharpeRatio = annualizedVol > 0 ? excessReturn / annualizedVol : 0;
 
   // Total cash flows
   const totalDeposits = snapshots.reduce((sum, s) => sum + (s.deposits || 0), 0);
@@ -541,11 +440,9 @@ function calculateMetrics(snapshots: SnapshotRecord[]): PortfolioMetrics {
   return {
     totalReturn: Math.round(totalReturn * 100) / 100,
     annualizedReturn: Math.round(annualizedReturn * 100) / 100,
-    twr: Math.round(twr * 100) / 100,
-    twrAnnualized: Math.round(twrAnnualized * 100) / 100,
+    isAnnualized,
     volatility: Math.round(annualizedVol * 100) / 100,
     maxDrawdown: Math.round(maxDrawdown * 100) / 100,
-    sharpeRatio: Math.round(sharpeRatio * 100) / 100,
     currentValue: lastValue,
     initialValue: firstValue,
     unrealizedGainLoss: latestSnapshot.unrealized_gain_loss,
