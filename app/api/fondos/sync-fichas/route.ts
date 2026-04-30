@@ -207,11 +207,26 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Get already synced fo_runs to skip them
+  const allRuns = [...uniqueRuns.keys()];
+  const { data: existingFichas } = await supabase
+    .from("fund_fichas")
+    .select("fo_run")
+    .in("fo_run", allRuns);
+  const alreadySynced = new Set((existingFichas || []).map(f => f.fo_run));
+
   const results: { fo_run: number; serie: string; status: string; extracted?: ExtractedFichaData }[] = [];
   let synced = 0;
   let errors = 0;
+  let skipped = 0;
 
   for (const [foRun, fondo] of uniqueRuns) {
+    // Skip funds that already have fichas
+    if (alreadySynced.has(foRun)) {
+      results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "already_synced" });
+      skipped++;
+      continue;
+    }
     try {
       // Discover rutAdmin and ALL available series from CMF
       const cmfData = await discoverFromCmfPage(foRun);
@@ -307,8 +322,9 @@ export async function POST(request: NextRequest) {
     success: true,
     synced,
     errors,
+    skipped,
     total: uniqueRuns.size,
-    results,
+    results: results.filter(r => r.status !== "already_synced"),
   });
 }
 

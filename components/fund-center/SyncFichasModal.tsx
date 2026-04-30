@@ -26,7 +26,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncingAdmin, setSyncingAdmin] = useState<string | null>(null);
-  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; details: SyncResultDetail[] }[]>([]);
+  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; details: SyncResultDetail[] }[]>([]);
 
   useEffect(() => {
     setResults([]);
@@ -77,6 +77,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
           admin: nombre,
           synced: data.synced,
           errors: data.errors,
+          skipped: data.skipped || 0,
           details: data.results || [],
         }, ...prev]);
         fetchStatus();
@@ -208,6 +209,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                     <span className="text-sm font-medium text-gb-black">{r.admin}</span>
                     <span className="text-xs text-gb-gray">
                       <span className="text-green-600 font-medium">{r.synced} OK</span>
+                      {r.skipped > 0 && <span className="text-blue-500 ml-2">{r.skipped} ya sincronizados</span>}
                       {r.errors > 0 && <span className="text-red-500 ml-2">{r.errors} errores</span>}
                     </span>
                   </div>
