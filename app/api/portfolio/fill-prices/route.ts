@@ -1173,37 +1173,37 @@ export async function POST(request: NextRequest) {
         // Calculate total cuotas for this day (sum of all quantities)
         const totalCuotas = dailyHoldings.reduce((sum, h) => sum + (h.quantity || 0), 0);
 
-        // For backward fill: first computed value becomes the chain base (TWR = 0)
-        // We DON'T reset prevTwrCumulative — instead we chain from the cartola's cumulative TWR
+        // For backward fill: first computed value becomes the chain base (return = 0)
+        // We DON'T reset prevCumulativeReturn — instead we chain from the cartola's cumulative return
         // so the backward-filled snapshots connect seamlessly to the forward chain.
         if (range.direction === "backward" && firstBackwardValue === null) {
           firstBackwardValue = totalValue;
           prevValue = totalValue;
           prevCuotas = totalCuotas;
-          // Don't reset prevTwrCumulative — keep chaining from the cartola snapshot
+          // Don't reset prevCumulativeReturn — keep chaining from the cartola snapshot
         }
 
-        // Calculate portfolio TWR using unit-value method (isolates performance from cash flows)
+        // Calculate portfolio return using unit-value method (isolates performance from cash flows)
         // Between cartolas, quantities don't change, so unit value = totalValue / totalCuotas
-        let twrPeriod = 0;
+        let periodReturn = 0;
         if (prevValue > 0 && prevCuotas > 0 && totalCuotas > 0) {
           const currentUnitValue = totalValue / totalCuotas;
           const prevUnitValue = prevValue / prevCuotas;
           if (prevUnitValue > 0 && Number.isFinite(currentUnitValue) && Number.isFinite(prevUnitValue)) {
-            twrPeriod = ((currentUnitValue / prevUnitValue) - 1) * 100;
+            periodReturn = ((currentUnitValue / prevUnitValue) - 1) * 100;
           }
         } else if (prevValue > 0) {
           // Fallback: simple return (no cuota data)
-          twrPeriod = ((totalValue / prevValue) - 1) * 100;
+          periodReturn = ((totalValue / prevValue) - 1) * 100;
         }
         // Clamp
-        twrPeriod = Math.max(-9999.99, Math.min(9999.99, twrPeriod));
+        periodReturn = Math.max(-9999.99, Math.min(9999.99, periodReturn));
 
-        // Cumulative TWR
-        const prevFactor = 1 + prevTwrCumulative / 100;
-        const periodFactor = 1 + twrPeriod / 100;
-        let twrCumulative = (prevFactor * periodFactor - 1) * 100;
-        twrCumulative = Math.max(-9999.99, Math.min(9999.99, twrCumulative));
+        // Cumulative return (chain multiplication)
+        const prevFactor = 1 + prevCumulativeReturn / 100;
+        const periodFactor = 1 + periodReturn / 100;
+        let cumulativeReturn = (prevFactor * periodFactor - 1) * 100;
+        cumulativeReturn = Math.max(-9999.99, Math.min(9999.99, cumulativeReturn));
 
         // Calculate composition (normalize assetClass: "Equity" -> "equity", "Fixed Income" -> "fixedIncome", etc.)
         const normalizeAC = (ac: string | undefined) => {
@@ -1262,9 +1262,9 @@ export async function POST(request: NextRequest) {
                 totalValue > 0
                   ? Math.round((cashValue / totalValue) * 10000) / 100
                   : 0,
-              daily_return: twrPeriod,
-              twr_period: twrPeriod,
-              twr_cumulative: twrCumulative,
+              daily_return: periodReturn,
+              twr_period: periodReturn,
+              twr_cumulative: cumulativeReturn,
               deposits: 0,
               withdrawals: 0,
               net_cash_flow: 0,
@@ -1282,7 +1282,7 @@ export async function POST(request: NextRequest) {
           result.filled++;
           prevValue = totalValue;
           prevCuotas = totalCuotas;
-          prevTwrCumulative = twrCumulative;
+          prevCumulativeReturn = cumulativeReturn;
         }
       }
     }

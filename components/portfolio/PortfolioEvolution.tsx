@@ -50,8 +50,8 @@ interface Snapshot {
 interface Metrics {
   totalReturn: number;
   annualizedReturn: number;
-  twr: number;
-  twrAnnualized: number;
+  totalReturn: number;
+  annualizedReturn: number;
   volatility: number;
   maxDrawdown: number;
   sharpeRatio: number;
@@ -452,7 +452,7 @@ export default function PortfolioEvolution({
     date: formatDate(s.snapshot_date),
     fullDate: s.snapshot_date,
     value: s.total_value,
-    twr: s.twr_cumulative ?? 0, // TWR acumulado (%)
+    returnPct: s.cumulative_return ?? s.twr_cumulative ?? 0, // Retorno acumulado (%)
   }));
 
   return (
@@ -628,32 +628,32 @@ export default function PortfolioEvolution({
         <>
           {/* Metrics cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-gb-light/30">
-            {/* TWR (Time-Weighted Return) — the TRUE performance metric */}
+            {/* Rentabilidad acumulada */}
             <div className="bg-white rounded-lg p-4 border border-gb-border">
               <div className="flex items-center gap-2 text-gb-gray mb-1">
                 <Percent className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase">Rentabilidad TWR</span>
+                <span className="text-xs font-medium uppercase">Rentabilidad</span>
               </div>
               <p className={`text-xl font-bold ${
-                (metrics.twr || 0) >= 0 ? "text-green-600" : "text-red-600"
+                (metrics.totalReturn || 0) >= 0 ? "text-green-600" : "text-red-600"
               }`}>
-                {formatPercent(metrics.twr || 0)}
+                {formatPercent(metrics.totalReturn || 0)}
               </p>
               <p className="text-xs text-gb-gray mt-1">
                 {metrics.periodDays} días
               </p>
             </div>
 
-            {/* TWR Annualized */}
+            {/* Retorno Anualizado */}
             <div className="bg-white rounded-lg p-4 border border-gb-border">
               <div className="flex items-center gap-2 text-gb-gray mb-1">
                 <TrendingUp className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase">TWR Anualizado</span>
+                <span className="text-xs font-medium uppercase">Retorno Anualizado</span>
               </div>
               <p className={`text-xl font-bold ${
-                (metrics.twrAnnualized || 0) >= 0 ? "text-green-600" : "text-red-600"
+                (metrics.annualizedReturn || 0) >= 0 ? "text-green-600" : "text-red-600"
               }`}>
-                {formatPercent(metrics.twrAnnualized || 0)}
+                {formatPercent(metrics.annualizedReturn || 0)}
               </p>
               <p className="text-xs text-gb-gray mt-1">
                 Anualizado
@@ -695,7 +695,7 @@ export default function PortfolioEvolution({
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gb-black">
-                {chartMode === "return" ? "Rentabilidad TWR (%)" : "Evolución del Valor"}
+                {chartMode === "return" ? "Rentabilidad (%)" : "Evolución del Valor"}
               </h3>
               <div className="flex items-center gap-1 bg-gb-light rounded-lg p-0.5">
                 <button
@@ -752,7 +752,7 @@ export default function PortfolioEvolution({
                         borderRadius: "8px",
                         fontSize: "12px",
                       }}
-                      formatter={(value: number | undefined) => [formatPercent(value ?? 0), "Rentabilidad TWR"]}
+                      formatter={(value: number | undefined) => [formatPercent(value ?? 0), "Rentabilidad"]}
                       labelFormatter={(label) => `Fecha: ${label}`}
                     />
                   )}
@@ -770,7 +770,7 @@ export default function PortfolioEvolution({
                   )}
                   <Area
                     type="monotone"
-                    dataKey={chartMode === "return" ? "twr" : "value"}
+                    dataKey={chartMode === "return" ? "returnPct" : "value"}
                     stroke={chartMode === "return" ? "#16a34a" : "#2563eb"}
                     strokeWidth={2}
                     fillOpacity={1}

@@ -36,7 +36,7 @@ interface ClientOverview {
   portalLastSeen: string | null;
   createdAt: string;
   totalValue: number | null;
-  twrCumulative: number | null;
+  cumulativeReturn: number | null;
   lastSnapshotDate: string | null;
   equityPercent: number | null;
   fixedIncomePercent: number | null;
@@ -53,7 +53,7 @@ interface ClientOverview {
 type SortKey =
   | "nombre"
   | "totalValue"
-  | "twrCumulative"
+  | "cumulativeReturn"
   | "drift"
   | "daysSinceContact"
   | "perfilRiesgo";
@@ -130,15 +130,15 @@ export default function ClientsOverviewPage() {
       (c) => c.daysSinceContact != null && c.daysSinceContact > 30
     ).length;
     const totalAUM = clients.reduce((s, c) => s + (c.totalValue || 0), 0);
-    const avgTWR =
-      clients.filter((c) => c.twrCumulative != null).length > 0
+    const avgReturn =
+      clients.filter((c) => c.cumulativeReturn != null).length > 0
         ? clients
-            .filter((c) => c.twrCumulative != null)
-            .reduce((s, c) => s + (c.twrCumulative || 0), 0) /
-          clients.filter((c) => c.twrCumulative != null).length
+            .filter((c) => c.cumulativeReturn != null)
+            .reduce((s, c) => s + (c.cumulativeReturn || 0), 0) /
+          clients.filter((c) => c.cumulativeReturn != null).length
         : null;
 
-    return { total, withPortfolio, withRec, highDrift, noContact30, totalAUM, avgTWR };
+    return { total, withPortfolio, withRec, highDrift, noContact30, totalAUM, avgReturn };
   }, [clients]);
 
   // Filter & sort
@@ -190,8 +190,8 @@ export default function ClientsOverviewPage() {
         case "totalValue":
           cmp = (a.totalValue || 0) - (b.totalValue || 0);
           break;
-        case "twrCumulative":
-          cmp = (a.twrCumulative || -999) - (b.twrCumulative || -999);
+        case "cumulativeReturn":
+          cmp = (a.cumulativeReturn || -999) - (b.cumulativeReturn || -999);
           break;
         case "drift":
           cmp = (a.drift || 0) - (b.drift || 0);
@@ -281,15 +281,15 @@ export default function ClientsOverviewPage() {
           </div>
           <div className="bg-white rounded-lg border border-gb-border p-3 shadow-sm">
             <div className="flex items-center gap-2 text-gb-gray text-xs font-medium mb-1">
-              <TrendingUp className="w-3.5 h-3.5" /> TWR Prom.
+              <TrendingUp className="w-3.5 h-3.5" /> Retorno Prom.
             </div>
             <div
               className={`text-xl font-bold ${
-                (stats.avgTWR || 0) >= 0 ? "text-green-600" : "text-red-600"
+                (stats.avgReturn || 0) >= 0 ? "text-green-600" : "text-red-600"
               }`}
             >
-              {stats.avgTWR != null
-                ? `${stats.avgTWR >= 0 ? "+" : ""}${stats.avgTWR.toFixed(1)}%`
+              {stats.avgReturn != null
+                ? `${stats.avgReturn >= 0 ? "+" : ""}${stats.avgReturn.toFixed(1)}%`
                 : "—"}
             </div>
           </div>
@@ -435,10 +435,10 @@ export default function ClientsOverviewPage() {
                   </th>
                   <th
                     className="text-right py-3 px-3 font-medium text-gb-gray cursor-pointer hover:text-gb-black select-none"
-                    onClick={() => toggleSort("twrCumulative")}
+                    onClick={() => toggleSort("cumulativeReturn")}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      TWR <SortIcon k="twrCumulative" />
+                      Retorno <SortIcon k="cumulativeReturn" />
                     </div>
                   </th>
                   <th
@@ -529,23 +529,23 @@ export default function ClientsOverviewPage() {
                         )}
                       </td>
 
-                      {/* TWR */}
+                      {/* Retorno */}
                       <td className="py-3 px-3 text-right">
-                        {c.twrCumulative != null ? (
+                        {c.cumulativeReturn != null ? (
                           <div
                             className={`flex items-center justify-end gap-1 font-bold ${
-                              c.twrCumulative >= 0
+                              c.cumulativeReturn >= 0
                                 ? "text-green-600"
                                 : "text-red-600"
                             }`}
                           >
-                            {c.twrCumulative >= 0 ? (
+                            {c.cumulativeReturn >= 0 ? (
                               <TrendingUp className="w-3.5 h-3.5" />
                             ) : (
                               <TrendingDown className="w-3.5 h-3.5" />
                             )}
-                            {c.twrCumulative >= 0 ? "+" : ""}
-                            {c.twrCumulative.toFixed(1)}%
+                            {c.cumulativeReturn >= 0 ? "+" : ""}
+                            {c.cumulativeReturn.toFixed(1)}%
                           </div>
                         ) : (
                           <span className="text-xs text-gb-gray">—</span>

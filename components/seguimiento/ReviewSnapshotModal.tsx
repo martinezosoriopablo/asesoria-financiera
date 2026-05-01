@@ -826,7 +826,7 @@ export default function ReviewSnapshotModal({
           sources: uniqueSources,
           currency: "CLP",
           exchangeRates,
-          // Cash flows for TWR calculation
+          // Cash flows for return calculation
           cashFlows: {
             deposits: toCLP(deposits, depositsCurrency),
             withdrawals: toCLP(withdrawals, withdrawalsCurrency),

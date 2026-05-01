@@ -67,7 +67,7 @@ async function main() {
   }, { onConflict: "client_id,snapshot_date" });
 
   if (snapErr) console.error("Snapshot error:", snapErr.message);
-  else console.log("Snapshot: $152.345.000 CLP, TWR +8.45%");
+  else console.log("Snapshot: $152.345.000 CLP, Retorno +8.45%");
 
   // 4. Insert a welcome message from advisor
   console.log("\nCreating welcome message...");
@@ -88,7 +88,7 @@ async function main() {
   console.log("  Cliente: Andrés Rodríguez");
   console.log("  Perfil: Moderado (58/100)");
   console.log("  Portafolio: $152.345.000 CLP");
-  console.log("  TWR acumulado: +8.45%");
+  console.log("  Retorno acumulado: +8.45%");
   console.log("  Posiciones: 8 fondos");
   console.log("  Mensaje de bienvenida del asesor");
   console.log("========================================\n");

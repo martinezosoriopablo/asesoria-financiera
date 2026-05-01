@@ -428,7 +428,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       color: CHART_COLORS[i % CHART_COLORS.length],
     }));
 
-  // Calculate portfolio-level TWR from weighted holding returns
+  // Calculate portfolio-level return from weighted holding returns
   const portfolioReturn = enrichedSummaries.reduce((sum, h) => {
     if (h.returnFromBase !== null && h.weight > 0) {
       return sum + (h.returnFromBase * h.weight) / 100;

@@ -111,7 +111,7 @@ export default function PerformanceAttribution({
 
     const initialValue = firstSnapshot.total_value;
     const finalValue = lastSnapshot.total_value;
-    // Use TWR from metrics when available for consistency with top-level cards
+    // Use total return from metrics when available for consistency with top-level cards
     const totalReturn = totalReturnProp != null ? totalReturnProp : ((finalValue - initialValue) / initialValue) * 100;
 
     // Calculate contribution from each asset class

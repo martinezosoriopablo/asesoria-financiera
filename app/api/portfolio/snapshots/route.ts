@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     const rawCuotasChange = totalCuotas - prevCuotas;
     // Apply tolerance: ignore tiny cuota differences (<0.1% of total) caused by
     // rounding in PDF parsing. Without this, sub-cent rounding differences generate
-    // phantom cash flows that distort TWR calculations.
+    // phantom cash flows that distort return calculations.
     const cuotasTolerance = prevCuotas > 0 ? prevCuotas * 0.001 : 0.01;
     const cuotasChange = Math.abs(rawCuotasChange) < cuotasTolerance ? 0 : rawCuotasChange;
 
@@ -254,11 +254,11 @@ export async function POST(request: NextRequest) {
       holdings: holdings || null,
       daily_return: clampPercent(dailyReturn),
       cumulative_return: clampPercent(cumulativeReturn),
-      // Cash flows for TWR calculation
+      // Cash flows for return calculation
       deposits: clampMoney(estimatedDeposits),
       withdrawals: clampMoney(estimatedWithdrawals),
       net_cash_flow: clampMoney(estimatedNetFlow),
-      // TWR columns deprecated — write 0 to avoid null issues in existing queries
+      // Legacy TWR columns — write 0 to avoid null issues in existing queries
       twr_period: 0,
       twr_cumulative: 0,
       // Cuotas tracking

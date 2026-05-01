@@ -1,7 +1,7 @@
 // app/api/portfolio/dividends/route.ts
 // Registrar dividendos para ajustar correctamente el valor cuota del portfolio
 // Los dividendos aumentan el valor del portfolio SIN cambiar las cuotas,
-// así la rentabilidad TWR refleja correctamente el retorno total (precio + dividendos)
+// así la rentabilidad refleja correctamente el retorno total (precio + dividendos)
 
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -67,9 +67,8 @@ export async function POST(request: NextRequest) {
 
     if (snapshot) {
       // Sumar dividendo al valor total (valor cuota sube)
-      // Registrar como depósito especial para que TWR no lo descuente
-      // TWR formula: (EndValue - NetCashFlow) / BeginValue
       // Dividendo NO es cash flow (es retorno), así que NO lo sumamos a net_cash_flow
+      // Solo sumamos al valor total para que el valor cuota suba
       await supabase
         .from("portfolio_snapshots")
         .update({
