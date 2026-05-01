@@ -182,7 +182,7 @@ export async function PUT(
       'patrimonio_estimado', 'ingreso_mensual', 'objetivo_inversion',
       'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo', 'parent_client_id',
       'tolerancia_perdida', 'tiene_portfolio', 'portfolio_data',
-      'status', 'notas'
+      'status', 'notas', 'questionnaire_frequency'
     ];
 
     // Campos que Postgres espera como null (no string vacío)
@@ -311,5 +311,79 @@ export async function DELETE(
     }).catch(() => {});
 
     return successResponse({ message: "Cliente marcado como inactivo", client });
+  });
+}
+
+// PATCH - Update specific fields like questionnaire_frequency (recomputes next_questionnaire_date)
+export async function PATCH(
+  request: NextRequest,
+  context: RouteContext
+) {
+  const blocked = await applyRateLimit(request, "client-patch", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
+  return handleApiError("client-patch", async () => {
+    const { id } = await context.params;
+
+    const allowedIds = advisor!.rol === "admin"
+      ? await getSubordinateAdvisorIds(advisor!.id)
+      : undefined;
+
+    const access = await verifyClientAccess(supabase, id, advisor!.id, allowedIds);
+    if (!access.exists) return errorResponse("Cliente no encontrado", 404);
+    if (!access.canAccess) return errorResponse("No tiene permiso para modificar este cliente", 403);
+
+    const body = await request.json();
+    const updateData: Record<string, unknown> = {};
+
+    // Handle questionnaire_frequency with next_date recomputation
+    if (body.questionnaire_frequency) {
+      const validFreqs = ["90d", "180d", "1y", "2y", "none"];
+      if (!validFreqs.includes(body.questionnaire_frequency)) {
+        return errorResponse("Frecuencia no valida", 400);
+      }
+      updateData.questionnaire_frequency = body.questionnaire_frequency;
+
+      // Recompute next_questionnaire_date based on last_questionnaire_date
+      const { data: client } = await supabase
+        .from("clients")
+        .select("last_questionnaire_date")
+        .eq("id", id)
+        .single();
+
+      if (client?.last_questionnaire_date) {
+        const lastDate = new Date(client.last_questionnaire_date);
+        const freq = body.questionnaire_frequency;
+        const next = new Date(lastDate);
+        switch (freq) {
+          case "90d": next.setDate(next.getDate() + 90); break;
+          case "180d": next.setDate(next.getDate() + 180); break;
+          case "1y": next.setFullYear(next.getFullYear() + 1); break;
+          case "2y": next.setFullYear(next.getFullYear() + 2); break;
+          default: next.setFullYear(next.getFullYear() + 100); break;
+        }
+        updateData.next_questionnaire_date = next.toISOString();
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return errorResponse("No hay campos para actualizar", 400);
+    }
+
+    const { data: updatedClient, error } = await supabase
+      .from("clients")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return successResponse({ client: updatedClient });
   });
 }

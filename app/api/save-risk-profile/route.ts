@@ -20,6 +20,18 @@ interface ValidScores {
 
 const EXPECTED_SCORE_KEYS = ["capacity", "tolerance", "perception", "composure", "global", "profileLabel"];
 
+function computeNextQuestionnaireDate(from: Date, frequency: string): Date {
+  const d = new Date(from);
+  switch (frequency) {
+    case "90d": d.setDate(d.getDate() + 90); break;
+    case "180d": d.setDate(d.getDate() + 180); break;
+    case "1y": d.setFullYear(d.getFullYear() + 1); break;
+    case "2y": d.setFullYear(d.getFullYear() + 2); break;
+    default: d.setFullYear(d.getFullYear() + 100); break;
+  }
+  return d;
+}
+
 function isValidScores(scores: unknown): scores is ValidScores {
   if (!scores || typeof scores !== "object" || Array.isArray(scores)) return false;
   const s = scores as Record<string, unknown>;
@@ -189,6 +201,29 @@ export async function POST(req: NextRequest) {
     if (clientUpdateError) {
       console.error("Error updating client profile:", clientUpdateError);
       // No retornamos error aquí porque el perfil ya se guardó correctamente
+    }
+
+    // Update questionnaire tracking dates
+    try {
+      const { data: freqData } = await supabase
+        .from("clients")
+        .select("questionnaire_frequency")
+        .eq("id", clientId)
+        .single();
+
+      const freq = freqData?.questionnaire_frequency || "1y";
+      const now = new Date();
+      const nextDate = computeNextQuestionnaireDate(now, freq);
+
+      await supabase
+        .from("clients")
+        .update({
+          last_questionnaire_date: now.toISOString(),
+          next_questionnaire_date: nextDate.toISOString(),
+        })
+        .eq("id", clientId);
+    } catch (dateErr) {
+      console.error("Error updating questionnaire dates:", dateErr);
     }
 
     // Notify advisor by email

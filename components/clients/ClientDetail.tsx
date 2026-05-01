@@ -31,6 +31,7 @@ import {
   X,
   Share2,
   UserPlus,
+  AlertTriangle,
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ReportConfigPanel from "@/components/clients/ReportConfigPanel";
@@ -60,6 +61,9 @@ interface Client {
   ultima_interaccion: string;
   client_interactions: Interaction[];
   parent_client_id?: string | null;
+  questionnaire_frequency?: string;
+  last_questionnaire_date?: string;
+  next_questionnaire_date?: string;
 }
 
 interface AssociatedClient {
@@ -422,6 +426,19 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", minimumFractionDigits: 0 }).format(amount);
+
+  const updateQuestionnaireFrequency = async (frequency: string) => {
+    try {
+      await fetch(`/api/clients/${client?.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionnaire_frequency: frequency }),
+      });
+      fetchClient();
+    } catch (err) {
+      console.error("Error updating frequency:", err);
+    }
+  };
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" });
@@ -980,6 +997,32 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                     <Send className="w-3.5 h-3.5" />
                     Re-enviar cuestionario de riesgo
                   </button>
+                  {/* Frecuencia de cuestionario */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <Clock className="w-4 h-4 text-gb-gray" />
+                    <select
+                      value={client.questionnaire_frequency || "1y"}
+                      onChange={(e) => updateQuestionnaireFrequency(e.target.value)}
+                      className="text-sm border border-gb-border rounded px-2 py-1"
+                    >
+                      <option value="90d">Cada 90 dias</option>
+                      <option value="180d">Cada 6 meses</option>
+                      <option value="1y">Cada ano</option>
+                      <option value="2y">Cada 2 anos</option>
+                      <option value="none">No programar</option>
+                    </select>
+                    {client.next_questionnaire_date && (
+                      <span className="text-xs text-gb-gray">
+                        Proximo: {new Date(client.next_questionnaire_date).toLocaleDateString("es-CL")}
+                      </span>
+                    )}
+                  </div>
+                  {client.next_questionnaire_date && new Date(client.next_questionnaire_date) <= new Date() && (
+                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 rounded-lg px-3 py-2 text-sm mt-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Cuestionario de riesgo vencido — re-enviar al cliente
+                    </div>
+                  )}
                 </div>
               </div>
             )}
