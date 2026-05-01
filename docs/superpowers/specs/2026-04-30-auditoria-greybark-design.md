@@ -262,15 +262,15 @@ ALTER TABLE clients
 | 2.3 | Agregar audit trail a upload de TAC | DONE |
 | 2.4 | UI selector de modelo IA en perfil del asesor | DONE |
 
-### Fase 3 — Features nuevas (sesion separada)
+### Fase 3 — Features nuevas — COMPLETADA 2026-04-30
 
-| # | Tarea | Complejidad |
-|---|-------|-------------|
-| 3.1 | Fondos preferidos del asesor (tabla + UI + motor + prompt IA) | Media |
-| 3.2 | Mail al corredor pre-redactado | Baja-media |
-| 3.3 | Frecuencia de cuestionario configurable | Baja |
-| 3.4 | Vista "Mi dia" / acciones pendientes | Media |
-| 3.5 | Comparacion 3 vias (requiere cartera recomendada) | Alta |
+| # | Tarea | Estado |
+|---|-------|--------|
+| 3.1 | Frecuencia de cuestionario configurable | DONE |
+| 3.2 | Mail al corredor pre-redactado | DONE |
+| 3.3 | Fondos preferidos del asesor (tabla + UI + motor + prompt IA) | DONE |
+| 3.4 | Vista "Mi dia" / acciones pendientes | PENDIENTE (future) |
+| 3.5 | Comparacion 3 vias (requiere cartera recomendada) | PENDIENTE (future) |
 
 ---
 

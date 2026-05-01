@@ -45,6 +45,12 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 **Shared text utilities:** `lib/text.ts` (stripAccents, normalizeText), `lib/fund-utils.ts` (detectSerieCode), `lib/constants/chilean-finance.ts` (CHILEAN_TICKERS). Do NOT define these locally in routes.
 
+**Questionnaire frequency:** Per-client configurable (`questionnaire_frequency` column: annual/semi-annual/quarterly/biennial). After saving risk profile, `next_questionnaire_date` is computed. ClientDetail shows overdue warning badge.
+
+**Broker email generator:** `/api/portfolio/generar-carta-corredor` generates a formal Chilean-style email draft via Claude. Client copies and sends from their own email. Triggered from RadiografiaCartola component via `CartaCorredorModal`.
+
+**Preferred funds:** Advisors manage a preferred funds list at `/advisor/fondos` (CRUD via `/api/advisor/preferred-funds`). Per-client `fund_selection_mode` (only_my_list / my_list_with_fallback / all_funds). AI cartera generation injects preferred funds into the prompt as soft constraint.
+
 ### Data flow for prices
 
 1. **CMF** is the canonical source for Chilean fund prices (fondos mutuos + fondos de inversion). Scraped via `lib/cmf-auto.ts` and `lib/cmf-fi-auto.ts`.
