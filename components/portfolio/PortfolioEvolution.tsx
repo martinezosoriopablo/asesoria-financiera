@@ -50,8 +50,6 @@ interface Snapshot {
 interface Metrics {
   totalReturn: number;
   annualizedReturn: number;
-  totalReturn: number;
-  annualizedReturn: number;
   volatility: number;
   maxDrawdown: number;
   sharpeRatio: number;
