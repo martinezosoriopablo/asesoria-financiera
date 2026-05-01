@@ -32,6 +32,7 @@ import {
   Share2,
   UserPlus,
   AlertTriangle,
+  Star,
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ReportConfigPanel from "@/components/clients/ReportConfigPanel";
@@ -64,6 +65,7 @@ interface Client {
   questionnaire_frequency?: string;
   last_questionnaire_date?: string;
   next_questionnaire_date?: string;
+  fund_selection_mode?: string;
 }
 
 interface AssociatedClient {
@@ -437,6 +439,19 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       fetchClient();
     } catch (err) {
       console.error("Error updating frequency:", err);
+    }
+  };
+
+  const updateFundMode = async (mode: string) => {
+    try {
+      await fetch(`/api/clients/${client?.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fund_selection_mode: mode }),
+      });
+      fetchClient();
+    } catch (err) {
+      console.error("Error updating fund mode:", err);
     }
   };
 
@@ -1050,6 +1065,31 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 </div>
               </div>
             )}
+
+            {/* Fund Selection Mode */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-emerald-400 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-emerald-500" />
+                Fondos para Recomendaciones IA
+              </h2>
+              <div className="flex items-center gap-2">
+                <select
+                  value={client.fund_selection_mode || "all_funds"}
+                  onChange={(e) => updateFundMode(e.target.value)}
+                  className="text-sm border border-gb-border rounded px-2 py-1"
+                >
+                  <option value="all_funds">Todos los fondos (universo CMF)</option>
+                  <option value="my_list_with_fallback">Mi lista + fallback CMF</option>
+                  <option value="only_my_list">Solo mi lista de fondos</option>
+                </select>
+              </div>
+              <p className="text-xs text-gb-gray mt-2">
+                Define que fondos usa la IA al generar carteras para este cliente.{" "}
+                <Link href="/advisor/fondos" className="text-indigo-600 hover:underline">
+                  Gestionar lista de fondos
+                </Link>
+              </p>
+            </div>
 
             {/* Contract */}
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-amber-500 p-5 shadow-sm">

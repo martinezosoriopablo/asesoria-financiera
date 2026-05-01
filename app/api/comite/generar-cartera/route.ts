@@ -58,6 +58,7 @@ interface ClientProfile {
   puntaje_riesgo: number;
   monto_inversion?: number;
   portfolio_data?: PortfolioData | null;
+  fund_selection_mode?: string;
 }
 
 interface ComiteReport {
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
     // 1. Obtener perfil del cliente (incluyendo portfolio_data si existe)
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, nombre, apellido, email, perfil_riesgo, puntaje_riesgo, portfolio_data")
+      .select("id, nombre, apellido, email, perfil_riesgo, puntaje_riesgo, portfolio_data, fund_selection_mode")
       .eq("id", clientId)
       .single();
 
@@ -156,8 +157,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 2b. Fetch advisor's preferred funds and client's fund selection mode
+    const { data: preferredFunds } = await supabase
+      .from("advisor_preferred_funds")
+      .select("fund_run, fund_name, category, notes")
+      .eq("advisor_id", advisor!.id)
+      .eq("active", true);
+
+    const fundMode = client.fund_selection_mode || "all_funds";
+
+    let preferredFundsPrompt = "";
+    if (preferredFunds && preferredFunds.length > 0 && fundMode !== "all_funds") {
+      const fundsList = preferredFunds
+        .map(
+          (f) =>
+            `- ${f.fund_name} (RUN: ${f.fund_run}, Categoria: ${f.category || "N/A"}${
+              f.notes ? `, Nota: ${f.notes}` : ""
+            })`
+        )
+        .join("\n");
+
+      preferredFundsPrompt = `\n\n## FONDOS PREFERIDOS DEL ASESOR\n${fundsList}\n\n`;
+
+      if (fundMode === "only_my_list") {
+        preferredFundsPrompt +=
+          'REGLA ESTRICTA: Usa SOLAMENTE fondos de esta lista. Si no hay opcion adecuada para una clase de activo, indica "NO HAY FONDO DISPONIBLE EN LA LISTA DEL ASESOR".';
+      } else {
+        preferredFundsPrompt +=
+          'REGLA: Usa PREFERENTEMENTE fondos de esta lista. Si no hay opcion adecuada para una clase de activo, sugiere del universo CMF marcando claramente "FUERA DE LISTA DEL ASESOR".';
+      }
+    }
+
     // 3. Construir el prompt para Claude
-    const prompt = buildPrompt(client, reports, montoInversion);
+    const prompt = buildPrompt(client, reports, montoInversion, preferredFundsPrompt);
 
     // 4. Llamar a Claude
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -251,7 +283,8 @@ export async function POST(request: NextRequest) {
 function buildPrompt(
   client: ClientProfile,
   reports: ComiteReport[],
-  montoInversion?: number
+  montoInversion?: number,
+  preferredFundsPrompt?: string
 ): string {
   // Organizar reportes por tipo
   const reportsByType: Record<string, string> = {};
@@ -395,7 +428,7 @@ IMPORTANTE: El cliente NO es un especialista en finanzas. Debes explicar todo en
 - Cash/Liquidez: ${distribucion.cash}%
 
 IMPORTANTE: La cartera DEBE respetar aproximadamente esta distribución. Un cliente ${client.perfil_riesgo} con banda ${benchmark.band} debe tener ~${distribucion.rv}% en renta variable.
-${carteraActualSection}
+${carteraActualSection}${preferredFundsPrompt || ""}
 ## REPORTES DEL COMITÉ DE INVERSIONES
 
 ### REPORTE MACRO

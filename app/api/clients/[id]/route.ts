@@ -182,7 +182,7 @@ export async function PUT(
       'patrimonio_estimado', 'ingreso_mensual', 'objetivo_inversion',
       'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo', 'parent_client_id',
       'tolerancia_perdida', 'tiene_portfolio', 'portfolio_data',
-      'status', 'notas', 'questionnaire_frequency'
+      'status', 'notas', 'questionnaire_frequency', 'fund_selection_mode'
     ];
 
     // Campos que Postgres espera como null (no string vacío)
@@ -369,6 +369,15 @@ export async function PATCH(
         }
         updateData.next_questionnaire_date = next.toISOString();
       }
+    }
+
+    // Handle fund_selection_mode
+    if (body.fund_selection_mode) {
+      const validModes = ["only_my_list", "my_list_with_fallback", "all_funds"];
+      if (!validModes.includes(body.fund_selection_mode)) {
+        return errorResponse("Modo de seleccion no valido", 400);
+      }
+      updateData.fund_selection_mode = body.fund_selection_mode;
     }
 
     if (Object.keys(updateData).length === 0) {

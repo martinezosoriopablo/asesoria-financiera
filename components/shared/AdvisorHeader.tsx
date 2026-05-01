@@ -22,6 +22,7 @@ import {
   Settings,
   RefreshCw,
   ArrowRightLeft,
+  Star,
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
@@ -45,6 +46,7 @@ const NAV_ITEMS = [
 
 const TOOL_ITEMS = [
   { href: '/fund-center', label: 'Centro de Fondos', icon: TrendingUp },
+  { href: '/advisor/fondos', label: 'Mis Fondos', icon: Star },
   { href: '/calculadora-apv', label: 'Calculadora APV', icon: Calculator },
   { href: '/educacion-financiera', label: 'Educación', icon: GraduationCap },
 ];
