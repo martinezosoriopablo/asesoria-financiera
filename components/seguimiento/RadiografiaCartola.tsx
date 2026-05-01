@@ -20,8 +20,10 @@ import {
   Check,
   Search,
   X,
+  Mail,
 } from "lucide-react";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import CartaCorredorModal from "@/components/portfolio/CartaCorredorModal";
 
 interface Alternative {
   nombre_fondo: string;
@@ -197,6 +199,9 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
 
   // Custom context for AI report
   const [customContext, setCustomContext] = useState<string>("");
+
+  // Carta corredor modal
+  const [showCartaCorredor, setShowCartaCorredor] = useState(false);
   // Rent period selector for proposal table
   const [rentPeriod, setRentPeriod] = useState<"1M" | "3M" | "1Y">("1Y");
 
@@ -1424,8 +1429,37 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                 )}
               </div>
             </div>
+
+            {/* Mail al Corredor button */}
+            {clientId && mergedProposal.holdings.some(h => h.changed) && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={() => setShowCartaCorredor(true)}
+                  className="text-xs px-3 py-1.5 bg-white border border-gb-border rounded-md hover:bg-slate-50 transition-colors font-medium flex items-center gap-1.5 text-gb-gray hover:text-gb-black"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  Generar mail al corredor
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Carta Corredor Modal */}
+      {showCartaCorredor && clientId && mergedProposal && (
+        <CartaCorredorModal
+          clientId={clientId}
+          operaciones={mergedProposal.holdings
+            .filter(h => h.changed)
+            .flatMap(h => {
+              const ops: Array<{ tipo: "comprar" | "vender"; fondo: string; monto: number; moneda: string }> = [];
+              ops.push({ tipo: "vender", fondo: h.originalFund, monto: h.marketValue, moneda: "CLP" });
+              ops.push({ tipo: "comprar", fondo: `${h.proposedFund} (${h.proposedAgf}${h.proposedSerie ? ` serie ${h.proposedSerie}` : ""})`, monto: h.marketValue, moneda: "CLP" });
+              return ops;
+            })}
+          onClose={() => setShowCartaCorredor(false)}
+        />
       )}
 
       {/* Report Section */}
