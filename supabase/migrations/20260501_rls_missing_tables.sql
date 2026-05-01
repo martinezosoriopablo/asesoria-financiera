@@ -133,25 +133,25 @@ ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "advisor_select_meetings"
   ON meetings FOR SELECT
   USING (
-    advisor_id IN (SELECT get_accessible_advisor_ids())
+    asesor_id IN (SELECT get_accessible_advisor_ids())
   );
 
 CREATE POLICY "advisor_insert_meetings"
   ON meetings FOR INSERT
   WITH CHECK (
-    advisor_id = auth.uid()
+    asesor_id = auth.uid()
   );
 
 CREATE POLICY "advisor_update_meetings"
   ON meetings FOR UPDATE
   USING (
-    advisor_id IN (SELECT get_accessible_advisor_ids())
+    asesor_id IN (SELECT get_accessible_advisor_ids())
   );
 
 CREATE POLICY "advisor_delete_meetings"
   ON meetings FOR DELETE
   USING (
-    advisor_id IN (SELECT get_accessible_advisor_ids())
+    asesor_id IN (SELECT get_accessible_advisor_ids())
   );
 
 -- ============================================================

@@ -66,7 +66,7 @@ SELECT count(*) AS "interactions de B vistos por A (debe ser 0)"
 
 -- Meetings: advisor_id directo
 SELECT count(*) AS "meetings de B vistos por A (debe ser 0)"
-  FROM meetings WHERE advisor_id = 'ADVISOR_B_UUID';
+  FROM meetings WHERE asesor_id = 'ADVISOR_B_UUID';
 
 RESET ROLE;
 
