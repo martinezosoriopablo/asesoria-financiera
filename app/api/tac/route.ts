@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     const { data: fondos, error: fondosError } = await supabase
       .from('fondos_mutuos')
       .select('id, fo_run, fm_serie')
-      .limit(10000);
+      .limit(50000);
 
     if (fondosError) {
       console.error('Error obteniendo fondos:', fondosError);

@@ -72,8 +72,10 @@ function calculateAssetClassReturns(
   for (const cls of classes) {
     if (cls.initVal > 0 && yearsElapsed > 0) {
       const totalReturn = ((cls.endVal - cls.initVal) / cls.initVal);
-      // Annualize the return
-      result[cls.key] = (Math.pow(1 + totalReturn, 1 / yearsElapsed) - 1) * 100;
+      // Annualize ONLY if >= 365 days, otherwise show simple return
+      result[cls.key] = daysDiff >= 365
+        ? (Math.pow(1 + totalReturn, 1 / yearsElapsed) - 1) * 100
+        : totalReturn * 100;
     } else if (cls.initVal > 0) {
       result[cls.key] = ((cls.endVal - cls.initVal) / cls.initVal) * 100;
     } else {

@@ -50,11 +50,15 @@ export default function CartaCorredorModal({ clientId, operaciones, onClose }: P
     }
   };
 
-  const copiar = () => {
-    const fullText = `Asunto: ${asunto}\n\n${cuerpo}`;
-    navigator.clipboard.writeText(fullText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copiar = async () => {
+    try {
+      const fullText = `Asunto: ${asunto}\n\n${cuerpo}`;
+      await navigator.clipboard.writeText(fullText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert("No se pudo copiar. Selecciona el texto manualmente.");
+    }
   };
 
   return (

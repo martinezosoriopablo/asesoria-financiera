@@ -45,9 +45,5 @@ export const CHILEAN_TICKERS = [
  */
 export function isChileanTicker(symbol: string): boolean {
   const clean = symbol.toUpperCase().replace(/\.(SN|CL)$/i, "");
-  return (
-    CHILEAN_TICKERS.includes(clean) ||
-    symbol.toUpperCase().endsWith(".SN") ||
-    symbol.toUpperCase().endsWith(".CL")
-  );
+  return CHILEAN_TICKERS.includes(clean);
 }

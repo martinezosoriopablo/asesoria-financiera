@@ -52,7 +52,6 @@ interface Metrics {
   annualizedReturn: number;
   volatility: number;
   maxDrawdown: number;
-  sharpeRatio: number;
   currentValue: number;
   initialValue: number;
   unrealizedGainLoss: number | null;
@@ -450,7 +449,7 @@ export default function PortfolioEvolution({
     date: formatDate(s.snapshot_date),
     fullDate: s.snapshot_date,
     value: s.total_value,
-    returnPct: s.cumulative_return ?? s.twr_cumulative ?? 0, // Retorno acumulado (%)
+    returnPct: s.cumulative_return ?? 0,
   }));
 
   return (
@@ -789,11 +788,9 @@ export default function PortfolioEvolution({
                 </p>
               </div>
               <div className="text-center p-3 bg-gb-light/50 rounded-lg">
-                <p className="text-xs text-gb-gray uppercase font-medium mb-1">Sharpe Ratio</p>
-                <p className={`text-lg font-bold ${
-                  metrics.sharpeRatio >= 1 ? "text-green-600" : metrics.sharpeRatio >= 0 ? "text-amber-600" : "text-red-600"
-                }`}>
-                  {metrics.sharpeRatio.toFixed(2)}
+                <p className="text-xs text-gb-gray uppercase font-medium mb-1">Periodo</p>
+                <p className="text-lg font-bold text-gb-black">
+                  {metrics.periodDays}d
                 </p>
               </div>
               <div className="text-center p-3 bg-gb-light/50 rounded-lg">

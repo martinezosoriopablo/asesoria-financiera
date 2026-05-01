@@ -208,19 +208,19 @@ export async function GET(request: NextRequest) {
                 <tr><td colspan="2" style="padding: 12px 0 4px; border-top: 1px solid #e2e8f0;"></td></tr>
                 <tr>
                   <td style="padding: 4px 0; color: #475569; font-size: 13px;">Renta Variable</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${snapshotSummary.equity_percent.toFixed(1)}%</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.equity_percent ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr>
                   <td style="padding: 4px 0; color: #475569; font-size: 13px;">Renta Fija</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${snapshotSummary.fixed_income_percent.toFixed(1)}%</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.fixed_income_percent ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr>
                   <td style="padding: 4px 0; color: #475569; font-size: 13px;">Alternativos</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${snapshotSummary.alternatives_percent.toFixed(1)}%</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.alternatives_percent ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr>
                   <td style="padding: 4px 0; color: #475569; font-size: 13px;">Caja</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${snapshotSummary.cash_percent.toFixed(1)}%</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.cash_percent ?? 0).toFixed(1)}%</td>
                 </tr>
               </table>
             </div>

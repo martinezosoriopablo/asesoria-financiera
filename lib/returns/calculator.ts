@@ -71,6 +71,10 @@ export function annualizeReturn(
   if (days < 365) {
     return { value: simpleReturn, isAnnualized: false };
   }
+  // Guard: returns <= -100% would produce NaN via negative base exponentiation
+  if (simpleReturn <= -1) {
+    return { value: -1, isAnnualized: true };
+  }
   const annualized = Math.pow(1 + simpleReturn, 365 / days) - 1;
   return { value: annualized, isAnnualized: true };
 }
@@ -107,6 +111,10 @@ export function periodicReturns(
   positions: PositionWithDates[],
   asOfDate: Date | string,
 ): PeriodResult[] {
+  if (positions.length === 0) {
+    return PERIOD_DEFS.map((def) => ({ label: def.label, result: null }));
+  }
+
   const asOf = typeof asOfDate === "string" ? new Date(asOfDate) : asOfDate;
 
   return PERIOD_DEFS.map((def) => {

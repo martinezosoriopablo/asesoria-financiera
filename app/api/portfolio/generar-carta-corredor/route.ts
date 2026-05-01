@@ -32,15 +32,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "clientId y operaciones son requeridos" }, { status: 400 });
     }
 
-    // Get client data
+    // Get client data — verify ownership
     const { data: client } = await supabase
       .from("clients")
-      .select("nombre, apellido, rut")
+      .select("nombre, apellido, rut, asesor_id")
       .eq("id", clientId)
       .single();
 
     if (!client) {
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    }
+
+    if (client.asesor_id !== advisor!.id) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
     const prompt = `Genera un email formal pero conciso que un cliente de inversiones enviara a su corredor o AGF para ejecutar las siguientes operaciones.
