@@ -6,8 +6,6 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { trackAIUsage } from "@/lib/ai-usage";
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
-
 interface Operacion {
   tipo: "comprar" | "vender";
   fondo: string;
@@ -76,7 +74,7 @@ Responde SOLO en formato JSON valido, sin texto adicional:
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({

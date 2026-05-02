@@ -99,26 +99,25 @@ export default function ClientsOverviewPage() {
 
   useEffect(() => {
     if (authLoading) return;
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/advisor/clients-overview");
+        const data = await res.json();
+        if (data.success) {
+          setClients(data.clients);
+        } else {
+          setError(data.error || "Error cargando datos");
+        }
+      } catch {
+        setError("Error de conexión");
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchData();
   }, [authLoading]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/advisor/clients-overview");
-      const data = await res.json();
-      if (data.success) {
-        setClients(data.clients);
-      } else {
-        setError(data.error || "Error cargando datos");
-      }
-    } catch {
-      setError("Error de conexión");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Derived stats
   const stats = useMemo(() => {

@@ -220,7 +220,7 @@ export async function PUT(
     }
 
     // Registrar la actualización (fire-and-forget, no bloquea el response)
-    supabase.from("client_interactions").insert([
+    void supabase.from("client_interactions").insert([
       {
         client_id: id,
         tipo: "otro",
