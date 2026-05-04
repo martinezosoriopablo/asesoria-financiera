@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Clock, MapPin, Video, Phone, User } from "lucide-react";
+import { Clock, MapPin, Video, Phone, User, Edit3, Trash2 } from "lucide-react";
 
 interface Meeting {
   id: string;
@@ -10,6 +10,9 @@ interface Meeting {
   duracion_minutos?: number;
   tipo: string;
   ubicacion?: string;
+  descripcion?: string;
+  client_id?: string;
+  google_event_id?: string;
   clients?: {
     nombre: string;
     apellido: string;
@@ -22,9 +25,11 @@ interface Meeting {
 
 interface WeeklyCalendarProps {
   meetings: Meeting[];
+  onEdit?: (meeting: Meeting) => void;
+  onDelete?: (meeting: Meeting) => void;
 }
 
-export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
+export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: WeeklyCalendarProps) {
 
   const getWeekDays = () => {
     const today = new Date();
@@ -81,7 +86,6 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
   };
 
   const getClientName = (meeting: Meeting) => {
-    // Manejar ambos formatos: clients y client
     const client = meeting.clients || meeting.client;
     if (!client) return 'Cliente';
     return `${client.nombre || ''} ${client.apellido || ''}`.trim() || 'Cliente';
@@ -125,7 +129,6 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
                   : "border-slate-200 bg-slate-50"
               }`}
             >
-              {/* Header del día */}
               <div className="text-center mb-3 pb-2 border-b border-slate-200">
                 <p className="text-xs font-semibold text-slate-500 uppercase">
                   {day.toLocaleDateString("es-CL", { weekday: "short" })}
@@ -142,15 +145,12 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
                 </p>
               </div>
 
-              {/* Reuniones del día */}
               <div className="space-y-2">
                 {dayMeetings.length > 0 ? (
                   dayMeetings.map((meeting) => (
                     <div
                       key={meeting.id}
-                      className={`p-2 border rounded-lg text-xs ${getTypeColor(
-                        meeting.tipo
-                      )}`}
+                      className={`p-2 border rounded-lg text-xs ${getTypeColor(meeting.tipo)} group relative`}
                     >
                       <div className="flex items-center gap-1 mb-1">
                         <Clock className="w-3 h-3" />
@@ -166,8 +166,30 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
                       </div>
                       <div className="flex items-center gap-1">
                         {getTypeIcon(meeting.tipo)}
-                        <span className="truncate">{meeting.titulo || 'Reunión'}</span>
+                        <span className="truncate">{meeting.titulo || 'Reunion'}</span>
                       </div>
+                      {(onEdit || onDelete) && (
+                        <div className="absolute top-1 right-1 hidden group-hover:flex gap-1">
+                          {onEdit && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onEdit(meeting); }}
+                              className="p-1 rounded bg-white/80 hover:bg-white shadow-sm"
+                              title="Editar"
+                            >
+                              <Edit3 className="w-3 h-3 text-slate-600" />
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onDelete(meeting); }}
+                              className="p-1 rounded bg-white/80 hover:bg-red-50 shadow-sm"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-3 h-3 text-red-500" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -181,7 +203,6 @@ export default function WeeklyCalendar({ meetings = [] }: WeeklyCalendarProps) {
         })}
       </div>
 
-      {/* Leyenda */}
       <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-center gap-4 text-xs">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-purple-100 border border-purple-200 rounded" />

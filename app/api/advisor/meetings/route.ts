@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { syncMeetingToGoogle, type Meeting } from "@/lib/google/calendar-client";
+import { syncMeetingToGoogle, deleteMeetingFromGoogle, type Meeting } from "@/lib/google/calendar-client";
 
 // GET - Obtener reuniones del asesor autenticado
 export async function GET(request: NextRequest) {
@@ -199,6 +199,7 @@ export async function POST(request: NextRequest) {
       success: true,
       meeting: newMeeting,
       googleSynced: !!newMeeting.google_event_id,
+      googleError: !newMeeting.google_event_id ? "No se pudo sincronizar con Google Calendar" : null,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Error al crear reunión";
@@ -206,5 +207,123 @@ export async function POST(request: NextRequest) {
       { success: false, error: message },
       { status: 500 }
     );
+  }
+}
+
+// PATCH - Editar reunión existente
+export async function PATCH(request: NextRequest) {
+  const { allowed } = rateLimit(`meetings-patch:${getClientIp(request)}`, { limit: 10, windowSeconds: 60 });
+  if (!allowed) {
+    return NextResponse.json({ success: false, error: "Demasiadas solicitudes." }, { status: 429 });
+  }
+
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
+  try {
+    const body = await request.json();
+    const { id, ...updates } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "id es requerido" }, { status: 400 });
+    }
+
+    // Verificar que la reunión pertenece al asesor
+    const { data: existing } = await supabase
+      .from("meetings")
+      .select("id, asesor_id, google_event_id, client_id")
+      .eq("id", id)
+      .eq("asesor_id", advisor!.id)
+      .single();
+
+    if (!existing) {
+      return NextResponse.json({ success: false, error: "Reunión no encontrada" }, { status: 404 });
+    }
+
+    // Campos permitidos para actualizar
+    const allowedFields: Record<string, unknown> = {};
+    const editable = ["titulo", "descripcion", "fecha", "duracion_minutos", "tipo", "ubicacion", "link_virtual", "completada", "cancelada"];
+    for (const key of editable) {
+      if (key in updates) allowedFields[key] = updates[key];
+    }
+
+    const { data: updated, error } = await supabase
+      .from("meetings")
+      .update(allowedFields)
+      .eq("id", id)
+      .select(`*, clients (id, nombre, apellido, email)`)
+      .single();
+
+    if (error) throw error;
+
+    // Sincronizar cambios con Google Calendar
+    let googleSynced = false;
+    try {
+      const meetingForSync: Meeting = { ...updated, clients: updated.clients || undefined };
+      const googleEventId = await syncMeetingToGoogle(advisor!.id, meetingForSync);
+      if (googleEventId && googleEventId !== existing.google_event_id) {
+        await supabase.from("meetings").update({ google_event_id: googleEventId }).eq("id", id);
+      }
+      googleSynced = !!googleEventId;
+    } catch (syncError) {
+      console.error("Error sincronizando con Google Calendar:", syncError);
+    }
+
+    return NextResponse.json({ success: true, meeting: updated, googleSynced });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al actualizar reunión";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  }
+}
+
+// DELETE - Eliminar/cancelar reunión
+export async function DELETE(request: NextRequest) {
+  const { allowed } = rateLimit(`meetings-delete:${getClientIp(request)}`, { limit: 10, windowSeconds: 60 });
+  if (!allowed) {
+    return NextResponse.json({ success: false, error: "Demasiadas solicitudes." }, { status: 429 });
+  }
+
+  const { advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  const supabase = createAdminClient();
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "id es requerido" }, { status: 400 });
+    }
+
+    // Verificar ownership
+    const { data: meeting } = await supabase
+      .from("meetings")
+      .select("id, asesor_id, google_event_id")
+      .eq("id", id)
+      .eq("asesor_id", advisor!.id)
+      .single();
+
+    if (!meeting) {
+      return NextResponse.json({ success: false, error: "Reunión no encontrada" }, { status: 404 });
+    }
+
+    // Eliminar de Google Calendar si existe
+    if (meeting.google_event_id) {
+      await deleteMeetingFromGoogle(advisor!.id, meeting.google_event_id);
+    }
+
+    // Marcar como cancelada (soft delete)
+    await supabase
+      .from("meetings")
+      .update({ cancelada: true })
+      .eq("id", id);
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Error al eliminar reunión";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

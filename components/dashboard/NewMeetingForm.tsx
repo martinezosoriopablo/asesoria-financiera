@@ -10,27 +10,58 @@ interface Client {
   email: string;
 }
 
+interface MeetingToEdit {
+  id: string;
+  client_id?: string;
+  titulo: string;
+  descripcion?: string;
+  fecha: string;
+  duracion_minutos?: number;
+  tipo: string;
+  ubicacion?: string;
+}
+
 interface NewMeetingFormProps {
   onClose: () => void;
   onSuccess: () => void;
+  editMeeting?: MeetingToEdit | null;
 }
 
-export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormProps) {
+export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewMeetingFormProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const [formData, setFormData] = useState({
-    client_id: "",
-    titulo: "",
-    descripcion: "",
-    fecha: "",
-    hora: "",
-    duracion_minutos: "60",
-    tipo: "presencial",
-    ubicacion: "",
-  });
+  const isEditing = !!editMeeting;
+
+  const getInitialFormData = () => {
+    if (editMeeting) {
+      const dt = new Date(editMeeting.fecha);
+      return {
+        client_id: editMeeting.client_id || "",
+        titulo: editMeeting.titulo || "",
+        descripcion: editMeeting.descripcion || "",
+        fecha: dt.toISOString().split("T")[0],
+        hora: dt.toTimeString().slice(0, 5),
+        duracion_minutos: String(editMeeting.duracion_minutos || 60),
+        tipo: editMeeting.tipo || "presencial",
+        ubicacion: editMeeting.ubicacion || "",
+      };
+    }
+    return {
+      client_id: "",
+      titulo: "",
+      descripcion: "",
+      fecha: "",
+      hora: "",
+      duracion_minutos: "60",
+      tipo: "presencial",
+      ubicacion: "",
+    };
+  };
+
+  const [formData, setFormData] = useState(getInitialFormData);
 
   useEffect(() => {
     fetchClients();
@@ -44,7 +75,7 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
         setClients(data.clients);
       }
     } catch {
-      // Error silencioso - selector de clientes quedará vacío
+      // Error silencioso
     }
   };
 
@@ -55,38 +86,60 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
     setSuccess(false);
 
     try {
-      // Combinar fecha y hora
       const fechaHora = `${formData.fecha}T${formData.hora}:00`;
 
-      const payload = {
-        client_id: formData.client_id,
-        titulo: formData.titulo,
-        descripcion: formData.descripcion || null,
-        fecha: fechaHora,
-        duracion_minutos: parseInt(formData.duracion_minutos),
-        tipo: formData.tipo,
-        ubicacion: formData.ubicacion || null,
-      };
+      if (isEditing) {
+        // PATCH — editar reunión existente
+        const res = await fetch("/api/advisor/meetings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editMeeting!.id,
+            titulo: formData.titulo,
+            descripcion: formData.descripcion || null,
+            fecha: fechaHora,
+            duracion_minutos: parseInt(formData.duracion_minutos),
+            tipo: formData.tipo,
+            ubicacion: formData.ubicacion || null,
+          }),
+        });
 
-      const res = await fetch("/api/advisor/meetings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setSuccess(true);
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 1000);
+        const data = await res.json();
+        if (data.success) {
+          setSuccess(true);
+          setTimeout(() => { onSuccess(); onClose(); }, 1000);
+        } else {
+          setError(data.error || "Error al actualizar reunión");
+        }
       } else {
-        setError(data.error || "Error al crear reunión");
+        // POST — crear reunión nueva
+        const res = await fetch("/api/advisor/meetings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: formData.client_id,
+            titulo: formData.titulo,
+            descripcion: formData.descripcion || null,
+            fecha: fechaHora,
+            duracion_minutos: parseInt(formData.duracion_minutos),
+            tipo: formData.tipo,
+            ubicacion: formData.ubicacion || null,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          setSuccess(true);
+          if (data.googleError) {
+            setError(data.googleError);
+          }
+          setTimeout(() => { onSuccess(); onClose(); }, 1500);
+        } else {
+          setError(data.error || "Error al crear reunión");
+        }
       }
     } catch {
-      setError("Error al crear reunión");
+      setError(isEditing ? "Error al actualizar reunión" : "Error al crear reunión");
     } finally {
       setLoading(false);
     }
@@ -95,13 +148,14 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
               <Calendar className="w-5 h-5 text-blue-600" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">Nueva Reunión</h2>
+            <h2 className="text-xl font-bold text-slate-900">
+              {isEditing ? "Editar Reunion" : "Nueva Reunion"}
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -111,55 +165,51 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Mensaje de error */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              <p className="font-bold">Error:</p>
               <p>{error}</p>
-              <p className="text-xs mt-2">Revisa la consola (F12) para más detalles.</p>
             </div>
           )}
 
-          {/* Mensaje de éxito */}
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-              <p className="font-bold">✅ Reunión creada exitosamente</p>
-              <p>Cerrando modal y recargando calendario...</p>
+              <p className="font-bold">
+                {isEditing ? "Reunion actualizada" : "Reunion creada exitosamente"}
+              </p>
             </div>
           )}
 
-          {/* Cliente */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Cliente *
-            </label>
-            <select
-              required
-              value={formData.client_id}
-              onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={loading}
-            >
-              <option value="">Seleccionar cliente</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.nombre} {client.apellido} ({client.email})
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Cliente — solo en modo creación */}
+          {!isEditing && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Cliente *
+              </label>
+              <select
+                required
+                value={formData.client_id}
+                onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+              >
+                <option value="">Seleccionar cliente</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.nombre} {client.apellido} ({client.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Título */}
+          {/* Titulo */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Título *
-            </label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Titulo *</label>
             <input
               type="text"
               required
-              placeholder="Ej: Reunión de Seguimiento"
+              placeholder="Ej: Reunion de Seguimiento"
               value={formData.titulo}
               onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -167,14 +217,12 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
             />
           </div>
 
-          {/* Descripción */}
+          {/* Descripcion */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Descripción
-            </label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Descripcion</label>
             <textarea
               rows={3}
-              placeholder="Detalles de la reunión..."
+              placeholder="Detalles de la reunion..."
               value={formData.descripcion}
               onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -185,9 +233,7 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
           {/* Fecha y Hora */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Fecha *
-              </label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Fecha *</label>
               <input
                 type="date"
                 required
@@ -198,9 +244,7 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Hora *
-              </label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Hora *</label>
               <input
                 type="time"
                 required
@@ -212,11 +256,9 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
             </div>
           </div>
 
-          {/* Duración */}
+          {/* Duracion */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Duración (minutos)
-            </label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Duracion (minutos)</label>
             <select
               value={formData.duracion_minutos}
               onChange={(e) => setFormData({ ...formData, duracion_minutos: e.target.value })}
@@ -232,62 +274,39 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
 
           {/* Tipo */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Tipo de reunión *
-            </label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Tipo de reunion *</label>
             <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, tipo: "presencial" })}
-                disabled={loading}
-                className={`p-4 border-2 rounded-lg flex flex-col items-center gap-2 transition-all ${
-                  formData.tipo === "presencial"
-                    ? "border-purple-500 bg-purple-50"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <MapPin className="w-6 h-6 text-purple-600" />
-                <span className="text-sm font-semibold">Presencial</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, tipo: "virtual" })}
-                disabled={loading}
-                className={`p-4 border-2 rounded-lg flex flex-col items-center gap-2 transition-all ${
-                  formData.tipo === "virtual"
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <Video className="w-6 h-6 text-blue-600" />
-                <span className="text-sm font-semibold">Virtual</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, tipo: "llamada" })}
-                disabled={loading}
-                className={`p-4 border-2 rounded-lg flex flex-col items-center gap-2 transition-all ${
-                  formData.tipo === "llamada"
-                    ? "border-green-500 bg-green-50"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <Phone className="w-6 h-6 text-green-600" />
-                <span className="text-sm font-semibold">Llamada</span>
-              </button>
+              {[
+                { key: "presencial", icon: MapPin, color: "purple", label: "Presencial" },
+                { key: "virtual", icon: Video, color: "blue", label: "Virtual" },
+                { key: "llamada", icon: Phone, color: "green", label: "Llamada" },
+              ].map(({ key, icon: Icon, color, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, tipo: key })}
+                  disabled={loading}
+                  className={`p-4 border-2 rounded-lg flex flex-col items-center gap-2 transition-all ${
+                    formData.tipo === key
+                      ? `border-${color}-500 bg-${color}-50`
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <Icon className={`w-6 h-6 text-${color}-600`} />
+                  <span className="text-sm font-semibold">{label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Ubicación */}
+          {/* Ubicacion */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">
               {formData.tipo === "presencial"
-                ? "Ubicación"
+                ? "Ubicacion"
                 : formData.tipo === "virtual"
-                ? "Link de reunión"
-                : "Teléfono"}
+                ? "Link de reunion"
+                : "Telefono"}
             </label>
             <input
               type="text"
@@ -326,7 +345,11 @@ export default function NewMeetingForm({ onClose, onSuccess }: NewMeetingFormPro
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               )}
-              {loading ? "Creando..." : success ? "✓ Creada" : "Crear Reunión"}
+              {loading
+                ? (isEditing ? "Guardando..." : "Creando...")
+                : success
+                ? "Listo"
+                : (isEditing ? "Guardar Cambios" : "Crear Reunion")}
             </button>
           </div>
         </form>

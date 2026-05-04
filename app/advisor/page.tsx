@@ -38,6 +38,8 @@ export default function AdvisorDashboard() {
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [editingMeeting, setEditingMeeting] = useState<any>(null);
 
   useEffect(() => {
     if (advisor) fetchData();
@@ -174,13 +176,25 @@ export default function AdvisorDashboard() {
                   Nueva Reunión
                 </button>
               </div>
-              <WeeklyCalendar meetings={meetings} />
+              <WeeklyCalendar
+                meetings={meetings}
+                onEdit={(meeting) => { setEditingMeeting(meeting); setShowNewMeeting(true); }}
+                onDelete={async (meeting) => {
+                  if (!confirm(`Cancelar reunion "${meeting.titulo}"?`)) return;
+                  try {
+                    const res = await fetch(`/api/advisor/meetings?id=${meeting.id}`, { method: "DELETE" });
+                    const data = await res.json();
+                    if (data.success) fetchData();
+                  } catch { /* silencioso */ }
+                }}
+              />
             </div>
 
             {showNewMeeting && (
               <NewMeetingForm
-                onClose={() => setShowNewMeeting(false)}
+                onClose={() => { setShowNewMeeting(false); setEditingMeeting(null); }}
                 onSuccess={() => fetchData()}
+                editMeeting={editingMeeting}
               />
             )}
 
