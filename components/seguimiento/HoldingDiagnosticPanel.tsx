@@ -116,6 +116,7 @@ export default function HoldingDiagnosticPanel({ snapshot, onUpdate }: Props) {
           holdings: [{
             fundName: holding.fundName,
             securityId: holding.securityId,
+            currency: holding.currency || null,
             cartolaPrice: holding.marketPrice || ((holding.quantity ?? 0) > 0 ? holding.marketValue / (holding.quantity ?? 1) : 0),
           }],
           clientId: snapshot.client_id,
