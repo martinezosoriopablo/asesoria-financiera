@@ -119,17 +119,17 @@ export default function GoogleCalendarConnect() {
       )}
 
       {status.connected ? (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gb-primary-light/50 border border-gb-primary/20 rounded-lg">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-              <Calendar className="w-4 h-4 text-emerald-600" />
+            <div className="w-8 h-8 bg-gb-primary-light rounded-full flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-gb-primary" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-emerald-800">Google Calendar conectado</span>
-                <Check className="w-4 h-4 text-emerald-600" />
+                <span className="text-sm font-medium text-gb-black">Google Calendar conectado</span>
+                <Check className="w-4 h-4 text-gb-primary" />
               </div>
-              <p className="text-xs text-emerald-600">
+              <p className="text-xs text-gb-primary">
                 Las reuniones se sincronizan automáticamente
               </p>
             </div>
