@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import AdvisorSidebar from "@/components/shared/AdvisorSidebar";
 import AdvisorTopBar from "@/components/shared/AdvisorTopBar";
@@ -38,7 +38,19 @@ const MOBILE_TOOLS = [
 export default function AdvisorLayout({ children }: { children: React.ReactNode }) {
   const { advisor, loading } = useAdvisor();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-collapsed");
+    if (saved === "true") setSidebarCollapsed(true);
+  }, []);
+
+  const toggleSidebar = () => {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    localStorage.setItem("sidebar-collapsed", String(next));
+  };
 
   if (loading) {
     return (
@@ -61,6 +73,8 @@ export default function AdvisorLayout({ children }: { children: React.ReactNode 
       <AdvisorSidebar
         advisorLogo={advisor.logo}
         companyName={advisor.companyName}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
       />
 
       {/* Mobile overlay */}
@@ -151,7 +165,7 @@ export default function AdvisorLayout({ children }: { children: React.ReactNode 
       )}
 
       {/* Main content area — offset by sidebar width */}
-      <div className="lg:pl-60 min-h-screen flex flex-col transition-all duration-200">
+      <div className={`${sidebarCollapsed ? "lg:pl-16" : "lg:pl-60"} min-h-screen flex flex-col transition-all duration-200`}>
         <AdvisorTopBar
           advisorName={advisor.name}
           advisorEmail={advisor.email}

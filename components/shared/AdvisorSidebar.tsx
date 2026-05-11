@@ -1,7 +1,7 @@
 // components/shared/AdvisorSidebar.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -21,6 +21,8 @@ import {
 interface AdvisorSidebarProps {
   advisorLogo?: string | null;
   companyName?: string | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const NAV_ITEMS = [
@@ -38,20 +40,8 @@ const TOOL_ITEMS = [
   { href: "/educacion-financiera", label: "Educacion", icon: GraduationCap },
 ];
 
-export default function AdvisorSidebar({ advisorLogo, companyName }: AdvisorSidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+export default function AdvisorSidebar({ advisorLogo, companyName, collapsed, onToggleCollapse }: AdvisorSidebarProps) {
   const pathname = usePathname();
-
-  useEffect(() => {
-    const saved = localStorage.getItem("sidebar-collapsed");
-    if (saved === "true") setCollapsed(true);
-  }, []);
-
-  const toggleCollapse = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem("sidebar-collapsed", String(next));
-  };
 
   const isActive = (href: string) => {
     if (href === "/advisor") return pathname === "/advisor";
@@ -160,7 +150,7 @@ export default function AdvisorSidebar({ advisorLogo, companyName }: AdvisorSide
         {/* Collapse toggle */}
         <div className="border-t border-white/10 p-2">
           <button
-            onClick={toggleCollapse}
+            onClick={onToggleCollapse}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-gb-sidebar-hover transition-colors"
           >
             {collapsed ? (
