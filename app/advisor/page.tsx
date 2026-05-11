@@ -401,7 +401,6 @@ export default function AdvisorDashboard() {
               <div className="absolute top-4 left-6 right-6 h-0.5 bg-gb-border" />
 
               {FLOW_STEPS.map((step, i) => {
-                const Icon = step.icon;
                 return (
                   <Link
                     key={step.href}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import AdvisorSidebar from "@/components/shared/AdvisorSidebar";
 import AdvisorTopBar from "@/components/shared/AdvisorTopBar";
@@ -38,13 +38,13 @@ const MOBILE_TOOLS = [
 export default function AdvisorLayout({ children }: { children: React.ReactNode }) {
   const { advisor, loading } = useAdvisor();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebar-collapsed") === "true";
+    }
+    return false;
+  });
   const pathname = usePathname();
-
-  useEffect(() => {
-    const saved = localStorage.getItem("sidebar-collapsed");
-    if (saved === "true") setSidebarCollapsed(true);
-  }, []);
 
   const toggleSidebar = () => {
     const next = !sidebarCollapsed;
