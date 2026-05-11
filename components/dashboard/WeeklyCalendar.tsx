@@ -125,22 +125,22 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
               key={index}
               className={`border rounded-lg p-3 ${
                 today
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-200 bg-slate-50"
+                  ? "border-gb-primary bg-gb-primary-light/30"
+                  : "border-gb-border bg-gb-light/50"
               }`}
             >
-              <div className="text-center mb-3 pb-2 border-b border-slate-200">
-                <p className="text-xs font-semibold text-slate-500 uppercase">
+              <div className="text-center mb-3 pb-2 border-b border-gb-border">
+                <p className="text-xs font-semibold text-gb-gray uppercase">
                   {day.toLocaleDateString("es-CL", { weekday: "short" })}
                 </p>
                 <p
                   className={`text-2xl font-bold ${
-                    today ? "text-blue-600" : "text-slate-900"
+                    today ? "text-gb-primary" : "text-gb-black"
                   }`}
                 >
                   {day.getDate()}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-gb-gray">
                   {day.toLocaleDateString("es-CL", { month: "short" })}
                 </p>
               </div>
@@ -176,7 +176,7 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
                               className="p-1 rounded bg-white/80 hover:bg-white shadow-sm"
                               title="Editar"
                             >
-                              <Edit3 className="w-3 h-3 text-slate-600" />
+                              <Edit3 className="w-3 h-3 text-gb-gray" />
                             </button>
                           )}
                           {onDelete && (
@@ -193,7 +193,7 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-slate-400 text-center py-4">
+                  <p className="text-xs text-gb-gray text-center py-4">
                     Sin reuniones
                   </p>
                 )}
@@ -203,18 +203,18 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
         })}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-center gap-4 text-xs">
+      <div className="mt-4 pt-4 border-t border-gb-border flex items-center justify-center gap-4 text-xs">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-purple-100 border border-purple-200 rounded" />
-          <span className="text-slate-600">Presencial</span>
+          <span className="text-gb-gray">Presencial</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded" />
-          <span className="text-slate-600">Virtual</span>
+          <span className="text-gb-gray">Virtual</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-100 border border-green-200 rounded" />
-          <span className="text-slate-600">Llamada</span>
+          <span className="text-gb-gray">Llamada</span>
         </div>
       </div>
     </>
