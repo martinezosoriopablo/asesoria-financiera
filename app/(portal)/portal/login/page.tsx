@@ -110,11 +110,7 @@ function PortalLoginContent() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm text-center">
-        <img
-          src="/logo-greybark.png"
-          alt="Greybark Advisors"
-          className="h-14 mx-auto mb-8"
-        />
+        <span className="text-3xl text-gb-black tracking-wide uppercase inline-block mb-8" style={{ fontFamily: "'Archivo Black', sans-serif" }}>GLOBAL</span>
 
         {status === "loading" && (
           <div className="space-y-4">
@@ -209,7 +205,7 @@ function PortalLoginContent() {
         )}
 
         <p className="text-xs text-gb-gray mt-12">
-          Greybark Advisors — Portal de Inversiones
+          Global — Portal de Inversiones
         </p>
       </div>
     </div>

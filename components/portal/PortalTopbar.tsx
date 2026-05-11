@@ -78,7 +78,7 @@ export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0,
       <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
         {/* Logo */}
         <Link href="/portal/bienvenida" className="flex items-center gap-2">
-          <img src="/logo-greybark.png" alt="Greybark" className="h-7" />
+          <span className="text-lg text-gb-black tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>GLOBAL</span>
         </Link>
 
         {/* Desktop nav */}

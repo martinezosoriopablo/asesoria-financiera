@@ -106,8 +106,8 @@ export default function AdvisorHeader({
   const isActive = (href: string) => pathname === href;
 
   // Usar logo personalizado si existe, sino usar el default
-  const logoSrc = advisorLogo || '/logo-greybark.png';
-  const logoAlt = companyName || 'Greybark Advisors';
+  const logoSrc = advisorLogo || null;
+  const logoAlt = companyName || 'Global';
 
   return (
     <>
@@ -116,11 +116,17 @@ export default function AdvisorHeader({
           <div className="flex items-center justify-between h-20">
             {/* Logo - personalizado por asesor */}
             <Link href="/advisor" className="flex items-center gap-3 shrink-0">
-              <img
-                src={logoSrc}
-                alt={logoAlt}
-                className="h-28 w-auto"
-              />
+              {logoSrc ? (
+                <img
+                  src={logoSrc}
+                  alt={logoAlt}
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <span className="text-xl text-gb-black tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+                  GLOBAL
+                </span>
+              )}
             </Link>
 
             {/* Desktop Nav */}

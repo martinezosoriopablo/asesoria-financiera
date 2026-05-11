@@ -94,11 +94,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <img
-            src="/logo-greybark.png"
-            alt="Greybark Advisors"
-            className="h-14 mx-auto mb-6"
-          />
+          <span className="text-3xl text-gb-black tracking-wide uppercase inline-block mb-6" style={{ fontFamily: "'Archivo Black', sans-serif" }}>GLOBAL</span>
           <h1 className="text-xl font-semibold text-gb-black">
             Nueva contraseña
           </h1>

@@ -361,7 +361,7 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoSection}>
-            <Text style={styles.companyName}>GREYBARK RESEARCH</Text>
+            <Text style={styles.companyName}>GLOBAL RESEARCH</Text>
             <Text style={styles.reportType}>Cartera Recomendada</Text>
           </View>
           <View style={styles.headerRight}>
@@ -496,7 +496,7 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            GREYBARK RESEARCH | Cartera Recomendada | {formatDate(generadoEn)}
+            GLOBAL RESEARCH | Cartera Recomendada | {formatDate(generadoEn)}
           </Text>
           <Text style={styles.disclaimer}>
             Este documento es solo para fines informativos y no constituye una recomendación de inversión personalizada.
