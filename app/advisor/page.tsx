@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import WeeklyCalendar from "@/components/dashboard/WeeklyCalendar";
 import NewMeetingForm from "@/components/dashboard/NewMeetingForm";
 import GoogleCalendarConnect from "@/components/dashboard/GoogleCalendarConnect";
@@ -20,6 +19,7 @@ import {
   ArrowRight,
   Loader,
   Clock,
+  Layers,
 } from "lucide-react";
 import ComiteReportsPanel from "@/components/comite/ComiteReportsPanel";
 
@@ -47,7 +47,7 @@ export default function AdvisorDashboard() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
@@ -89,11 +89,8 @@ export default function AdvisorDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
-        <div className="flex items-center justify-center py-32">
-          <Loader className="w-8 h-8 text-gb-gray animate-spin" />
-        </div>
+      <div className="flex items-center justify-center py-32">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
   }
@@ -127,10 +124,7 @@ export default function AdvisorDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
-
-      <div className="max-w-6xl mx-auto px-5 py-8">
+    <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Welcome */}
         <div className="mb-8">
           <h1 className="text-2xl font-semibold text-gb-black">
@@ -267,6 +261,13 @@ export default function AdvisorDashboard() {
                   <BarChart3 className="w-4 h-4 text-gb-gray" />
                   Ver Market Dashboard
                 </Link>
+                <Link
+                  href="/advisor/fichas-review"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-gb-black hover:bg-gb-light transition-colors"
+                >
+                  <Layers className="w-4 h-4 text-gb-gray" />
+                  Revisar Fichas de Fondos
+                </Link>
               </div>
             </div>
 
@@ -287,7 +288,6 @@ export default function AdvisorDashboard() {
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 }

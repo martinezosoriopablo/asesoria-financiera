@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   Loader,
@@ -32,6 +31,7 @@ interface SearchResult {
   moneda: string;
   precio_actual: number | null;
   fecha_precio: string | null;
+  tipo?: "FM" | "FI";
 }
 
 export default function AdvisorFondosPage() {
@@ -69,11 +69,32 @@ export default function AdvisorFondosPage() {
     if (!searchTerm || searchTerm.length < 2) return;
     setSearching(true);
     try {
-      const res = await fetch(`/api/fondos/lookup?q=${encodeURIComponent(searchTerm)}`);
-      const data = await res.json();
-      if (data.success) {
-        setSearchResults(data.results || []);
-      }
+      // Search both FM and FI in parallel
+      const [fmRes, fiRes] = await Promise.all([
+        fetch(`/api/fondos/lookup?q=${encodeURIComponent(searchTerm)}`),
+        fetch(`/api/fondos-inversion/lookup?q=${encodeURIComponent(searchTerm)}`),
+      ]);
+      const fmData = await fmRes.json();
+      const fiData = await fiRes.json();
+
+      const fmResults: SearchResult[] = (fmData.success ? fmData.results || [] : []).map((r: SearchResult) => ({
+        ...r,
+        tipo: "FM" as const,
+      }));
+
+      const fiResults: SearchResult[] = (fiData.success ? fiData.results || [] : []).map((r: { id: string; rut: string; nombre: string; administradora: string }) => ({
+        id: r.id,
+        fo_run: Number(r.rut),
+        fm_serie: "FI",
+        nombre_fondo: r.nombre,
+        nombre_agf: r.administradora || "",
+        moneda: "",
+        precio_actual: null,
+        fecha_precio: null,
+        tipo: "FI" as const,
+      }));
+
+      setSearchResults([...fmResults, ...fiResults]);
     } catch (error) {
       console.error("Error searching funds:", error);
     } finally {
@@ -127,7 +148,7 @@ export default function AdvisorFondosPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gb-light flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
@@ -136,17 +157,7 @@ export default function AdvisorFondosPage() {
   if (!advisor) return null;
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      <AdvisorHeader
-        advisorName={advisor.name}
-        advisorEmail={advisor.email}
-        advisorPhoto={advisor.photo}
-        advisorLogo={advisor.logo}
-        companyName={advisor.companyName}
-        isAdmin={advisor.isAdmin}
-      />
-
-      <main className="max-w-5xl mx-auto px-5 py-8">
+    <main className="max-w-5xl mx-auto px-5 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -239,11 +250,16 @@ export default function AdvisorFondosPage() {
                       className="flex items-center justify-between py-3 border-b border-gb-border last:border-0"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gb-black truncate">
+                        <p className="text-sm font-medium text-gb-black truncate flex items-center gap-2">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                            result.tipo === "FI" ? "bg-indigo-100 text-indigo-700" : "bg-teal-100 text-teal-700"
+                          }`}>
+                            {result.tipo || "FM"}
+                          </span>
                           {result.nombre_fondo}
                         </p>
                         <p className="text-xs text-gb-gray">
-                          RUN: {result.fo_run} | Serie: {result.fm_serie} | AGF: {result.nombre_agf}
+                          {result.tipo === "FI" ? "RUT" : "RUN"}: {result.fo_run}{result.tipo !== "FI" ? ` | Serie: ${result.fm_serie}` : ""} | {result.nombre_agf}
                           {result.precio_actual
                             ? ` | Precio: $${result.precio_actual.toLocaleString()}`
                             : ""}
@@ -327,7 +343,12 @@ export default function AdvisorFondosPage() {
                     className="border-b border-gb-border last:border-0 hover:bg-gray-50/50 transition-colors"
                   >
                     <td className="px-5 py-3">
-                      <p className="text-sm font-medium text-gb-black">
+                      <p className="text-sm font-medium text-gb-black flex items-center gap-2">
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                          fund.fund_run.endsWith("-FI") ? "bg-indigo-100 text-indigo-700" : "bg-teal-100 text-teal-700"
+                        }`}>
+                          {fund.fund_run.endsWith("-FI") ? "FI" : "FM"}
+                        </span>
                         {fund.fund_name || "-"}
                       </p>
                     </td>
@@ -376,7 +397,6 @@ export default function AdvisorFondosPage() {
             o usar todos los fondos disponibles.
           </p>
         </div>
-      </main>
-    </div>
+    </main>
   );
 }

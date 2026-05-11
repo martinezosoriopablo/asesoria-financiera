@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import Link from "next/link";
 import {
@@ -231,20 +230,14 @@ export default function ClientsOverviewPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-        <AdvisorHeader advisorName={advisor?.name || ""} advisorEmail={advisor?.email || ""} advisorPhoto={advisor?.photo} advisorLogo={advisor?.logo} companyName={advisor?.companyName} isAdmin={advisor?.isAdmin} />
-        <div className="max-w-7xl mx-auto px-5 py-12 flex justify-center">
-          <Loader className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
+      <div className="flex items-center justify-center py-32">
+        <Loader className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <AdvisorHeader advisorName={advisor?.name || ""} advisorEmail={advisor?.email || ""} advisorPhoto={advisor?.photo} advisorLogo={advisor?.logo} companyName={advisor?.companyName} isAdmin={advisor?.isAdmin} />
-
-      <div className="max-w-7xl mx-auto px-5 py-6">
+    <div className="max-w-7xl mx-auto px-5 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-gb-black">
@@ -662,7 +655,6 @@ export default function ClientsOverviewPage() {
             </table>
           </div>
         </div>
-      </div>
     </div>
   );
 }

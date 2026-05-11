@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import { User, Mail, Phone, Briefcase, Camera, ArrowLeft, Save, Loader, Linkedin, Lock } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -40,7 +39,7 @@ export default function AdvisorProfilePage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gb-light flex items-center justify-center">
+      <div className="flex items-center justify-center py-32">
         <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
@@ -150,54 +149,24 @@ export default function AdvisorProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gb-light">
-        <AdvisorHeader
-          advisorName="Cargando..."
-          advisorEmail={advisorEmail}
-          advisorPhoto={photoUrl}
-          advisorLogo={advisor?.logo}
-          companyName={advisor?.companyName}
-          isAdmin={advisor?.isAdmin}
-        />
-        <div className="flex items-center justify-center h-64">
-          <Loader className="w-8 h-8 text-gb-gray animate-spin" />
-        </div>
+      <div className="flex items-center justify-center py-32">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gb-light">
-        <AdvisorHeader
-          advisorName="Error"
-          advisorEmail={advisorEmail}
-          advisorPhoto={photoUrl}
-          advisorLogo={advisor?.logo}
-          companyName={advisor?.companyName}
-          isAdmin={advisor?.isAdmin}
-        />
-        <div className="max-w-4xl mx-auto px-5 py-8">
-          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg text-sm">
-            {error || "No se pudo cargar el perfil"}
-          </div>
+      <div className="max-w-4xl mx-auto px-5 py-8">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg text-sm">
+          {error || "No se pudo cargar el perfil"}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      <AdvisorHeader
-        advisorName={`${profile.nombre} ${profile.apellido}`}
-        advisorEmail={profile.email}
-        advisorPhoto={photoUrl}
-        advisorLogo={advisor?.logo}
-        companyName={advisor?.companyName}
-        isAdmin={advisor?.isAdmin}
-      />
-
-      <div className="max-w-4xl mx-auto px-5 py-8">
+    <div className="max-w-4xl mx-auto px-5 py-8">
         <div className="mb-6">
           <button
             onClick={() => router.push("/advisor")}
@@ -493,7 +462,6 @@ export default function AdvisorProfilePage() {
             </div>
           </form>
         </div>
-      </div>
     </div>
   );
 }
