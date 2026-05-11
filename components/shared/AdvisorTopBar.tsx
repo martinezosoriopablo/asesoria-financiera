@@ -4,7 +4,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  Menu,
   User,
   LogOut,
   Settings,
@@ -20,7 +19,6 @@ interface AdvisorTopBarProps {
   advisorPhoto?: string;
   isAdmin?: boolean;
   hasClientRole?: boolean;
-  onMobileMenuToggle: () => void;
 }
 
 export default function AdvisorTopBar({
@@ -29,7 +27,6 @@ export default function AdvisorTopBar({
   advisorPhoto,
   isAdmin = false,
   hasClientRole = false,
-  onMobileMenuToggle,
 }: AdvisorTopBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -66,18 +63,7 @@ export default function AdvisorTopBar({
     .slice(0, 2);
 
   return (
-    <header className="h-16 bg-white border-b border-gb-border flex items-center justify-between px-5 sticky top-0 z-30">
-      {/* Left: mobile hamburger */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onMobileMenuToggle}
-          className="md:hidden p-2 rounded-md hover:bg-gb-light transition-colors"
-          aria-label="Menu"
-        >
-          <Menu className="w-5 h-5 text-gb-gray" />
-        </button>
-      </div>
-
+    <header className="h-16 bg-white border-b border-gb-border flex items-center justify-end px-5 sticky top-0 z-30">
       {/* Right: notifications + user */}
       <div className="flex items-center gap-2">
         <NotificationBell />

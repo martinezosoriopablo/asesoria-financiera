@@ -51,7 +51,7 @@ export default function AdvisorSidebar({ companyName, collapsed, onToggleCollaps
     <>
       {/* Sidebar */}
       <aside
-        className={`hidden md:flex flex-col fixed top-0 left-0 h-screen bg-gb-sidebar z-40 transition-all duration-200 ease-in-out ${
+        className={`flex flex-col fixed top-0 left-0 h-screen bg-gb-sidebar z-40 transition-all duration-200 ease-in-out ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
@@ -59,12 +59,12 @@ export default function AdvisorSidebar({ companyName, collapsed, onToggleCollaps
         <div className={`flex items-center h-16 border-b border-white/10 shrink-0 ${collapsed ? "justify-center px-2" : "px-5"}`}>
           <Link href="/advisor" className="flex items-center gap-3 overflow-hidden">
             {!collapsed ? (
-              <span className="text-lg font-bold text-white tracking-tight">
-                {companyName || "Global"}
+              <span className="text-lg text-white tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+                {companyName || "GLOBAL"}
               </span>
             ) : (
-              <span className="text-lg font-bold text-white">
-                {(companyName || "Global")[0]}
+              <span className="text-lg text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+                {(companyName || "GLOBAL")[0]}
               </span>
             )}
           </Link>
