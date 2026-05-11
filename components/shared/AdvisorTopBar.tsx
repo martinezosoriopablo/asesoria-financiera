@@ -71,7 +71,7 @@ export default function AdvisorTopBar({
       <div className="flex items-center gap-3">
         <button
           onClick={onMobileMenuToggle}
-          className="lg:hidden p-2 rounded-md hover:bg-gb-light transition-colors"
+          className="md:hidden p-2 rounded-md hover:bg-gb-light transition-colors"
           aria-label="Menu"
         >
           <Menu className="w-5 h-5 text-gb-gray" />

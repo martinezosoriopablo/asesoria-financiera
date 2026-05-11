@@ -71,7 +71,6 @@ export default function AdvisorLayout({ children }: { children: React.ReactNode 
     <div className="min-h-screen bg-background">
       {/* Sidebar (desktop) */}
       <AdvisorSidebar
-        advisorLogo={advisor.logo}
         companyName={advisor.companyName}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebar}
@@ -79,20 +78,13 @@ export default function AdvisorLayout({ children }: { children: React.ReactNode 
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
           <div className="absolute left-0 top-0 bottom-0 w-72 bg-gb-sidebar overflow-y-auto">
             <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <div className="bg-white/10 rounded-md p-1.5">
-                  <img
-                    src={advisor.logo || "/logo-greybark.png"}
-                    alt={advisor.companyName || "Greybark"}
-                    className="h-7 object-contain"
-                  />
-                </div>
-                <span className="text-sm font-semibold text-white truncate">
-                  {advisor.companyName || "Greybark"}
+                <span className="text-lg font-bold text-white tracking-tight">
+                  {advisor.companyName || "Global"}
                 </span>
               </div>
               <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10">
@@ -165,7 +157,7 @@ export default function AdvisorLayout({ children }: { children: React.ReactNode 
       )}
 
       {/* Main content area — offset by sidebar width */}
-      <div className={`${sidebarCollapsed ? "lg:pl-16" : "lg:pl-60"} min-h-screen flex flex-col transition-all duration-200`}>
+      <div className={`${sidebarCollapsed ? "md:pl-16" : "md:pl-60"} min-h-screen flex flex-col transition-all duration-200`}>
         <AdvisorTopBar
           advisorName={advisor.name}
           advisorEmail={advisor.email}

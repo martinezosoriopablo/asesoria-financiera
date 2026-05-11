@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 
 interface AdvisorSidebarProps {
-  advisorLogo?: string | null;
   companyName?: string | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -40,7 +39,7 @@ const TOOL_ITEMS = [
   { href: "/educacion-financiera", label: "Educacion", icon: GraduationCap },
 ];
 
-export default function AdvisorSidebar({ advisorLogo, companyName, collapsed, onToggleCollapse }: AdvisorSidebarProps) {
+export default function AdvisorSidebar({ companyName, collapsed, onToggleCollapse }: AdvisorSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
@@ -48,30 +47,24 @@ export default function AdvisorSidebar({ advisorLogo, companyName, collapsed, on
     return pathname?.startsWith(href.split("?")[0]) ?? false;
   };
 
-  const logoSrc = advisorLogo || "/logo-greybark.png";
-  const logoAlt = companyName || "Greybark Advisors";
-
   return (
     <>
-      {/* Desktop sidebar */}
+      {/* Sidebar */}
       <aside
-        className={`hidden lg:flex flex-col fixed top-0 left-0 h-screen bg-gb-sidebar z-40 transition-all duration-200 ease-in-out ${
+        className={`hidden md:flex flex-col fixed top-0 left-0 h-screen bg-gb-sidebar z-40 transition-all duration-200 ease-in-out ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
         {/* Logo */}
-        <div className={`flex items-center h-16 border-b border-white/10 shrink-0 ${collapsed ? "justify-center px-2" : "px-4"}`}>
-          <Link href="/advisor" className="flex items-center gap-2 overflow-hidden">
-            <div className="bg-white/10 rounded-md p-1.5 shrink-0">
-              <img
-                src={logoSrc}
-                alt={logoAlt}
-                className={`${collapsed ? "h-7 w-7 object-contain" : "h-8 max-w-[140px] object-contain"}`}
-              />
-            </div>
-            {!collapsed && (
-              <span className="text-sm font-semibold text-white truncate">
-                {companyName || "Greybark"}
+        <div className={`flex items-center h-16 border-b border-white/10 shrink-0 ${collapsed ? "justify-center px-2" : "px-5"}`}>
+          <Link href="/advisor" className="flex items-center gap-3 overflow-hidden">
+            {!collapsed ? (
+              <span className="text-lg font-bold text-white tracking-tight">
+                {companyName || "Global"}
+              </span>
+            ) : (
+              <span className="text-lg font-bold text-white">
+                {(companyName || "Global")[0]}
               </span>
             )}
           </Link>
