@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 
 interface AdvisorSidebarProps {
-  companyName?: string | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -39,7 +38,7 @@ const TOOL_ITEMS = [
   { href: "/educacion-financiera", label: "Educacion", icon: GraduationCap },
 ];
 
-export default function AdvisorSidebar({ companyName, collapsed, onToggleCollapse }: AdvisorSidebarProps) {
+export default function AdvisorSidebar({ collapsed, onToggleCollapse }: AdvisorSidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
@@ -59,12 +58,12 @@ export default function AdvisorSidebar({ companyName, collapsed, onToggleCollaps
         <div className={`flex items-center h-16 border-b border-white/10 shrink-0 ${collapsed ? "justify-center px-2" : "px-5"}`}>
           <Link href="/advisor" className="flex items-center gap-3 overflow-hidden">
             {!collapsed ? (
-              <span className="text-lg text-white tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
-                {companyName || "GLOBAL"}
+              <span className="text-lg text-white tracking-wide" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+                GLOBAL
               </span>
             ) : (
               <span className="text-lg text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
-                {(companyName || "GLOBAL")[0]}
+                G
               </span>
             )}
           </Link>

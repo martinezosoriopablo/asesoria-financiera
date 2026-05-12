@@ -34,7 +34,6 @@ export default function AdvisorLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-background">
       <AdvisorSidebar
-        companyName={advisor.companyName}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebar}
       />
