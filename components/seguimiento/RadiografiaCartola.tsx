@@ -239,7 +239,12 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
   const callXrayApi = async () => {
     const enrichedHoldings = holdings.map(h => {
       const meta = fundsMeta?.find(m => m.fundName === h.fundName);
-      return { ...h, serie: meta?.serie || null };
+      return {
+        ...h,
+        serie: meta?.serie || null,
+        // Pass RUN from fundsMeta so xray can do exact match instead of fuzzy
+        securityId: meta?.run || h.securityId || null,
+      };
     });
     const res = await fetch("/api/portfolio/xray", {
       method: "POST",
