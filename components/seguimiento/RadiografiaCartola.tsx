@@ -677,6 +677,21 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
     return elements;
   };
 
+  // Weighted portfolio return 12M (must be before ALL early returns — Rules of Hooks)
+  const portfolioRent12m = useMemo(() => {
+    if (!data) return null;
+    let weightedSum = 0;
+    let coveredWeight = 0;
+    for (const h of data.holdings) {
+      if (h.rent12m !== null && h.rent12m !== undefined) {
+        weightedSum += h.rent12m * h.weight;
+        coveredWeight += h.weight;
+      }
+    }
+    if (coveredWeight === 0) return null;
+    return { value: weightedSum / coveredWeight, coverage: Math.round(coveredWeight) };
+  }, [data]);
+
   if (!data && !loading) {
     return (
       <div className="bg-white rounded-lg border border-gb-border shadow-sm p-6">
@@ -734,21 +749,6 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
   }
 
   if (!data) return null;
-
-  // Weighted portfolio return 12M
-  const portfolioRent12m = useMemo(() => {
-    if (!data) return null;
-    let weightedSum = 0;
-    let coveredWeight = 0;
-    for (const h of data.holdings) {
-      if (h.rent12m !== null && h.rent12m !== undefined) {
-        weightedSum += h.rent12m * h.weight;
-        coveredWeight += h.weight;
-      }
-    }
-    if (coveredWeight === 0) return null;
-    return { value: weightedSum / coveredWeight, coverage: Math.round(coveredWeight) };
-  }, [data]);
 
   const allocationEntries = [
     { label: "Renta Variable", ...data.allocation.rentaVariable, color: "bg-blue-500" },
