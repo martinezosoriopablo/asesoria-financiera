@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { Loader, Search, AlertTriangle, CheckCircle, XCircle, Filter, Upload, X, Eye, Trash2 } from "lucide-react";
+import { Loader, Search, AlertTriangle, CheckCircle, XCircle, Filter, Upload, X, Eye, Trash2, Pencil, Check } from "lucide-react";
 
 interface FichaRow {
   fo_run: number;
@@ -50,6 +50,8 @@ export default function FichasReviewPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ key: string; field: string; value: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!advisor) return;
@@ -118,6 +120,45 @@ export default function FichasReviewPage() {
     } catch { /* ignore */ }
     finally { setDeleting(null); }
   };
+
+  const handleSaveField = async (f: FichaRow, field: string, rawValue: string) => {
+    setSaving(true);
+    const numFields = ["tac_serie", "rent_1m", "rent_3m", "rent_6m", "rent_12m"];
+    const boolFields = ["beneficio_apv", "beneficio_57bis", "beneficio_107lir", "beneficio_108lir"];
+    let value: string | number | boolean | null = rawValue.trim();
+    if (value === "" || value === "—") value = null;
+    else if (numFields.includes(field)) value = parseFloat(value as string);
+    else if (boolFields.includes(field)) value = value === "true" || value === "si" || value === "1";
+
+    const body = f.tipo === "FM"
+      ? { tipo: "FM", fo_run: f.fo_run, fm_serie: f.fm_serie, field, value }
+      : { tipo: "FI", fi_rut: String(f.fo_run), fi_serie: f.fm_serie, field, value };
+
+    try {
+      const res = await fetch("/api/admin/fichas-review", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFichas(prev => prev.map(x => {
+          if (x.fo_run === f.fo_run && x.fm_serie === f.fm_serie && x.tipo === f.tipo) {
+            return { ...x, [field]: value };
+          }
+          return x;
+        }));
+      }
+    } catch { /* ignore */ }
+    finally { setSaving(false); setEditing(null); }
+  };
+
+  const startEdit = (f: FichaRow, field: string, currentValue: string | number | null) => {
+    const key = `${f.fo_run}-${f.fm_serie}-${f.tipo}`;
+    setEditing({ key, field, value: currentValue != null ? String(currentValue) : "" });
+  };
+
+  const editKey = (f: FichaRow) => `${f.fo_run}-${f.fm_serie}-${f.tipo}`;
 
   const filtered = useMemo(() => {
     let list = fichas;
@@ -199,6 +240,39 @@ export default function FichasReviewPage() {
 
   const fmtPct = (v: number | null) => v != null ? `${Number(v).toFixed(1)}%` : "—";
   const fmtTac = (v: number | null) => v != null ? `${Number(v).toFixed(2)}%` : "—";
+
+  const EditableCell = ({ f, field, display, className = "" }: { f: FichaRow; field: string; display: React.ReactNode; className?: string }) => {
+    const key = editKey(f);
+    const isEditing = editing?.key === key && editing?.field === field;
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-0.5">
+          <input
+            autoFocus
+            className="w-full px-1 py-0.5 text-xs border border-gb-accent rounded bg-white"
+            value={editing.value}
+            onChange={e => setEditing({ ...editing, value: e.target.value })}
+            onKeyDown={e => {
+              if (e.key === "Enter") handleSaveField(f, field, editing.value);
+              if (e.key === "Escape") setEditing(null);
+            }}
+          />
+          <button onClick={() => handleSaveField(f, field, editing.value)} disabled={saving} className="p-0.5 text-emerald-600 hover:text-emerald-800">
+            {saving ? <Loader className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <span
+        className={`cursor-pointer hover:bg-blue-50 hover:outline hover:outline-1 hover:outline-blue-200 rounded px-0.5 -mx-0.5 ${className}`}
+        onClick={() => startEdit(f, field, (f as unknown as Record<string, unknown>)[field] as string | number | null)}
+        title="Click para editar"
+      >
+        {display}
+      </span>
+    );
+  };
 
   const getBeneficio = (f: FichaRow): string => {
     if (f.beneficio_apv) return "APV";
@@ -407,25 +481,26 @@ export default function FichasReviewPage() {
                           {serieDiff && <span className="ml-1 text-[9px] text-blue-600" title={`PDF dice: ${f.serie_detectada}`}>!</span>}
                         </td>
                         <td className="py-1.5 px-2 max-w-[220px] truncate" title={f.nombre_fondo_pdf || f.nombre_vw || ""}>
-                          {f.nombre_fondo_pdf || f.nombre_vw || <span className="text-amber-500 italic">sin nombre</span>}
+                          <EditableCell f={f} field="nombre_fondo_pdf" display={f.nombre_fondo_pdf || f.nombre_vw || <span className="text-amber-500 italic">sin nombre</span>} />
                         </td>
                         <td className="py-1.5 px-2 text-gb-gray">{f.agf || "—"}</td>
                         <td className="py-1.5 px-2 text-right tabular-nums">
-                          <span className={f.tac_serie == null ? "text-gb-gray" :
+                          <EditableCell f={f} field="tac_serie" className={
+                            f.tac_serie == null ? "text-gb-gray" :
                             Number(f.tac_serie) > 3 ? "text-red-600 font-medium" :
                             Number(f.tac_serie) > 1.5 ? "text-amber-600" : "text-emerald-600"
-                          }>
-                            {fmtTac(f.tac_serie)}
-                          </span>
+                          } display={fmtTac(f.tac_serie)} />
                         </td>
                         <td className="py-1.5 px-2 text-right tabular-nums text-gb-gray">{fmtTac(f.tac_vw)}</td>
                         <td className={`py-1.5 px-2 text-right tabular-nums ${
                           f.rent_12m != null && f.rent_12m_vw != null && Math.abs(Number(f.rent_12m) - Number(f.rent_12m_vw)) > 20
                             ? "text-red-600 font-bold bg-red-100" : ""
                         }`}>
-                          {fmtPct(f.rent_12m)}
+                          <EditableCell f={f} field="rent_12m" display={fmtPct(f.rent_12m)} />
                         </td>
-                        <td className="py-1.5 px-2 text-gb-gray">{f.horizonte_inversion || "—"}</td>
+                        <td className="py-1.5 px-2 text-gb-gray">
+                          <EditableCell f={f} field="horizonte_inversion" display={f.horizonte_inversion || "—"} />
+                        </td>
                         <td className="py-1.5 px-2">
                           {(() => {
                             const ben = getBeneficio(f);
