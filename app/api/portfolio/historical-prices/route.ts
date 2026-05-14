@@ -249,9 +249,11 @@ export async function POST(req: NextRequest) {
   const sortedDates = [...allDates].sort();
   const fundKeys = [...fundInfo.keys()];
 
-  // Track last known price per fund for forward-fill (max 7 calendar days = ~5 business days)
-  const MAX_FORWARD_FILL_DAYS = 7;
-  const lastKnownPrice = new Map<string, { price: number; date: string }>();
+  // Track last known price per fund for forward-fill.
+  // Always forward-fill with last known price — if a fund stops publishing,
+  // its value stays flat rather than dropping to 0 (which distorts the total).
+  // Stale funds are flagged separately in the response for UI warnings.
+  const lastKnownPrice = new Map<string, number>();
 
   const series = sortedDates.map((fecha) => {
     let total = 0;
@@ -266,16 +268,11 @@ export async function POST(req: NextRequest) {
       let effectivePrice: number | undefined;
       if (precio !== undefined) {
         effectivePrice = precio;
-        lastKnownPrice.set(key, { price: precio, date: fecha });
+        lastKnownPrice.set(key, precio);
       } else {
-        // Forward-fill only if last known price is within 7 calendar days
         const last = lastKnownPrice.get(key);
-        if (last) {
-          const daysDiff = (new Date(fecha).getTime() - new Date(last.date).getTime()) / 86400000;
-          if (daysDiff <= MAX_FORWARD_FILL_DAYS) {
-            effectivePrice = last.price;
-          }
-          // else: gap too large, skip — avoids stale "flat" returns
+        if (last !== undefined) {
+          effectivePrice = last;
         }
       }
 
@@ -290,16 +287,13 @@ export async function POST(req: NextRequest) {
     return { fecha, total: Math.round(total), _fundsWithPrice: fundsWithPrice, ...fundValues };
   });
 
-  // Start from the first date where ALL funds have data (via forward-fill).
+  // Start from the first date where ALL funds have data.
   // Before that point, some funds contribute 0 which creates artificial jumps.
-  // After start, allow dates where at most 1 fund is missing (stale fund tolerance)
-  // to avoid cutting the entire series when one fund stops publishing.
   const allFundsCount = fundKeys.length;
   const startIdx = series.findIndex((p) => p._fundsWithPrice >= allFundsCount);
-  const minFundsRequired = Math.max(1, allFundsCount - 1); // tolerate 1 missing fund
   const filteredSeries = series
     .slice(startIdx >= 0 ? startIdx : 0)
-    .filter((p) => p._fundsWithPrice >= minFundsRequired)
+    .filter((p) => p._fundsWithPrice >= allFundsCount)
     .map(({ _fundsWithPrice, ...rest }) => rest);
 
   // 6. Info de fondos + detect stale prices
