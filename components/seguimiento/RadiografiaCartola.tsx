@@ -151,6 +151,7 @@ interface SearchResult {
   rent_1m?: number | null;
   rent_3m?: number | null;
   rent_12m?: number | null;
+  isPreferred?: boolean;
 }
 
 interface ProposalOverride {
@@ -1317,10 +1318,15 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                                     <button
                                       key={ri}
                                       onClick={() => selectFundForProposal(ph.originalFund, r)}
-                                      className="w-full text-left px-2 py-1.5 text-xs bg-white border border-gb-border rounded hover:bg-blue-50 hover:border-blue-300 transition-colors flex items-center gap-2"
+                                      className={`w-full text-left px-2 py-1.5 text-xs border rounded hover:bg-blue-50 hover:border-blue-300 transition-colors flex items-center gap-2 ${
+                                        r.isPreferred ? "bg-amber-50/50 border-amber-200" : "bg-white border-gb-border"
+                                      }`}
                                     >
                                       <div className="flex-1 min-w-0">
-                                        <span className="font-medium text-gb-black block truncate">{r.nombre}</span>
+                                        <span className="font-medium text-gb-black block truncate">
+                                          {r.isPreferred && <span className="text-[9px] px-1 py-0 rounded bg-amber-100 text-amber-700 font-semibold mr-1">MI FONDO</span>}
+                                          {r.nombre}
+                                        </span>
                                         <span className="text-gb-gray">{r.agf}{r.serie && ` — Serie ${r.serie}`}</span>
                                       </div>
                                       {r.tac != null && (

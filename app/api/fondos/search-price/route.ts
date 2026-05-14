@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fondos-search-price", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
   const supabase = createAdminClient();
@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
       rent_1m?: number | null;
       rent_3m?: number | null;
       rent_12m?: number | null;
+      isPreferred?: boolean;
     }> = [];
 
     // Search mutual funds (unless type=stock)
@@ -267,8 +268,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Sort: stocks first if query looks like ticker, then by those with prices
+    // Fetch advisor's preferred funds to mark and prioritize them
+    const preferredRunSeries = new Set<string>();
+    if (advisor) {
+      const { data: prefFunds } = await supabase
+        .from("advisor_preferred_funds")
+        .select("fund_run, fund_serie")
+        .eq("advisor_id", advisor.id)
+        .eq("active", true);
+      if (prefFunds) {
+        for (const pf of prefFunds) {
+          const run = pf.fund_run.replace(/-FI$/, "").split("-")[0];
+          preferredRunSeries.add(`${run}|${pf.fund_serie || ""}`);
+        }
+      }
+    }
+
+    // Sort: preferred funds first, then stocks if ticker, then by price
     results.sort((a, b) => {
+      // Preferred funds first (only for fund type)
+      const aPref = a.type === "fund" && a.fo_run && a.serie && preferredRunSeries.has(`${a.fo_run}|${a.serie}`) ? 0 : 1;
+      const bPref = b.type === "fund" && b.fo_run && b.serie && preferredRunSeries.has(`${b.fo_run}|${b.serie}`) ? 0 : 1;
+      if (aPref !== bPref) return aPref - bPref;
       // If query looks like a ticker, prioritize stocks
       if (looksLikeTicker(q)) {
         if (a.type === "stock" && b.type !== "stock") return -1;
@@ -279,6 +300,13 @@ export async function GET(request: NextRequest) {
       if (!a.valor_cuota && b.valor_cuota) return 1;
       return 0;
     });
+
+    // Mark preferred funds
+    for (const r of results) {
+      if (r.type === "fund" && r.fo_run && r.serie && preferredRunSeries.has(`${r.fo_run}|${r.serie}`)) {
+        r.isPreferred = true;
+      }
+    }
 
     return NextResponse.json({
       success: true,

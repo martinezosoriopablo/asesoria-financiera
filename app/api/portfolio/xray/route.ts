@@ -42,6 +42,7 @@ interface Alternative {
   sharpe_365d: number | null;
   patrimonio_mm: number | null;
   categoria: string;
+  isPreferred?: boolean;
 }
 
 interface HoldingAnalysis {
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "portfolio-xray", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
   const supabase = createAdminClient();
@@ -297,6 +298,24 @@ export async function POST(request: NextRequest) {
         fichasMap.set(`${f.fo_run}|${f.fm_serie}`, f);
       }
       if (page.length < PAGE) break;
+    }
+
+    // Fetch advisor's preferred funds for priority in alternatives
+    const preferredRunSeries = new Set<string>();
+    if (advisor) {
+      const { data: prefFunds } = await supabase
+        .from("advisor_preferred_funds")
+        .select("fund_run, fund_serie")
+        .eq("advisor_id", advisor.id)
+        .eq("active", true);
+      if (prefFunds) {
+        for (const pf of prefFunds) {
+          // fund_run format: "8118-B" or "76.XXX.XXX-K-FI"
+          const run = pf.fund_run.replace(/-FI$/, "").split("-")[0];
+          const serie = pf.fund_serie || "";
+          if (run && serie) preferredRunSeries.add(`${run}|${serie}`);
+        }
+      }
     }
 
     // Compute FI returns from price history
@@ -456,6 +475,7 @@ export async function POST(request: NextRequest) {
         const categoryFilter = buildCategoryFilter(categoria);
         if (categoryFilter) {
           // Find funds in same category with lower TAC
+          // Prioritize advisor's preferred funds
           const candidates = fondosIndex.filter((f) => {
             if (!f.tac_sintetica || f.tac_sintetica >= tac) return false;
             if (f.id === bestMatch!.id) return false;
@@ -463,8 +483,13 @@ export async function POST(request: NextRequest) {
             return fCat === categoria;
           });
 
-          // Sort by TAC ascending, take top 3
-          candidates.sort((a, b) => (a.tac_sintetica || 99) - (b.tac_sintetica || 99));
+          // Sort: preferred funds first, then by TAC ascending
+          candidates.sort((a, b) => {
+            const aPreferred = preferredRunSeries.has(`${a.fo_run}|${a.fm_serie}`) ? 0 : 1;
+            const bPreferred = preferredRunSeries.has(`${b.fo_run}|${b.fm_serie}`) ? 0 : 1;
+            if (aPreferred !== bPreferred) return aPreferred - bPreferred;
+            return (a.tac_sintetica || 99) - (b.tac_sintetica || 99);
+          });
           for (const c of candidates.slice(0, 3)) {
             const returns = returnsMap.get(c.id);
             alternatives.push({
@@ -478,6 +503,7 @@ export async function POST(request: NextRequest) {
               sharpe_365d: returns?.sharpe_365d || null,
               patrimonio_mm: returns?.patrimonio_mm || null,
               categoria,
+              isPreferred: preferredRunSeries.has(`${c.fo_run}|${c.fm_serie}`),
             });
           }
 
@@ -575,9 +601,12 @@ export async function POST(request: NextRequest) {
       let bestAlt: Alternative | null = null;
 
       if (alts.length > 0) {
-        // Prefer alternatives with good Sharpe AND significantly lower TAC
-        // Sort by: best Sharpe first, then lowest TAC
+        // Prefer: 1) advisor's preferred funds, 2) good Sharpe, 3) lowest TAC
         const ranked = [...alts].sort((a, b) => {
+          // Preferred funds first
+          const aPref = a.isPreferred ? 0 : 1;
+          const bPref = b.isPreferred ? 0 : 1;
+          if (aPref !== bPref) return aPref - bPref;
           // If both have Sharpe, prefer higher Sharpe
           if (a.sharpe_365d !== null && b.sharpe_365d !== null) {
             if (Math.abs(a.sharpe_365d - b.sharpe_365d) > 0.1) {
