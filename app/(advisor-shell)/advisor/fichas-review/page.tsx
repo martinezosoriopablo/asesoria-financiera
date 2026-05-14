@@ -359,17 +359,11 @@ export default function FichasReviewPage() {
                     <th className="text-center py-2 px-1 font-medium w-8 sticky left-0 bg-gb-light z-10"></th>
                     <th className="text-left py-2 px-2 font-medium">RUN</th>
                     <th className="text-left py-2 px-2 font-medium">Serie</th>
-                    <th className="text-left py-2 px-2 font-medium">Serie PDF</th>
-                    <th className="text-left py-2 px-2 font-medium min-w-[180px]">Nombre Ficha</th>
-                    <th className="text-left py-2 px-2 font-medium min-w-[180px]">Nombre VW</th>
+                    <th className="text-left py-2 px-2 font-medium">Nombre</th>
                     <th className="text-left py-2 px-2 font-medium">AGF</th>
-                    <th className="text-left py-2 px-2 font-medium">Familia</th>
-                    <th className="text-right py-2 px-2 font-medium">TAC Ficha</th>
+                    <th className="text-right py-2 px-2 font-medium">TAC</th>
                     <th className="text-right py-2 px-2 font-medium">TAC VW</th>
-                    <th className="text-right py-2 px-2 font-medium">R1M</th>
-                    <th className="text-right py-2 px-2 font-medium">R3M</th>
                     <th className="text-right py-2 px-2 font-medium">R12M</th>
-                    <th className="text-right py-2 px-2 font-medium">R12M VW</th>
                     <th className="text-left py-2 px-2 font-medium">Horizonte</th>
                     <th className="text-left py-2 px-2 font-medium">Beneficio</th>
                     <th className="text-center py-2 px-2 font-medium">Obj</th>
@@ -408,24 +402,14 @@ export default function FichasReviewPage() {
                           {f.fo_run}
                           <span className={`ml-1 text-[9px] px-1 py-0.5 rounded ${f.tipo === "FI" ? "bg-violet-100 text-violet-600" : "bg-sky-50 text-sky-600"}`}>{f.tipo}</span>
                         </td>
-                        <td className="py-1.5 px-2">{f.fm_serie}</td>
                         <td className="py-1.5 px-2">
-                          {f.serie_detectada ? (
-                            <span className={serieDiff ? "text-blue-600" : "text-emerald-600"}>
-                              {f.serie_detectada}
-                            </span>
-                          ) : (
-                            <span className="text-gb-gray">—</span>
-                          )}
+                          {f.fm_serie}
+                          {serieDiff && <span className="ml-1 text-[9px] text-blue-600" title={`PDF dice: ${f.serie_detectada}`}>!</span>}
                         </td>
-                        <td className="py-1.5 px-2 max-w-[200px] truncate" title={f.nombre_fondo_pdf || ""}>
-                          {f.nombre_fondo_pdf || <span className="text-amber-500 italic">vacio</span>}
-                        </td>
-                        <td className="py-1.5 px-2 max-w-[200px] truncate text-gb-gray" title={f.nombre_vw || ""}>
-                          {f.nombre_vw || <span className="text-gb-gray">—</span>}
+                        <td className="py-1.5 px-2 max-w-[220px] truncate" title={f.nombre_fondo_pdf || f.nombre_vw || ""}>
+                          {f.nombre_fondo_pdf || f.nombre_vw || <span className="text-amber-500 italic">sin nombre</span>}
                         </td>
                         <td className="py-1.5 px-2 text-gb-gray">{f.agf || "—"}</td>
-                        <td className="py-1.5 px-2 text-gb-gray">{f.familia || "—"}</td>
                         <td className="py-1.5 px-2 text-right tabular-nums">
                           <span className={f.tac_serie == null ? "text-gb-gray" :
                             Number(f.tac_serie) > 3 ? "text-red-600 font-medium" :
@@ -436,18 +420,11 @@ export default function FichasReviewPage() {
                         </td>
                         <td className="py-1.5 px-2 text-right tabular-nums text-gb-gray">{fmtTac(f.tac_vw)}</td>
                         <td className={`py-1.5 px-2 text-right tabular-nums ${
-                          f.rent_1m != null && Math.abs(Number(f.rent_1m)) > 30 ? "text-red-600 font-bold bg-red-100" : ""
-                        }`}>
-                          {fmtPct(f.rent_1m)}
-                        </td>
-                        <td className="py-1.5 px-2 text-right tabular-nums">{fmtPct(f.rent_3m)}</td>
-                        <td className={`py-1.5 px-2 text-right tabular-nums ${
                           f.rent_12m != null && f.rent_12m_vw != null && Math.abs(Number(f.rent_12m) - Number(f.rent_12m_vw)) > 20
                             ? "text-red-600 font-bold bg-red-100" : ""
                         }`}>
                           {fmtPct(f.rent_12m)}
                         </td>
-                        <td className="py-1.5 px-2 text-right tabular-nums text-gb-gray">{fmtPct(f.rent_12m_vw)}</td>
                         <td className="py-1.5 px-2 text-gb-gray">{f.horizonte_inversion || "—"}</td>
                         <td className="py-1.5 px-2">
                           {(() => {
