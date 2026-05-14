@@ -63,6 +63,10 @@ interface HoldingAnalysis {
   fiRent1m?: number | null;
   fiRent3m?: number | null;
   fiRent12m?: number | null;
+  // Returns (unified: FM from vw_fondos_completo, FI from fiReturns)
+  rent1m: number | null;
+  rent3m: number | null;
+  rent12m: number | null;
   // Cost
   tac: number | null; // Annual cost %
   tacImpactAnnual: number | null; // $ annual cost
@@ -198,25 +202,40 @@ export async function POST(request: NextRequest) {
     }
 
     // Pre-fetch all fondos_mutuos with TAC for matching
-    const { data: allFondos } = await supabase
-      .from("vw_fondos_completo")
-      .select(
-        "id, fo_run, fm_serie, nombre_fondo, nombre_agf, familia_estudios, tac_sintetica, rent_30d_nominal, rent_3m_nominal, rent_12m_nominal, clase_inversionista"
-      )
-      .limit(5000);
+    // Supabase default max is 1000 rows — must paginate to get all ~3000
+    const PAGE = 1000;
+    const allFondos: FondoMatch[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("vw_fondos_completo")
+        .select(
+          "id, fo_run, fm_serie, nombre_fondo, nombre_agf, familia_estudios, tac_sintetica, rent_30d_nominal, rent_3m_nominal, rent_12m_nominal, clase_inversionista"
+        )
+        .range(offset, offset + PAGE - 1);
+      if (!page || page.length === 0) break;
+      allFondos.push(...(page as FondoMatch[]));
+      if (page.length < PAGE) break;
+    }
 
     // Pre-fetch aggregated returns for alternatives ranking
-    const { data: latestReturns } = await supabase
-      .from("fondos_rentabilidades_latest")
-      .select("fondo_id, rent_365d, sharpe_365d, volatilidad_365d, patrimonio_mm")
-      .limit(5000);
+    const allReturns: Array<{ fondo_id: string; rent_365d: number | null; sharpe_365d: number | null; volatilidad_365d: number | null; patrimonio_mm: number | null }> = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("fondos_rentabilidades_latest")
+        .select("fondo_id, rent_365d, sharpe_365d, volatilidad_365d, patrimonio_mm")
+        .range(offset, offset + PAGE - 1);
+      if (!page || page.length === 0) break;
+      allReturns.push(...page);
+      if (page.length < PAGE) break;
+    }
+    const latestReturns = allReturns;
 
     const returnsMap = new Map<string, { rent_365d: number | null; sharpe_365d: number | null; patrimonio_mm: number | null }>();
     for (const r of latestReturns || []) {
       returnsMap.set(r.fondo_id, r);
     }
 
-    const fondosIndex = allFondos || [];
+    const fondosIndex = allFondos;
 
     // Pre-fetch fondos de inversión catalog for FI detection
     const { data: allFI } = await supabase
@@ -266,15 +285,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Pre-fetch fund_fichas for tax benefit info
-    const { data: allFichas } = await supabase
-      .from("fund_fichas")
-      .select("fo_run, fm_serie, beneficio_107lir, beneficio_108lir, beneficio_apv, beneficio_57bis")
-      .limit(5000);
-
+    // Pre-fetch fund_fichas for tax benefit info (paginated)
     const fichasMap = new Map<string, { beneficio_107lir: boolean; beneficio_108lir: boolean; beneficio_apv: boolean; beneficio_57bis: boolean }>();
-    for (const f of allFichas || []) {
-      fichasMap.set(`${f.fo_run}|${f.fm_serie}`, f);
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("fund_fichas")
+        .select("fo_run, fm_serie, beneficio_107lir, beneficio_108lir, beneficio_apv, beneficio_57bis")
+        .range(offset, offset + PAGE - 1);
+      if (!page || page.length === 0) break;
+      for (const f of page) {
+        fichasMap.set(`${f.fo_run}|${f.fm_serie}`, f);
+      }
+      if (page.length < PAGE) break;
     }
 
     // Compute FI returns from price history
@@ -487,6 +509,10 @@ export async function POST(request: NextRequest) {
         fiRent1m: fiReturns?.rent1m ?? undefined,
         fiRent3m: fiReturns?.rent3m ?? undefined,
         fiRent12m: fiReturns?.rent12m ?? undefined,
+        // Returns (fondos mutuos from vw_fondos_completo, FI from fiReturns)
+        rent1m: bestMatch?.rent_30d_nominal ?? fiReturns?.rent1m ?? null,
+        rent3m: bestMatch?.rent_3m_nominal ?? fiReturns?.rent3m ?? null,
+        rent12m: bestMatch?.rent_12m_nominal ?? fiReturns?.rent12m ?? null,
         // Cost
         tac,
         tacImpactAnnual: tacAnnual ? Math.round(tacAnnual) : null,

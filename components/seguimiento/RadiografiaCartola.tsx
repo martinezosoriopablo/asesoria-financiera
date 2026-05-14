@@ -50,6 +50,9 @@ interface HoldingAnalysis {
   fiPrecioFecha?: string | null;
   fiValorLibro?: number | null;
   fiStale?: boolean;
+  rent1m: number | null;
+  rent3m: number | null;
+  rent12m: number | null;
   tac: number | null;
   tacImpactAnnual: number | null;
   tacImpact10Y: number | null;
@@ -127,6 +130,7 @@ interface FundMeta {
 interface Holding {
   fundName: string;
   securityId?: string | null;
+  serie?: string | null;
   quantity?: number;
   marketPrice?: number;
   marketValue: number;
@@ -241,9 +245,9 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
       const meta = fundsMeta?.find(m => m.fundName === h.fundName);
       return {
         ...h,
-        serie: meta?.serie || null,
-        // Pass RUN from fundsMeta so xray can do exact match instead of fuzzy
-        securityId: meta?.run || h.securityId || null,
+        // Use serie/securityId from snapshot (auto-match), fallback to fundsMeta
+        serie: h.serie || meta?.serie || null,
+        securityId: h.securityId || meta?.run || null,
       };
     });
     const res = await fetch("/api/portfolio/xray", {
@@ -731,6 +735,21 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
 
   if (!data) return null;
 
+  // Weighted portfolio return 12M
+  const portfolioRent12m = useMemo(() => {
+    if (!data) return null;
+    let weightedSum = 0;
+    let coveredWeight = 0;
+    for (const h of data.holdings) {
+      if (h.rent12m !== null && h.rent12m !== undefined) {
+        weightedSum += h.rent12m * h.weight;
+        coveredWeight += h.weight;
+      }
+    }
+    if (coveredWeight === 0) return null;
+    return { value: weightedSum / coveredWeight, coverage: Math.round(coveredWeight) };
+  }, [data]);
+
   const allocationEntries = [
     { label: "Renta Variable", ...data.allocation.rentaVariable, color: "bg-blue-500" },
     { label: "Renta Fija", ...data.allocation.rentaFija, color: "bg-green-500" },
@@ -742,7 +761,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
   return (
     <div className="space-y-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         {/* Valor Total */}
         <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
           <p className="text-xs text-gb-gray font-medium uppercase mb-1">
@@ -801,6 +820,25 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           <p className="text-xs text-gb-gray mt-1">
             {data.holdingsConAlternativa} holdings con alternativa más barata
           </p>
+        </div>
+
+        {/* Rentabilidad 12M */}
+        <div className="bg-white rounded-lg border border-gb-border p-4 shadow-sm">
+          <p className="text-xs text-gb-gray font-medium uppercase mb-1">
+            Rentabilidad 12M
+          </p>
+          {portfolioRent12m ? (
+            <>
+              <p className={`text-xl font-bold ${portfolioRent12m.value >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {formatPercent(portfolioRent12m.value)}
+              </p>
+              <p className="text-xs text-gb-gray mt-1">
+                Ponderada · {portfolioRent12m.coverage}% cobertura
+              </p>
+            </>
+          ) : (
+            <p className="text-xl font-bold text-gb-gray">N/D</p>
+          )}
         </div>
       </div>
 
