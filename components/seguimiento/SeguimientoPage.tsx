@@ -133,7 +133,7 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
   const [autoFillTriggered, setAutoFillTriggered] = useState(false);
   const [historicalSeries, setHistoricalSeries] = useState<Array<{ fecha: string; total: number; [key: string]: string | number }>>([]);
-  const [fundsMeta, setFundsMeta] = useState<Array<{ fundName: string; run: string; serie: string; tac: number | null; moneda: string; quantity: number }>>([]);
+  const [fundsMeta, setFundsMeta] = useState<Array<{ fundName: string; run: string; serie: string; tac: number | null; moneda: string; quantity: number; lastPriceDate?: string | null; stale?: boolean }>>([]);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
   const [livePortfolioValue, setLivePortfolioValue] = useState<number | null>(null);
   const [livePriceDate, setLivePriceDate] = useState<string | null>(null);
@@ -982,6 +982,17 @@ export default function SeguimientoPage({ clientId }: Props) {
                 <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
                   <Loader className="w-4 h-4 animate-spin flex-shrink-0" />
                   {backfillStatus}
+                </div>
+              )}
+              {fundsMeta.filter(f => f.stale).length > 0 && (
+                <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                  <p className="font-medium mb-1">Fondos sin precio reciente:</p>
+                  {fundsMeta.filter(f => f.stale).map(f => (
+                    <p key={f.fundName} className="text-xs">
+                      {f.fundName} (RUN {f.run}, serie {f.serie}) — último precio: {f.lastPriceDate || "sin datos"}
+                    </p>
+                  ))}
+                  <p className="text-xs mt-1 text-amber-600">Esto puede afectar las rentabilidades calculadas y el gráfico.</p>
                 </div>
               )}
               <EvolucionChart

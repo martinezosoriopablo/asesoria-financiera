@@ -292,24 +292,43 @@ export async function POST(req: NextRequest) {
 
   // Start from the first date where ALL funds have data (via forward-fill).
   // Before that point, some funds contribute 0 which creates artificial jumps.
-  // After start, also exclude dates where a fund dropped out (gap > 7 days) —
-  // otherwise the total drops abruptly when one fund's contribution disappears.
+  // After start, allow dates where at most 1 fund is missing (stale fund tolerance)
+  // to avoid cutting the entire series when one fund stops publishing.
   const allFundsCount = fundKeys.length;
   const startIdx = series.findIndex((p) => p._fundsWithPrice >= allFundsCount);
+  const minFundsRequired = Math.max(1, allFundsCount - 1); // tolerate 1 missing fund
   const filteredSeries = series
     .slice(startIdx >= 0 ? startIdx : 0)
-    .filter((p) => p._fundsWithPrice >= allFundsCount)
+    .filter((p) => p._fundsWithPrice >= minFundsRequired)
     .map(({ _fundsWithPrice, ...rest }) => rest);
 
-  // 6. Info de fondos
+  // 6. Info de fondos + detect stale prices
+  const latestSeriesDate = sortedDates[sortedDates.length - 1];
   const funds = fundKeys.map((key) => {
     const info = fundInfo.get(key)!;
+    const fechaMap = normalizedPrices.get(key);
+    // Find the last date this fund has actual data
+    let lastPriceDate: string | null = null;
+    if (fechaMap) {
+      for (let i = sortedDates.length - 1; i >= 0; i--) {
+        if (fechaMap.has(sortedDates[i])) {
+          lastPriceDate = sortedDates[i];
+          break;
+        }
+      }
+    }
+    const daysSinceLastPrice = lastPriceDate
+      ? Math.round((new Date(latestSeriesDate).getTime() - new Date(lastPriceDate).getTime()) / 86400000)
+      : null;
+
     return {
       fundName: info.fundName,
       run: key.split("-")[0],
       serie: key.split("-").slice(1).join("-"),
       tac: info.tac,
       quantity: info.quantity,
+      lastPriceDate,
+      stale: daysSinceLastPrice !== null && daysSinceLastPrice > 7,
     };
   });
 
