@@ -3,24 +3,31 @@
 ## Estructura General
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              ADVISOR DASHBOARD                               │
-│                                 /advisor                                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │  Dashboard  │  │  Clientes   │  │  Cartola &  │  │  Portfolio  │        │
-│  │  /advisor   │  │  /clients   │  │   Riesgo    │  │  Designer   │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────┐       │
-│  │                     HERRAMIENTAS (Dropdown)                      │       │
-│  ├─────────────┬─────────────┬─────────────┬─────────────┐         │       │
-│  │   Market    │  Centro de  │ Calculadora │  Educación  │         │       │
-│  │  Dashboard  │   Fondos    │     APV     │ Financiera  │         │       │
-│  └─────────────┴─────────────┴─────────────┴─────────────┘         │       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌──────────┬──────────────────────────────────────────────────────────┐
+│ SIDEBAR  │                     CONTENIDO                            │
+│ (fijo)   │                                                          │
+│          │  Todas las rutas del asesor comparten el sidebar         │
+│ GLOBAL   │  via el route group app/(advisor-shell)/layout.tsx       │
+│          │                                                          │
+│ Principal│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐       │
+│ Dashboard│  │Dashboard│ │Clientes │ │Cartola &│ │Portfolio│       │
+│ Clientes │  │/advisor │ │/clients │ │ Riesgo  │ │Designer │       │
+│ Vista Grl│  └─────────┘ └─────────┘ └─────────┘ └─────────┘       │
+│ Cartola  │                                                          │
+│ Designer │  Herramientas                                            │
+│          │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐       │
+│Herramient│  │Centro de│ │  Mis    │ │ Fichas  │ │Calculad.│       │
+│ Fondos   │  │ Fondos  │ │ Fondos  │ │  CMF    │ │  APV    │       │
+│ Mis Fond.│  └─────────┘ └─────────┘ └─────────┘ └─────────┘       │
+│ Fichas   │  ┌─────────┐                                            │
+│ Calc APV │  │Educacion│                                            │
+│ Educacion│  │Financ.  │                                            │
+│          │  └─────────┘                                                          │
+│          │                                                          │
+│ 🔔 Notif │                                                          │
+│ 👤 Perfil│                                                          │
+│ ◀ Colapsr│                                                          │
+└──────────┴──────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -53,7 +60,7 @@ Herramienta unificada para diseñar, comparar y optimizar carteras de inversión
 
 **Estructura de archivos:**
 ```
-app/portfolio-designer/
+app/(advisor-shell)/portfolio-designer/
 ├── page.tsx                      # Página principal con tabs
 └── components/
     ├── ComparisonMode.tsx        # Modo comparación (ex /portfolio-comparison)
@@ -96,7 +103,7 @@ Herramienta unificada para buscar, comparar y analizar fondos de inversión.
 
 **Estructura de archivos:**
 ```
-app/fund-center/
+app/(advisor-shell)/fund-center/
 ├── page.tsx                      # Página principal con tabs
 └── components/
     ├── SearchMode.tsx            # Modo búsqueda (ex /fondos-internacionales)
@@ -156,11 +163,11 @@ URL canónica para el cuestionario de perfil de riesgo.
 | `/advisor` | Dashboard del asesor | AdvisorDashboardSimple |
 | `/clients` | Gestión de clientes | ClientsManager |
 | `/clients/[id]` | Detalle de cliente | ClientDetail |
-| `/clients/[id]/seguimiento` | Seguimiento de cartolas y TWR | SeguimientoPage |
+| `/clients/[id]/seguimiento` | Seguimiento de cartolas y retornos | SeguimientoPage |
 | `/analisis-cartola` | Análisis de cartola y riesgo | AnalizadorCartola |
 | `/portfolio-designer` | Diseñador de portfolios | PortfolioDesignerPage |
 
-### Herramientas (Dropdown)
+### Herramientas (Sidebar)
 
 | Ruta | Descripción | Componente |
 |------|-------------|------------|
@@ -169,11 +176,21 @@ URL canónica para el cuestionario de perfil de riesgo.
 | `/calculadora-apv` | Calculadora APV | CalculadoraAPV |
 | `/educacion-financiera` | Educación financiera | EducacionFinanciera |
 
-### Rutas de Cliente
+### Rutas de Admin/Asesor Avanzado
 
 | Ruta | Descripción | Componente |
 |------|-------------|------------|
-| `/client/risk-profile` | Cuestionario de riesgo | RiskProfileWizard |
+| `/advisor/fichas-review` | Revision de fichas CMF extraidas (FM + FI) | FichasReviewPage |
+| `/advisor/fondos` | Fondos preferidos del asesor | FondosPreferidosPage |
+
+### Rutas de Cliente (Portal)
+
+| Ruta | Descripción | Componente |
+|------|-------------|------------|
+| `/portal/dashboard` | Dashboard del cliente | ClientDashboard |
+| `/portal/messages` | Mensajeria con el asesor | ClientMessages |
+| `/portal/risk-profile` | Ver perfil de riesgo | ClientRiskProfile |
+| `/client/risk-profile` | Cuestionario de riesgo (link externo) | RiskProfileWizard |
 | `/login` | Login | LoginPage |
 
 ### Redirects Activos
@@ -217,6 +234,15 @@ URL canónica para el cuestionario de perfil de riesgo.
 /api/advisor/profile            GET, PUT
 /api/advisor/meetings           GET, POST
 /api/advisor/stats              GET
+/api/advisor/preferred-funds    GET, POST, PATCH, DELETE - Fondos preferidos (enriched con fichas FM+FI)
+```
+
+### APIs de Fichas CMF
+```
+/api/fondos/sync-fichas              GET (status), POST (sync por AGF) - Fichas FM via Gemini AI
+/api/fondos-inversion/sync-fichas    GET (status), POST (sync por admin) - Fichas FI via Gemini AI
+/api/admin/fichas-upload             POST - Upload manual de ficha PDF
+/api/admin/fichas-review             GET - Review de todas las fichas (FM + FI)
 ```
 
 ### APIs de Riesgo y Portfolio
@@ -231,9 +257,10 @@ URL canónica para el cuestionario de perfil de riesgo.
 ```
 /api/portfolio/snapshots             GET, POST - CRUD de snapshots
 /api/portfolio/snapshots/[id]        GET, PUT, PATCH, DELETE - Snapshot individual
-/api/portfolio/fill-prices           POST - Llenar precios intermedios entre cartolas (TWR diario)
+/api/portfolio/fill-prices           POST - Llenar precios intermedios entre cartolas
 /api/portfolio/fill-prices/coverage  GET - Cobertura de precios por holding
-/api/portfolio/current-prices        POST - Precios actuales para holdings
+/api/portfolio/current-prices        POST - Precios actuales para holdings (con detección USD→CLP)
+/api/portfolio/historical-prices     POST - Serie histórica valor portafolio (cuotas × precios, con normalización USD→CLP)
 /api/portfolio/manual-prices         GET, POST - Precios manuales del asesor
 /api/clients/[id]/seguimiento       GET - Datos consolidados de seguimiento + métricas
 /api/clients/[id]/snapshots         DELETE - Eliminar todos los snapshots
@@ -282,12 +309,11 @@ Pipeline de precios (prioridad):
 
 Auto-fill: Al abrir seguimiento, si los precios tienen >24h se ejecuta fill-prices automáticamente.
 
-Cálculo de TWR (Time-Weighted Return):
-- **Método principal**: Unit-value (valor cuota) — `(currentUnitValue / prevUnitValue) - 1`
-- **Fallback**: Cash-flow-adjusted — `((endValue - netFlow) / beginValue) - 1`
-- **Encadenamiento**: Geométrico — `(1 + TWR_cum_prev) × (1 + TWR_period) - 1`
-- **Fuente de verdad**: Campo `twr_period` y `twr_cumulative` en `portfolio_snapshots`
-- **SnapshotsTable**: Usa `twr_period` almacenado como fuente primaria, no recalcula
+Calculo de Retornos (Simple Returns):
+- **< 365 dias**: Retorno simple `(valor_final / valor_inicial) - 1` — nunca se anualiza
+- **>= 365 dias**: Retorno anualizado `((valor_final / valor_inicial) ^ (365/dias)) - 1`
+- **Implementacion**: `lib/returns/calculator.ts` con funciones puras
+- **TWR eliminado**: Se removio TWR/Sharpe por complejidad y margen de error. Retornos simples son mas comparables.
 
 ### APIs Auxiliares
 ```
@@ -337,8 +363,7 @@ components/
 │   ├── SnapshotsTable.tsx        # Tabla de snapshots con métricas
 │   ├── EvolucionChart.tsx        # Gráfico evolución del portafolio
 │   ├── PerformanceAttribution.tsx # Atribución de rendimiento
-│   ├── HoldingReturnsPanel.tsx   # Retornos por holding
-│   ├── HoldingDiagnosticPanel.tsx # Diagnóstico de holdings
+│   ├── HoldingReturnsPanel.tsx   # Rentabilidad por activo (peso, P.Compra, P.Actual, TAC, contribución)
 │   ├── RadiografiaCartola.tsx    # Radiografía: costos TAC, alternativas baratas, ahorro potencial
 │   ├── BaselineComparison.tsx    # Comparación vs baseline
 │   ├── ComparacionBar.tsx        # Actual vs recomendado
@@ -348,7 +373,9 @@ components/
 │   ├── RetirementSummary.tsx
 │   └── RiskProfileWizard.tsx
 └── shared/
-    └── AdvisorHeader.tsx
+    ├── AdvisorSidebar.tsx       # Sidebar persistente (nav, notificaciones, menú usuario)
+    ├── NotificationBell.tsx     # Campana de notificaciones
+    └── AdvisorHeader.tsx        # Legacy (no usado en páginas actuales)
 ```
 
 ---
@@ -370,7 +397,7 @@ lib/risk/
 
 ## Estilos (Tailwind CSS)
 
-### Colores del Tema (Greybark)
+### Colores del Tema (GLOBAL)
 ```css
 --gb-black: #1a1a1a      /* Negro principal */
 --gb-dark: #333333       /* Gris oscuro */
@@ -389,6 +416,18 @@ className="bg-gb-light text-gb-black border-gb-border"
 className="bg-[var(--gb-light)] text-[var(--gb-black)]"
 ```
 
+### Títulos de página (convención)
+Todas las páginas del asesor usan el mismo formato de header:
+```jsx
+<div className="bg-white border-b border-gb-border">
+  <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <h1 className="text-2xl font-semibold text-gb-black">Título</h1>
+    <p className="text-sm text-gb-gray mt-1">Subtítulo descriptivo</p>
+  </div>
+</div>
+```
+No usar: `font-bold`, `text-xl`, `text-3xl`, `text-slate-900`, íconos en el header, ni links "Volver".
+
 ---
 
 ## Flujo de Usuario
@@ -400,30 +439,21 @@ className="bg-[var(--gb-light)] text-[var(--gb-black)]"
                                     └──────┬──────┘
                                            │
                                            ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                         ADVISOR DASHBOARD                         │
-│                            /advisor                               │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│   │  Ver/Crear  │    │  Análisis   │    │  Diseñar    │         │
-│   │  Clientes   │    │  Cartola    │    │  Portfolio  │         │
-│   └──────┬──────┘    └──────┬──────┘    └──────┬──────┘         │
-│          │                  │                   │                │
-│          ▼                  ▼                   ▼                │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│   │  /clients   │    │ /analisis-  │    │ /portfolio- │         │
-│   │  /[id]      │    │  cartola    │    │  designer   │         │
-│   └─────────────┘    └─────────────┘    └─────────────┘         │
-│                                                                   │
-│   ┌─────────────────────────────────────────────────────┐       │
-│   │                   HERRAMIENTAS                       │       │
-│   │                                                      │       │
-│   │  /market-dashboard  /fund-center  /calculadora-apv  │       │
-│   │                                                      │       │
-│   └─────────────────────────────────────────────────────┘       │
-│                                                                   │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────┬───────────────────────────────────────────────────────┐
+│ SIDEBAR  │              ADVISOR DASHBOARD                        │
+│ (siempre │                 /advisor                              │
+│ visible) │                                                       │
+│          │   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│ Navega-  │   │  Clientes   │  │  Cartola &  │  │  Portfolio  │  │
+│ ción +   │   │  /clients   │  │   Riesgo    │  │  Designer   │  │
+│ Notif +  │   └─────────────┘  └─────────────┘  └─────────────┘  │
+│ Perfil   │                                                       │
+│          │   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│          │   │  Centro de  │  │ Calculadora │  │  Educación  │  │
+│          │   │   Fondos    │  │     APV     │  │ Financiera  │  │
+│          │   └─────────────┘  └─────────────┘  └─────────────┘  │
+│          │                                                       │
+└──────────┴───────────────────────────────────────────────────────┘
 
                     FLUJO DE CLIENTE (EXTERNO)
                               │
@@ -458,9 +488,10 @@ className="bg-[var(--gb-light)] text-[var(--gb-black)]"
 - **PDF:** @react-pdf/renderer
 - **Database:** Supabase (PostgreSQL)
 - **Auth:** Supabase Auth
+- **AI:** Claude (analisis, reportes, xray), Gemini 2.5 Flash (extraccion fichas PDF)
 - **APIs externas:** CMF, AAFM, Fintual, Yahoo Finance, Alpha Vantage, Bolsa de Santiago
 - **Email:** Resend
-- **CAPTCHA:** 2captcha (para CMF auto-sync)
+- **CAPTCHA:** 2captcha (para CMF fondos de inversion)
 
 ---
 
@@ -526,16 +557,20 @@ Análisis semiautomático de la cartola del cliente ANTES del perfil de riesgo. 
 
 ---
 
-## Bugs Corregidos (Auditoría Abril 2026)
+## Mejoras Implementadas (Auditoria Abril-Mayo 2026)
 
-### TWR (Time-Weighted Return)
-- **fill-prices usaba retorno simple**: Cambiado de `totalValue/prevValue - 1` a unit-value `(currentUnitValue/prevUnitValue) - 1` para aislar rendimiento de flujos de caja
-- **Backward fill reseteaba cadena TWR**: Ya no resetea `prevTwrCumulative` al llenar hacia atrás, mantiene encadenamiento geométrico
-- **SnapshotsTable recalculaba TWR**: Ahora usa `twr_period` almacenado como fuente primaria en vez de recalcular en cada render
-- **Dos calculateMetrics inconsistentes**: Unificadas ambas (snapshots/route.ts y seguimiento/route.ts) para usar unit-value como método principal
-- **Max Drawdown no ajustaba por cash flows**: Ahora usa unit-value cuando disponible, fallback con flujos acumulados
-- **Metric card mostraba totalReturn cuando TWR=0**: Corregido check de `metrics.twr || totalReturn` a `metrics.twr !== null`
-- **Volatilidad asumía datos diarios**: Ahora calcula frecuencia real de datos para anualizar
+### Retornos
+- **TWR eliminado**: Reemplazado por retornos simples (`lib/returns/calculator.ts`). Regla: < 365 dias = simple, >= 365 dias = anualizado.
+- **Sharpe/volatilidad removidos**: Metricas complejas eliminadas por simplificacion.
+
+### Fichas CMF (Gemini AI)
+- **Extraccion con Gemini 2.5 Flash**: `lib/ficha-extract.ts` extrae TAC, horizonte, tolerancia riesgo, objetivo, beneficio tributario de folletos PDF.
+- **Sync masivo**: FM via `/api/fondos/sync-fichas`, FI via `/api/fondos-inversion/sync-fichas`. Ambos usan Gemini con fallback a regex.
+- **Review**: `/advisor/fichas-review` muestra FM + FI con beneficio tributario, objetivo, TAC comparativo.
+- **Indicadores Gemini**: UI muestra si la extraccion fue via Gemini AI (verde) o regex fallback (amarillo).
+
+### AI Usage Tracking
+- **Tracking por asesor**: `advisor_ai_usage` tabla con tokens/costo por mes. Modelo configurable (Sonnet 4 / Opus 4).
 
 ### Precios y Seguimiento
 - **Sin auto-fill al ver portafolio**: Ahora ejecuta fill-prices automáticamente si precios >24h al abrir seguimiento
@@ -565,4 +600,4 @@ Cuando el auto-match no encuentra un fondo (precio no coincide o no hay resultad
 
 ---
 
-*Última actualización: Abril 2026*
+*Ultima actualizacion: Mayo 2026*

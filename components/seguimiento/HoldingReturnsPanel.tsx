@@ -45,6 +45,7 @@ interface Props {
   onCurrentValueUpdate?: (totalValue: number) => void;
   onPriceDateUpdate?: (date: string) => void;
   fundsMeta?: FundMeta[];
+  usdRate?: number;
 }
 
 // Colors for the chart lines
@@ -64,7 +65,7 @@ interface FintualPrice {
   currency: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta, usdRate }: Props) {
   const [selectedHoldings, setSelectedHoldings] = useState<Set<string>>(new Set());
   const showChart = false; // Chart removed per user request
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
@@ -341,11 +342,11 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         ? ((fintualCurrentPrice / h.purchasePrice) - 1) * 100
         : 0;
 
-      // For USD funds, keep the original CLP market value from the snapshot
-      // For CLP funds, recalculate with the updated price
+      // For USD funds, convert current USD price to CLP using dólar observado
+      // For CLP funds, recalculate directly with the updated price
       const holdingIsUSD = h.currency === "USD";
       const newMarketValue = holdingIsUSD
-        ? h.marketValue
+        ? (h.quantity > 0 && usdRate ? h.quantity * fintualCurrentPrice * usdRate : h.marketValue)
         : (h.quantity > 0 ? h.quantity * fintualCurrentPrice : h.marketValue);
 
       return {
@@ -358,7 +359,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         lastPriceDate: fp.lastPriceDate,
       };
     });
-  }, [holdingSummaries, fintualPrices, tacByFundName]);
+  }, [holdingSummaries, fintualPrices, tacByFundName, usdRate]);
 
   // Notify parent of updated total value and price date
   useEffect(() => {

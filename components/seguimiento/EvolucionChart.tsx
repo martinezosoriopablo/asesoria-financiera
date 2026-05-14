@@ -24,25 +24,44 @@ interface Props {
   snapshots: Snapshot[];
   historicalSeries?: HistoricalPoint[];
   loadingHistorical?: boolean;
+  period?: string;
 }
 
-export default function EvolucionChart({ snapshots, historicalSeries, loadingHistorical }: Props) {
+export default function EvolucionChart({ snapshots, historicalSeries, loadingHistorical, period }: Props) {
   // Use historical series if available, otherwise fall back to snapshots
   const chartData = useMemo(() => {
+    let raw: Array<{ date: string; fullDate: string; value: number }>;
+
     if (historicalSeries && historicalSeries.length > 0) {
-      return historicalSeries.map((p) => ({
+      raw = historicalSeries.map((p) => ({
         date: formatDateShort(p.fecha),
         fullDate: p.fecha,
         value: p.total,
       }));
+    } else {
+      raw = snapshots.map((s) => ({
+        date: formatDateShort(s.snapshot_date),
+        fullDate: s.snapshot_date,
+        value: s.total_value,
+      }));
     }
 
-    return snapshots.map((s) => ({
-      date: formatDateShort(s.snapshot_date),
-      fullDate: s.snapshot_date,
-      value: s.total_value,
-    }));
-  }, [snapshots, historicalSeries]);
+    // Apply period filter
+    if (period && period !== "ALL" && raw.length > 0) {
+      const now = new Date();
+      const startDate = new Date();
+      switch (period) {
+        case "1M": startDate.setMonth(now.getMonth() - 1); break;
+        case "3M": startDate.setMonth(now.getMonth() - 3); break;
+        case "6M": startDate.setMonth(now.getMonth() - 6); break;
+        case "1Y": startDate.setFullYear(now.getFullYear() - 1); break;
+      }
+      const startStr = startDate.toISOString().split("T")[0];
+      raw = raw.filter(d => d.fullDate >= startStr);
+    }
+
+    return raw;
+  }, [snapshots, historicalSeries, period]);
 
   // Tight Y-axis domain based on min/max with 5% padding
   const valueDomain = useMemo(() => {

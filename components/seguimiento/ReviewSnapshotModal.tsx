@@ -201,45 +201,111 @@ export default function ReviewSnapshotModal({
   // Index to auto-open search for (set after match completes, used once)
   const [pendingSearchIndex, setPendingSearchIndex] = useState<number | null>(null);
 
-  // Fetch exchange rates on mount
+  // Fetch exchange rates at cartola date (not today)
+  // Re-fetches when fechaCartola changes so valuation always matches the statement date
   useEffect(() => {
+    const controller = new AbortController();
+
     async function fetchRates() {
       setLoadingRates(true);
+      setUsingFallbackRates(false);
       try {
-        const res = await fetch("/api/exchange-rates");
-        const data = await res.json();
-        if (data.success) {
-          setExchangeRates({
-            usd: data.usd || 980,
-            eur: data.eur || 1060,
-            uf: data.uf || 38500,
-          });
-          // Warn if API returned but values look like fallbacks
-          if (!data.usd || !data.eur || !data.uf) {
-            setUsingFallbackRates(true);
-          }
-        } else {
-          setRatesError("Error al obtener tipos de cambio — usando valores estimados");
-          setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
+        const cartolaYear = fechaCartola.substring(0, 4);
+
+        // Fetch historical dólar + UF at cartola date in parallel
+        const [dolarRes, ufRes, eurRes] = await Promise.all([
+          fetch(`/api/exchange-rates/historical?indicator=dolar&year=${cartolaYear}`, { signal: controller.signal }).catch(() => null),
+          fetch(`/api/exchange-rates/historical?indicator=uf&year=${cartolaYear}`, { signal: controller.signal }).catch(() => null),
+          // EUR: mindicador.cl has historical euro data
+          fetch(`https://mindicador.cl/api/euro/${cartolaYear}`, { signal: controller.signal }).catch(() => null),
+        ]);
+
+        // Helper: find closest value <= fechaCartola from a sorted serie
+        const findClosest = (serie: Array<{ fecha: string; valor: number }>): number | null => {
+          const candidates = serie.filter(e => e.fecha <= fechaCartola);
+          if (candidates.length === 0) return null;
+          candidates.sort((a, b) => b.fecha.localeCompare(a.fecha));
+          return candidates[0].valor;
+        };
+
+        let usdRate = 980; // fallback
+        let ufRate = 38500;
+        let eurRate = 1060;
+        let anyHistorical = false;
+
+        // Dólar observado at cartola date
+        if (dolarRes) {
+          try {
+            const data = await dolarRes.json();
+            if (data.success && data.serie?.length > 0) {
+              const val = findClosest(data.serie);
+              if (val) { usdRate = val; anyHistorical = true; }
+              console.log(`[ReviewSnapshot] Dólar observado ${fechaCartola}: $${usdRate}`);
+            }
+          } catch { /* use fallback */ }
+        }
+
+        // UF at cartola date
+        if (ufRes) {
+          try {
+            const data = await ufRes.json();
+            if (data.success && data.serie?.length > 0) {
+              const val = findClosest(data.serie);
+              if (val) { ufRate = val; anyHistorical = true; }
+              console.log(`[ReviewSnapshot] UF ${fechaCartola}: $${ufRate}`);
+            }
+          } catch { /* use fallback */ }
+        }
+
+        // EUR at cartola date (mindicador.cl format)
+        if (eurRes) {
+          try {
+            const data = await eurRes.json();
+            if (data.serie?.length > 0) {
+              const serie = data.serie.map((e: { fecha: string; valor: number }) => ({
+                fecha: e.fecha.split("T")[0],
+                valor: e.valor,
+              }));
+              const val = findClosest(serie);
+              if (val) { eurRate = val; anyHistorical = true; }
+              console.log(`[ReviewSnapshot] EUR ${fechaCartola}: $${eurRate}`);
+            }
+          } catch { /* use fallback */ }
+        }
+
+        if (controller.signal.aborted) return;
+
+        setExchangeRates({ usd: usdRate, eur: eurRate, uf: ufRate });
+        if (!anyHistorical) {
           setUsingFallbackRates(true);
         }
       } catch {
-        setRatesError("Error de conexión — usando tipos de cambio estimados");
-        setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
-        setUsingFallbackRates(true);
+        if (!controller.signal.aborted) {
+          setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
+          setUsingFallbackRates(true);
+        }
       } finally {
-        setLoadingRates(false);
+        if (!controller.signal.aborted) {
+          setLoadingRates(false);
+        }
       }
     }
     fetchRates();
-  }, []);
+
+    return () => controller.abort();
+  }, [fechaCartola]);
 
   // Auto-match holdings on mount (with abort controller to handle strict mode double-fire)
+  // Skip in edit mode — holdings were already matched when snapshot was created
   useEffect(() => {
     const controller = new AbortController();
 
     async function autoMatchHoldings() {
       if (holdings.length === 0) return;
+      if (editMode) {
+        setAutoMatchComplete(true);
+        return;
+      }
 
       setAutoMatchLoading(true);
       try {

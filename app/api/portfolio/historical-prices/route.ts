@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { preloadYear, getDolarObservado } from "@/lib/bcch";
 
 // POST /api/portfolio/historical-prices
 // Producto punto: vector de cuotas × vector de precios por fecha
@@ -40,16 +41,17 @@ export async function POST(req: NextRequest) {
     quantity: number;
     tac: number | null;
     cartolaPrice: number;
+    moneda: string; // CLP, USD, etc. from fondos_mutuos.moneda_funcional
   }>();
 
   for (const h of holdings) {
     if (!h.run || !h.serie) continue;
     const key = `${h.run}-${h.serie}`;
 
-    // fondo_id from fondos_mutuos
+    // fondo_id + moneda from fondos_mutuos
     const { data: fondo } = await supabase
       .from("fondos_mutuos")
-      .select("id")
+      .select("id, moneda_funcional")
       .eq("fo_run", h.run)
       .eq("fm_serie", h.serie)
       .limit(1)
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
       quantity: h.quantity,
       tac: vw?.tac_sintetica ?? null,
       cartolaPrice: h.cartolaPrice || 0,
+      moneda: fondo.moneda_funcional || "CLP",
     });
   }
 
@@ -178,40 +181,58 @@ export async function POST(req: NextRequest) {
   //    Pre-fetch dólar observado en batch para no hacer 372 requests individuales.
   const normalizedPrices = new Map<string, Map<string, number>>();
 
-  // Pre-load dólar observado for all years in the date range
-  if (fromDate) {
+  // Pre-load dólar observado from Banco Central for all years in the date range
+  // Determine which funds need USD conversion using moneda_funcional (DB field)
+  const needsUsdConversion = new Set<string>();
+  for (const [key, info] of fundInfo) {
+    const m = info.moneda.toUpperCase();
+    if (m === "USD" || m === "US$" || m === "DOLAR" || m === "DOL") {
+      needsUsdConversion.add(key);
+    }
+  }
+
+  if (needsUsdConversion.size > 0 && fromDate) {
     const startYear = parseInt(fromDate.split("-")[0], 10);
     const endYear = new Date().getFullYear();
     for (let y = startYear; y <= endYear; y++) {
-      await preloadDolarYear(y);
+      await preloadYear("dolar", y);
     }
   }
 
   for (const [key, prices] of pricesByFund) {
     const info = fundInfo.get(key);
     const cartolaPrice = info?.cartolaPrice || 0;
+    const isUsdFund = needsUsdConversion.has(key);
     const fechaMap = new Map<string, number>();
     let usdCount = 0;
 
     for (const p of prices) {
       let precio = p.valor_cuota;
 
-      if (cartolaPrice > 0) {
-        const ratio = cartolaPrice / precio;
-        if (ratio >= 500 && ratio <= 1500) {
-          // This price is in USD, convert to CLP
-          const dolar = await fetchDolarObservado(p.fecha);
+      // Currency detection: prefer moneda_funcional from DB, fall back to ratio heuristic
+      const shouldConvert = isUsdFund || (
+        !isUsdFund && cartolaPrice > 0 && (() => {
+          const ratio = cartolaPrice / precio;
+          return ratio >= 500 && ratio <= 1500;
+        })()
+      );
+
+      if (shouldConvert) {
+        try {
+          const dolar = await getDolarObservado(p.fecha);
           precio = precio * dolar;
           usdCount++;
+        } catch {
+          // If BCCH fails, skip this price rather than use wrong currency
+          continue;
         }
-        // else: price is already in CLP (ratio close to 1)
       }
 
       fechaMap.set(p.fecha, precio);
     }
 
     if (usdCount > 0) {
-      console.log(`[historical-prices] ${info?.fundName}: ${usdCount}/${prices.length} prices converted USD→CLP`);
+      console.log(`[historical-prices] ${info?.fundName}: ${usdCount}/${prices.length} prices converted USD→CLP (source: ${isUsdFund ? "moneda_funcional" : "ratio heuristic"})`);
     }
 
     normalizedPrices.set(key, fechaMap);
@@ -228,8 +249,9 @@ export async function POST(req: NextRequest) {
   const sortedDates = [...allDates].sort();
   const fundKeys = [...fundInfo.keys()];
 
-  // Track last known price per fund for forward-fill
-  const lastKnownPrice = new Map<string, number>();
+  // Track last known price per fund for forward-fill (max 7 calendar days = ~5 business days)
+  const MAX_FORWARD_FILL_DAYS = 7;
+  const lastKnownPrice = new Map<string, { price: number; date: string }>();
 
   const series = sortedDates.map((fecha) => {
     let total = 0;
@@ -241,11 +263,23 @@ export async function POST(req: NextRequest) {
       const fechaMap = normalizedPrices.get(key);
       const precio = fechaMap?.get(fecha);
 
-      // Use current price or forward-fill from last known
-      const effectivePrice = precio ?? lastKnownPrice.get(key);
+      let effectivePrice: number | undefined;
+      if (precio !== undefined) {
+        effectivePrice = precio;
+        lastKnownPrice.set(key, { price: precio, date: fecha });
+      } else {
+        // Forward-fill only if last known price is within 7 calendar days
+        const last = lastKnownPrice.get(key);
+        if (last) {
+          const daysDiff = (new Date(fecha).getTime() - new Date(last.date).getTime()) / 86400000;
+          if (daysDiff <= MAX_FORWARD_FILL_DAYS) {
+            effectivePrice = last.price;
+          }
+          // else: gap too large, skip — avoids stale "flat" returns
+        }
+      }
 
       if (effectivePrice !== undefined) {
-        if (precio !== undefined) lastKnownPrice.set(key, precio);
         const valor = info.quantity * effectivePrice;
         fundValues[info.fundName] = Math.round(valor);
         total += valor;
@@ -256,10 +290,15 @@ export async function POST(req: NextRequest) {
     return { fecha, total: Math.round(total), _fundsWithPrice: fundsWithPrice, ...fundValues };
   });
 
-  // Filter out dates where we don't have data for at least half the funds
-  const minFunds = Math.max(1, Math.ceil(fundKeys.length / 2));
+  // Start from the first date where ALL funds have data (via forward-fill).
+  // Before that point, some funds contribute 0 which creates artificial jumps.
+  // After start, also exclude dates where a fund dropped out (gap > 7 days) —
+  // otherwise the total drops abruptly when one fund's contribution disappears.
+  const allFundsCount = fundKeys.length;
+  const startIdx = series.findIndex((p) => p._fundsWithPrice >= allFundsCount);
   const filteredSeries = series
-    .filter((p) => p._fundsWithPrice >= minFunds)
+    .slice(startIdx >= 0 ? startIdx : 0)
+    .filter((p) => p._fundsWithPrice >= allFundsCount)
     .map(({ _fundsWithPrice, ...rest }) => rest);
 
   // 6. Info de fondos
@@ -285,52 +324,5 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Cache dólar observado — pre-cargado por año completo
-const dolarCache = new Map<string, number>();
-const yearsLoaded = new Set<number>();
-
-async function preloadDolarYear(year: number): Promise<void> {
-  if (yearsLoaded.has(year)) return;
-  try {
-    const res = await fetch(`https://mindicador.cl/api/dolar/${year}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.serie && Array.isArray(data.serie)) {
-        for (const entry of data.serie) {
-          // entry.fecha is ISO string like "2025-04-16T04:00:00.000Z"
-          const fecha = entry.fecha.split("T")[0];
-          dolarCache.set(fecha, entry.valor);
-        }
-        yearsLoaded.add(year);
-        console.log(`[dolar] Loaded ${data.serie.length} rates for ${year}`);
-      }
-    }
-  } catch (err) {
-    console.warn(`[dolar] Failed to load year ${year}:`, err);
-  }
-}
-
-async function fetchDolarObservado(fecha: string): Promise<number> {
-  const cached = dolarCache.get(fecha);
-  if (cached) return cached;
-
-  // Load the full year if not loaded yet
-  const year = parseInt(fecha.split("-")[0], 10);
-  if (!yearsLoaded.has(year)) {
-    await preloadDolarYear(year);
-    const afterLoad = dolarCache.get(fecha);
-    if (afterLoad) return afterLoad;
-  }
-
-  // Weekends/holidays: find nearest earlier date in cache
-  const sorted = [...dolarCache.entries()]
-    .filter(([d]) => d <= fecha)
-    .sort((a, b) => b[0].localeCompare(a[0]));
-  if (sorted.length > 0) {
-    const val = sorted[0][1];
-    dolarCache.set(fecha, val); // cache for next time
-    return val;
-  }
-
-  return 950; // ultimate fallback
-}
+// Dólar observado functions now centralized in lib/bcch.ts
+// Uses Banco Central de Chile SI3 API (canonical source)

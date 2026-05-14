@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import EvolucionChart from "./EvolucionChart";
@@ -12,10 +11,11 @@ import ReviewSnapshotModal from "./ReviewSnapshotModal";
 import PerformanceAttribution from "./PerformanceAttribution";
 import ComparacionBar from "./ComparacionBar";
 import HoldingReturnsPanel from "./HoldingReturnsPanel";
-import HoldingDiagnosticPanel from "./HoldingDiagnosticPanel";
+
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
 import RadiografiaCartola from "./RadiografiaCartola";
+import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import {
   ArrowLeft,
   Loader,
@@ -36,6 +36,8 @@ interface Client {
   nombre: string;
   apellido: string;
   email: string;
+  puntaje_riesgo?: number;
+  perfil_riesgo?: string;
   cartera_recomendada?: {
     equity_percent?: number;
     fixed_income_percent?: number;
@@ -266,7 +268,9 @@ export default function SeguimientoPage({ clientId }: Props) {
         serie: h.serie || "",
         quantity: h.quantity || 0,
         currency: h.currency || "CLP",
-        cartolaPrice: h.marketPrice || (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0),
+        // Always use CLP-based price (marketValue/quantity) for currency detection in the API.
+        // marketPrice can be in USD for USD-denominated funds, which breaks the ratio check.
+        cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
       }));
 
     if (holdingsWithRun.length === 0) return;
@@ -409,6 +413,14 @@ export default function SeguimientoPage({ clientId }: Props) {
     const getReturnForPeriod = (targetStr: string): PeriodReturn | null => {
       const point = historicalSeries.find((p) => (p.fecha as string) >= targetStr);
       if (!point || point === latest) return null;
+
+      // If the closest point is more than 10 days after the target date,
+      // the series doesn't have enough data for this period — skip it
+      // rather than showing the same return for all periods
+      const pointDate = new Date(point.fecha as string);
+      const targetDate = new Date(targetStr);
+      const daysDiff = (pointDate.getTime() - targetDate.getTime()) / 86400000;
+      if (daysDiff > 10) return null;
 
       const startValue = point.total as number;
       if (startValue <= 0) return null;
@@ -613,6 +625,22 @@ export default function SeguimientoPage({ clientId }: Props) {
     return snaps.filter(s => s.snapshot_date >= startStr);
   }, [data?.snapshots, period]);
 
+  // Use cartera_recomendada if available, otherwise derive from puntaje_riesgo
+  const recommendation = useMemo(() => {
+    const rawRecommendation = data?.recommendation;
+    if (rawRecommendation) return rawRecommendation;
+    if (data?.client?.puntaje_riesgo) {
+      const bm = getBenchmarkFromScore(data.client.puntaje_riesgo, true, "global");
+      return {
+        equity_percent: bm.weights.equities,
+        fixed_income_percent: bm.weights.fixedIncome,
+        alternatives_percent: bm.weights.alternatives,
+        cash_percent: bm.weights.cash,
+      };
+    }
+    return null;
+  }, [data?.recommendation, data?.client?.puntaje_riesgo]);
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -673,16 +701,6 @@ export default function SeguimientoPage({ clientId }: Props) {
   if (error || !data) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-        {advisor && (
-          <AdvisorHeader
-            advisorName={advisor.name}
-            advisorEmail={advisor.email}
-            advisorPhoto={advisor.photo}
-            advisorLogo={advisor.logo}
-            companyName={advisor.companyName}
-            isAdmin={advisor.isAdmin}
-          />
-        )}
         <div className="max-w-6xl mx-auto px-5 py-8">
           <div className="text-center py-12">
             <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
@@ -696,21 +714,10 @@ export default function SeguimientoPage({ clientId }: Props) {
     );
   }
 
-  const { client, snapshots, metrics, recommendation } = data;
+  const { client, snapshots, metrics } = data;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {advisor && (
-        <AdvisorHeader
-          advisorName={advisor.name}
-          advisorEmail={advisor.email}
-          advisorPhoto={advisor.photo}
-          advisorLogo={advisor.logo}
-          companyName={advisor.companyName}
-          isAdmin={advisor.isAdmin}
-        />
-      )}
-
       <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -946,7 +953,7 @@ export default function SeguimientoPage({ clientId }: Props) {
 
         {/* Holding Returns Panel */}
         {snapshots.length > 0 && (
-          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} fundsMeta={fundsMeta} />
+          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} fundsMeta={fundsMeta} usdRate={exchangeRates?.usd} />
         )}
 
         {/* Evolution chart */}
@@ -981,6 +988,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                 snapshots={chartSnapshots}
                 historicalSeries={historicalSeries}
                 loadingHistorical={loadingHistorical}
+                period={period}
               />
             </div>
           </div>
@@ -1261,14 +1269,6 @@ export default function SeguimientoPage({ clientId }: Props) {
         <div className="mb-6">
           <RecommendationHistory clientId={clientId} />
         </div>
-
-        {/* Holding Diagnostic Panel - latest snapshot */}
-        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
-          <HoldingDiagnosticPanel
-            snapshot={snapshots[snapshots.length - 1] as Parameters<typeof HoldingDiagnosticPanel>[0]["snapshot"]}
-            onUpdate={fetchData}
-          />
-        )}
 
         {/* Radiografía del Portafolio - X-ray de costos y alternativas */}
         {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
