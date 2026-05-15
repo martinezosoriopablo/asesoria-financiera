@@ -312,7 +312,104 @@ export function calcularAhorroTAC(
 }
 
 // ---------------------------------------------------------------------------
-// 7. vpnReal
+// 7. calcularAlphaPorReasignacion
+// ---------------------------------------------------------------------------
+
+export interface AlphaInput {
+  holdings: { categoria: string; currentValueUF: number }[];
+  totalValueUF: number;
+  puntajeRiesgo: number;
+  rentabilidadesEsperadas: Record<string, number>;
+}
+
+// Risk-band target allocations (duplicated from risk module to keep tax lib pure)
+const BANDAS_RIESGO: Record<
+  string,
+  { equities: number; fixedIncome: number; alt: number; cash: number }
+> = {
+  defensivo:   { equities: 0.25, fixedIncome: 0.60, alt: 0.10, cash: 0.05 },
+  moderado:    { equities: 0.45, fixedIncome: 0.45, alt: 0.10, cash: 0.00 },
+  crecimiento: { equities: 0.65, fixedIncome: 0.25, alt: 0.10, cash: 0.00 },
+  agresivo:    { equities: 0.85, fixedIncome: 0.10, alt: 0.05, cash: 0.00 },
+};
+
+function getBandaRiesgo(puntaje: number) {
+  if (puntaje < 30) return BANDAS_RIESGO.defensivo;
+  if (puntaje < 55) return BANDAS_RIESGO.moderado;
+  if (puntaje < 80) return BANDAS_RIESGO.crecimiento;
+  return BANDAS_RIESGO.agresivo;
+}
+
+function bandaToCategories(banda: {
+  equities: number;
+  fixedIncome: number;
+  alt: number;
+  cash: number;
+}): Record<string, number> {
+  return {
+    "Renta Variable Internacional": banda.equities * 0.70 * 100,
+    "Renta Variable Nacional": banda.equities * 0.30 * 100,
+    "Renta Fija Internacional": banda.fixedIncome * 0.50 * 100,
+    "Renta Fija Nacional": banda.fixedIncome * 0.50 * 100,
+    "Alternativos": banda.alt * 100,
+    "Otros": banda.cash * 100,
+  };
+}
+
+export function calcularAlphaPorReasignacion(input: AlphaInput): {
+  asignacionActual: Record<string, number>;
+  asignacionObjetivo: Record<string, number>;
+  rentabilidadEsperadaActual: number;
+  rentabilidadEsperadaPropuesta: number;
+  deltaRentabilidad: number;
+  impacto5Y_UF: number;
+  impacto10Y_UF: number;
+  impacto20Y_UF: number;
+} {
+  const { holdings, totalValueUF, puntajeRiesgo, rentabilidadesEsperadas } = input;
+
+  // 1. Current allocation by category (% of total)
+  const asignacionActual: Record<string, number> = {};
+  for (const h of holdings) {
+    const cat = h.categoria || "Otros";
+    asignacionActual[cat] = (asignacionActual[cat] || 0) + (h.currentValueUF / totalValueUF) * 100;
+  }
+
+  // 2. Target allocation from risk benchmark
+  const banda = getBandaRiesgo(puntajeRiesgo);
+  const asignacionObjetivo = bandaToCategories(banda);
+
+  // 3. Weighted average expected returns
+  let rentActual = 0;
+  for (const [cat, pct] of Object.entries(asignacionActual)) {
+    rentActual += (pct / 100) * (rentabilidadesEsperadas[cat] ?? 0);
+  }
+
+  let rentPropuesta = 0;
+  for (const [cat, pct] of Object.entries(asignacionObjetivo)) {
+    rentPropuesta += (pct / 100) * (rentabilidadesEsperadas[cat] ?? 0);
+  }
+
+  const delta = rentPropuesta - rentActual;
+
+  // 4. Impact projections
+  const impacto = (n: number) =>
+    totalValueUF * (Math.pow(1 + rentPropuesta, n) - Math.pow(1 + rentActual, n));
+
+  return {
+    asignacionActual,
+    asignacionObjetivo,
+    rentabilidadEsperadaActual: rentActual,
+    rentabilidadEsperadaPropuesta: rentPropuesta,
+    deltaRentabilidad: delta,
+    impacto5Y_UF: impacto(5),
+    impacto10Y_UF: impacto(10),
+    impacto20Y_UF: impacto(20),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 8. vpnReal
 // ---------------------------------------------------------------------------
 export function vpnReal(
   flujos: { ano: number; montoUF: number }[],

@@ -7,8 +7,10 @@ import {
   calcularMitigacion,
   calcularAhorroTAC,
   vpnReal,
+  calcularAlphaPorReasignacion,
 } from "./calculator";
 import type { TaxableHolding } from "./types";
+import { RENTABILIDAD_ESPERADA_REAL } from "@/lib/constants/chilean-tax";
 
 // ---------------------------------------------------------------------------
 // 1. getTramoMarginal
@@ -318,5 +320,54 @@ describe("calcularMitigacion", () => {
     // Huge mitigation vs small tax
     const result = calcularMitigacion(5, 960, 0, 0, 100, 100);
     expect(result.impuestoNeto_UF).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. calcularAlphaPorReasignacion
+// ---------------------------------------------------------------------------
+describe("calcularAlphaPorReasignacion", () => {
+  it("calculates positive alpha when rebalancing from RF-heavy to crecimiento", () => {
+    const result = calcularAlphaPorReasignacion({
+      holdings: [
+        { categoria: "Renta Fija Nacional", currentValueUF: 8000 },
+        { categoria: "Renta Variable Nacional", currentValueUF: 2000 },
+      ],
+      totalValueUF: 10000,
+      puntajeRiesgo: 70,
+      rentabilidadesEsperadas: RENTABILIDAD_ESPERADA_REAL,
+    });
+    expect(result.deltaRentabilidad).toBeGreaterThan(0);
+    expect(result.impacto10Y_UF).toBeGreaterThan(0);
+  });
+
+  it("returns near-zero alpha when already aligned", () => {
+    // Portfolio roughly matching crecimiento: 65% RV, 25% RF, 10% alt
+    const result = calcularAlphaPorReasignacion({
+      holdings: [
+        { categoria: "Renta Variable Internacional", currentValueUF: 4550 },
+        { categoria: "Renta Variable Nacional", currentValueUF: 1950 },
+        { categoria: "Renta Fija Nacional", currentValueUF: 1250 },
+        { categoria: "Renta Fija Internacional", currentValueUF: 1250 },
+        { categoria: "Alternativos", currentValueUF: 1000 },
+      ],
+      totalValueUF: 10500,
+      puntajeRiesgo: 70,
+      rentabilidadesEsperadas: RENTABILIDAD_ESPERADA_REAL,
+    });
+    expect(Math.abs(result.deltaRentabilidad)).toBeLessThan(0.01);
+  });
+
+  it("returns negative alpha when already over-allocated to equities vs defensivo target", () => {
+    const result = calcularAlphaPorReasignacion({
+      holdings: [
+        { categoria: "Renta Variable Internacional", currentValueUF: 8000 },
+        { categoria: "Renta Fija Nacional", currentValueUF: 2000 },
+      ],
+      totalValueUF: 10000,
+      puntajeRiesgo: 20, // defensivo: only 25% equities
+      rentabilidadesEsperadas: RENTABILIDAD_ESPERADA_REAL,
+    });
+    expect(result.deltaRentabilidad).toBeLessThan(0);
   });
 });
