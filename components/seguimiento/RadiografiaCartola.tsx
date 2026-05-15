@@ -84,6 +84,7 @@ interface ProposalHolding {
   proposedSharpe: number | null;
   tacSavingBps: number;
   changed: boolean;
+  isPreferred?: boolean;
 }
 
 interface OptimizedProposal {
@@ -545,6 +546,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
       let proposedRent3m = ph.proposedRent3m;
       let proposedRent12m = ph.proposedRent12m;
       let changed = ph.changed;
+      let isPreferred = ph.isPreferred || false;
 
       if (override) {
         proposedFund = override.proposedFund;
@@ -555,6 +557,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
         proposedRent3m = override.proposedRent3m;
         proposedRent12m = override.proposedRent12m;
         changed = true;
+        isPreferred = false; // manual override replaces the preferred flag
       }
 
       // Manual TAC override for proposed fund (takes priority)
@@ -578,6 +581,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
         proposedRent12m,
         tacSavingBps,
         changed,
+        isPreferred,
       };
     });
 
@@ -1170,6 +1174,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                               <div className="flex items-center gap-1">
                                 <div className="flex-1 min-w-0">
                                   <span className={`font-medium truncate block max-w-[160px] ${hasOverride ? "text-blue-700" : "text-green-700"}`} title={ph.proposedFund}>
+                                    {ph.isPreferred && <span className="text-[9px] px-1 py-0 rounded bg-amber-100 text-amber-700 font-semibold mr-1">MI FONDO</span>}
                                     {ph.proposedFund.length > 26 ? ph.proposedFund.substring(0, 26) + "..." : ph.proposedFund}
                                   </span>
                                   <span className="text-[10px] text-gb-gray">{ph.proposedAgf}{ph.proposedSerie && ` — ${ph.proposedSerie}`}</span>

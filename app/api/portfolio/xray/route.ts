@@ -102,6 +102,7 @@ interface ProposalHolding {
   proposedSharpe: number | null;
   tacSavingBps: number; // basis points saved
   changed: boolean; // false if no cheaper alternative found (keep current)
+  isPreferred?: boolean; // proposed fund is from advisor's preferred list
 }
 
 interface OptimizedProposal {
@@ -655,6 +656,7 @@ export async function POST(request: NextRequest) {
         proposedSharpe: bestAlt ? bestAlt.sharpe_365d : null,
         tacSavingBps: bestAlt && h.tac ? Math.round((h.tac - bestAlt.tac_sintetica) * 100) : 0,
         changed: !!bestAlt,
+        isPreferred: bestAlt?.isPreferred || false,
       };
     });
 
