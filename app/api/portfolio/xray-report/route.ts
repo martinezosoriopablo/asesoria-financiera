@@ -62,13 +62,16 @@ export async function POST(request: NextRequest) {
   const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
 
   try {
-    const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue } = await request.json() as {
+    const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue, cartolaDate, currentValue, currentValueDate } = await request.json() as {
       xrayData: XrayData;
       clientName?: string;
       advisoryFee?: number;
       customContext?: string;
       ufValue?: number;
       usdValue?: number;
+      cartolaDate?: string;
+      currentValue?: number;
+      currentValueDate?: string;
     };
     const fee = advisoryFee || 1.0;
 
@@ -125,9 +128,12 @@ export async function POST(request: NextRequest) {
 ${customContext ? `NOTAS DEL ASESOR (incorpora este contexto en las secciones que corresponda):
 ${customContext}
 
-` : ""}PORTAFOLIO ACTUAL DEL CLIENTE${clientName ? ` (${clientName})` : ""}:
+` : ""}PORTAFOLIO DEL CLIENTE${clientName ? ` (${clientName})` : ""}:
 
-Valor Total: $${(xrayData.totalValue || 0).toLocaleString("es-CL")}${ufValue ? ` (UF ${(xrayData.totalValue / ufValue).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}${usdValue ? ` (USD ${(xrayData.totalValue / usdValue).toLocaleString("es-CL", { maximumFractionDigits: 0 })})` : ""}
+${cartolaDate ? `Fecha de la Cartola: ${cartolaDate}` : ""}
+Valor a Fecha de Cartola: $${(xrayData.totalValue || 0).toLocaleString("es-CL")}${ufValue ? ` (UF ${(xrayData.totalValue / ufValue).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}${usdValue ? ` (USD ${(xrayData.totalValue / usdValue).toLocaleString("es-CL", { maximumFractionDigits: 0 })})` : ""}
+${currentValue ? `Valor Actual (${currentValueDate || "hoy"}): $${currentValue.toLocaleString("es-CL")}${ufValue ? ` (UF ${(currentValue / ufValue).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}${usdValue ? ` (USD ${(currentValue / usdValue).toLocaleString("es-CL", { maximumFractionDigits: 0 })})` : ""}` : ""}
+${currentValue && xrayData.totalValue ? `Variación desde cartola: ${currentValue >= xrayData.totalValue ? "+" : ""}$${(currentValue - xrayData.totalValue).toLocaleString("es-CL")} (${((currentValue - xrayData.totalValue) / xrayData.totalValue * 100).toFixed(1)}%)` : ""}
 Composición Actual: ${allocationSummary}
 TAC Promedio Ponderado del Cliente: ${(xrayData.tacPromedioPortfolio || 0).toFixed(2)}%
 Costo Anual que Paga el Cliente (fondos): $${(xrayData.costoAnualTotal || 0).toLocaleString("es-CL")}
@@ -176,6 +182,7 @@ FORMATO DEL INFORME (usa exactamente estas secciones con ##):
 REGLAS:
 - Español chileno profesional
 - Sé específico: usa nombres de fondos y cifras concretas
+- SIEMPRE distingue entre el valor a fecha de cartola y el valor actual — son datos distintos
 - NUNCA confundas los costos actuales del cliente con los propuestos — son datos distintos
 - La sección "Propuesta de Referencia" es la propuesta de valor para el cliente
 - La sección "Observaciones del Asesor" debe quedar con espacio para que el asesor agregue sus propios comentarios al editar

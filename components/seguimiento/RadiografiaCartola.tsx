@@ -170,9 +170,12 @@ interface Props {
   clientName?: string;
   clientId?: string;
   fundsMeta?: FundMeta[];
+  cartolaDate?: string;     // fecha de la cartola (snapshot_date)
+  currentValue?: number;    // valor actual del portafolio (último punto historicalSeries)
+  currentValueDate?: string; // fecha del último precio
 }
 
-export default function RadiografiaCartola({ holdings, clientName, clientId, fundsMeta }: Props) {
+export default function RadiografiaCartola({ holdings, clientName, clientId, fundsMeta, cartolaDate, currentValue, currentValueDate }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<XrayData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -381,6 +384,9 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           customContext: customContext.trim() || undefined,
           ufValue: ufValue || undefined,
           usdValue: usdValue || undefined,
+          cartolaDate: cartolaDate || undefined,
+          currentValue: currentValue || undefined,
+          currentValueDate: currentValueDate || undefined,
         }),
       });
       const result = await res.json();
