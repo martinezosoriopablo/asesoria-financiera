@@ -1522,6 +1522,56 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
         />
       )}
 
+      {/* Tax Summary Section */}
+      {data?.holdings && data.holdings.length > 0 && (
+        <div className="bg-white rounded-lg border border-gb-border shadow-sm">
+          <div className="px-4 py-3 border-b border-gb-border">
+            <h3 className="text-sm font-semibold text-gb-black">Analisis Tributario del Cambio</h3>
+            <p className="text-[11px] text-gb-gray mt-0.5">Regimen tributario de cada posicion para el cambio de custodia.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gb-border bg-gray-50">
+                  <th className="px-3 py-2 text-left font-medium text-gb-gray">Fondo</th>
+                  <th className="px-3 py-2 text-left font-medium text-gb-gray">Regimen</th>
+                  <th className="px-3 py-2 text-center font-medium text-gb-gray">MLT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.holdings.map((h: HoldingAnalysis, i: number) => (
+                  <tr key={i} className="border-b border-gb-border/50 last:border-0">
+                    <td className="px-3 py-2 text-gb-black">{h.fundName}</td>
+                    <td className="px-3 py-2">
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                        h.beneficio107lir ? "bg-blue-100 text-blue-700" :
+                        h.beneficio108lir ? "bg-purple-100 text-purple-700" :
+                        h.isApvEligible ? "bg-green-100 text-green-700" :
+                        "bg-gray-100 text-gray-700"
+                      }`}>
+                        {h.beneficio107lir ? "Art. 107 (10%)" :
+                         h.beneficio108lir ? "Art. 108/MLT" :
+                         h.isApvEligible ? "APV" : "General"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center">{h.beneficio108lir ? "Si" : "No"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 border-t border-gb-border">
+            <a
+              href="/tax-optimizer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-gb-primary hover:text-gb-primary/80"
+            >
+              Ver simulador completo
+              <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Report Section */}
       <div className="bg-white rounded-lg border border-gb-border shadow-sm">
         <div className="px-4 py-3 border-b border-gb-border flex items-center justify-between">
