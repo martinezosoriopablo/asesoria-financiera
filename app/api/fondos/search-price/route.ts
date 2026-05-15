@@ -269,26 +269,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch advisor's preferred funds to mark and prioritize them
-    const preferredRunSeries = new Set<string>();
+    const preferredRuns = new Set<number>();
     if (advisor) {
       const { data: prefFunds } = await supabase
         .from("advisor_preferred_funds")
-        .select("fund_run, fund_serie")
+        .select("fund_run")
         .eq("advisor_id", advisor.id)
         .eq("active", true);
       if (prefFunds) {
         for (const pf of prefFunds) {
-          const run = pf.fund_run.replace(/-FI$/, "").split("-")[0];
-          preferredRunSeries.add(`${run}|${pf.fund_serie || ""}`);
+          const run = parseInt(pf.fund_run.replace(/-FI$/, "").split("-")[0], 10);
+          if (!isNaN(run)) preferredRuns.add(run);
         }
       }
     }
 
     // Sort: preferred funds first, then stocks if ticker, then by price
     results.sort((a, b) => {
-      // Preferred funds first (only for fund type)
-      const aPref = a.type === "fund" && a.fo_run && a.serie && preferredRunSeries.has(`${a.fo_run}|${a.serie}`) ? 0 : 1;
-      const bPref = b.type === "fund" && b.fo_run && b.serie && preferredRunSeries.has(`${b.fo_run}|${b.serie}`) ? 0 : 1;
+      // Preferred funds first (match by run number)
+      const aPref = a.type === "fund" && a.fo_run && preferredRuns.has(a.fo_run) ? 0 : 1;
+      const bPref = b.type === "fund" && b.fo_run && preferredRuns.has(b.fo_run) ? 0 : 1;
       if (aPref !== bPref) return aPref - bPref;
       // If query looks like a ticker, prioritize stocks
       if (looksLikeTicker(q)) {
@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
 
     // Mark preferred funds
     for (const r of results) {
-      if (r.type === "fund" && r.fo_run && r.serie && preferredRunSeries.has(`${r.fo_run}|${r.serie}`)) {
+      if (r.type === "fund" && r.fo_run && preferredRuns.has(r.fo_run)) {
         r.isPreferred = true;
       }
     }

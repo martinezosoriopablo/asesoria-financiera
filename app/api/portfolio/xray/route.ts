@@ -302,19 +302,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch advisor's preferred funds for priority in alternatives
+    // fund_run format: "8620-APV" (FM: run-serie) or "9277-FI" (FI: run-FI)
+    const preferredRuns = new Set<number>();
     const preferredRunSeries = new Set<string>();
     if (advisor) {
       const { data: prefFunds } = await supabase
         .from("advisor_preferred_funds")
-        .select("fund_run, fund_serie")
+        .select("fund_run")
         .eq("advisor_id", advisor.id)
         .eq("active", true);
       if (prefFunds) {
         for (const pf of prefFunds) {
-          // fund_run format: "8118-B" or "76.XXX.XXX-K-FI"
-          const run = pf.fund_run.replace(/-FI$/, "").split("-")[0];
-          const serie = pf.fund_serie || "";
-          if (run && serie) preferredRunSeries.add(`${run}|${serie}`);
+          const isFI = pf.fund_run.endsWith("-FI");
+          const parts = pf.fund_run.replace(/-FI$/, "").split("-");
+          const run = parseInt(parts[0], 10);
+          if (!isNaN(run)) {
+            preferredRuns.add(run);
+            if (!isFI && parts[1]) {
+              // FM with specific serie: "8620-APV" → run=8620, serie=APV
+              preferredRunSeries.add(`${run}|${parts[1]}`);
+            }
+          }
         }
       }
     }
@@ -484,10 +492,10 @@ export async function POST(request: NextRequest) {
             return fCat === categoria;
           });
 
-          // Sort: preferred funds first, then by TAC ascending
+          // Sort: preferred funds first (match by run, or run+serie if FM), then by TAC ascending
           candidates.sort((a, b) => {
-            const aPreferred = preferredRunSeries.has(`${a.fo_run}|${a.fm_serie}`) ? 0 : 1;
-            const bPreferred = preferredRunSeries.has(`${b.fo_run}|${b.fm_serie}`) ? 0 : 1;
+            const aPreferred = (preferredRuns.has(a.fo_run) || preferredRunSeries.has(`${a.fo_run}|${a.fm_serie}`)) ? 0 : 1;
+            const bPreferred = (preferredRuns.has(b.fo_run) || preferredRunSeries.has(`${b.fo_run}|${b.fm_serie}`)) ? 0 : 1;
             if (aPreferred !== bPreferred) return aPreferred - bPreferred;
             return (a.tac_sintetica || 99) - (b.tac_sintetica || 99);
           });
@@ -504,7 +512,7 @@ export async function POST(request: NextRequest) {
               sharpe_365d: returns?.sharpe_365d || null,
               patrimonio_mm: returns?.patrimonio_mm || null,
               categoria,
-              isPreferred: preferredRunSeries.has(`${c.fo_run}|${c.fm_serie}`),
+              isPreferred: preferredRuns.has(c.fo_run) || preferredRunSeries.has(`${c.fo_run}|${c.fm_serie}`),
             });
           }
 
