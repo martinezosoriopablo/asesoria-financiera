@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runScenarioA, runScenarioB, runScenarioC, runScenarioD, runAllScenarios } from "./scenarios";
+import { runScenarioA, runScenarioB, runScenarioC, runAllScenarios } from "./scenarios";
 import type { TaxSimulatorInputs, TaxableHolding } from "./types";
 
 function makeHolding(overrides: Partial<TaxableHolding> = {}): TaxableHolding {

@@ -394,7 +394,7 @@ export function runScenarioB(
 export function runScenarioC(
   inputs: TaxSimulatorInputs,
   utaValueUF: number,
-  ufValue: number
+  _ufValue: number
 ): ScenarioResult {
   const anosHastaJubilacion = Math.max(1, inputs.edadJubilacion - inputs.edad);
 

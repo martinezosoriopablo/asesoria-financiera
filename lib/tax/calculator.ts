@@ -144,7 +144,7 @@ export function calcularImpuestoAnual(
       continue;
     }
 
-    if (h.canMLT && h.taxRegime !== "apv" && h.taxRegime !== "107") {
+    if (h.canMLT) {
       results.push({
         fundName: h.fundName,
         run: h.run,
