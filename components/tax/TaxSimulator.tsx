@@ -127,7 +127,8 @@ export default function TaxSimulator({ initialClientId }: Props) {
       }
 
       // Fetch historical quotes for cost estimation (funds without costBasis)
-      let quotes: Record<string, { today: number | null; prices: { years: number; price: number | null; date: string }[] }> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let quotes: Record<string, any> = {};
       const fundsNeedingQuotes = rawHoldings
         .filter((h: { costBasis?: number; securityId?: string; serie?: string }) =>
           !h.costBasis && h.securityId && h.serie
@@ -154,12 +155,48 @@ export default function TaxSimulator({ initialClientId }: Props) {
         }
       }
 
+      // For holdings WITH costBasis, auto-detect purchase date via unitCost matching
+      // Then fetch UF at that date for corrección monetaria
+      const purchaseUFs: Record<string, { date: string; uf: number }> = {};
+      const holdingsWithCost = rawHoldings.filter(
+        (h: { costBasis?: number; unitCost?: number; securityId?: string; serie?: string }) =>
+          h.costBasis && h.costBasis > 0 && h.unitCost && h.securityId && h.serie
+      );
+
+      if (holdingsWithCost.length > 0) {
+        try {
+          const pdRes = await fetch("/api/tax/detect-purchase-dates", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              holdings: holdingsWithCost.map((h: { securityId: string; serie: string; unitCost: number }) => ({
+                run: parseInt(h.securityId, 10),
+                serie: h.serie,
+                unitCost: h.unitCost,
+              })),
+            }),
+          });
+          if (pdRes.ok) {
+            const pdData = await pdRes.json();
+            const detected = pdData.data?.results || {};
+            for (const [key, val] of Object.entries(detected)) {
+              const v = val as { date: string; ufAtDate: number };
+              if (v.date && v.ufAtDate > 0) {
+                purchaseUFs[key] = { date: v.date, uf: v.ufAtDate };
+              }
+            }
+          }
+        } catch {
+          console.warn("TaxSimulator: purchase date detection failed, using UF today as fallback");
+        }
+      }
+
       // Convert to TaxableHolding[]
       const taxHoldings = convertToTaxHoldings(
         rawHoldings,
         xrayHoldings,
         ufValue,
-        { usdRate, quotes },
+        { usdRate, quotes, purchaseUFs },
       );
 
       if (taxHoldings.length === 0) {

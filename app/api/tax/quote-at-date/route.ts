@@ -4,6 +4,7 @@
 import { NextRequest } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { handleApiError, successResponse, errorResponse } from "@/lib/api-response";
+import { getUF } from "@/lib/bcch";
 
 export async function POST(req: NextRequest) {
   return handleApiError("tax/quote-at-date", async () => {
@@ -63,10 +64,19 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .single();
 
+    // Fetch UF at the historical date for corrección monetaria
+    const actualDate = historical?.fecha ?? date;
+    let ufAtDate = 0;
+    try { ufAtDate = await getUF(actualDate); } catch { /* 0 = unknown */ }
+    let ufToday = 0;
+    try { ufToday = await getUF(new Date().toISOString().split("T")[0]); } catch { /* 0 */ }
+
     return successResponse({
       todayPrice: current.valor_cuota,
       historicalPrice: historical?.valor_cuota ?? null,
       historicalDate: historical?.fecha ?? null,
+      ufAtDate,
+      ufToday,
     });
   });
 }

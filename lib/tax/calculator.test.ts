@@ -148,10 +148,12 @@ describe("calcularImpuestoAnual", () => {
     fundName: "Test Fund",
     run: 1234,
     serie: "A",
+    currentValueCLP: 3800000,
     currentValueUF: 100,
     quantity: 100,
     acquisitionDate: "2023-01-01",
     acquisitionCostUF: 80,
+    ufAtPurchase: 35000,
     estimatedCosts: [],
     taxRegime: "general",
     preTransitional: false,
@@ -273,7 +275,7 @@ describe("calcularImpuestoAnual", () => {
   it("Uses estimatedCosts fallback when acquisitionCostUF is null", () => {
     const holding = makeHolding({
       acquisitionCostUF: null,
-      estimatedCosts: [{ years: 3, costUF: 85, gainsUF: 15 }],
+      estimatedCosts: [{ years: 3, costUF: 85, gainsUF: 15, ufAtDate: 35000 }],
       fundName: "No Cost Fund",
     });
     const result = calcularImpuestoAnual([holding], 0, false, 0.66);

@@ -62,7 +62,11 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
 
     if (onHoldingsChange) {
       const updated = [...holdings];
-      updated[holdingIndex] = { ...h, acquisitionCostUF: estimate.costUF };
+      updated[holdingIndex] = {
+        ...h,
+        acquisitionCostUF: estimate.costUF,
+        ufAtPurchase: estimate.ufAtDate,
+      };
       onHoldingsChange(updated);
     }
   }
@@ -78,7 +82,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
         const estimate = h.estimatedCosts.find(e => e.years === years);
         if (estimate) {
           newSelected[i] = years;
-          updated[i] = { ...h, acquisitionCostUF: estimate.costUF };
+          updated[i] = { ...h, acquisitionCostUF: estimate.costUF, ufAtPurchase: estimate.ufAtDate };
         }
       }
     });
@@ -107,16 +111,23 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
       const data = await res.json();
       const todayPrice = data.data?.todayPrice;
       const historicalPrice = data.data?.historicalPrice;
+      const ufAtDate = data.data?.ufAtDate;
+      const ufToday = data.data?.ufToday;
 
-      if (todayPrice && historicalPrice && todayPrice > 0) {
+      if (todayPrice && historicalPrice && todayPrice > 0 && ufAtDate > 0 && ufToday > 0) {
+        // costCLP = currentValueCLP * (historicalPrice / todayPrice)
+        // costUF = costCLP / ufAtDate (corrección monetaria)
         const ratio = historicalPrice / todayPrice;
-        const costUF = h.currentValueUF * ratio;
+        const costCLP = h.currentValueCLP * ratio;
+        const costUF = costCLP / ufAtDate;
 
         if (onHoldingsChange) {
           const updated = [...holdings];
           updated[holdingIndex] = {
             ...h,
             acquisitionCostUF: costUF,
+            ufAtPurchase: ufAtDate,
+            acquisitionDate: data.data?.historicalDate ?? date,
             confianzaBaja: false, // now we have a real reference date
           };
           onHoldingsChange(updated);

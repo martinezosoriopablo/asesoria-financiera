@@ -4,6 +4,7 @@
 import { NextRequest } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { handleApiError, successResponse, errorResponse } from "@/lib/api-response";
+import { getUF } from "@/lib/bcch";
 
 interface FundInput {
   run: number;
@@ -13,7 +14,7 @@ interface FundInput {
 // For each fund, return today's price and prices at 1-5 years ago
 interface QuoteResult {
   today: number | null;
-  prices: { years: number; price: number | null; date: string }[];
+  prices: { years: number; price: number | null; date: string; ufAtDate: number }[];
 }
 
 export async function POST(req: NextRequest) {
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (!fm) {
-        results[key] = { today: null, prices: targetDates.map(td => ({ ...td, price: null })) };
+        results[key] = { today: null, prices: targetDates.map(td => ({ ...td, price: null, ufAtDate: 0 })) };
         continue;
       }
 
@@ -87,16 +88,24 @@ export async function POST(req: NextRequest) {
           .limit(1)
           .single();
 
+        const actualDate = priceRow?.fecha ?? td.date;
+        let ufAtDate = 0;
+        try { ufAtDate = await getUF(actualDate); } catch { /* 0 = unknown */ }
+
         prices.push({
           years: td.years,
           price: priceRow?.valor_cuota ?? null,
-          date: priceRow?.fecha ?? td.date,
+          date: actualDate,
+          ufAtDate,
         });
       }
 
       results[key] = { today: todayPrice, prices };
     }
 
-    return successResponse({ quotes: results, asOf: todayStr });
+    let ufToday = 0;
+    try { ufToday = await getUF(todayStr); } catch { /* 0 */ }
+
+    return successResponse({ quotes: results, asOf: todayStr, ufToday });
   });
 }

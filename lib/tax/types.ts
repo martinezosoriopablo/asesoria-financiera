@@ -5,14 +5,17 @@ export interface TaxableHolding {
   fundName: string;
   run: number;
   serie: string;
+  currentValueCLP: number;
   currentValueUF: number;
   quantity: number;
   acquisitionDate: string | null;
   acquisitionCostUF: number | null;
+  ufAtPurchase: number | null; // UF at purchase date (for corrección monetaria)
   estimatedCosts: {
     years: number;
     costUF: number;
     gainsUF: number;
+    ufAtDate: number; // UF at the estimated purchase date
   }[];
   taxRegime: "107" | "108" | "104" | "apv" | "57bis" | "general";
   preTransitional: boolean;
