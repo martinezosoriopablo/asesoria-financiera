@@ -1,10 +1,12 @@
 // components/tax/TaxMap.tsx
 "use client";
 
+import { useState } from "react";
 import type { TaxableHolding } from "@/lib/tax/types";
 
 interface Props {
   holdings: TaxableHolding[];
+  onHoldingsChange?: (updated: TaxableHolding[]) => void;
 }
 
 const REGIME_LABELS: Record<string, string> = {
@@ -29,12 +31,64 @@ function fmtUF(v: number): string {
   return v.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
-export default function TaxMap({ holdings }: Props) {
+export default function TaxMap({ holdings, onHoldingsChange }: Props) {
+  // Track selected years per holding (index → years chosen)
+  const [selectedYears, setSelectedYears] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {};
+    holdings.forEach((h, i) => {
+      if (h.confianzaBaja && h.estimatedCosts.length > 0) {
+        // Default to 2 years
+        initial[i] = 2;
+      }
+    });
+    return initial;
+  });
+
+  // Global selector for all estimated holdings
+  const [globalYears, setGlobalYears] = useState<number>(2);
+
+  const hasAnyEstimated = holdings.some(h => h.confianzaBaja && h.estimatedCosts.length > 0);
+
+  function applyYearsSelection(holdingIndex: number, years: number) {
+    const h = holdings[holdingIndex];
+    const estimate = h.estimatedCosts.find(e => e.years === years);
+    if (!estimate) return;
+
+    setSelectedYears(prev => ({ ...prev, [holdingIndex]: years }));
+
+    if (onHoldingsChange) {
+      const updated = [...holdings];
+      updated[holdingIndex] = {
+        ...h,
+        acquisitionCostUF: estimate.costUF,
+      };
+      onHoldingsChange(updated);
+    }
+  }
+
+  function applyGlobalYears(years: number) {
+    setGlobalYears(years);
+    const newSelected: Record<number, number> = { ...selectedYears };
+    const updated = [...holdings];
+
+    holdings.forEach((h, i) => {
+      if (h.confianzaBaja && h.estimatedCosts.length > 0) {
+        const estimate = h.estimatedCosts.find(e => e.years === years);
+        if (estimate) {
+          newSelected[i] = years;
+          updated[i] = { ...h, acquisitionCostUF: estimate.costUF };
+        }
+      }
+    });
+
+    setSelectedYears(newSelected);
+    if (onHoldingsChange) onHoldingsChange(updated);
+  }
+
   if (holdings.length === 0) {
     return (
       <div className="bg-white rounded-lg border border-gb-border p-6 text-center text-gb-gray text-sm">
-        No hay holdings cargados. Los holdings se populan automaticamente desde la cartola del
-        cliente.
+        No hay holdings cargados.
       </div>
     );
   }
@@ -47,11 +101,29 @@ export default function TaxMap({ holdings }: Props) {
 
   return (
     <div className="bg-white rounded-lg border border-gb-border overflow-hidden">
-      <div className="px-4 py-3 border-b border-gb-border">
-        <h3 className="font-semibold text-gb-black">Mapa tributario de holdings</h3>
-        <p className="text-xs text-gb-gray mt-0.5">
-          Capa 1: Datos basados en ley vigente
-        </p>
+      <div className="px-4 py-3 border-b border-gb-border flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gb-black">Mapa tributario de holdings</h3>
+          <p className="text-xs text-gb-gray mt-0.5">
+            Regimen tributario y ganancia de capital estimada por posicion
+          </p>
+        </div>
+        {hasAnyEstimated && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gb-gray">Antiguedad estimada:</span>
+            <select
+              value={globalYears}
+              onChange={(e) => applyGlobalYears(Number(e.target.value))}
+              className="text-xs border border-gb-border rounded px-2 py-1 text-gb-black focus:outline-none focus:ring-1 focus:ring-gb-primary/30"
+            >
+              <option value={1}>1 ano</option>
+              <option value={2}>2 anos</option>
+              <option value={3}>3 anos</option>
+              <option value={4}>4 anos</option>
+              <option value={5}>5 anos</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -62,6 +134,9 @@ export default function TaxMap({ holdings }: Props) {
               <th className="text-right px-4 py-2 font-medium text-gb-gray">Valor (UF)</th>
               <th className="text-center px-4 py-2 font-medium text-gb-gray">Regimen</th>
               <th className="text-right px-4 py-2 font-medium text-gb-gray">Gan. Capital (UF)</th>
+              {hasAnyEstimated && (
+                <th className="text-center px-4 py-2 font-medium text-gb-gray">Antiguedad</th>
+              )}
               <th className="text-center px-4 py-2 font-medium text-gb-gray">MLT</th>
               <th className="text-center px-4 py-2 font-medium text-gb-gray">DCV</th>
             </tr>
@@ -72,7 +147,7 @@ export default function TaxMap({ holdings }: Props) {
                 ? h.currentValueUF - h.acquisitionCostUF
                 : null;
               const regimeColor = REGIME_COLORS[h.taxRegime] ?? REGIME_COLORS.general;
-              const hasEstimates = h.confianzaBaja && h.estimatedCosts.length > 0;
+              const isEstimated = h.confianzaBaja && h.estimatedCosts.length > 0;
 
               return (
                 <tr
@@ -82,35 +157,42 @@ export default function TaxMap({ holdings }: Props) {
                   <td className="px-4 py-2 text-gb-black">
                     {h.fundName}
                     {h.confianzaBaja && (
-                      <span className="text-yellow-500 ml-1" title="Costo de compra estimado">
-                        *
-                      </span>
+                      <span className="text-yellow-500 ml-1" title="Sin costo de compra — estimado">*</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-gb-black">
                     {fmtUF(h.currentValueUF)}
                   </td>
                   <td className="px-4 py-2 text-center">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${regimeColor}`}
-                    >
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${regimeColor}`}>
                       {REGIME_LABELS[h.taxRegime] ?? h.taxRegime}
                     </span>
                   </td>
-                  <td
-                    className={`px-4 py-2 text-right tabular-nums ${
-                      gains !== null && gains < 0 ? "text-red-600" : "text-gb-black"
-                    }`}
-                  >
-                    {hasEstimates ? (
-                      <div>
-                        <span>{fmtUF(gains ?? 0)}</span>
-                        <div className="text-[10px] text-yellow-600 mt-0.5">
-                          rango: {fmtUF(h.estimatedCosts[0].gainsUF)} - {fmtUF(h.estimatedCosts[h.estimatedCosts.length - 1].gainsUF)} UF
-                        </div>
-                      </div>
-                    ) : gains !== null ? fmtUF(gains) : "-"}
+                  <td className={`px-4 py-2 text-right tabular-nums ${
+                    gains !== null && gains < 0 ? "text-red-600" : isEstimated ? "text-yellow-700" : "text-gb-black"
+                  }`}>
+                    {gains !== null ? fmtUF(gains) : "-"}
+                    {isEstimated && <span className="text-[10px] ml-0.5">~</span>}
                   </td>
+                  {hasAnyEstimated && (
+                    <td className="px-4 py-2 text-center">
+                      {isEstimated ? (
+                        <select
+                          value={selectedYears[i] ?? 2}
+                          onChange={(e) => applyYearsSelection(i, Number(e.target.value))}
+                          className="text-xs border border-yellow-300 bg-yellow-50 rounded px-1.5 py-0.5 text-yellow-800 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                        >
+                          {h.estimatedCosts.map(est => (
+                            <option key={est.years} value={est.years}>
+                              {est.years}Y → {fmtUF(est.gainsUF)} UF
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gb-gray">dato real</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-2 text-center text-gb-gray">
                     {h.canMLT ? "Si" : "No"}
                   </td>
@@ -128,13 +210,10 @@ export default function TaxMap({ holdings }: Props) {
                 {fmtUF(totalValueUF)}
               </td>
               <td />
-              <td
-                className={`px-4 py-2 text-right tabular-nums ${
-                  totalGainsUF < 0 ? "text-red-600" : "text-gb-black"
-                }`}
-              >
+              <td className={`px-4 py-2 text-right tabular-nums ${totalGainsUF < 0 ? "text-red-600" : "text-gb-black"}`}>
                 {fmtUF(totalGainsUF)}
               </td>
+              {hasAnyEstimated && <td />}
               <td />
               <td />
             </tr>
@@ -142,10 +221,10 @@ export default function TaxMap({ holdings }: Props) {
         </table>
       </div>
 
-      {holdings.some((h) => h.confianzaBaja) && (
+      {hasAnyEstimated && (
         <div className="px-4 py-2 border-t border-gb-border bg-yellow-50 text-xs text-yellow-700">
-          * Sin costo de compra en cartola. Ganancia estimada suponiendo compra hace 2 anos (rango: 1-5 anos).
-          Solicite al cliente los valores originales para mayor precision.
+          * Sin costo de compra en cartola. Seleccione la antiguedad aproximada de cada posicion
+          para estimar la ganancia de capital. Use el selector global o ajuste por fondo.
         </div>
       )}
     </div>

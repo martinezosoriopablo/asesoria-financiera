@@ -463,7 +463,7 @@ export default function TaxSimulator({ initialClientId }: Props) {
       </div>
 
       {/* Tax Map — always show if holdings loaded */}
-      {holdings.length > 0 && <TaxMap holdings={holdings} />}
+      {holdings.length > 0 && <TaxMap holdings={holdings} onHoldingsChange={setHoldings} />}
 
       {/* Results */}
       {scenarios && scenarios.length > 0 && (
