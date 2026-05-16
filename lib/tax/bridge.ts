@@ -2,6 +2,7 @@
 // Converts cartola holdings + xray enrichment → TaxableHolding[] for tax simulator
 
 import type { TaxableHolding } from "./types";
+import { RENTABILIDAD_ESPERADA_REAL } from "@/lib/constants/chilean-tax";
 
 // Raw holding from snapshot JSONB (cartola-parsed)
 interface RawHolding {
@@ -13,6 +14,7 @@ interface RawHolding {
   unitCost?: number;
   marketPrice?: number;
   marketValue: number;
+  marketValueCLP?: number; // already converted to CLP (if present)
   currency?: string;
   assetClass?: string;
 }
@@ -38,6 +40,12 @@ interface ProposalInfo {
   proposedTac?: number | null;
 }
 
+// Historical price data for cost estimation
+export interface HistoricalQuote {
+  today: number | null;
+  prices: { years: number; price: number | null; date: string }[];
+}
+
 function detectTaxRegime(xray: XrayHolding): TaxableHolding["taxRegime"] {
   if (xray.isApvEligible) return "apv";
   if (xray.beneficio107lir) return "107";
@@ -55,35 +63,110 @@ function normalizeCategoria(cat: string): string {
     "Alternativos": "Alternativos",
     "Otros": "Otros",
   };
-  // If already a full name, return as-is
   if (cat.includes("Nacional") || cat.includes("Internacional")) return cat;
   return map[cat] || cat;
+}
+
+// Convert value to CLP based on currency
+function toCLP(value: number, currency: string | undefined, usdRate: number): number {
+  if (!currency || currency === "CLP") return value;
+  if (currency === "USD") return value * usdRate;
+  // EUR and others: for now treat as CLP (rare in Chilean fund context)
+  return value;
+}
+
+// Estimate costs using REAL historical prices (valor cuota ratios)
+// If price N years ago is known: costEstimate = currentValue * (priceNYearsAgo / priceToday)
+function estimateWithRealPrices(
+  currentValueUF: number,
+  quote: HistoricalQuote,
+): TaxableHolding["estimatedCosts"] {
+  if (!quote.today || quote.today <= 0) return [];
+
+  const estimates: TaxableHolding["estimatedCosts"] = [];
+  for (const p of quote.prices) {
+    if (p.price != null && p.price > 0) {
+      const ratio = p.price / quote.today;
+      const costUF = currentValueUF * ratio;
+      const gainsUF = currentValueUF - costUF;
+      estimates.push({ years: p.years, costUF, gainsUF });
+    }
+  }
+  return estimates;
+}
+
+// Fallback: estimate using expected returns by category (when no price history)
+function estimateWithExpectedReturns(
+  currentValueUF: number,
+  categoria: string,
+): TaxableHolding["estimatedCosts"] {
+  const expectedReturn = RENTABILIDAD_ESPERADA_REAL[categoria] ?? 0.04;
+  const estimates: TaxableHolding["estimatedCosts"] = [];
+  for (let years = 1; years <= 5; years++) {
+    const costUF = currentValueUF / Math.pow(1 + expectedReturn, years);
+    const gainsUF = currentValueUF - costUF;
+    estimates.push({ years, costUF, gainsUF });
+  }
+  return estimates;
 }
 
 export function convertToTaxHoldings(
   rawHoldings: RawHolding[],
   xrayHoldings: XrayHolding[],
   ufValue: number,
-  proposalMap?: Record<string, ProposalInfo>,
+  options?: {
+    usdRate?: number;
+    proposalMap?: Record<string, ProposalInfo>;
+    quotes?: Record<string, HistoricalQuote>; // key: "run-serie"
+  },
 ): TaxableHolding[] {
+  const usdRate = options?.usdRate ?? 0;
+  const proposalMap = options?.proposalMap;
+  const quotes = options?.quotes;
+
   return rawHoldings.map((raw, index) => {
-    // Match xray holding by fundName (same order as input)
+    // Match xray holding by index first, then by name
     const xray = xrayHoldings[index] || xrayHoldings.find(x =>
       x.fundName === raw.fundName
     );
 
-    const currentValueCLP = raw.marketValue;
-    const currentValueUF = currentValueCLP / ufValue;
-    const quantity = raw.quantity || 1;
+    // Convert to CLP: use marketValueCLP if already converted, otherwise convert
+    const valueCLP = raw.marketValueCLP && raw.marketValueCLP > 0
+      ? raw.marketValueCLP
+      : toCLP(raw.marketValue, raw.currency, usdRate);
+    const currentValueUF = valueCLP / ufValue;
 
-    // Cost basis: use cartola data if available, otherwise null (will trigger estimation)
+    const quantity = raw.quantity || 1;
+    const categoria = xray ? normalizeCategoria(xray.categoria) : "Otros";
+
+    // Cost basis: use cartola data if available, otherwise estimate
     let acquisitionCostUF: number | null = null;
     let confianzaBaja = false;
+    let estimatedCosts: TaxableHolding["estimatedCosts"] = [];
 
     if (raw.costBasis != null && raw.costBasis > 0) {
-      acquisitionCostUF = raw.costBasis / ufValue;
+      // costBasis is in the same currency as marketValue
+      const costCLP = toCLP(raw.costBasis, raw.currency, usdRate);
+      acquisitionCostUF = costCLP / ufValue;
     } else {
       confianzaBaja = true;
+
+      // Try real historical prices first
+      const run = raw.securityId ? parseInt(raw.securityId, 10) : 0;
+      const serie = raw.serie || "";
+      const quoteKey = `${isNaN(run) ? 0 : run}-${serie}`;
+      const quote = quotes?.[quoteKey];
+
+      if (quote && quote.today && quote.prices.some(p => p.price != null)) {
+        estimatedCosts = estimateWithRealPrices(currentValueUF, quote);
+      } else {
+        // Fallback: expected returns by category
+        estimatedCosts = estimateWithExpectedReturns(currentValueUF, categoria);
+      }
+
+      // Use 2-year estimate as default (middle ground)
+      const twoYearEstimate = estimatedCosts.find(e => e.years === 2);
+      acquisitionCostUF = twoYearEstimate?.costUF ?? estimatedCosts[0]?.costUF ?? null;
     }
 
     const tacActual = xray?.tac ?? null;
@@ -91,13 +174,7 @@ export function convertToTaxHoldings(
     const tacPropuesto = proposalMap?.[proposalKey]?.proposedTac ?? null;
 
     const taxRegime = xray ? detectTaxRegime(xray) : "general";
-    const categoria = xray ? normalizeCategoria(xray.categoria) : "Otros";
-
-    // Determine if holding has international exposure based on category
     const hasInternationalHoldings = categoria.includes("Internacional");
-
-    // MLT: possible if destination is a fund (not ETF in bolsa) and source has 108 benefit
-    // For v1, default to true if beneficio108lir, false otherwise (advisor can override)
     const canMLT = xray?.beneficio108lir ?? false;
 
     const run = raw.securityId ? parseInt(raw.securityId, 10) : 0;
@@ -108,13 +185,13 @@ export function convertToTaxHoldings(
       serie: raw.serie || "",
       currentValueUF,
       quantity,
-      acquisitionDate: null, // Not available from cartola
+      acquisitionDate: null,
       acquisitionCostUF,
-      estimatedCosts: [], // Will be populated by simulator if needed
+      estimatedCosts,
       taxRegime,
-      preTransitional: false, // Advisor can override
+      preTransitional: false,
       canMLT,
-      canDCV: false, // Advisor must mark manually
+      canDCV: false,
       comisionRescateUF: null,
       tacActual,
       tacPropuesto,

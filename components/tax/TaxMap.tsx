@@ -72,6 +72,7 @@ export default function TaxMap({ holdings }: Props) {
                 ? h.currentValueUF - h.acquisitionCostUF
                 : null;
               const regimeColor = REGIME_COLORS[h.taxRegime] ?? REGIME_COLORS.general;
+              const hasEstimates = h.confianzaBaja && h.estimatedCosts.length > 0;
 
               return (
                 <tr
@@ -81,7 +82,7 @@ export default function TaxMap({ holdings }: Props) {
                   <td className="px-4 py-2 text-gb-black">
                     {h.fundName}
                     {h.confianzaBaja && (
-                      <span className="text-yellow-500 ml-1" title="Datos con baja confianza">
+                      <span className="text-yellow-500 ml-1" title="Costo de compra estimado">
                         *
                       </span>
                     )}
@@ -101,7 +102,14 @@ export default function TaxMap({ holdings }: Props) {
                       gains !== null && gains < 0 ? "text-red-600" : "text-gb-black"
                     }`}
                   >
-                    {gains !== null ? fmtUF(gains) : "-"}
+                    {hasEstimates ? (
+                      <div>
+                        <span>{fmtUF(gains ?? 0)}</span>
+                        <div className="text-[10px] text-yellow-600 mt-0.5">
+                          rango: {fmtUF(h.estimatedCosts[0].gainsUF)} - {fmtUF(h.estimatedCosts[h.estimatedCosts.length - 1].gainsUF)} UF
+                        </div>
+                      </div>
+                    ) : gains !== null ? fmtUF(gains) : "-"}
                   </td>
                   <td className="px-4 py-2 text-center text-gb-gray">
                     {h.canMLT ? "Si" : "No"}
@@ -136,7 +144,8 @@ export default function TaxMap({ holdings }: Props) {
 
       {holdings.some((h) => h.confianzaBaja) && (
         <div className="px-4 py-2 border-t border-gb-border bg-yellow-50 text-xs text-yellow-700">
-          * Datos estimados con baja confianza. Verificar con informacion del cliente.
+          * Sin costo de compra en cartola. Ganancia estimada suponiendo compra hace 2 anos (rango: 1-5 anos).
+          Solicite al cliente los valores originales para mayor precision.
         </div>
       )}
     </div>

@@ -1571,6 +1571,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                     rawHoldings: holdings,
                     xrayHoldings: data?.holdings || [],
                     ufValue: ufValue || 38000,
+                    usdRate: usdValue || 0,
                     clientName,
                     clientId,
                     proposal: mergedProposal ? Object.fromEntries(

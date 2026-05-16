@@ -37,7 +37,11 @@ export default function TaxSimulator({ initialClientId }: Props) {
           parsed.rawHoldings || [],
           parsed.xrayHoldings || [],
           parsed.ufValue || 38000,
-          parsed.proposal,
+          {
+            usdRate: parsed.usdRate || 0,
+            proposalMap: parsed.proposal,
+            quotes: parsed.quotes,
+          },
         );
         if (taxHoldings.length > 0) {
           setHoldings(taxHoldings);
@@ -93,12 +97,16 @@ export default function TaxSimulator({ initialClientId }: Props) {
         setClientName(`${client.nombre} ${client.apellido}`);
       }
 
-      // Fetch UF value
+      // Fetch exchange rates (UF + USD)
       let ufValue = 38000;
+      let usdRate = 0;
       try {
         const ufRes = await fetch("/api/exchange-rates");
         const ufData = await ufRes.json();
-        if (ufData.success && ufData.uf) ufValue = ufData.uf;
+        if (ufData.success) {
+          if (ufData.uf) ufValue = ufData.uf;
+          if (ufData.usd) usdRate = ufData.usd;
+        }
       } catch { /* use fallback */ }
 
       // Run xray to get tax regime info
@@ -115,8 +123,35 @@ export default function TaxSimulator({ initialClientId }: Props) {
           xrayHoldings = xrayData.holdings || [];
         }
       } catch {
-        // xray failed — proceed without tax regime enrichment (all "general")
         console.warn("TaxSimulator: xray failed, using general regime for all holdings");
+      }
+
+      // Fetch historical quotes for cost estimation (funds without costBasis)
+      let quotes: Record<string, { today: number | null; prices: { years: number; price: number | null; date: string }[] }> = {};
+      const fundsNeedingQuotes = rawHoldings
+        .filter((h: { costBasis?: number; securityId?: string; serie?: string }) =>
+          !h.costBasis && h.securityId && h.serie
+        )
+        .map((h: { securityId: string; serie: string }) => ({
+          run: parseInt(h.securityId, 10),
+          serie: h.serie,
+        }))
+        .filter((f: { run: number }) => !isNaN(f.run) && f.run > 0);
+
+      if (fundsNeedingQuotes.length > 0) {
+        try {
+          const qRes = await fetch("/api/tax/historical-quotes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ funds: fundsNeedingQuotes }),
+          });
+          if (qRes.ok) {
+            const qData = await qRes.json();
+            quotes = qData.data?.quotes || {};
+          }
+        } catch {
+          console.warn("TaxSimulator: historical quotes failed, using expected returns fallback");
+        }
       }
 
       // Convert to TaxableHolding[]
@@ -124,6 +159,7 @@ export default function TaxSimulator({ initialClientId }: Props) {
         rawHoldings,
         xrayHoldings,
         ufValue,
+        { usdRate, quotes },
       );
 
       if (taxHoldings.length === 0) {
