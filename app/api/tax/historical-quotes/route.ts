@@ -1,7 +1,7 @@
 // app/api/tax/historical-quotes/route.ts
 // Returns valor_cuota at specific historical dates (1-5 years ago) for cost estimation
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { handleApiError, successResponse, errorResponse } from "@/lib/api-response";
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
-    // Build target dates: today, 1Y ago, 2Y ago, ... 5Y ago
+    // Build target dates: 1Y ago, 2Y ago, ... 5Y ago
     const targetDates: { years: number; date: string }[] = [];
     for (let y = 1; y <= 5; y++) {
       const d = new Date(now);
@@ -44,10 +44,10 @@ export async function POST(req: NextRequest) {
       if (!fund.run || !fund.serie) continue;
       const key = `${fund.run}-${fund.serie}`;
 
-      // Resolve fondo_id
+      // Resolve fondo_id from fondos_mutuos catalog
       const { data: fm } = await supabase
         .from("fondos_mutuos")
-        .select("id, valor_cuota, fecha")
+        .select("id")
         .eq("fo_run", fund.run)
         .eq("fm_serie", fund.serie)
         .limit(1)
@@ -58,22 +58,29 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const todayPrice = fm.valor_cuota;
+      // Get today's price from fondos_rentabilidades_diarias
+      const { data: currentRow } = await supabase
+        .from("fondos_rentabilidades_diarias")
+        .select("valor_cuota")
+        .eq("fondo_id", fm.id)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .single();
+
+      const todayPrice = currentRow?.valor_cuota ?? null;
 
       // For each target date, find the closest price within 7-day tolerance
       const prices: QuoteResult["prices"] = [];
 
       for (const td of targetDates) {
-        // Look for price within 7 days before the target date
         const fromDate = new Date(td.date);
         fromDate.setDate(fromDate.getDate() - 7);
         const fromStr = fromDate.toISOString().split("T")[0];
 
         const { data: priceRow } = await supabase
-          .from("fondos_mutuos")
+          .from("fondos_rentabilidades_diarias")
           .select("valor_cuota, fecha")
-          .eq("fo_run", fund.run)
-          .eq("fm_serie", fund.serie)
+          .eq("fondo_id", fm.id)
           .gte("fecha", fromStr)
           .lte("fecha", td.date)
           .order("fecha", { ascending: false })

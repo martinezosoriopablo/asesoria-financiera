@@ -22,17 +22,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Get today's price
-    const { data: current } = await supabase
+    // Resolve fondo_id from fondos_mutuos catalog
+    const { data: fm } = await supabase
       .from("fondos_mutuos")
-      .select("valor_cuota")
+      .select("id")
       .eq("fo_run", run)
       .eq("fm_serie", serie)
       .limit(1)
       .single();
 
-    if (!current) {
+    if (!fm) {
       return errorResponse("Fondo no encontrado", 404);
+    }
+
+    // Get today's price (most recent)
+    const { data: current } = await supabase
+      .from("fondos_rentabilidades_diarias")
+      .select("valor_cuota")
+      .eq("fondo_id", fm.id)
+      .order("fecha", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!current) {
+      return errorResponse("Sin precios para este fondo", 404);
     }
 
     // Get price at target date (7-day tolerance backward)
@@ -41,10 +54,9 @@ export async function POST(req: NextRequest) {
     const fromStr = fromDate.toISOString().split("T")[0];
 
     const { data: historical } = await supabase
-      .from("fondos_mutuos")
+      .from("fondos_rentabilidades_diarias")
       .select("valor_cuota, fecha")
-      .eq("fo_run", run)
-      .eq("fm_serie", serie)
+      .eq("fondo_id", fm.id)
       .gte("fecha", fromStr)
       .lte("fecha", date)
       .order("fecha", { ascending: false })
