@@ -1,7 +1,8 @@
 // components/tax/TaxMap.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { Loader } from "lucide-react";
 import type { TaxableHolding } from "@/lib/tax/types";
 
 interface Props {
@@ -37,15 +38,17 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
     const initial: Record<number, number> = {};
     holdings.forEach((h, i) => {
       if (h.confianzaBaja && h.estimatedCosts.length > 0) {
-        // Default to 2 years
         initial[i] = 2;
       }
     });
     return initial;
   });
 
-  // Global selector for all estimated holdings
   const [globalYears, setGlobalYears] = useState<number>(2);
+
+  // Custom date inputs per holding
+  const [customDates, setCustomDates] = useState<Record<number, string>>({});
+  const [dateLoading, setDateLoading] = useState<Record<number, boolean>>({});
 
   const hasAnyEstimated = holdings.some(h => h.confianzaBaja && h.estimatedCosts.length > 0);
 
@@ -55,13 +58,11 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
     if (!estimate) return;
 
     setSelectedYears(prev => ({ ...prev, [holdingIndex]: years }));
+    setCustomDates(prev => { const n = { ...prev }; delete n[holdingIndex]; return n; });
 
     if (onHoldingsChange) {
       const updated = [...holdings];
-      updated[holdingIndex] = {
-        ...h,
-        acquisitionCostUF: estimate.costUF,
-      };
+      updated[holdingIndex] = { ...h, acquisitionCostUF: estimate.costUF };
       onHoldingsChange(updated);
     }
   }
@@ -70,6 +71,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
     setGlobalYears(years);
     const newSelected: Record<number, number> = { ...selectedYears };
     const updated = [...holdings];
+    const newDates: Record<number, string> = {};
 
     holdings.forEach((h, i) => {
       if (h.confianzaBaja && h.estimatedCosts.length > 0) {
@@ -82,8 +84,50 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
     });
 
     setSelectedYears(newSelected);
+    setCustomDates(newDates);
     if (onHoldingsChange) onHoldingsChange(updated);
   }
+
+  const lookupExactDate = useCallback(async (holdingIndex: number, date: string) => {
+    const h = holdings[holdingIndex];
+    if (!date || !h.run || !h.serie) return;
+
+    setDateLoading(prev => ({ ...prev, [holdingIndex]: true }));
+    setCustomDates(prev => ({ ...prev, [holdingIndex]: date }));
+
+    try {
+      const res = await fetch("/api/tax/quote-at-date", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run: h.run, serie: h.serie, date }),
+      });
+
+      if (!res.ok) throw new Error("Error buscando precio");
+
+      const data = await res.json();
+      const todayPrice = data.data?.todayPrice;
+      const historicalPrice = data.data?.historicalPrice;
+
+      if (todayPrice && historicalPrice && todayPrice > 0) {
+        const ratio = historicalPrice / todayPrice;
+        const costUF = h.currentValueUF * ratio;
+
+        if (onHoldingsChange) {
+          const updated = [...holdings];
+          updated[holdingIndex] = {
+            ...h,
+            acquisitionCostUF: costUF,
+            confianzaBaja: false, // now we have a real reference date
+          };
+          onHoldingsChange(updated);
+        }
+      }
+    } catch (err) {
+      console.error("Quote lookup error:", err);
+    } finally {
+      setDateLoading(prev => ({ ...prev, [holdingIndex]: false }));
+    }
+  }, [holdings, onHoldingsChange]);
 
   if (holdings.length === 0) {
     return (
@@ -105,12 +149,12 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
         <div>
           <h3 className="font-semibold text-gb-black">Mapa tributario de holdings</h3>
           <p className="text-xs text-gb-gray mt-0.5">
-            Regimen tributario y ganancia de capital estimada por posicion
+            Regimen tributario y ganancia de capital por posicion
           </p>
         </div>
         {hasAnyEstimated && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gb-gray">Antiguedad estimada:</span>
+            <span className="text-xs text-gb-gray">Antiguedad global:</span>
             <select
               value={globalYears}
               onChange={(e) => applyGlobalYears(Number(e.target.value))}
@@ -135,7 +179,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
               <th className="text-center px-4 py-2 font-medium text-gb-gray">Regimen</th>
               <th className="text-right px-4 py-2 font-medium text-gb-gray">Gan. Capital (UF)</th>
               {hasAnyEstimated && (
-                <th className="text-center px-4 py-2 font-medium text-gb-gray">Antiguedad</th>
+                <th className="text-center px-4 py-2 font-medium text-gb-gray">Fecha compra</th>
               )}
               <th className="text-center px-4 py-2 font-medium text-gb-gray">MLT</th>
               <th className="text-center px-4 py-2 font-medium text-gb-gray">DCV</th>
@@ -148,6 +192,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
                 : null;
               const regimeColor = REGIME_COLORS[h.taxRegime] ?? REGIME_COLORS.general;
               const isEstimated = h.confianzaBaja && h.estimatedCosts.length > 0;
+              const hasCustomDate = customDates[i] != null;
 
               return (
                 <tr
@@ -156,7 +201,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
                 >
                   <td className="px-4 py-2 text-gb-black">
                     {h.fundName}
-                    {h.confianzaBaja && (
+                    {isEstimated && !hasCustomDate && (
                       <span className="text-yellow-500 ml-1" title="Sin costo de compra — estimado">*</span>
                     )}
                   </td>
@@ -169,27 +214,47 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
                     </span>
                   </td>
                   <td className={`px-4 py-2 text-right tabular-nums ${
-                    gains !== null && gains < 0 ? "text-red-600" : isEstimated ? "text-yellow-700" : "text-gb-black"
+                    gains !== null && gains < 0 ? "text-red-600" : isEstimated && !hasCustomDate ? "text-yellow-700" : "text-gb-black"
                   }`}>
                     {gains !== null ? fmtUF(gains) : "-"}
-                    {isEstimated && <span className="text-[10px] ml-0.5">~</span>}
+                    {isEstimated && !hasCustomDate && <span className="text-[10px] ml-0.5">~</span>}
+                    {dateLoading[i] && <Loader className="w-3 h-3 inline ml-1 animate-spin text-gb-gray" />}
                   </td>
                   {hasAnyEstimated && (
                     <td className="px-4 py-2 text-center">
-                      {isEstimated ? (
-                        <select
-                          value={selectedYears[i] ?? 2}
-                          onChange={(e) => applyYearsSelection(i, Number(e.target.value))}
-                          className="text-xs border border-yellow-300 bg-yellow-50 rounded px-1.5 py-0.5 text-yellow-800 focus:outline-none focus:ring-1 focus:ring-yellow-400"
-                        >
-                          {h.estimatedCosts.map(est => (
-                            <option key={est.years} value={est.years}>
-                              {est.years}Y → {fmtUF(est.gainsUF)} UF
-                            </option>
-                          ))}
-                        </select>
+                      {isEstimated || hasCustomDate ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <select
+                            value={hasCustomDate ? "custom" : (selectedYears[i] ?? 2)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "custom") return; // handled by date input
+                              applyYearsSelection(i, Number(val));
+                            }}
+                            className="text-xs border border-yellow-300 bg-yellow-50 rounded px-1.5 py-0.5 text-yellow-800 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                          >
+                            {h.estimatedCosts.map(est => (
+                              <option key={est.years} value={est.years}>
+                                ~{est.years} anos → {fmtUF(est.gainsUF)} UF
+                              </option>
+                            ))}
+                            <option value="custom">Fecha exacta...</option>
+                          </select>
+                          {(hasCustomDate || (!hasCustomDate && false)) && null}
+                          <input
+                            type="date"
+                            value={customDates[i] || ""}
+                            onChange={(e) => {
+                              if (e.target.value) lookupExactDate(i, e.target.value);
+                            }}
+                            max={new Date().toISOString().split("T")[0]}
+                            min="2010-01-01"
+                            className="text-[10px] border border-gb-border rounded px-1 py-0.5 w-[120px] text-gb-black focus:outline-none focus:ring-1 focus:ring-gb-primary/30"
+                            placeholder="Fecha compra"
+                          />
+                        </div>
                       ) : (
-                        <span className="text-xs text-gb-gray">dato real</span>
+                        <span className="text-xs text-green-600">cartola</span>
                       )}
                     </td>
                   )}
@@ -223,8 +288,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
 
       {hasAnyEstimated && (
         <div className="px-4 py-2 border-t border-gb-border bg-yellow-50 text-xs text-yellow-700">
-          * Sin costo de compra en cartola. Seleccione la antiguedad aproximada de cada posicion
-          para estimar la ganancia de capital. Use el selector global o ajuste por fondo.
+          * Sin costo de compra en cartola. Seleccione antiguedad aproximada o ingrese la fecha exacta de compra para calcular la ganancia con el valor cuota real de ese dia.
         </div>
       )}
     </div>
