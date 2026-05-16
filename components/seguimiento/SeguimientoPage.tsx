@@ -29,6 +29,7 @@ import {
   FileText,
   Trash2,
   CheckCircle2,
+  Scale,
 } from "lucide-react";
 
 interface Client {
@@ -1280,6 +1281,19 @@ export default function SeguimientoPage({ clientId }: Props) {
         <div className="mb-6">
           <RecommendationHistory clientId={clientId} />
         </div>
+
+        {/* Simulador Tributario shortcut */}
+        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
+          <div className="mb-4">
+            <a
+              href={`/tax-optimizer?clientId=${clientId}`}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gb-border rounded-lg text-sm font-medium text-gb-black hover:border-gb-primary hover:text-gb-primary transition-colors"
+            >
+              <Scale className="w-4 h-4" />
+              Simulador Tributario
+            </a>
+          </div>
+        )}
 
         {/* Radiografía del Portafolio - X-ray de costos y alternativas */}
         {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (

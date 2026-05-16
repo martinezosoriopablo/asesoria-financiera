@@ -2,7 +2,14 @@
 "use client";
 
 import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import TaxSimulator from "@/components/tax/TaxSimulator";
+
+function TaxSimulatorWithParams() {
+  const searchParams = useSearchParams();
+  const clientId = searchParams.get("clientId") || undefined;
+  return <TaxSimulator initialClientId={clientId} />;
+}
 
 export default function TaxOptimizerPage() {
   return (
@@ -17,7 +24,7 @@ export default function TaxOptimizerPage() {
       </div>
       <div className="px-6">
         <Suspense fallback={<div className="text-gb-gray">Cargando simulador...</div>}>
-          <TaxSimulator />
+          <TaxSimulatorWithParams />
         </Suspense>
       </div>
     </div>

@@ -14,14 +14,21 @@ import ScenarioTable from "./ScenarioTable";
 import TaxMap from "./TaxMap";
 import ActionPlan from "./ActionPlan";
 
-export default function TaxSimulator() {
+interface Props {
+  initialClientId?: string;
+}
+
+export default function TaxSimulator({ initialClientId }: Props) {
   const [holdings, setHoldings] = useState<TaxableHolding[]>([]);
   const [clientName, setClientName] = useState<string>("");
-  const [clientId, setClientId] = useState<string>("");
+  const [clientId, setClientId] = useState<string>(initialClientId || "");
   const [loaded, setLoaded] = useState(false);
+  const [bridgeLoading, setBridgeLoading] = useState(false);
+  const [bridgeError, setBridgeError] = useState<string | null>(null);
 
-  // Load holdings from sessionStorage (set by RadiografiaCartola)
+  // Load holdings: try sessionStorage first, then fetch via API if clientId provided
   useEffect(() => {
+    // 1. Try sessionStorage (set by RadiografiaCartola "Ver simulador completo" button)
     try {
       const stored = sessionStorage.getItem("tax-simulator-holdings");
       if (stored) {
@@ -32,17 +39,109 @@ export default function TaxSimulator() {
           parsed.ufValue || 38000,
           parsed.proposal,
         );
-        setHoldings(taxHoldings);
-        if (parsed.clientName) setClientName(parsed.clientName);
-        if (parsed.clientId) setClientId(parsed.clientId);
-        setLoaded(true);
-        // Clean up — data is one-shot
-        sessionStorage.removeItem("tax-simulator-holdings");
+        if (taxHoldings.length > 0) {
+          setHoldings(taxHoldings);
+          if (parsed.clientName) setClientName(parsed.clientName);
+          if (parsed.clientId) setClientId(parsed.clientId);
+          setLoaded(true);
+          sessionStorage.removeItem("tax-simulator-holdings");
+          return;
+        }
       }
-    } catch {
-      // sessionStorage may not be available
+    } catch (err) {
+      console.error("TaxSimulator: sessionStorage read error:", err);
     }
-  }, []);
+
+    // 2. If clientId available, fetch snapshot + xray from API
+    const cid = initialClientId;
+    if (cid) {
+      loadFromClient(cid);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialClientId]);
+
+  async function loadFromClient(cid: string) {
+    setBridgeLoading(true);
+    setBridgeError(null);
+
+    try {
+      // Fetch latest snapshot for this client
+      const segRes = await fetch(`/api/clients/${cid}/seguimiento?period=ALL&limit=100`);
+      if (!segRes.ok) throw new Error("Error cargando datos del cliente");
+      const segData = await segRes.json();
+
+      if (!segData.success || !segData.data?.snapshots?.length) {
+        setBridgeError("No hay cartola cargada para este cliente.");
+        setBridgeLoading(false);
+        return;
+      }
+
+      // Get latest snapshot with holdings
+      const snapshots = segData.data.snapshots;
+      const latest = snapshots[snapshots.length - 1];
+      const rawHoldings = latest.holdings;
+
+      if (!rawHoldings || rawHoldings.length === 0) {
+        setBridgeError("El snapshot mas reciente no tiene posiciones.");
+        setBridgeLoading(false);
+        return;
+      }
+
+      // Set client name
+      const client = segData.data.client;
+      if (client) {
+        setClientName(`${client.nombre} ${client.apellido}`);
+      }
+
+      // Fetch UF value
+      let ufValue = 38000;
+      try {
+        const ufRes = await fetch("/api/exchange-rates");
+        const ufData = await ufRes.json();
+        if (ufData.success && ufData.uf) ufValue = ufData.uf;
+      } catch { /* use fallback */ }
+
+      // Run xray to get tax regime info
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let xrayHoldings: any[] = [];
+      try {
+        const xrayRes = await fetch("/api/portfolio/xray", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdings: rawHoldings }),
+        });
+        if (xrayRes.ok) {
+          const xrayData = await xrayRes.json();
+          xrayHoldings = xrayData.holdings || [];
+        }
+      } catch {
+        // xray failed — proceed without tax regime enrichment (all "general")
+        console.warn("TaxSimulator: xray failed, using general regime for all holdings");
+      }
+
+      // Convert to TaxableHolding[]
+      const taxHoldings = convertToTaxHoldings(
+        rawHoldings,
+        xrayHoldings,
+        ufValue,
+      );
+
+      if (taxHoldings.length === 0) {
+        setBridgeError("No se pudieron convertir las posiciones.");
+        setBridgeLoading(false);
+        return;
+      }
+
+      setHoldings(taxHoldings);
+      setClientId(cid);
+      setLoaded(true);
+    } catch (err) {
+      console.error("TaxSimulator: loadFromClient error:", err);
+      setBridgeError(err instanceof Error ? err.message : "Error cargando datos");
+    } finally {
+      setBridgeLoading(false);
+    }
+  }
 
   // Derived flags
   const hasConfianzaBaja = holdings.some((h) => h.confianzaBaja);
@@ -144,6 +243,24 @@ export default function TaxSimulator() {
 
   return (
     <div className="space-y-6">
+      {/* Loading from API */}
+      {bridgeLoading && (
+        <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gb-border rounded-lg">
+          <Loader className="w-5 h-5 text-gb-primary animate-spin shrink-0" />
+          <div className="text-sm text-gb-gray">
+            Cargando posiciones del cliente y analizando regimen tributario...
+          </div>
+        </div>
+      )}
+
+      {/* Bridge error */}
+      {bridgeError && (
+        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-red-800">{bridgeError}</div>
+        </div>
+      )}
+
       {/* Holdings loaded indicator */}
       {loaded && holdings.length > 0 && (
         <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -162,13 +279,13 @@ export default function TaxSimulator() {
       )}
 
       {/* No holdings warning */}
-      {!loaded && holdings.length === 0 && (
+      {!loaded && !bridgeLoading && holdings.length === 0 && (
         <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gb-border rounded-lg">
           <Info className="w-5 h-5 text-gb-gray shrink-0 mt-0.5" />
           <div className="text-sm text-gb-gray">
             No hay posiciones cargadas. Para usar el simulador, vaya a{" "}
             <a href="/seguimiento" className="text-gb-primary underline">Seguimiento</a>
-            {" "}de un cliente, abra la Radiografia y haga clic en &quot;Ver simulador completo&quot;.
+            {" "}de un cliente y haga clic en el boton &quot;Simulador Tributario&quot;.
           </div>
         </div>
       )}
@@ -301,7 +418,7 @@ export default function TaxSimulator() {
             {loading && <Loader className="w-4 h-4 animate-spin" />}
             {loading ? "Simulando..." : "Simular escenarios"}
           </button>
-          {holdings.length === 0 && (
+          {holdings.length === 0 && !bridgeLoading && (
             <span className="text-xs text-gb-gray">
               Cargue posiciones desde la Radiografia de un cliente.
             </span>

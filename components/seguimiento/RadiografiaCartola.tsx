@@ -1565,6 +1565,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           <div className="px-4 py-3 border-t border-gb-border">
             <button
               onClick={() => {
+                // Save enriched xray data to sessionStorage for faster load
                 try {
                   sessionStorage.setItem("tax-simulator-holdings", JSON.stringify({
                     rawHoldings: holdings,
@@ -1577,7 +1578,8 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                     ) : undefined,
                   }));
                 } catch { /* sessionStorage may be full */ }
-                window.location.href = "/tax-optimizer";
+                // Navigate with clientId as fallback
+                window.location.href = `/tax-optimizer${clientId ? `?clientId=${clientId}` : ""}`;
               }}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-gb-primary hover:text-gb-primary/80"
             >
