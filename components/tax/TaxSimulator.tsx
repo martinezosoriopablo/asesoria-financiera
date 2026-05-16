@@ -1,25 +1,53 @@
 // components/tax/TaxSimulator.tsx
 "use client";
 
-import { useState, useCallback } from "react";
-import { AlertTriangle, Info, Loader } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { AlertTriangle, Info, Loader, CheckCircle2 } from "lucide-react";
 import type {
   TaxSimulatorInputs,
   ScenarioResult,
   TaxableHolding,
 } from "@/lib/tax/types";
 import { RENTABILIDAD_ESPERADA_REAL } from "@/lib/constants/chilean-tax";
+import { convertToTaxHoldings } from "@/lib/tax/bridge";
 import ScenarioTable from "./ScenarioTable";
 import TaxMap from "./TaxMap";
 import ActionPlan from "./ActionPlan";
 
 export default function TaxSimulator() {
-  // Holdings — v1: empty array, future: populated from cartola
-  const [holdings] = useState<TaxableHolding[]>([]);
+  const [holdings, setHoldings] = useState<TaxableHolding[]>([]);
+  const [clientName, setClientName] = useState<string>("");
+  const [clientId, setClientId] = useState<string>("");
+  const [loaded, setLoaded] = useState(false);
+
+  // Load holdings from sessionStorage (set by RadiografiaCartola)
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem("tax-simulator-holdings");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const taxHoldings = convertToTaxHoldings(
+          parsed.rawHoldings || [],
+          parsed.xrayHoldings || [],
+          parsed.ufValue || 38000,
+          parsed.proposal,
+        );
+        setHoldings(taxHoldings);
+        if (parsed.clientName) setClientName(parsed.clientName);
+        if (parsed.clientId) setClientId(parsed.clientId);
+        setLoaded(true);
+        // Clean up — data is one-shot
+        sessionStorage.removeItem("tax-simulator-holdings");
+      }
+    } catch {
+      // sessionStorage may not be available
+    }
+  }, []);
 
   // Derived flags
   const hasConfianzaBaja = holdings.some((h) => h.confianzaBaja);
   const hasArt107 = holdings.some((h) => h.taxRegime === "107");
+  const totalValueUF = holdings.reduce((s, h) => s + h.currentValueUF, 0);
 
   // Input fields
   const [ingresoMensual, setIngresoMensual] = useState(2_000_000);
@@ -27,7 +55,7 @@ export default function TaxSimulator() {
   const [edadJubilacion, setEdadJubilacion] = useState(65);
   const [apvUsado, setApvUsado] = useState(0);
   const [dcUsado, setDcUsado] = useState(0);
-  const [tasaDescuento, setTasaDescuento] = useState(3);
+  const [tasaDescuento, setTasaDescuento] = useState(3.5);
   const [habitual, setHabitual] = useState(false);
 
   // Results state
@@ -38,6 +66,7 @@ export default function TaxSimulator() {
   const [report, setReport] = useState<string | null>(null);
 
   const handleSimulate = useCallback(async () => {
+    if (holdings.length === 0) return;
     setLoading(true);
     setScenarios(null);
     setRecommended(null);
@@ -45,7 +74,7 @@ export default function TaxSimulator() {
 
     try {
       const inputs: TaxSimulatorInputs = {
-        clientId: "",
+        clientId,
         ingresoMensualCLP: ingresoMensual,
         edad,
         edadJubilacion,
@@ -62,7 +91,7 @@ export default function TaxSimulator() {
       const res = await fetch("/api/tax/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inputs),
+        body: JSON.stringify({ inputs }),
       });
 
       if (!res.ok) {
@@ -80,7 +109,7 @@ export default function TaxSimulator() {
     } finally {
       setLoading(false);
     }
-  }, [ingresoMensual, edad, edadJubilacion, apvUsado, dcUsado, habitual, tasaDescuento, holdings]);
+  }, [ingresoMensual, edad, edadJubilacion, apvUsado, dcUsado, habitual, tasaDescuento, holdings, clientId]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!scenarios) return;
@@ -90,7 +119,12 @@ export default function TaxSimulator() {
       const res = await fetch("/api/tax/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenarios, holdings }),
+        body: JSON.stringify({
+          scenarios,
+          selectedScenario: recommended?.nombre?.charAt(0) || "D",
+          clientName: clientName || undefined,
+          totalValueUF,
+        }),
       });
 
       if (!res.ok) {
@@ -106,18 +140,47 @@ export default function TaxSimulator() {
     } finally {
       setReportLoading(false);
     }
-  }, [scenarios, holdings]);
+  }, [scenarios, recommended, clientName, totalValueUF]);
 
   return (
     <div className="space-y-6">
+      {/* Holdings loaded indicator */}
+      {loaded && holdings.length > 0 && (
+        <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+          <div className="text-sm text-green-800">
+            <span className="font-medium">{holdings.length} posiciones cargadas</span>
+            {clientName && <> del portafolio de <span className="font-medium">{clientName}</span></>}
+            {" — "}valor total {totalValueUF.toFixed(0)} UF.
+            {hasConfianzaBaja && (
+              <span className="text-yellow-700 ml-1">
+                ({holdings.filter(h => h.confianzaBaja).length} sin costo de adquisicion)
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* No holdings warning */}
+      {!loaded && holdings.length === 0 && (
+        <div className="flex items-start gap-3 p-4 bg-gray-50 border border-gb-border rounded-lg">
+          <Info className="w-5 h-5 text-gb-gray shrink-0 mt-0.5" />
+          <div className="text-sm text-gb-gray">
+            No hay posiciones cargadas. Para usar el simulador, vaya a{" "}
+            <a href="/seguimiento" className="text-gb-primary underline">Seguimiento</a>
+            {" "}de un cliente, abra la Radiografia y haga clic en &quot;Ver simulador completo&quot;.
+          </div>
+        </div>
+      )}
+
       {/* Warning banners */}
       {hasConfianzaBaja && (
         <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
           <div className="text-sm text-yellow-800">
-            <span className="font-medium">Datos estimados:</span> Algunos holdings tienen
-            informacion tributaria con baja confianza. Los resultados pueden ser imprecisos.
-            Verifique con la informacion del cliente.
+            <span className="font-medium">Costo de adquisicion estimado:</span> {holdings.filter(h => h.confianzaBaja).length} fondos
+            no tienen costo de compra en la cartola. La ganancia de capital y el impuesto son estimaciones.
+            Solicite al cliente los valores de compra originales para mayor precision.
           </div>
         </div>
       )}
@@ -126,9 +189,9 @@ export default function TaxSimulator() {
         <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800">
-            <span className="font-medium">Art. 107 detectado:</span> Algunos fondos
-            califican bajo Art. 107 LIR (tasa unica 10%). El simulador considera este
-            regimen especial en los calculos.
+            <span className="font-medium">Reforma tributaria en discusion:</span> Existe un proyecto de ley
+            que podria eliminar el impuesto del 10% sobre ganancias con presencia bursatil (Art. 107).
+            Calculos basados en ley vigente (10%).
           </div>
         </div>
       )}
@@ -232,20 +295,22 @@ export default function TaxSimulator() {
         <div className="mt-6 flex items-center gap-3">
           <button
             onClick={handleSimulate}
-            disabled={loading}
+            disabled={loading || holdings.length === 0}
             className="px-6 py-2.5 bg-gb-primary text-white rounded-lg font-medium text-sm hover:bg-gb-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading && <Loader className="w-4 h-4 animate-spin" />}
             {loading ? "Simulando..." : "Simular escenarios"}
           </button>
-          <span className="text-xs text-gb-gray">
-            Los holdings se populan automaticamente desde la cartola del cliente.
-          </span>
+          {holdings.length === 0 && (
+            <span className="text-xs text-gb-gray">
+              Cargue posiciones desde la Radiografia de un cliente.
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Tax Map */}
-      <TaxMap holdings={holdings} />
+      {/* Tax Map — always show if holdings loaded */}
+      {holdings.length > 0 && <TaxMap holdings={holdings} />}
 
       {/* Results */}
       {scenarios && scenarios.length > 0 && (

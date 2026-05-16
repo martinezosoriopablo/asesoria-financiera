@@ -133,6 +133,8 @@ interface Holding {
   securityId?: string | null;
   serie?: string | null;
   quantity?: number;
+  unitCost?: number;
+  costBasis?: number;
   marketPrice?: number;
   marketValue: number;
   assetClass?: string;
@@ -1561,13 +1563,27 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
             </table>
           </div>
           <div className="px-4 py-3 border-t border-gb-border">
-            <a
-              href="/tax-optimizer"
+            <button
+              onClick={() => {
+                try {
+                  sessionStorage.setItem("tax-simulator-holdings", JSON.stringify({
+                    rawHoldings: holdings,
+                    xrayHoldings: data?.holdings || [],
+                    ufValue: ufValue || 38000,
+                    clientName,
+                    clientId,
+                    proposal: mergedProposal ? Object.fromEntries(
+                      mergedProposal.holdings.filter(h => h.changed).map(h => [h.originalFund, { proposedTac: h.proposedTac }])
+                    ) : undefined,
+                  }));
+                } catch { /* sessionStorage may be full */ }
+                window.location.href = "/tax-optimizer";
+              }}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-gb-primary hover:text-gb-primary/80"
             >
               Ver simulador completo
               <ArrowRight className="w-3.5 h-3.5" />
-            </a>
+            </button>
           </div>
         </div>
       )}

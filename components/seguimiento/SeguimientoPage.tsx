@@ -1285,7 +1285,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
           <div className="mb-6">
             <RadiografiaCartola
-              holdings={(snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; securityId?: string | null; serie?: string | null; quantity?: number; marketPrice?: number; marketValue: number; assetClass?: string; currency?: string }>)}
+              holdings={(snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; securityId?: string | null; serie?: string | null; quantity?: number; costBasis?: number; unitCost?: number; marketPrice?: number; marketValue: number; assetClass?: string; currency?: string }>)}
               clientName={data?.client ? `${data.client.nombre} ${data.client.apellido}` : undefined}
               clientId={clientId}
               fundsMeta={fundsMeta}
