@@ -350,13 +350,15 @@ export default function TaxSimulator({ initialClientId }: Props) {
           <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
           <div className="text-sm text-green-800">
             <span className="font-medium">{holdings.length} posiciones cargadas</span>
-            {clientName && <> del portafolio de <span className="font-medium">{clientName}</span></>}
+            {clientName && <> de <span className="font-medium">{clientName}</span></>}
             {" — "}valor total {totalValueUF.toFixed(0)} UF.
+            {" "}{holdings.filter(h => !h.confianzaBaja).length} con costo de cartola
             {hasConfianzaBaja && (
-              <span className="text-yellow-700 ml-1">
-                ({holdings.filter(h => h.confianzaBaja).length} sin costo de adquisicion)
+              <span className="text-yellow-700">
+                , {holdings.filter(h => h.confianzaBaja).length} estimadas
               </span>
             )}
+            .
           </div>
         </div>
       )}
@@ -378,9 +380,9 @@ export default function TaxSimulator({ initialClientId }: Props) {
         <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
           <div className="text-sm text-yellow-800">
-            <span className="font-medium">Costo de adquisicion estimado:</span> {holdings.filter(h => h.confianzaBaja).length} fondos
-            no tienen costo de compra en la cartola. La ganancia de capital y el impuesto son estimaciones.
-            Solicite al cliente los valores de compra originales para mayor precision.
+            <span className="font-medium">Costo estimado en {holdings.filter(h => h.confianzaBaja).length} posiciones:</span> No
+            tienen costo de compra en la cartola. La ganancia se estima usando precios historicos del valor cuota.
+            Ingrese la fecha exacta de compra en el mapa para mayor precision.
           </div>
         </div>
       )}

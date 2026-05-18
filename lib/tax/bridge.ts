@@ -160,7 +160,7 @@ export function convertToTaxHoldings(
     let estimatedCosts: TaxableHolding["estimatedCosts"] = [];
 
     if (raw.costBasis != null && raw.costBasis > 0) {
-      // costBasis is in the same currency as marketValue
+      // costBasis is in the same currency as marketValue — this is real data from cartola
       const costCLP = toCLP(raw.costBasis, raw.currency, usdRate);
 
       // Use UF at purchase date for corrección monetaria
@@ -170,10 +170,12 @@ export function convertToTaxHoldings(
         acquisitionDate = purchaseInfo.date;
         acquisitionCostUF = costCLP / purchaseInfo.uf;
       } else {
-        // Fallback: divide by UF today (no corrección monetaria)
+        // Fallback: divide by UF today (minor inaccuracy in corrección monetaria,
+        // but costBasis itself is reliable data from the cartola)
         acquisitionCostUF = costCLP / ufValue;
-        confianzaBaja = true; // mark as low confidence since no purchase date UF
+        ufAtPurchase = ufValue; // approximate
       }
+      // confianzaBaja stays false — we have real cost data from cartola
     } else {
       confianzaBaja = true;
 
