@@ -222,13 +222,19 @@ export default function TaxSimulator({ initialClientId }: Props) {
   const totalValueUF = holdings.reduce((s, h) => s + h.currentValueUF, 0);
 
   // Input fields
+  const [tipoContribuyente, setTipoContribuyente] = useState<"persona_natural" | "sociedad_inversion">("persona_natural");
+  const [situacionLaboral, setSituacionLaboral] = useState<"empleado" | "independiente" | "jubilado" | "sin_ingresos">("empleado");
+  const [empleoContinuo, setEmpleoContinuo] = useState(true);
   const [ingresoMensual, setIngresoMensual] = useState(2_000_000);
+  const [pensionMensual, setPensionMensual] = useState(500_000);
   const [edad, setEdad] = useState(40);
   const [edadJubilacion, setEdadJubilacion] = useState(65);
   const [apvUsado, setApvUsado] = useState(0);
   const [dcUsado, setDcUsado] = useState(0);
   const [tasaDescuento, setTasaDescuento] = useState(3.5);
   const [habitual, setHabitual] = useState(false);
+  const esPersonaNatural = tipoContribuyente === "persona_natural";
+  const tieneIngreso = situacionLaboral !== "sin_ingresos" && situacionLaboral !== "jubilado";
 
   // Results state
   const [loading, setLoading] = useState(false);
@@ -247,7 +253,11 @@ export default function TaxSimulator({ initialClientId }: Props) {
     try {
       const inputs: TaxSimulatorInputs = {
         clientId,
+        tipoContribuyente,
+        situacionLaboral,
         ingresoMensualCLP: ingresoMensual,
+        pensionMensualCLP: pensionMensual,
+        empleoContinuo,
         edad,
         edadJubilacion,
         apvUsadoEsteAno: apvUsado,
@@ -281,7 +291,7 @@ export default function TaxSimulator({ initialClientId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [ingresoMensual, edad, edadJubilacion, apvUsado, dcUsado, habitual, tasaDescuento, holdings, clientId]);
+  }, [ingresoMensual, pensionMensual, edad, edadJubilacion, apvUsado, dcUsado, habitual, tasaDescuento, holdings, clientId, tipoContribuyente, situacionLaboral, empleoContinuo]);
 
   const handleGenerateReport = useCallback(async () => {
     if (!scenarios) return;
@@ -389,18 +399,76 @@ export default function TaxSimulator({ initialClientId }: Props) {
       {/* Input panel */}
       <div className="bg-white rounded-lg border border-gb-border p-6">
         <h3 className="font-semibold text-gb-black mb-4">Parametros del cliente</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {/* Tipo contribuyente + situacion laboral */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
-            <label className="block text-xs font-medium text-gb-gray mb-1">
-              Ingreso mensual (CLP)
-            </label>
-            <input
-              type="number"
-              value={ingresoMensual}
-              onChange={(e) => setIngresoMensual(Number(e.target.value))}
+            <label className="block text-xs font-medium text-gb-gray mb-1">Tipo contribuyente</label>
+            <select
+              value={tipoContribuyente}
+              onChange={(e) => setTipoContribuyente(e.target.value as "persona_natural" | "sociedad_inversion")}
               className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
-            />
+            >
+              <option value="persona_natural">Persona natural</option>
+              <option value="sociedad_inversion">Sociedad de inversion</option>
+            </select>
           </div>
+
+          {esPersonaNatural && (
+            <div>
+              <label className="block text-xs font-medium text-gb-gray mb-1">Situacion laboral</label>
+              <select
+                value={situacionLaboral}
+                onChange={(e) => setSituacionLaboral(e.target.value as "empleado" | "independiente" | "jubilado" | "sin_ingresos")}
+                className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
+              >
+                <option value="empleado">Empleado</option>
+                <option value="independiente">Independiente</option>
+                <option value="jubilado">Jubilado</option>
+                <option value="sin_ingresos">Sin ingresos</option>
+              </select>
+            </div>
+          )}
+
+          {esPersonaNatural && tieneIngreso && (
+            <div>
+              <label className="block text-xs font-medium text-gb-gray mb-1">Ingreso mensual (CLP)</label>
+              <input
+                type="number"
+                value={ingresoMensual}
+                onChange={(e) => setIngresoMensual(Number(e.target.value))}
+                className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
+              />
+            </div>
+          )}
+
+          {esPersonaNatural && tieneIngreso && (
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 cursor-pointer py-2">
+                <input
+                  type="checkbox"
+                  checked={empleoContinuo}
+                  onChange={(e) => setEmpleoContinuo(e.target.checked)}
+                  className="w-4 h-4 rounded border-gb-border text-gb-primary focus:ring-gb-primary/30"
+                />
+                <span className="text-sm text-gb-black">Empleo continuo hasta jubilacion</span>
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* Pension, edad, franquicias */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {esPersonaNatural && (
+            <div>
+              <label className="block text-xs font-medium text-gb-gray mb-1">Pension estimada mensual (CLP)</label>
+              <input
+                type="number"
+                value={pensionMensual}
+                onChange={(e) => setPensionMensual(Number(e.target.value))}
+                className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gb-gray mb-1">Edad</label>
@@ -414,50 +482,48 @@ export default function TaxSimulator({ initialClientId }: Props) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gb-gray mb-1">
-              Edad jubilacion
-            </label>
-            <input
-              type="number"
-              value={edadJubilacion}
-              onChange={(e) => setEdadJubilacion(Number(e.target.value))}
-              min={50}
-              max={100}
-              className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
-            />
-          </div>
+          {esPersonaNatural && (
+            <div>
+              <label className="block text-xs font-medium text-gb-gray mb-1">Edad jubilacion</label>
+              <input
+                type="number"
+                value={edadJubilacion}
+                onChange={(e) => setEdadJubilacion(Number(e.target.value))}
+                min={50}
+                max={100}
+                className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
+              />
+            </div>
+          )}
+
+          {esPersonaNatural && (
+            <div>
+              <label className="block text-xs font-medium text-gb-gray mb-1">APV usado este ano (UF)</label>
+              <input
+                type="number"
+                value={apvUsado}
+                onChange={(e) => setApvUsado(Number(e.target.value))}
+                min={0}
+                className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
+              />
+            </div>
+          )}
+
+          {esPersonaNatural && (
+            <div>
+              <label className="block text-xs font-medium text-gb-gray mb-1">DC usado este ano (UF)</label>
+              <input
+                type="number"
+                value={dcUsado}
+                onChange={(e) => setDcUsado(Number(e.target.value))}
+                min={0}
+                className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
+              />
+            </div>
+          )}
 
           <div>
-            <label className="block text-xs font-medium text-gb-gray mb-1">
-              APV usado este ano (UF)
-            </label>
-            <input
-              type="number"
-              value={apvUsado}
-              onChange={(e) => setApvUsado(Number(e.target.value))}
-              min={0}
-              className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gb-gray mb-1">
-              DC usado este ano (UF)
-            </label>
-            <input
-              type="number"
-              value={dcUsado}
-              onChange={(e) => setDcUsado(Number(e.target.value))}
-              min={0}
-              className="w-full border border-gb-border rounded-md px-3 py-2 text-sm text-gb-black focus:outline-none focus:ring-2 focus:ring-gb-primary/30 focus:border-gb-primary"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gb-gray mb-1">
-              Tasa descuento real (%)
-            </label>
+            <label className="block text-xs font-medium text-gb-gray mb-1">Tasa descuento real (%)</label>
             <input
               type="number"
               value={tasaDescuento}

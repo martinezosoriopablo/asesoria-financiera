@@ -31,7 +31,11 @@ function makeHolding(overrides: Partial<TaxableHolding> = {}): TaxableHolding {
 function makeInputs(holdingOverrides: Partial<TaxableHolding>[] = [{}]): TaxSimulatorInputs {
   return {
     clientId: "test",
+    tipoContribuyente: "persona_natural",
+    situacionLaboral: "empleado",
     ingresoMensualCLP: 3000000,
+    pensionMensualCLP: 500000,
+    empleoContinuo: true,
     edad: 45,
     edadJubilacion: 65,
     apvUsadoEsteAno: 0,

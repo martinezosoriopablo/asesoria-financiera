@@ -30,9 +30,16 @@ export interface TaxableHolding {
   confianzaBaja: boolean;
 }
 
+export type TipoContribuyente = "persona_natural" | "sociedad_inversion";
+export type SituacionLaboral = "empleado" | "independiente" | "jubilado" | "sin_ingresos";
+
 export interface TaxSimulatorInputs {
   clientId: string;
+  tipoContribuyente: TipoContribuyente;
+  situacionLaboral: SituacionLaboral;
   ingresoMensualCLP: number;
+  pensionMensualCLP: number; // estimated pension for retirement scenarios
+  empleoContinuo: boolean; // expects continuous employment until retirement
   edad: number;
   edadJubilacion: number;
   apvUsadoEsteAno: number;

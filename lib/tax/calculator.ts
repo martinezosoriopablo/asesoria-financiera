@@ -9,8 +9,9 @@ import {
   APV_CREDITO_REGIMEN_A,
   ART107_TASA_UNICA,
   EXENCION_NO_HABITUAL_UTA,
+  PRIMERA_CATEGORIA_TASA,
 } from "@/lib/constants/chilean-tax";
-import type { TaxableHolding, HoldingTaxResult, MitigacionResult } from "./types";
+import type { TaxableHolding, HoldingTaxResult, MitigacionResult, TipoContribuyente } from "./types";
 
 // ---------------------------------------------------------------------------
 // 1. getTramoMarginal
@@ -66,7 +67,8 @@ export function calcularImpuestoAnual(
   holdings: TaxableHolding[],
   rentaTrabajoAnualUF: number,
   esHabitual: boolean,
-  utaValueUF: number
+  utaValueUF: number,
+  tipoContribuyente: TipoContribuyente = "persona_natural"
 ): {
   porHolding: HoldingTaxResult[];
   totalImpuesto: number;
@@ -197,12 +199,19 @@ export function calcularImpuestoAnual(
     gananciaNetaGeneral -= exencion17N8;
   }
 
-  // Bracket jumping: tax on (work + gains) minus tax on (work alone)
-  const impuestoConGanancia = calcularImpuestoProgresivo(
-    rentaTrabajoAnualUF + gananciaNetaGeneral
-  );
-  const impuestoSinGanancia = calcularImpuestoProgresivo(rentaTrabajoAnualUF);
-  const impuestoGeneral = impuestoConGanancia - impuestoSinGanancia;
+  // Tax calculation depends on tipo de contribuyente
+  let impuestoGeneral: number;
+  if (tipoContribuyente === "sociedad_inversion") {
+    // Sociedad de inversión: flat 27% primera categoría on net gains
+    impuestoGeneral = gananciaNetaGeneral * PRIMERA_CATEGORIA_TASA;
+  } else {
+    // Persona natural: bracket jumping on Global Complementario
+    const impuestoConGanancia = calcularImpuestoProgresivo(
+      rentaTrabajoAnualUF + gananciaNetaGeneral
+    );
+    const impuestoSinGanancia = calcularImpuestoProgresivo(rentaTrabajoAnualUF);
+    impuestoGeneral = impuestoConGanancia - impuestoSinGanancia;
+  }
 
   // Distribute tax proportionally across holdings with positive gains
   const holdingsConGanancia = generalHoldings.filter((gh) => gh.ganancia > 0);

@@ -8,6 +8,7 @@ import type {
   ScenarioResult,
   YearPlan,
   MitigacionResult,
+  TipoContribuyente,
 } from "./types";
 
 import {
@@ -24,6 +25,36 @@ import {
 // ---------------------------------------------------------------------------
 export function ingresoMensualUF(clp: number, ufValue: number): number {
   return clp / ufValue;
+}
+
+// ---------------------------------------------------------------------------
+// Income projection per year
+// ---------------------------------------------------------------------------
+function proyectarIngreso(
+  inputs: TaxSimulatorInputs,
+  ufValue: number,
+  yearOffset: number
+): number {
+  const edadEnAno = inputs.edad + yearOffset;
+  const yaJubilado = inputs.situacionLaboral === "jubilado" || edadEnAno >= inputs.edadJubilacion;
+
+  if (yaJubilado) {
+    // Use pension estimate
+    return ingresoMensualUF(inputs.pensionMensualCLP, ufValue) * 12;
+  }
+
+  if (inputs.situacionLaboral === "sin_ingresos") {
+    return 0;
+  }
+
+  const ingresoBase = ingresoMensualUF(inputs.ingresoMensualCLP, ufValue) * 12;
+
+  // Discontinuous employment: 60% of income for future years
+  if (!inputs.empleoContinuo && yearOffset > 0) {
+    return ingresoBase * 0.6;
+  }
+
+  return ingresoBase;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,9 +131,10 @@ function buildYearPlanFromTax(
   esHabitual: boolean,
   utaValueUF: number,
   apvUsadoUF: number,
-  dcUsadoUF: number
+  dcUsadoUF: number,
+  tipoContribuyente: TipoContribuyente = "persona_natural"
 ): { plan: YearPlan; impuestoNeto: number } {
-  const taxResult = calcularImpuestoAnual(holdings, rentaTrabajoAnualUF, esHabitual, utaValueUF);
+  const taxResult = calcularImpuestoAnual(holdings, rentaTrabajoAnualUF, esHabitual, utaValueUF, tipoContribuyente);
 
   const plan = emptyYearPlan(ano);
 
@@ -178,8 +210,7 @@ export function runScenarioA(
   utaValueUF: number,
   ufValue: number
 ): ScenarioResult {
-  const rentaMensualUF = ingresoMensualUF(inputs.ingresoMensualCLP, ufValue);
-  const rentaAnualUF = rentaMensualUF * 12;
+  const rentaAnualUF = proyectarIngreso(inputs, ufValue, 0);
 
   const { plan, impuestoNeto } = buildYearPlanFromTax(
     0,
@@ -188,7 +219,8 @@ export function runScenarioA(
     inputs.esInversionistaHabitual,
     utaValueUF,
     inputs.apvUsadoEsteAno,
-    inputs.dcUsadoEsteAno
+    inputs.dcUsadoEsteAno,
+    inputs.tipoContribuyente
   );
 
   // TAC savings: all migrate immediately
@@ -256,10 +288,12 @@ export function runScenarioB(
   utaValueUF: number,
   ufValue: number
 ): ScenarioResult {
-  const rentaMensualUF = ingresoMensualUF(inputs.ingresoMensualCLP, ufValue);
-  const rentaAnualUF = rentaMensualUF * 12;
+  const rentaAnualUF = proyectarIngreso(inputs, ufValue, 0);
+  const rentaMensualUF = rentaAnualUF / 12;
   const tramo = getTramoMarginal(rentaMensualUF);
-  const bracketSpace = (tramo.tramoHasta - rentaMensualUF) * 12;
+  const bracketSpace = inputs.tipoContribuyente === "sociedad_inversion"
+    ? Infinity // sociedad: no bracket limit, flat 27%
+    : (tramo.tramoHasta - rentaMensualUF) * 12;
 
   const sorted = sortHoldingsForStagedExit(inputs.holdings);
   const remaining = new Set(sorted.map((_, i) => i));
@@ -319,14 +353,16 @@ export function runScenarioB(
 
     if (yearHoldings.length === 0) break;
 
+    const yearIncome = proyectarIngreso(inputs, ufValue, year);
     const { plan, impuestoNeto } = buildYearPlanFromTax(
       year,
       yearHoldings,
-      rentaAnualUF,
+      yearIncome,
       inputs.esInversionistaHabitual,
       utaValueUF,
       year === 0 ? inputs.apvUsadoEsteAno : 0,
-      year === 0 ? inputs.dcUsadoEsteAno : 0
+      year === 0 ? inputs.dcUsadoEsteAno : 0,
+      inputs.tipoContribuyente
     );
 
     totalImpuesto += impuestoNeto;
@@ -336,14 +372,16 @@ export function runScenarioB(
   // If there are still remaining holdings after 5 years, sell them in year 5
   if (remaining.size > 0) {
     const leftover = [...remaining].map((i) => sorted[i]);
+    const yearIncome5 = proyectarIngreso(inputs, ufValue, 5);
     const { plan, impuestoNeto } = buildYearPlanFromTax(
       5,
       leftover,
-      rentaAnualUF,
+      yearIncome5,
       inputs.esInversionistaHabitual,
       utaValueUF,
       0,
-      0
+      0,
+      inputs.tipoContribuyente
     );
     totalImpuesto += impuestoNeto;
     totalMigrated += leftover.length;
@@ -394,7 +432,7 @@ export function runScenarioB(
 export function runScenarioC(
   inputs: TaxSimulatorInputs,
   utaValueUF: number,
-  _ufValue: number
+  ufValue: number
 ): ScenarioResult {
   const anosHastaJubilacion = Math.max(1, inputs.edadJubilacion - inputs.edad);
 
@@ -402,12 +440,13 @@ export function runScenarioC(
   const plan0 = emptyYearPlan(0);
 
   // At retirement: sell everything at low bracket
-  const retirementIncomeAnnualUF = 200; // 200 UF/year pension
+  const retirementIncomeAnnualUF = proyectarIngreso(inputs, ufValue, anosHastaJubilacion);
   const retirementTax = calcularImpuestoAnual(
     inputs.holdings,
     retirementIncomeAnnualUF,
     inputs.esInversionistaHabitual,
-    utaValueUF
+    utaValueUF,
+    inputs.tipoContribuyente
   );
 
   const retirementPlan = emptyYearPlan(anosHastaJubilacion);

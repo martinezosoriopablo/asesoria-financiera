@@ -22,6 +22,7 @@ export const ART107_TASA_UNICA = 0.10;
 export const ART104_TASA_UNICA = 0.04;
 export const EXENCION_NO_HABITUAL_UTA = 10;
 export const EXENCION_RENTAS_CAPITAL_UTM = 30;
+export const PRIMERA_CATEGORIA_TASA = 0.27; // Sociedades de inversión
 
 // Rentabilidades esperadas reales por clase de activo (en UF, configurables)
 export const RENTABILIDAD_ESPERADA_REAL: Record<string, number> = {
