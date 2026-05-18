@@ -150,30 +150,28 @@ export default function TaxSimulator({ initialClientId }: Props) {
 
             const h = rawHoldings[i];
             const qty = h.quantity || 1;
+            const isUsd = (h.currency || "").toUpperCase() === "USD";
 
-            // current-prices API returns price in CLP (converts USD funds automatically)
-            // So pr.currentPrice is always CLP per unit
-            const newValueCLP = pr.currentPrice * qty;
+            // current-prices API returns price in the fund's native currency
+            // For USD funds without moneda_funcional, it comes back in USD
+            const newNativeValue = pr.currentPrice * qty;
 
-            // Sanity check: compare new CLP value vs cartola CLP value
-            const oldValueCLP = h.marketValueCLP && h.marketValueCLP > 0
-              ? h.marketValueCLP
-              : (h.marketValue || 0) * ((h.currency || "").toUpperCase() === "USD" ? usdRate : 1);
-
-            if (oldValueCLP > 0) {
-              const ratio = newValueCLP / oldValueCLP;
-              // Allow up to 5x growth/decline (generous for time gap between cartola and today)
+            // Sanity check: compare in same currency as cartola marketValue
+            const oldNativeValue = h.marketValue || 0;
+            if (oldNativeValue > 0) {
+              const ratio = newNativeValue / oldNativeValue;
               if (ratio > 5 || ratio < 0.2) {
-                console.warn(`TaxSimulator: skipping suspicious price for ${h.fundName}: new=${newValueCLP.toFixed(0)}, old=${oldValueCLP.toFixed(0)}, ratio=${ratio.toFixed(2)}`);
+                console.warn(`TaxSimulator: skipping suspicious price for ${h.fundName}: new=${newNativeValue.toFixed(0)}, old=${oldNativeValue.toFixed(0)}, ratio=${ratio.toFixed(2)}`);
                 continue;
               }
             }
 
-            // Update both values — currentPrice from API is already in CLP
-            h.marketValueCLP = newValueCLP;
-            // Keep marketValue in native currency for the bridge's toCLP fallback
-            const isUsd = (h.currency || "").toUpperCase() === "USD";
-            h.marketValue = isUsd && usdRate > 0 ? newValueCLP / usdRate : newValueCLP;
+            // Update marketValue in native currency
+            h.marketValue = newNativeValue;
+            // Update CLP value: convert USD if needed
+            h.marketValueCLP = isUsd && usdRate > 0
+              ? newNativeValue * usdRate
+              : newNativeValue;
           }
         }
       } catch {

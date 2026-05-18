@@ -7,7 +7,49 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { getLatestPrice } from "@/lib/fintual-api";
 import { stripAccents } from "@/lib/text";
 import { detectSerieCode } from "@/lib/fund-utils";
-import { getDolarObservado } from "@/lib/bcch";
+
+// Cache for dólar observado by date
+const dolarCache = new Map<string, number>();
+
+// Fetch dólar observado for a specific date from mindicador.cl
+async function fetchDolarObservado(fecha: string): Promise<number> {
+  // Check cache
+  const cached = dolarCache.get(fecha);
+  if (cached) return cached;
+
+  try {
+    // mindicador.cl API: /api/dolar/dd-mm-yyyy
+    const [year, month, day] = fecha.split("-");
+    const url = `https://mindicador.cl/api/dolar/${day}-${month}-${year}`;
+    const res = await fetch(url, { next: { revalidate: 86400 } }); // cache 24h
+    if (res.ok) {
+      const data = await res.json();
+      if (data.serie && data.serie.length > 0) {
+        const valor = data.serie[0].valor;
+        dolarCache.set(fecha, valor);
+        return valor;
+      }
+    }
+  } catch (err) {
+    console.error(`Error fetching dólar observado for ${fecha}:`, err);
+  }
+
+  // Fallback: try today's rate
+  try {
+    const res = await fetch("https://mindicador.cl/api", { next: { revalidate: 600 } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.dolar?.valor) {
+        const valor = data.dolar.valor;
+        dolarCache.set(fecha, valor);
+        return valor;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Last resort fallback
+  return 950;
+}
 
 interface HoldingInput {
   fundName: string;
@@ -432,37 +474,23 @@ export async function POST(request: NextRequest) {
           if (priceData && priceData.valor_cuota > 0) {
             let finalPrice = priceData.valor_cuota;
 
-            // Currency detection: prefer moneda_funcional from DB, fall back to ratio heuristic
-            const fundCurrency = (fondo.moneda_funcional || "").toUpperCase();
-            const isUsdFund = ["USD", "US$", "DOLAR", "DOL"].includes(fundCurrency);
-
-            // Also check holding.currency from cartola as a signal
-            const holdingCurrencyUpper = (holding.currency || "").toUpperCase();
-            const isUsdFromCartola = ["USD", "US$"].includes(holdingCurrencyUpper);
-
-            if (isUsdFund || (!fundCurrency && isUsdFromCartola)) {
-              // DB moneda or cartola says USD → DB price is in USD, convert to CLP
-              try {
-                const usdClp = await getDolarObservado(priceData.fecha);
-                finalPrice = finalPrice * usdClp;
-              } catch { /* keep original price if BCCH fails */ }
-              result.currency = "CLP";
-            } else if (holding.cartolaPrice && holding.cartolaPrice > 0) {
-              // Fallback: ratio heuristic for funds without moneda_funcional
+            // Detect currency switch: CMF sometimes reports the same serie
+            // in CLP on one date and USD on another. If the ratio between
+            // cartola price and DB price is ~800-1100x, one is in USD.
+            // In that case, convert the USD price to CLP using dólar observado.
+            if (holding.cartolaPrice && holding.cartolaPrice > 0) {
               const ratio = holding.cartolaPrice / finalPrice;
               const inverseRatio = finalPrice / holding.cartolaPrice;
 
               if (ratio >= 700 && ratio <= 1200) {
-                try {
-                  const usdClp = await getDolarObservado(priceData.fecha);
-                  finalPrice = finalPrice * usdClp;
-                } catch { /* keep original */ }
+                // Cartola is in CLP, DB price is in USD → multiply by dólar observado
+                const usdClp = await fetchDolarObservado(priceData.fecha);
+                finalPrice = finalPrice * usdClp;
                 result.currency = holding.currency || "CLP";
               } else if (inverseRatio >= 700 && inverseRatio <= 1200) {
-                try {
-                  const usdClp = await getDolarObservado(priceData.fecha);
-                  finalPrice = finalPrice / usdClp;
-                } catch { /* keep original */ }
+                // Cartola is in USD, DB price is in CLP → divide by dólar observado
+                const usdClp = await fetchDolarObservado(priceData.fecha);
+                finalPrice = finalPrice / usdClp;
                 result.currency = holding.currency || "USD";
               }
             }
