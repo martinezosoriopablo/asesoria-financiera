@@ -126,6 +126,60 @@ export default function TaxSimulator({ initialClientId }: Props) {
         console.warn("TaxSimulator: xray failed, using general regime for all holdings");
       }
 
+      // Fetch latest prices so currentValueCLP reflects today's price, not the stale cartola value
+      try {
+        const cpRes = await fetch("/api/portfolio/current-prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            holdings: rawHoldings.map((h: { fundName: string; securityId?: string; serie?: string; currency?: string; marketValue?: number; quantity?: number }) => ({
+              fundName: h.fundName,
+              securityId: h.securityId,
+              serie: h.serie,
+              currency: h.currency,
+              cartolaPrice: h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : undefined,
+            })),
+          }),
+        });
+        if (cpRes.ok) {
+          const cpData = await cpRes.json();
+          const prices: { fundName: string; currentPrice: number | null; source: string }[] = cpData.prices || [];
+          for (let i = 0; i < rawHoldings.length && i < prices.length; i++) {
+            const pr = prices[i];
+            if (!pr?.currentPrice || pr.currentPrice <= 0) continue;
+
+            const h = rawHoldings[i];
+            const qty = h.quantity || 1;
+
+            // current-prices API returns price in CLP (converts USD funds automatically)
+            // So pr.currentPrice is always CLP per unit
+            const newValueCLP = pr.currentPrice * qty;
+
+            // Sanity check: compare new CLP value vs cartola CLP value
+            const oldValueCLP = h.marketValueCLP && h.marketValueCLP > 0
+              ? h.marketValueCLP
+              : (h.marketValue || 0) * ((h.currency || "").toUpperCase() === "USD" ? usdRate : 1);
+
+            if (oldValueCLP > 0) {
+              const ratio = newValueCLP / oldValueCLP;
+              // Allow up to 5x growth/decline (generous for time gap between cartola and today)
+              if (ratio > 5 || ratio < 0.2) {
+                console.warn(`TaxSimulator: skipping suspicious price for ${h.fundName}: new=${newValueCLP.toFixed(0)}, old=${oldValueCLP.toFixed(0)}, ratio=${ratio.toFixed(2)}`);
+                continue;
+              }
+            }
+
+            // Update both values — currentPrice from API is already in CLP
+            h.marketValueCLP = newValueCLP;
+            // Keep marketValue in native currency for the bridge's toCLP fallback
+            const isUsd = (h.currency || "").toUpperCase() === "USD";
+            h.marketValue = isUsd && usdRate > 0 ? newValueCLP / usdRate : newValueCLP;
+          }
+        }
+      } catch {
+        console.warn("TaxSimulator: current-prices fetch failed, using cartola values as fallback");
+      }
+
       // Fetch historical quotes for cost estimation (funds without costBasis)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let quotes: Record<string, any> = {};
