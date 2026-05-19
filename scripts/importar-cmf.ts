@@ -58,10 +58,6 @@ function parseArgs(): { file: string | null; dryRun: boolean } {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function normalizeRun(run: string): string {
-  return run.replace(/\./g, '').replace(/-/g, '').toUpperCase()
-}
-
 function extractRunNumeric(run: string): number {
   // "76.XXX.XXX-K" → numeric part only (no DV)
   const cleaned = run.replace(/\./g, '').replace(/-.*$/, '')

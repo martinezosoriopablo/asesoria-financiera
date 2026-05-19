@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { runs, snapshotDate } = (await req.json()) as BackfillRequest;
+  const { runs } = (await req.json()) as BackfillRequest;
 
   if (!runs || runs.length === 0) {
     return NextResponse.json({ success: false, error: "runs requeridos" }, { status: 400 });

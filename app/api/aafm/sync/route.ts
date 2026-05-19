@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    let date = body.date ? new Date(body.date) : new Date();
+    const date = body.date ? new Date(body.date) : new Date();
 
     // Try fetching and parsing AAFM data, auto-retry going back up to 3 days
     // (weekends/holidays may have no data, and UTC vs Chile timezone can shift dates)

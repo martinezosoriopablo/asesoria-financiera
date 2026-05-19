@@ -5,7 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { extractText } from "unpdf";
+import { extractFromPdf, type ExtractedFichaData } from "@/lib/ficha-extract";
+import { discoverFromCmfPage, getPdfUrl, downloadPdf } from "@/lib/cmf-fichas";
 
 export const maxDuration = 300;
 
@@ -30,123 +31,6 @@ const AGF_RUT_MAP: Record<string, string> = {
   "LARRAINVIAL": "80537000",
 };
 
-interface ExtractedFichaData {
-  tac_serie: number | null;
-  nombre_fondo_pdf: string | null;
-  serie_detectada: string | null;
-  rent_1m: number | null;
-  rent_3m: number | null;
-  rent_6m: number | null;
-  rent_12m: number | null;
-  rescatable: boolean | null;
-  plazo_rescate: string | null;
-  horizonte_inversion: string | null;
-  tolerancia_riesgo: string | null;
-  objetivo: string | null;
-}
-
-async function extractFromPdf(buffer: ArrayBuffer): Promise<ExtractedFichaData> {
-  const result = await extractText(new Uint8Array(buffer));
-  const text = (result.text as string[]).join("\n");
-
-  // TAC Serie — handles both "IVA incluido" and "Exento de IVA" formats
-  let tac_serie: number | null = null;
-  const tacMatch = text.match(/TAC\s+Serie\s+\(?(?:IVA\s+incluido|Exento\s+de\s+IVA)\)?\s+([\d,]+)%/i);
-  if (tacMatch) {
-    tac_serie = parseFloat(tacMatch[1].replace(",", "."));
-  }
-
-  // Rentabilidades
-  const parseRent = (label: string): number | null => {
-    const re = new RegExp(label + "\\s+(-?[\\d,.]+)%", "i");
-    const m = text.match(re);
-    if (m) return parseFloat(m[1].replace(",", "."));
-    return null;
-  };
-
-  // Fund name + serie from header
-  let nombre_fondo_pdf: string | null = null;
-  let serie_detectada: string | null = null;
-  const headerMatch = text.match(/FONDO\s+MUTUO\s+([^|]+)\|\s*SERIE\s+(\S+)/i);
-  if (headerMatch) {
-    nombre_fondo_pdf = headerMatch[1].trim();
-    serie_detectada = headerMatch[2].trim();
-  }
-
-  // Rescatable
-  const rescatableMatch = text.match(/Fondo\s+es\s+Rescatable:\s*(SI|NO)/i);
-  const rescatable = rescatableMatch ? rescatableMatch[1].toUpperCase() === "SI" : null;
-
-  // Plazo rescates
-  const plazoMatch = text.match(/Plazo\s+Rescates:\s*([^\n]+)/i);
-  const plazo_rescate = plazoMatch ? plazoMatch[1].trim() : null;
-
-  // Horizonte
-  const horizonteMatch = text.match(/((?:Corto|Mediano|Largo)(?:\s+(?:o|y|a)\s+(?:corto|mediano|largo))*\s+plazo)/i);
-  const horizonte_inversion = horizonteMatch ? horizonteMatch[1].trim() : null;
-
-  // Tolerancia
-  const toleranciaMatch = text.match(/Nivel\s+(alto|medio|bajo|moderado)/i);
-  const tolerancia_riesgo = toleranciaMatch ? toleranciaMatch[0].trim() : null;
-
-  // Objetivo
-  const objIdx = text.indexOf("Objetivo del Fondo");
-  const tolIdx = text.indexOf("Tolerancia al Riesgo");
-  const objetivo = objIdx >= 0 && tolIdx > objIdx
-    ? text.substring(objIdx + "Objetivo del Fondo".length, tolIdx).replace(/\n/g, " ").trim().substring(0, 500)
-    : null;
-
-  return {
-    tac_serie,
-    nombre_fondo_pdf,
-    serie_detectada,
-    rent_1m: parseRent("1\\s*Mes"),
-    rent_3m: parseRent("3\\s*Meses"),
-    rent_6m: parseRent("6\\s*Meses"),
-    rent_12m: parseRent("1\\s*Año"),
-    rescatable,
-    plazo_rescate,
-    horizonte_inversion,
-    tolerancia_riesgo,
-    objetivo,
-  };
-}
-
-// Discover rutAdmin and available series for a given fo_run
-async function discoverFromCmfPage(foRun: number): Promise<{ rutAdmin: string; series: string[] } | null> {
-  const url = `https://www.cmfchile.cl/institucional/mercados/entidad.php?mercado=V&rut=${foRun}&tipoentidad=RGFMU&vig=VI&control=svs&pestania=68`;
-  const res = await fetch(url);
-  const html = await res.text();
-  const matches = [...html.matchAll(/verFolleto\('\d+','([^']+)','(\d+)'\)/g)];
-  if (matches.length === 0) return null;
-  const rutAdmin = matches[0][2];
-  const series = [...new Set(matches.map(m => m[1]))];
-  return { rutAdmin, series };
-}
-
-// Get PDF URL from CMF (no session needed)
-async function getPdfUrl(foRun: number, serie: string, rutAdmin: string): Promise<string | null> {
-  const res = await fetch("https://www.cmfchile.cl/institucional/inc/ver_folleto_fm.php", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Requested-With": "XMLHttpRequest",
-    },
-    body: `runFondo=${foRun}&serie=${encodeURIComponent(serie)}&rutAdmin=${rutAdmin}`,
-  });
-  const text = await res.text();
-  if (text === "ERROR" || text.includes("DOCTYPE")) return null;
-  return text.trim();
-}
-
-// Download PDF (no session needed)
-async function downloadPdf(pdfPath: string): Promise<ArrayBuffer | null> {
-  const url = `https://www.cmfchile.cl${pdfPath}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  return res.arrayBuffer();
-}
-
 // Match AGF name to known RUT
 function findRutAdmin(nombreAgf: string): string | null {
   const upper = nombreAgf.toUpperCase();
@@ -168,7 +52,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
 
   // Options: sync by AGF name, by specific fo_runs, or discover all
-  const { nombre_agf, fo_runs, limit: batchLimit = 20 } = body;
+  const { nombre_agf, fo_runs, limit: batchLimit = 20, force = false } = body;
 
   if (!nombre_agf && !fo_runs) {
     return NextResponse.json({
@@ -207,29 +91,27 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Get already synced fo_runs to skip them
+  // Get already synced fo_run+serie pairs to skip them (unless force=true)
   const allRuns = [...uniqueRuns.keys()];
-  const { data: existingFichas } = await supabase
-    .from("fund_fichas")
-    .select("fo_run")
-    .in("fo_run", allRuns);
-  const alreadySynced = new Set((existingFichas || []).map(f => Number(f.fo_run)));
+  let alreadySynced = new Set<string>();
+  if (!force) {
+    const { data: existingFichas } = await supabase
+      .from("fund_fichas")
+      .select("fo_run, fm_serie")
+      .in("fo_run", allRuns);
+    alreadySynced = new Set((existingFichas || []).map(f => `${f.fo_run}-${f.fm_serie}`));
+  }
 
   const results: { fo_run: number; serie: string; status: string; extracted?: ExtractedFichaData }[] = [];
   let synced = 0;
   let errors = 0;
   let skipped = 0;
+  let geminiExhausted = false;
 
   for (const [foRun, fondo] of uniqueRuns) {
-    // Skip funds that already have fichas
-    if (alreadySynced.has(foRun)) {
-      results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "already_synced" });
-      skipped++;
-      continue;
-    }
     try {
       // Discover rutAdmin and ALL available series from CMF
-      const cmfData = await discoverFromCmfPage(foRun);
+      const cmfData = await discoverFromCmfPage(foRun, "RGFMU");
       if (!cmfData) {
         const rutAdmin = findRutAdmin(fondo.nombre_agf);
         if (!rutAdmin) {
@@ -238,6 +120,11 @@ export async function POST(request: NextRequest) {
           continue;
         }
         // Fallback: try single serie from DB
+        if (alreadySynced.has(`${foRun}-${fondo.fm_serie}`)) {
+          results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "already_synced" });
+          skipped++;
+          continue;
+        }
         const pdfUrl = await getPdfUrl(foRun, fondo.fm_serie, rutAdmin);
         if (!pdfUrl) {
           results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "no_pdf_url" });
@@ -246,9 +133,11 @@ export async function POST(request: NextRequest) {
         }
         const pdfBuffer = await downloadPdf(pdfUrl);
         if (!pdfBuffer) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "download_failed" }); errors++; continue; }
-        const extracted = await extractFromPdf(pdfBuffer);
+        const { data: extracted, gemini_exhausted: fallbackGeminiExhausted } = await extractFromPdf(pdfBuffer);
+        if (fallbackGeminiExhausted) geminiExhausted = true;
+        const { extraction_method: _, ...dbFields1 } = extracted;
         const { error: upsertError } = await supabase.from("fund_fichas").upsert({
-          fo_run: foRun, fm_serie: fondo.fm_serie, ...extracted,
+          fo_run: foRun, fm_serie: fondo.fm_serie, ...dbFields1,
           updated_at: new Date().toISOString(), updated_by: user!.id,
         }, { onConflict: "fo_run,fm_serie" });
         if (upsertError) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: `db_error: ${upsertError.message}` }); errors++; }
@@ -259,6 +148,12 @@ export async function POST(request: NextRequest) {
 
       // Process EVERY serie — each has its own TAC/costs
       for (const serie of cmfData.series) {
+        // Skip series already synced
+        if (alreadySynced.has(`${foRun}-${serie}`)) {
+          results.push({ fo_run: foRun, serie, status: "already_synced" });
+          skipped++;
+          continue;
+        }
         try {
           const pdfUrl = await getPdfUrl(foRun, serie, cmfData.rutAdmin);
           if (!pdfUrl) {
@@ -274,25 +169,16 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          const extracted = await extractFromPdf(pdfBuffer);
+          const { data: extracted, gemini_exhausted: serieGeminiExhausted } = await extractFromPdf(pdfBuffer);
+          if (serieGeminiExhausted) geminiExhausted = true;
+          const { extraction_method: _x, ...dbFields2 } = extracted;
 
           const { error: upsertError } = await supabase
             .from("fund_fichas")
             .upsert({
               fo_run: foRun,
               fm_serie: serie,
-              tac_serie: extracted.tac_serie,
-              nombre_fondo_pdf: extracted.nombre_fondo_pdf,
-              serie_detectada: extracted.serie_detectada,
-              rent_1m: extracted.rent_1m,
-              rent_3m: extracted.rent_3m,
-              rent_6m: extracted.rent_6m,
-              rent_12m: extracted.rent_12m,
-              rescatable: extracted.rescatable,
-              plazo_rescate: extracted.plazo_rescate,
-              horizonte_inversion: extracted.horizonte_inversion,
-              tolerancia_riesgo: extracted.tolerancia_riesgo,
-              objetivo: extracted.objetivo,
+              ...dbFields2,
               updated_at: new Date().toISOString(),
               updated_by: user!.id,
             }, { onConflict: "fo_run,fm_serie" });
@@ -324,6 +210,7 @@ export async function POST(request: NextRequest) {
     errors,
     skipped,
     total: uniqueRuns.size,
+    gemini_exhausted: geminiExhausted,
     results: results.filter(r => r.status !== "already_synced"),
   });
 }

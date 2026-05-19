@@ -6,7 +6,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { CHILEAN_TICKERS, isChileanTicker } from "@/lib/constants/chilean-finance";
+import { isChileanTicker } from "@/lib/constants/chilean-finance";
 
 // Detect if query looks like a stock ticker
 function looksLikeTicker(q: string): boolean {

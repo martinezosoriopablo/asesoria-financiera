@@ -287,7 +287,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insertar nuevos registros
-    const { error: insertError, data: insertData } = await supabase
+    const { error: insertError } = await supabase
       .from('fondos_rentabilidades_diarias')
       .insert(registros)
       .select();

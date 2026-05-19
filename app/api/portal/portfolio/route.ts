@@ -16,10 +16,7 @@ export async function GET() {
     .order("snapshot_date", { ascending: true })
     .limit(100);
 
-  // Latest snapshot (full detail)
-  const snapshot = allSnapshots && allSnapshots.length > 0
-    ? null // We'll fetch full detail separately
-    : null;
+  // Latest snapshot fetched separately below
 
   const { data: latestSnapshot } = await admin
     .from("portfolio_snapshots")

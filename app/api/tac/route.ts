@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
           fm_serie,
           tac_sintetica
         });
-      } catch (_error) {
+      } catch {
         errores++;
       }
     }

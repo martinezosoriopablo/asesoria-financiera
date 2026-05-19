@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -126,10 +127,13 @@ export default function AdvisorSidebar({
         {!collapsed && advisorName && (
           <div className="mt-3 flex items-center gap-2.5">
             {advisorPhoto ? (
-              <img
+              <Image
                 src={advisorPhoto}
                 alt={advisorName}
                 className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20 shrink-0"
+                width={32}
+                height={32}
+                unoptimized
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold shrink-0">
@@ -153,10 +157,13 @@ export default function AdvisorSidebar({
           <div className="mt-3 space-y-2">
             <div className="flex justify-center">
               {advisorPhoto ? (
-                <img
+                <Image
                   src={advisorPhoto}
                   alt={advisorName}
                   className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20"
+                  width={32}
+                  height={32}
+                  unoptimized
                 />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold">

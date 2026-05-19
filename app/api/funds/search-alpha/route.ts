@@ -72,7 +72,6 @@ export async function GET(request: NextRequest) {
 
     // Filtrar por tipo si se especifica
     let matches = data.bestMatches;
-    const originalMatches = [...matches];
 
     if (assetType === "etf") {
       const filtered = matches.filter(m => m["3. type"] === "ETF");

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
+import { formatNumber, formatCurrency, formatDate } from "@/lib/format";
 import EvolucionChart from "./EvolucionChart";
 import SnapshotsTable from "./SnapshotsTable";
 import AddSnapshotModal from "./AddSnapshotModal";
@@ -111,7 +111,7 @@ interface Props {
 }
 
 export default function SeguimientoPage({ clientId }: Props) {
-  const { advisor, loading: authLoading } = useAdvisor();
+  const { advisor: _advisor, loading: authLoading } = useAdvisor();
   const [data, setData] = useState<SeguimientoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

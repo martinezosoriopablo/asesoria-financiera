@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { data: clients, error: clientsError } = await admin
     .from("clients")
-    .select("id, nombre, apellido, email, perfil_riesgo, puntaje_riesgo, cartera_recomendada, portal_enabled, portal_last_seen, created_at, asesor_id")
+    .select("id, nombre, apellido, email, status, perfil_riesgo, puntaje_riesgo, cartera_recomendada, portal_enabled, portal_last_seen, created_at, asesor_id")
     .in("asesor_id", advisorIds)
     .order("nombre", { ascending: true });
 
@@ -42,12 +42,17 @@ export async function GET(request: NextRequest) {
     .in("client_id", clientIds)
     .order("snapshot_date", { ascending: false });
 
-  // Group by client, take latest
+  // Group by client: latest, and snapshots by date for period returns
   const latestSnapshots = new Map();
+  const snapshotsByClient = new Map<string, typeof allSnapshots>();
   for (const snap of (allSnapshots || [])) {
     if (!latestSnapshots.has(snap.client_id)) {
       latestSnapshots.set(snap.client_id, snap);
     }
+    if (!snapshotsByClient.has(snap.client_id)) {
+      snapshotsByClient.set(snap.client_id, []);
+    }
+    snapshotsByClient.get(snap.client_id)!.push(snap);
   }
 
   // Batch fetch: latest interactions (last contact)
@@ -103,6 +108,36 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Helper: find snapshot closest to N days ago and compute return vs latest
+  function getPeriodReturn(clientId: string, daysAgo: number): number | null {
+    const snaps = snapshotsByClient.get(clientId);
+    if (!snaps || snaps.length < 2) return null;
+    const latest = snaps[0];
+    if (latest.total_value == null) return null;
+
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() - daysAgo);
+    const targetMs = targetDate.getTime();
+
+    // Find snapshot closest to target date (must be before latest)
+    let best = null;
+    let bestDiff = Infinity;
+    for (let i = 1; i < snaps.length; i++) {
+      const snapMs = new Date(snaps[i].snapshot_date).getTime();
+      const diff = Math.abs(snapMs - targetMs);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = snaps[i];
+      }
+    }
+
+    // Only use if within 10 days of target
+    if (!best || bestDiff > 10 * 24 * 60 * 60 * 1000) return null;
+    if (best.total_value == null || best.total_value === 0) return null;
+
+    return ((latest.total_value - best.total_value) / best.total_value) * 100;
+  }
+
   // Build enriched client list
   const enrichedClients = clients.map(client => {
     const snap = latestSnapshots.get(client.id);
@@ -113,15 +148,16 @@ export async function GET(request: NextRequest) {
 
     // Calculate drift if both snapshot and recommendation exist
     let drift = null;
-    const rec = client.cartera_recomendada as any;
+    const rec = client.cartera_recomendada as Record<string, unknown> | null;
     if (snap && rec) {
       // rec may have equity_percent or cartera array
-      const recEquity = rec.equity_percent ?? (rec.cartera || [])
-        .filter((p: any) => p.clase === "Renta Variable")
-        .reduce((s: number, p: any) => s + p.porcentaje, 0);
-      const recFI = rec.fixed_income_percent ?? (rec.cartera || [])
-        .filter((p: any) => p.clase === "Renta Fija")
-        .reduce((s: number, p: any) => s + p.porcentaje, 0);
+      const cartera = (rec.cartera || []) as Array<{ clase: string; porcentaje: number }>;
+      const recEquity = (rec.equity_percent as number | undefined) ?? cartera
+        .filter((p) => p.clase === "Renta Variable")
+        .reduce((s: number, p) => s + p.porcentaje, 0);
+      const recFI = (rec.fixed_income_percent as number | undefined) ?? cartera
+        .filter((p) => p.clase === "Renta Fija")
+        .reduce((s: number, p) => s + p.porcentaje, 0);
 
       const actualEquity = snap.equity_percent || 0;
       const actualFI = snap.fixed_income_percent || 0;
@@ -142,6 +178,7 @@ export async function GET(request: NextRequest) {
       nombre: client.nombre,
       apellido: client.apellido,
       email: client.email,
+      status: client.status || "activo",
       perfilRiesgo: client.perfil_riesgo || null,
       puntajeRiesgo: client.puntaje_riesgo || null,
       portalEnabled: client.portal_enabled || false,
@@ -153,8 +190,11 @@ export async function GET(request: NextRequest) {
       lastSnapshotDate: snap?.snapshot_date || null,
       equityPercent: snap?.equity_percent || null,
       fixedIncomePercent: snap?.fixed_income_percent || null,
+      // Period returns
+      return1M: getPeriodReturn(client.id, 30),
+      return2M: getPeriodReturn(client.id, 60),
       // Recommendation
-      hasRecommendation: !!(rec?.cartera?.length > 0),
+      hasRecommendation: !!(Array.isArray(rec?.cartera) && rec.cartera.length > 0),
       drift,
       // Contact
       lastContactDate: lastContactDate > 0 ? new Date(lastContactDate).toISOString().split("T")[0] : null,

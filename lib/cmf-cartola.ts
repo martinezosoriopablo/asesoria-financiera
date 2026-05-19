@@ -72,32 +72,6 @@ export interface CMFMetadata {
 
 // ─── Column mapping ──────────────────────────────────────────────────
 
-const COLUMN_NAMES = [
-  'RUN_ADM',
-  'NOM_ADM',
-  'RUN_FM',
-  'FECHA_INF',
-  'ACTIVO_TOT',
-  'MONEDA',
-  'PARTICIPES_INST',
-  'INVERSION_EN_FONDOS',
-  'SERIE',
-  'CUOTAS_APORTADAS',
-  'VALOR_CUOTA',
-  'PATRIMONIO_NETO',
-  'NUM_PARTICIPES',
-  'NUM_PARTICIPES_INST',
-  'FONDO_PEN',
-  'REM_FIJA',
-  'REM_VARIABLE',
-  'GASTOS_AFECTOS',
-  'GASTOS_NO_AFECTOS',
-  'COMISION_INVERSION',
-  'COMISION_RESCATE',
-  'FACTOR_DE_AJUSTE',
-  'FACTOR_DE_REPARTO',
-] as const
-
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function parseNumber(val: string): number {

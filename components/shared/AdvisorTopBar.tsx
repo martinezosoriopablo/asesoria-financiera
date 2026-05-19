@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   User,
   LogOut,
@@ -74,10 +75,13 @@ export default function AdvisorTopBar({
             className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gb-light transition-colors"
           >
             {advisorPhoto ? (
-              <img
+              <Image
                 src={advisorPhoto}
                 alt={advisorName}
                 className="w-8 h-8 rounded-full object-cover ring-2 ring-gb-border"
+                width={32}
+                height={32}
+                unoptimized
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold">

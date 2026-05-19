@@ -257,8 +257,8 @@ export async function scrapeFIPrices(opts: FIScrapeOptions): Promise<FIScrapeRes
         continue
       }
       return { ...res, attempt }
-    } catch (e: any) {
-      lastErr = e?.message || String(e)
+    } catch (e: unknown) {
+      lastErr = (e as Error)?.message || String(e)
       if (attempt < maxRetries) await new Promise(r => setTimeout(r, 3000))
     }
   }

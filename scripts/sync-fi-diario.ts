@@ -133,9 +133,9 @@ async function main() {
         stats.totalRows += importRes.rowsUpserted
         console.log(`OK ${importRes.rowsUpserted} rows, ${importRes.seriesDetected.length} series, ${fmt(Date.now() - tFund)}`)
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       stats.failed++
-      const msg = e?.message || String(e)
+      const msg = (e as Error)?.message || String(e)
       failures.push({ rut: f.rut, nombre: f.nombre, error: msg })
       console.log(`ERROR ${msg}`)
       if (!args.continueOnError) break

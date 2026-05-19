@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     .in("client_id", clientIds)
     .order("snapshot_date", { ascending: false });
 
-  const latestSnap = new Map<string, any>();
+  const latestSnap = new Map<string, { client_id: string; snapshot_date: string; equity_percent: number | null; fixed_income_percent: number | null }>();
   for (const s of (snapshots || [])) {
     if (!latestSnap.has(s.client_id)) {
       latestSnap.set(s.client_id, s);
@@ -67,16 +67,17 @@ export async function GET(request: NextRequest) {
 
   for (const client of clients) {
     const snap = latestSnap.get(client.id);
-    const rec = client.cartera_recomendada as any;
+    const rec = client.cartera_recomendada as Record<string, unknown> | null;
     if (!snap || !rec) continue;
 
     // Calculate drift
-    const recEquity = rec.equity_percent ?? (rec.cartera || [])
-      .filter((p: any) => p.clase === "Renta Variable")
-      .reduce((s: number, p: any) => s + p.porcentaje, 0);
-    const recFI = rec.fixed_income_percent ?? (rec.cartera || [])
-      .filter((p: any) => p.clase === "Renta Fija")
-      .reduce((s: number, p: any) => s + p.porcentaje, 0);
+    const cartera = (rec.cartera || []) as Array<{ clase: string; porcentaje: number }>;
+    const recEquity = (rec.equity_percent as number | undefined) ?? cartera
+      .filter((p) => p.clase === "Renta Variable")
+      .reduce((s: number, p) => s + p.porcentaje, 0);
+    const recFI = (rec.fixed_income_percent as number | undefined) ?? cartera
+      .filter((p) => p.clase === "Renta Fija")
+      .reduce((s: number, p) => s + p.porcentaje, 0);
 
     const actualEquity = snap.equity_percent || 0;
     const actualFI = snap.fixed_income_percent || 0;

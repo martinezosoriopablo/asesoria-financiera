@@ -1057,7 +1057,7 @@ export async function POST(request: NextRequest) {
         // Calculate total portfolio value on this date
         let totalValue = 0;
         let holdingsValued = 0;
-        let holdingsTotal = baseHoldings.length;
+        const holdingsTotal = baseHoldings.length;
 
         const dailyHoldings: Array<{
           fundName: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Send,
   Loader,
@@ -88,21 +88,21 @@ const REPORT_ROWS: ReportRowDef[] = [
 export default function ReportConfigPanel({ clientId }: Props) {
   const [config, setConfig] = useState<ReportConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [_saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [saved, setSaved] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [previewReport, setPreviewReport] = useState<{ market_commentary: string } | null>(null);
 
-  useEffect(() => { fetchConfig(); }, [clientId]);
-
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
       const res = await fetch(`/api/clients/${clientId}/report-config`);
       const data = await res.json();
       if (data.success) setConfig(data.config);
     } catch { /* silent */ } finally { setLoading(false); }
-  };
+  }, [clientId]);
+
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
   const saveConfig = async (updated: ReportConfig) => {
     setSaving(true);

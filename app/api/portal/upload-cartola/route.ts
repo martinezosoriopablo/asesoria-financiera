@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const source = (formData.get("source") as string) || "desconocido";
-    const fileType = (formData.get("fileType") as string) || "pdf";
 
     if (!file) {
       return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
@@ -52,27 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Error al subir archivo" }, { status: 500 });
     }
 
-    // Try to parse the file
-    let parsedData = null;
-    let parseError = null;
-
-    try {
-      const parseFormData = new FormData();
-      parseFormData.append("file", file);
-
-      const parseEndpoint = fileType === "excel"
-        ? "/api/parse-portfolio-excel"
-        : "/api/parse-portfolio-statement";
-
-      // Call internal parse endpoint - we need to use the full URL
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-      // Parse using internal logic directly instead of HTTP call
-      // For simplicity, store file and let advisor parse it
-      // The file is already stored, advisor can download and process
-    } catch {
-      // Parse is optional - file is already stored
-    }
+    // Parse is optional — file is already stored, advisor can download and process
 
     // Save record to client_interactions as "cartola_upload"
     const { error: interactionError } = await admin

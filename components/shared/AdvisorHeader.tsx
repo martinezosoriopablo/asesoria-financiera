@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
@@ -117,10 +118,13 @@ export default function AdvisorHeader({
             {/* Logo - personalizado por asesor */}
             <Link href="/advisor" className="flex items-center gap-3 shrink-0">
               {logoSrc ? (
-                <img
+                <Image
                   src={logoSrc}
                   alt={logoAlt}
                   className="h-10 w-auto object-contain"
+                  width={120}
+                  height={40}
+                  unoptimized
                 />
               ) : (
                 <span className="text-xl text-gb-black tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
@@ -213,10 +217,13 @@ export default function AdvisorHeader({
                     </div>
                   </div>
                   {advisorPhoto ? (
-                    <img
+                    <Image
                       src={advisorPhoto}
                       alt={advisorName}
                       className="w-8 h-8 rounded-full object-cover"
+                      width={32}
+                      height={32}
+                      unoptimized
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gb-black text-white flex items-center justify-center text-xs font-semibold">
@@ -308,7 +315,7 @@ export default function AdvisorHeader({
             {/* User info mobile */}
             <div className="flex items-center gap-3 pb-3 mb-3 border-b border-gb-border sm:hidden">
               {advisorPhoto ? (
-                <img src={advisorPhoto} alt={advisorName} className="w-8 h-8 rounded-full object-cover" />
+                <Image src={advisorPhoto} alt={advisorName} className="w-8 h-8 rounded-full object-cover" width={32} height={32} unoptimized />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-gb-black text-white flex items-center justify-center text-xs font-semibold">
                   {advisorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}

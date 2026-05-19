@@ -5,153 +5,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { extractText } from "unpdf";
+import { extractFromPdf } from "@/lib/ficha-extract";
+import { discoverFromCmfPage, getPdfUrl, downloadPdf } from "@/lib/cmf-fichas";
 
 export const maxDuration = 300;
-
-interface ExtractedFichaData {
-  tac_serie: number | null;
-  nombre_fondo_pdf: string | null;
-  serie_detectada: string | null;
-  rent_1m: number | null;
-  rent_3m: number | null;
-  rent_6m: number | null;
-  rent_12m: number | null;
-  rescatable: boolean | null;
-  plazo_rescate: string | null;
-  horizonte_inversion: string | null;
-  tolerancia_riesgo: string | null;
-  objetivo: string | null;
-}
-
-async function extractFromPdf(buffer: ArrayBuffer): Promise<ExtractedFichaData> {
-  const result = await extractText(new Uint8Array(buffer));
-  const text = (result.text as string[]).join("\n");
-
-  // TAC Serie
-  let tac_serie: number | null = null;
-  const tacMatch = text.match(/TAC\s+Serie\s+\(?(?:IVA\s+incluido|Exento\s+de\s+IVA)\)?\s+([\d,]+)%/i);
-  if (tacMatch) {
-    tac_serie = parseFloat(tacMatch[1].replace(",", "."));
-  }
-
-  // Rentabilidades
-  const parseRent = (label: string): number | null => {
-    const re = new RegExp(label + "\\s+(-?[\\d,.]+)%", "i");
-    const m = text.match(re);
-    if (m) return parseFloat(m[1].replace(",", "."));
-    return null;
-  };
-
-  // Fund name — FI footer format: "NOMBRE FONDO DE INVERSION | SERIE X"
-  let nombre_fondo_pdf: string | null = null;
-  let serie_detectada: string | null = null;
-  // Try FM format first, then FI footer format
-  const headerMatch = text.match(/FONDO\s+(?:MUTUO|DE\s+INVERSI[OÓ]N)\s+([^|]+)\|\s*SERIE\s+(\S+)/i);
-  if (headerMatch) {
-    nombre_fondo_pdf = headerMatch[1].trim();
-    serie_detectada = headerMatch[2].trim();
-  }
-  if (!nombre_fondo_pdf) {
-    // FI footer: "NOMBRE FONDO DE INVERSION | SERIE X"
-    const footerMatch = text.match(/([A-ZÁÉÍÓÚÑ\s]+(?:FONDO DE INVERSI[OÓ]N))\s*\|\s*SERIE\s+(\S+)/i);
-    if (footerMatch) {
-      nombre_fondo_pdf = footerMatch[1].trim();
-      serie_detectada = footerMatch[2].trim();
-    }
-  }
-
-  // Rescatable — FI uses table format: "Fondo es rescatable" then "SI" or "NO" nearby
-  let rescatable: boolean | null = null;
-  const rescatableMatch = text.match(/Fondo\s+es\s+[Rr]escatable[:\s]*(SI|NO)/i);
-  if (rescatableMatch) {
-    rescatable = rescatableMatch[1].toUpperCase() === "SI";
-  } else {
-    // FI table: "Fondo es rescatable" as header, then SI/NO on next line or same region
-    const rescIdx = text.search(/Fondo\s+es\s+rescatable/i);
-    if (rescIdx >= 0) {
-      const after = text.substring(rescIdx, rescIdx + 200);
-      const siNo = after.match(/\b(SI|NO)\b/);
-      if (siNo) rescatable = siNo[1] === "SI";
-    }
-  }
-
-  // Plazo rescates — FI has "X días hábiles" pattern in the table
-  let plazo_rescate: string | null = null;
-  // First try the explicit "Plazo Rescates: value" format (FM style)
-  const plazoExplicit = text.match(/Plazo\s+Rescates?:\s*(\d[^\n]*)/i);
-  if (plazoExplicit) {
-    plazo_rescate = plazoExplicit[1].trim();
-  }
-  if (!plazo_rescate) {
-    // FI: look for "X días hábiles" pattern anywhere
-    const diasMatch = text.match(/(\d+\s+días?\s+hábiles?[^.(\n]*)/i);
-    if (diasMatch) plazo_rescate = diasMatch[1].trim();
-  }
-
-  // Horizonte
-  const horizonteMatch = text.match(/((?:Corto|Mediano|Largo)(?:\s+(?:o|y|a)\s+(?:corto|mediano|largo))*\s+plazo)/i);
-  const horizonte_inversion = horizonteMatch ? horizonteMatch[1].trim() : null;
-
-  // Tolerancia
-  const toleranciaMatch = text.match(/Nivel\s+(alto|medio|bajo|moderado)/i);
-  const tolerancia_riesgo = toleranciaMatch ? toleranciaMatch[0].trim() : null;
-
-  // Objetivo
-  const objIdx = text.indexOf("Objetivo del Fondo");
-  const tolIdx = text.indexOf("Tolerancia al Riesgo");
-  const objetivo = objIdx >= 0 && tolIdx > objIdx
-    ? text.substring(objIdx + "Objetivo del Fondo".length, tolIdx).replace(/\n/g, " ").trim().substring(0, 500)
-    : null;
-
-  return {
-    tac_serie,
-    nombre_fondo_pdf,
-    serie_detectada,
-    rent_1m: parseRent("1\\s*Mes"),
-    rent_3m: parseRent("3\\s*Meses"),
-    rent_6m: parseRent("6\\s*Meses"),
-    rent_12m: parseRent("1\\s*Año"),
-    rescatable,
-    plazo_rescate,
-    horizonte_inversion,
-    tolerancia_riesgo,
-    objetivo,
-  };
-}
-
-// Discover rutAdmin and available series from CMF page (tipoentidad=FIRES for FI)
-async function discoverFromCmfPage(fiRut: string): Promise<{ rutAdmin: string; series: string[] } | null> {
-  const url = `https://www.cmfchile.cl/institucional/mercados/entidad.php?mercado=V&rut=${fiRut}&tipoentidad=FIRES&vig=VI&control=svs&pestania=68`;
-  const res = await fetch(url);
-  const html = await res.text();
-  const matches = [...html.matchAll(/verFolleto\('(\d+)','([^']+)','(\d+)'\)/g)];
-  if (matches.length === 0) return null;
-  const rutAdmin = matches[0][3];
-  const series = [...new Set(matches.map(m => m[2]))];
-  return { rutAdmin, series };
-}
-
-async function getPdfUrl(fiRut: string, serie: string, rutAdmin: string): Promise<string | null> {
-  const res = await fetch("https://www.cmfchile.cl/institucional/inc/ver_folleto_fm.php", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Requested-With": "XMLHttpRequest",
-    },
-    body: `runFondo=${fiRut}&serie=${encodeURIComponent(serie)}&rutAdmin=${rutAdmin}`,
-  });
-  const text = await res.text();
-  if (text === "ERROR" || text.includes("DOCTYPE")) return null;
-  return text.trim();
-}
-
-async function downloadPdf(pdfPath: string): Promise<ArrayBuffer | null> {
-  const url = `https://www.cmfchile.cl${pdfPath}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  return res.arrayBuffer();
-}
 
 // POST - Sync fichas for a batch of FI
 export async function POST(request: NextRequest) {
@@ -164,7 +21,7 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
   const body = await request.json();
 
-  const { administradora, fi_ruts, limit: batchLimit = 20 } = body;
+  const { administradora, fi_ruts, limit: batchLimit = 20, force = false } = body;
 
   if (!administradora && !fi_ruts) {
     return NextResponse.json({
@@ -197,13 +54,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, message: "No se encontraron fondos", synced: 0 });
   }
 
+  // Get already synced fi_rut+fi_serie pairs to skip them (unless force=true)
+  const allRuts = fondosToSync.map(f => f.rut);
+  let alreadySynced = new Set<string>();
+  if (!force) {
+    const { data: existingFichas } = await supabase
+      .from("fi_fichas")
+      .select("fi_rut, fi_serie")
+      .in("fi_rut", allRuts);
+    alreadySynced = new Set((existingFichas || []).map(f => `${f.fi_rut}-${f.fi_serie}`));
+  }
+
   const results: { fi_rut: string; nombre: string; serie: string; status: string }[] = [];
   let synced = 0;
   let errors = 0;
+  let skipped = 0;
+  let geminiExhausted = false;
 
   for (const fondo of fondosToSync) {
     try {
-      const cmfData = await discoverFromCmfPage(fondo.rut);
+      const cmfData = await discoverFromCmfPage(fondo.rut, "FIRES");
       if (!cmfData) {
         results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "no_folleto_page" });
         errors++;
@@ -212,6 +82,10 @@ export async function POST(request: NextRequest) {
 
       // Process EVERY serie — each has its own TAC/costs
       for (const serie of cmfData.series) {
+        if (alreadySynced.has(`${fondo.rut}-${serie}`)) {
+          skipped++;
+          continue;
+        }
         try {
           const pdfUrl = await getPdfUrl(fondo.rut, serie, cmfData.rutAdmin);
           if (!pdfUrl) {
@@ -227,25 +101,16 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          const extracted = await extractFromPdf(pdfBuffer);
+          const { data: extracted, gemini_exhausted: serieGeminiExhausted } = await extractFromPdf(pdfBuffer);
+          if (serieGeminiExhausted) geminiExhausted = true;
+          const { extraction_method: _method, ...dbFields } = extracted;
 
           const { error: upsertError } = await supabase
             .from("fi_fichas")
             .upsert({
               fi_rut: fondo.rut,
               fi_serie: serie,
-              tac_serie: extracted.tac_serie,
-              nombre_fondo_pdf: extracted.nombre_fondo_pdf,
-              serie_detectada: extracted.serie_detectada,
-              rent_1m: extracted.rent_1m,
-              rent_3m: extracted.rent_3m,
-              rent_6m: extracted.rent_6m,
-              rent_12m: extracted.rent_12m,
-              rescatable: extracted.rescatable,
-              plazo_rescate: extracted.plazo_rescate,
-              horizonte_inversion: extracted.horizonte_inversion,
-              tolerancia_riesgo: extracted.tolerancia_riesgo,
-              objetivo: extracted.objetivo,
+              ...dbFields,
               updated_at: new Date().toISOString(),
               updated_by: user!.id,
             }, { onConflict: "fi_rut,fi_serie" });
@@ -270,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, synced, errors, total: fondosToSync.length, results });
+  return NextResponse.json({ success: true, synced, errors, skipped, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
 }
 
 // GET - Check sync status / list administradoras

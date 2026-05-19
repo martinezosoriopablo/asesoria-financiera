@@ -150,7 +150,7 @@ export default function ReviewSnapshotModal({
   // Exchange rates state
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [loadingRates, setLoadingRates] = useState(true);
-  const [ratesError, setRatesError] = useState<string | null>(null);
+  const [ratesError, _setRatesError] = useState<string | null>(null);
 
   // Initialize holdings - use existingSnapshot in edit mode, otherwise parsed data
   const getInitialHoldings = (): Holding[] => {
@@ -543,7 +543,7 @@ export default function ReviewSnapshotModal({
     return new Date().toISOString().split("T")[0];
   }
 
-  const toCLP = (value: number, currency: string): number => {
+  const toCLP = useCallback((value: number, currency: string): number => {
     if (!exchangeRates) return value;
     switch (currency) {
       case "USD": return value * exchangeRates.usd;
@@ -552,9 +552,9 @@ export default function ReviewSnapshotModal({
       case "CLP": return value;
       default: return value;
     }
-  };
+  }, [exchangeRates]);
 
-  const fromCLP = (clpValue: number, targetCurrency: string): number => {
+  const fromCLP = useCallback((clpValue: number, targetCurrency: string): number => {
     if (!exchangeRates) return clpValue;
     switch (targetCurrency) {
       case "USD": return clpValue / exchangeRates.usd;
@@ -563,7 +563,7 @@ export default function ReviewSnapshotModal({
       case "CLP": return clpValue;
       default: return clpValue;
     }
-  };
+  }, [exchangeRates]);
 
   // Calculate totals
   const { totalsByCurrency, consolidatedTotal, totalInCLP } = useMemo(() => {
@@ -581,14 +581,14 @@ export default function ReviewSnapshotModal({
       totalInCLP: clpTotal,
       consolidatedTotal: fromCLP(clpTotal, consolidationCurrency),
     };
-  }, [holdings, exchangeRates, consolidationCurrency]);
+  }, [holdings, toCLP, fromCLP, consolidationCurrency]);
 
   // Calculate net cash flows in CLP
   const netCashFlowCLP = useMemo(() => {
     const depositsCLP = toCLP(deposits, depositsCurrency);
     const withdrawalsCLP = toCLP(withdrawals, withdrawalsCurrency);
     return depositsCLP - withdrawalsCLP;
-  }, [deposits, withdrawals, depositsCurrency, withdrawalsCurrency, exchangeRates]);
+  }, [deposits, withdrawals, depositsCurrency, withdrawalsCurrency, toCLP]);
 
   // Calculate composition
   const composition = useMemo(() => {
@@ -619,7 +619,7 @@ export default function ReviewSnapshotModal({
     }
 
     return comp;
-  }, [holdings, totalInCLP]);
+  }, [holdings, totalInCLP, toCLP]);
 
   // Get unique sources
   const uniqueSources = useMemo(() => {
@@ -719,7 +719,7 @@ export default function ReviewSnapshotModal({
     } finally {
       setSearchLoading(false);
     }
-  }, []);
+  }, [fechaCartola]);
 
   // Apply selected fund/stock price
   const applyFundPrice = (index: number, result: typeof searchResults[0]) => {

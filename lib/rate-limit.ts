@@ -139,7 +139,6 @@ export async function applyRateLimit(
   const key = `${routeKey}:${ip}`;
 
   let allowed: boolean;
-  let remaining: number;
   let resetAt: number;
 
   // Try Upstash first
@@ -149,19 +148,16 @@ export async function applyRateLimit(
       const limiter = getUpstashLimiter(limit, windowSeconds);
       const result = await limiter.limit(key);
       allowed = result.success;
-      remaining = result.remaining;
       resetAt = result.reset;
     } catch {
       // Redis error — fall back to memory
       const result = memoryRateLimit(key, limit, windowSeconds);
       allowed = result.allowed;
-      remaining = result.remaining;
       resetAt = result.resetAt;
     }
   } else {
     const result = memoryRateLimit(key, limit, windowSeconds);
     allowed = result.allowed;
-    remaining = result.remaining;
     resetAt = result.resetAt;
   }
 

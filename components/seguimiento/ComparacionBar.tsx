@@ -91,8 +91,6 @@ export default function ComparacionBar({ recommendation, actual, totalValue }: P
 
   // Calculate total drift (sum of absolute deviations / 2)
   const totalDrift = deviations.reduce((sum, d) => sum + d.absDeviation, 0) / 2;
-  const hasSignificantDeviation = deviations.some((d) => d.isSignificant);
-
   // Determine overall status
   const status = totalDrift <= 3 ? "aligned" : totalDrift <= 10 ? "moderate" : "significant";
 

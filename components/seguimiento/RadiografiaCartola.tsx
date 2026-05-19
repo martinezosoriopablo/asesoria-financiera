@@ -507,7 +507,6 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
   // Recalculate adjusted costs with TAC overrides
   const adjustedCosts = useMemo(() => {
     if (!data) return null;
-    const totalValue = data.totalValue;
     let weightedTac = 0;
     let costoAnual = 0;
     let countConTac = 0;
@@ -1439,7 +1438,6 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                 <p className="text-[10px] text-gb-gray font-medium uppercase mb-1">Ahorro Neto del Cliente</p>
                 {(() => {
                   const ahorroNeto = mergedProposal.ahorroNeto;
-                  const ahorro10Y = ahorroNeto * 10 * 1.05;
                   return (
                     <>
                       <p className={`text-lg font-bold ${ahorroNeto > 0 ? "text-green-600" : "text-red-600"}`}>

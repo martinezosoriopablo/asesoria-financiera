@@ -65,7 +65,7 @@ interface RankingFondo {
 
 export default function ExplorarTab() {
   const [fondos, setFondos] = useState<Fondo[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [_stats, setStats] = useState<Stats | null>(null);
   const [statsPorAGF, setStatsPorAGF] = useState<StatsPorAGF[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingStats, setLoadingStats] = useState(true);

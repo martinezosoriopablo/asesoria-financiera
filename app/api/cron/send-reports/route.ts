@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
       }));
 
       // Save report
-      const { data: report, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from("client_reports")
         .insert({
           client_id: client.id,

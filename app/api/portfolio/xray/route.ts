@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
     // Pre-fetch FI prices (full history for return calculation, prefer serie A)
     const fiIndex = allFI || [];
     const fiIds = fiIndex.map(f => f.id);
-    let fiLatestPrices: Record<string, { fecha: string; valor_libro: number; serie: string }> = {};
+    const fiLatestPrices: Record<string, { fecha: string; valor_libro: number; serie: string }> = {};
     // fiPriceHistory: fondo_id → sorted array of { fecha, valor_libro } (serie A preferred)
     const fiPriceHistory: Record<string, Array<{ fecha: string; valor_libro: number }>> = {};
     if (fiIds.length > 0) {

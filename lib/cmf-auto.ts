@@ -70,8 +70,10 @@ export async function downloadCMFCartola(options: CMFDownloadOptions): Promise<C
         console.log('  Esperando 5s antes de reintentar...')
         await sleep(5000)
       }
-    } catch (err: any) {
-      const msg = err?.cause?.code || err?.code || err?.message || String(err)
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown> | null
+      const cause = e?.cause as Record<string, unknown> | null
+      const msg = cause?.code || e?.code || (e?.message as string) || String(err)
       console.error(`  Intento ${attempt} error: ${msg}`)
     }
   }
@@ -137,8 +139,9 @@ async function attemptDownload(
       max_len: 8,
     })
     captchaText = solution.data?.trim() || ''
-  } catch (err: any) {
-    return { success: false, error: `2captcha error: ${err?.message || err}` }
+  } catch (err: unknown) {
+    const message = (err as Error)?.message || String(err)
+    return { success: false, error: `2captcha error: ${message}` }
   }
 
   const solveMs = Date.now() - solveStart

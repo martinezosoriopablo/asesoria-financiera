@@ -1,7 +1,7 @@
 // app/api/portal/reports/route.ts
 // Client-facing: list reports and mark as read
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireClient } from "@/lib/auth/require-client";
 import { createAdminClient } from "@/lib/auth/api-auth";
 

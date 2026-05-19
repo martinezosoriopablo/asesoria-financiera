@@ -92,7 +92,6 @@ export async function POST(req: NextRequest) {
 
   // 2a. fondos_rentabilidades_diarias (fuente primaria)
   let offset = 0;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     let query = supabase
       .from("fondos_rentabilidades_diarias")
@@ -118,7 +117,6 @@ export async function POST(req: NextRequest) {
   // 2b. fund_cuota_history (fuente complementaria — solo aafm_direct)
   //     Solo agrega fechas que NO existen en la fuente primaria
   offset = 0;
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     let query = supabase
       .from("fund_cuota_history")

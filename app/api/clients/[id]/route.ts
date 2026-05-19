@@ -1,6 +1,6 @@
 // app/api/clients/[id]/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedClientIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";

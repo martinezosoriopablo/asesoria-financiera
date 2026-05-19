@@ -148,7 +148,7 @@ export async function getSeriesPrices(
 }
 
 // Buscar un fondo por RUN
-export async function searchFundByRun(run: string): Promise<FintualRealAsset | null> {
+export async function searchFundByRun(_run: string): Promise<FintualRealAsset | null> {
   // La API de Fintual no tiene endpoint de búsqueda directa
   // Tendríamos que buscar en nuestra BD local
   return null;

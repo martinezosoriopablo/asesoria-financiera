@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, Download } from 'lucide-react';
 
 interface AdminInfo {
@@ -26,14 +26,9 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncingAdmin, setSyncingAdmin] = useState<string | null>(null);
-  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; details: SyncResultDetail[] }[]>([]);
+  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; geminiExhausted: boolean; details: SyncResultDetail[] }[]>([]);
 
-  useEffect(() => {
-    setResults([]);
-    fetchStatus();
-  }, [fundType]);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
       const endpoint = fundType === 'fm' ? '/api/fondos/sync-fichas' : '/api/fondos-inversion/sync-fichas';
@@ -56,16 +51,21 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
       }
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, [fundType]);
 
-  const syncAdmin = async (nombre: string) => {
+  useEffect(() => {
+    setResults([]);
+    fetchStatus();
+  }, [fetchStatus]);
+
+  const syncAdmin = async (nombre: string, force = false) => {
     setSyncing(true);
     setSyncingAdmin(nombre);
     try {
       const endpoint = fundType === 'fm' ? '/api/fondos/sync-fichas' : '/api/fondos-inversion/sync-fichas';
       const body = fundType === 'fm'
-        ? { nombre_agf: nombre, limit: 100 }
-        : { administradora: nombre, limit: 100 };
+        ? { nombre_agf: nombre, limit: 100, force }
+        : { administradora: nombre, limit: 100, force };
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,6 +78,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
           synced: data.synced,
           errors: data.errors,
           skipped: data.skipped || 0,
+          geminiExhausted: data.gemini_exhausted || false,
           details: data.results || [],
         }, ...prev]);
         fetchStatus();
@@ -134,7 +135,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                 {fichasSynced} fichas {typeLabel} con datos extraidos
               </div>
               <div className="text-xs text-blue-700">
-                Datos: TAC, horizonte, tolerancia riesgo, objetivo
+                Datos: TAC, horizonte, tolerancia riesgo, objetivo, beneficio tributario
               </div>
             </div>
           </div>
@@ -176,17 +177,29 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                           )}
                         </td>
                         <td className="px-4 py-2 text-right">
-                          <button
-                            onClick={() => syncAdmin(admin.nombre)}
-                            disabled={syncing}
-                            className="px-2.5 py-1 text-[11px] font-medium rounded border border-gb-border hover:bg-gb-light transition-colors disabled:opacity-40"
-                          >
-                            {syncingAdmin === admin.nombre ? (
-                              <span className="flex items-center gap-1">
-                                <RefreshCw className="w-3 h-3 animate-spin" /> Sincronizando...
-                              </span>
-                            ) : 'Sincronizar'}
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => syncAdmin(admin.nombre)}
+                              disabled={syncing}
+                              className="px-2.5 py-1 text-[11px] font-medium rounded border border-gb-border hover:bg-gb-light transition-colors disabled:opacity-40"
+                            >
+                              {syncingAdmin === admin.nombre ? (
+                                <span className="flex items-center gap-1">
+                                  <RefreshCw className="w-3 h-3 animate-spin" /> Sincronizando...
+                                </span>
+                              ) : 'Sincronizar'}
+                            </button>
+                            {admin.synced > 0 && !syncing && (
+                              <button
+                                onClick={() => syncAdmin(admin.nombre, true)}
+                                disabled={syncing}
+                                title="Re-sincronizar con Gemini AI (sobreescribe fichas existentes)"
+                                className="px-2 py-1 text-[11px] font-medium rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-40"
+                              >
+                                Re-sync
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -213,6 +226,15 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                       {r.errors > 0 && <span className="text-red-500 ml-2">{r.errors} errores</span>}
                     </span>
                   </div>
+                  {r.geminiExhausted ? (
+                    <div className="mb-2 px-2.5 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-[11px] text-amber-700">
+                      ⚠ Gemini sin cuota — estas fichas se extrajeron con Regex (menor calidad)
+                    </div>
+                  ) : r.synced > 0 ? (
+                    <div className="mb-2 px-2.5 py-1.5 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700">
+                      ✓ Extraido con Gemini AI
+                    </div>
+                  ) : null}
                   <div className="space-y-0.5">
                     {r.details.map((d, j) => (
                       <div key={j} className="flex items-center justify-between text-[11px]">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
-import { Loader, Search, AlertTriangle, CheckCircle, XCircle, Filter, Upload, X, Eye, Trash2, Pencil, Check } from "lucide-react";
+import { Loader, Search, AlertTriangle, CheckCircle, XCircle, Filter, Upload, X, Eye, Trash2, Check } from "lucide-react";
 
 interface FichaRow {
   fo_run: number;

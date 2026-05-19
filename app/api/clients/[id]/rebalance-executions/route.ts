@@ -51,7 +51,21 @@ export async function POST(
   }
 
   // Accept single execution or batch
-  const executions: any[] = Array.isArray(body.executions) ? body.executions : [body];
+  interface ExecutionInput {
+    recommendation_version_id?: string | null;
+    ticker: string;
+    nombre: string;
+    asset_class?: string;
+    clase?: string;
+    action: string;
+    target_percent?: number | null;
+    actual_percent?: number | null;
+    amount?: number | null;
+    units?: number | null;
+    notes?: string | null;
+    executed_at?: string;
+  }
+  const executions: ExecutionInput[] = Array.isArray(body.executions) ? body.executions : [body];
 
   const records = executions.map(exec => ({
     client_id: clientId,

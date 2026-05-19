@@ -74,7 +74,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const [loadingHistorical, setLoadingHistorical] = useState(false);
 
   // Extract unique holdings and their returns over time from snapshots
-  const { holdingSummaries, chartData, latestRawHoldings } = useMemo(() => {
+  const { holdingSummaries, chartData: _chartData, latestRawHoldings } = useMemo(() => {
     // Get the latest snapshot with holdings that has return data
     const snapshotsWithHoldings = snapshots
       .filter((s) => s.holdings && Array.isArray(s.holdings) && s.holdings.length > 0)
@@ -379,6 +379,24 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     }
   }, [enrichedSummaries, onCurrentValueUpdate, onPriceDateUpdate]);
 
+  // Build chart data from historical prices (cuotas × valor_cuota)
+  const valueChartData = useMemo(() => {
+    if (historicalSeries.length === 0) return [];
+
+    return historicalSeries.map((point) => {
+      const fecha = point.fecha as string;
+      const formatted = new Date(fecha + "T12:00:00Z").toLocaleDateString("es-CL", {
+        day: "2-digit",
+        month: "short",
+      });
+      return {
+        ...point,
+        date: formatted,
+        fullDate: fecha,
+      };
+    });
+  }, [historicalSeries]);
+
   if (holdingSummaries.length === 0) {
     return null;
   }
@@ -402,24 +420,6 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const clearAll = () => {
     setSelectedHoldings(new Set());
   };
-
-  // Build chart data from historical prices (cuotas × valor_cuota)
-  const valueChartData = useMemo(() => {
-    if (historicalSeries.length === 0) return [];
-
-    return historicalSeries.map((point) => {
-      const fecha = point.fecha as string;
-      const formatted = new Date(fecha + "T12:00:00Z").toLocaleDateString("es-CL", {
-        day: "2-digit",
-        month: "short",
-      });
-      return {
-        ...point,
-        date: formatted,
-        fullDate: fecha,
-      };
-    });
-  }, [historicalSeries]);
 
   // Holdings to show in chart (selected ones)
   const chartHoldings = enrichedSummaries

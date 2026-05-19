@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { user, advisor, error: authError } = await requireAdvisor();
+    const { user: _user, advisor, error: authError } = await requireAdvisor();
     if (authError) return authError;
 
     const supabase = createAdminClient();

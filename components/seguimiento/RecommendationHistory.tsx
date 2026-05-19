@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { History, ChevronDown, ChevronRight, Star, User, ArrowRight, Loader } from "lucide-react";
+import { History, ChevronDown, ChevronRight, User, ArrowRight, Loader } from "lucide-react";
 import { formatNumber, formatDate } from "@/lib/format";
 
 interface CarteraPosition {
@@ -45,22 +45,21 @@ export default function RecommendationHistory({ clientId }: Props) {
   const [comparing, setComparing] = useState<[string, string] | null>(null);
 
   useEffect(() => {
+    async function fetchVersions() {
+      try {
+        const res = await fetch(`/api/clients/${clientId}/recommendations`);
+        const data = await res.json();
+        if (data.success) {
+          setVersions(data.versions);
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    }
     fetchVersions();
   }, [clientId]);
-
-  const fetchVersions = async () => {
-    try {
-      const res = await fetch(`/api/clients/${clientId}/recommendations`);
-      const data = await res.json();
-      if (data.success) {
-        setVersions(data.versions);
-      }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (

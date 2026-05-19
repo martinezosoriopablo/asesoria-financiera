@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   ArrowLeft,
@@ -24,7 +23,7 @@ import {
   LineChart,
   Send,
   ExternalLink,
-  MessageSquare,
+
   Upload,
   Download,
   CheckCircle2,
@@ -484,10 +483,6 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {advisor && (
-        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
-      )}
-
       <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Breadcrumb + actions */}
         <div className="flex items-center justify-between mb-6">
