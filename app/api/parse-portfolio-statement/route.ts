@@ -204,13 +204,18 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
       "fundName": "string (nombre completo del fondo o instrumento)",
       "securityId": "string (Security Identifier / CUSIP / ISIN / ticker)",
       "market": "CL | INT | US",
+      "assetType": "fund | etf | stock | bond | cash | other",
       "quantity": number,
       "unitCost": number,
       "costBasis": number,
       "marketPrice": number,
       "marketValue": number,
       "unrealizedGainLoss": number,
-      "isPrevisional": boolean
+      "isPrevisional": boolean,
+      "couponRate": number | null,
+      "maturityDate": "string (YYYY-MM-DD) | null",
+      "creditRating": "string | null",
+      "currency": "string (USD, CLP, EUR, etc.)"
     }
   ]
 }
@@ -252,6 +257,27 @@ CONTEXTO: Los portfolios chilenos valen MILLONES de pesos.
 
 Si un campo no se encuentra, usa null para strings y 0 para números.
 unrealizedGainLoss puede ser negativo.
+
+REGLAS PARA "assetType" (TIPO DE INSTRUMENTO):
+- "bond" = Bono corporativo, soberano, treasury, note. Indicadores: cupón (ej "4.750%"), fecha de vencimiento (ej "02/15/2030"), CUSIP, calificación crediticia (BBB+, BB, etc.), "Fixed Income", "Corporate Bond", "Treasury", "Note"
+- "fund" = Fondo mutuo (chileno o internacional)
+- "etf" = ETF listado en bolsa
+- "stock" = Acción individual
+- "cash" = Efectivo, money market, sweep, depósito a plazo
+- "other" = Cualquier otro instrumento
+
+REGLAS PARA BONOS (assetType = "bond"):
+- "fundName": Usa el nombre del emisor + cupón + vencimiento. Ej: "AT&T Inc 4.750% 05/15/2046"
+- "couponRate": Tasa del cupón como porcentaje (ej: 4.75 para un bono con cupón 4.750%)
+- "maturityDate": Fecha de vencimiento en formato YYYY-MM-DD
+- "creditRating": Rating crediticio si aparece (ej: "BBB+", "BB", "A-")
+- "quantity": Valor nominal (face value / par value), NO el número de bonos. Ej: 200000 para USD 200,000 face value
+- "marketPrice": Precio como porcentaje del par (ej: 98.50 para un bono cotizando a 98.5% del par)
+- "marketValue": Valor de mercado total en la moneda del documento
+- "costBasis": Costo de adquisición total
+- "unitCost": Precio de compra como porcentaje del par
+- "securityId": CUSIP o ISIN del bono
+- "currency": Moneda del bono (generalmente USD para bonos internacionales)
 
 REGLAS PARA "market" (CLASIFICACIÓN DE MERCADO):
 Clasifica CADA holding en uno de estos mercados:

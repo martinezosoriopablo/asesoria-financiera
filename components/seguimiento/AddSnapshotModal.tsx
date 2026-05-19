@@ -15,8 +15,12 @@ interface ParsedHolding {
   marketValue: number;
   unrealizedGainLoss?: number;
   assetClass?: string;
+  assetType?: string; // fund | etf | stock | bond | cash | other
   currency?: string;
   source?: string; // Custodian/source name
+  couponRate?: number | null;
+  maturityDate?: string | null;
+  creditRating?: string | null;
 }
 
 interface ParsedData {

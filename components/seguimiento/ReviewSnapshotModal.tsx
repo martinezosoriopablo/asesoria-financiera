@@ -14,9 +14,13 @@ interface Holding {
   marketValue: number;
   unrealizedGainLoss?: number;
   assetClass?: string;
+  assetType?: string; // fund | etf | stock | bond | cash | other
   currency?: string;
   source?: string; // Custodian name
   isPrevisional?: boolean;
+  couponRate?: number | null;
+  maturityDate?: string | null;
+  creditRating?: string | null;
 }
 
 interface ParsedData {
@@ -111,6 +115,17 @@ function detectCurrencyFromName(fundName: string): string {
   return "USD";
 }
 
+function assetTypeToClass(assetType?: string): string | null {
+  if (!assetType) return null;
+  switch (assetType) {
+    case "bond": return "fixedIncome";
+    case "cash": return "cash";
+    case "etf":
+    case "stock": return "equity";
+    default: return null; // fund/other — fall through to classifyFund
+  }
+}
+
 function classifyFund(fundName: string): string {
   const name = fundName.toLowerCase();
   if (name.includes("money market") || name.includes("mm ") || name.includes("liquidez") ||
@@ -160,7 +175,7 @@ export default function ReviewSnapshotModal({
 
     return sourceHoldings.map((h) => ({
       ...h,
-      assetClass: h.assetClass || classifyFund(h.fundName),
+      assetClass: h.assetClass || assetTypeToClass(h.assetType) || classifyFund(h.fundName),
       currency: h.currency || parsedData.detectedCurrency || detectCurrencyFromName(h.fundName),
     }));
   };
