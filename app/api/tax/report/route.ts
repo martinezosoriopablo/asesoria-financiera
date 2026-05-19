@@ -46,7 +46,11 @@ export async function POST(request: NextRequest) {
       `Ano ${y.ano}: ${y.fondosAVender.length} ventas, ${y.fondosMLT.length} MLT, impuesto ${y.mitigacion.impuestoNeto_UF.toFixed(0)} UF`
     ).join("\n") : "";
 
+    const fechaInforme = new Date().toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
+
     const prompt = `Eres un asesor financiero chileno experto en planificacion tributaria. Genera un informe profesional de estrategia de cambio de custodia.
+
+Fecha del informe: ${fechaInforme}
 
 CLIENTE${clientName ? ` (${clientName})` : ""}:
 Valor total portafolio: ${totalValueUF.toFixed(0)} UF
@@ -82,7 +86,7 @@ REGLAS:
 - Espanol chileno profesional
 - Distinguir Capa 1 (ley) de Capa 2 (supuestos del asesor)
 - Cifras en UF
-- No inventar datos
+- No inventar datos ni fechas. Usa la fecha del informe proporcionada arriba.
 - Maximo 6 lineas por seccion`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {

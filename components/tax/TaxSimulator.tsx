@@ -13,6 +13,7 @@ import { convertToTaxHoldings } from "@/lib/tax/bridge";
 import ScenarioTable from "./ScenarioTable";
 import TaxMap from "./TaxMap";
 import ActionPlan from "./ActionPlan";
+import TaxBreakdown from "./TaxBreakdown";
 
 interface Props {
   initialClientId?: string;
@@ -25,6 +26,7 @@ export default function TaxSimulator({ initialClientId }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [bridgeLoading, setBridgeLoading] = useState(false);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [ufValue, setUfValue] = useState(38000);
 
   // Load holdings: try sessionStorage first, then fetch via API if clientId provided
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function TaxSimulator({ initialClientId }: Props) {
           setHoldings(taxHoldings);
           if (parsed.clientName) setClientName(parsed.clientName);
           if (parsed.clientId) setClientId(parsed.clientId);
+          if (parsed.ufValue) setUfValue(parsed.ufValue);
           setLoaded(true);
           sessionStorage.removeItem("tax-simulator-holdings");
           return;
@@ -104,7 +107,7 @@ export default function TaxSimulator({ initialClientId }: Props) {
         const ufRes = await fetch("/api/exchange-rates");
         const ufData = await ufRes.json();
         if (ufData.success) {
-          if (ufData.uf) ufValue = ufData.uf;
+          if (ufData.uf) { ufValue = ufData.uf; setUfValue(ufData.uf); }
           if (ufData.usd) usdRate = ufData.usd;
         }
       } catch { /* use fallback */ }
@@ -625,7 +628,26 @@ export default function TaxSimulator({ initialClientId }: Props) {
       {/* Results */}
       {scenarios && scenarios.length > 0 && (
         <>
-          <ScenarioTable scenarios={scenarios} />
+          <ScenarioTable scenarios={scenarios} totalValueUF={totalValueUF} />
+
+          {recommended && (
+            <TaxBreakdown
+              scenario={recommended}
+              holdings={holdings}
+              totalValueUF={totalValueUF}
+              ingresoAnualUF={
+                tipoContribuyente === "persona_natural"
+                  ? (situacionLaboral === "jubilado"
+                      ? (pensionMensual * 12) / ufValue
+                      : situacionLaboral === "sin_ingresos"
+                        ? 0
+                        : (ingresoMensual * 12) / ufValue)
+                  : 0
+              }
+              tipoContribuyente={tipoContribuyente}
+              esHabitual={habitual}
+            />
+          )}
 
           {recommended && <ActionPlan scenario={recommended} />}
 
