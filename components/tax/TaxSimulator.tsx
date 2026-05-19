@@ -64,7 +64,6 @@ export default function TaxSimulator({ initialClientId }: Props) {
     if (cid) {
       loadFromClient(cid);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialClientId]);
 
   async function loadFromClient(cid: string) {
