@@ -322,13 +322,17 @@ export default function ReviewSnapshotModal({
         return;
       }
 
+      // Bonds and cash already have prices from the cartola — skip matching
+      const matchableHoldings = holdings.map((h, i) => ({ ...h, _origIndex: i }))
+        .filter((h) => h.assetType !== "bond" && h.assetType !== "cash");
+
       setAutoMatchLoading(true);
       try {
         const res = await fetch("/api/fondos/match-holdings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            holdings: holdings.map((h) => ({
+            holdings: matchableHoldings.map((h) => ({
               fundName: h.fundName,
               securityId: h.securityId,
               quantity: h.quantity,
@@ -360,7 +364,12 @@ export default function ReviewSnapshotModal({
         if (controller.signal.aborted) return;
 
         if (data.success && data.matches) {
-          const allMatches = data.matches as MatchSuggestion[];
+          // Remap API indices (relative to matchable subset) back to original holdings indices
+          const rawMatches = data.matches as MatchSuggestion[];
+          const allMatches = rawMatches.map((m) => ({
+            ...m,
+            index: matchableHoldings[m.index]?._origIndex ?? m.index,
+          }));
 
           // Show ALL matched results as suggestions
           const relevantMatches = allMatches.filter(
