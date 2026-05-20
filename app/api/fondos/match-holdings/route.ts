@@ -15,6 +15,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { detectSerieCode } from "@/lib/fund-utils";
 
 interface HoldingInput {
   fundName: string;
@@ -75,9 +76,13 @@ function familiaToAssetClass(familia: string | null | undefined): string | undef
 function extractTicker(name: string, securityId?: string | null): string | null {
   if (securityId) {
     const id = securityId.toUpperCase().trim();
+    // Pure ticker: "CRDO", "QQQ", "SPY"
     if (/^[A-Z]{1,5}$/.test(id) || /^[A-Z]{2,10}(-[A-B])?$/.test(id)) {
       return id;
     }
+    // Stonex format: "CRDO/G25457105" (ticker/CUSIP)
+    const slashMatch = id.match(/^([A-Z]{1,5})\//);
+    if (slashMatch) return slashMatch[1];
   }
   const tickerMatch = name.match(/^([A-Z]{1,5})\s*[-–]\s*/);
   if (tickerMatch) return tickerMatch[1];
@@ -86,31 +91,79 @@ function extractTicker(name: string, securityId?: string | null): string | null 
   return null;
 }
 
-// Fetch stock quote from Yahoo Finance
+// Fetch stock quote from Yahoo Finance (try both query endpoints)
 async function fetchYahooQuote(ticker: string): Promise<{
   name: string;
   price: number;
   currency: string;
 } | null> {
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  };
+  const encodedTicker = encodeURIComponent(ticker);
+
+  for (const host of ["query2.finance.yahoo.com", "query1.finance.yahoo.com"]) {
+    try {
+      const url = `https://${host}/v8/finance/chart/${encodedTicker}?interval=1d&range=1d`;
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (data.chart?.error || !data.chart?.result?.length) continue;
+      const meta = data.chart.result[0].meta;
+      if (meta.regularMarketPrice > 0) {
+        return {
+          name: meta.longName || meta.shortName || meta.symbol,
+          price: meta.regularMarketPrice,
+          currency: meta.currency || "USD",
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+// Fetch stock quote from Alpha Vantage (fallback)
+async function fetchAlphaVantageQuote(ticker: string): Promise<{
+  name: string;
+  price: number;
+  currency: string;
+} | null> {
+  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+  if (!apiKey) return null;
+
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-    });
+    const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(ticker)}&apikey=${apiKey}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!response.ok) return null;
     const data = await response.json();
-    if (data.chart.error || !data.chart.result?.length) return null;
-    const meta = data.chart.result[0].meta;
+    const quote = data["Global Quote"];
+    if (!quote || !quote["05. price"]) return null;
     return {
-      name: meta.longName || meta.shortName || meta.symbol,
-      price: meta.regularMarketPrice,
-      currency: meta.currency || "USD",
+      name: ticker, // Alpha Vantage GLOBAL_QUOTE doesn't return name
+      price: parseFloat(quote["05. price"]),
+      currency: "USD",
     };
   } catch {
     return null;
   }
+}
+
+// Try Yahoo first, then Alpha Vantage
+async function fetchStockQuote(ticker: string): Promise<{
+  name: string;
+  price: number;
+  currency: string;
+  source: string;
+} | null> {
+  const yahoo = await fetchYahooQuote(ticker);
+  if (yahoo) return { ...yahoo, source: "Yahoo Finance" };
+
+  const av = await fetchAlphaVantageQuote(ticker);
+  if (av) return { ...av, source: "Alpha Vantage" };
+
+  return null;
 }
 
 const CHILEAN_TICKERS = [
@@ -296,20 +349,20 @@ export async function POST(request: NextRequest) {
           // === STEP 1: Try stock ticker lookup ===
           const ticker = extractTicker(fundName, securityId);
           if (ticker) {
-            let stockQuote = null;
+            let stockQuote: { name: string; price: number; currency: string; source: string } | null = null;
             if (isChileanTicker(ticker)) {
               try {
                 const quote = await getResumenAccion(ticker);
                 if (quote) {
-                  stockQuote = { name: quote.name, price: quote.price, currency: quote.currency };
+                  stockQuote = { name: quote.name, price: quote.price, currency: quote.currency, source: "Bolsa Santiago" };
                 }
               } catch { /* fallback */ }
               if (!stockQuote) {
                 const yahooTicker = ticker.endsWith(".SN") ? ticker : `${ticker}.SN`;
-                stockQuote = await fetchYahooQuote(yahooTicker);
+                stockQuote = await fetchStockQuote(yahooTicker);
               }
             } else {
-              stockQuote = await fetchYahooQuote(ticker);
+              stockQuote = await fetchStockQuote(ticker);
             }
             if (stockQuote && stockQuote.price > 0) {
               return {
@@ -321,7 +374,7 @@ export async function POST(request: NextRequest) {
                 matchedId: ticker,
                 price: stockQuote.price,
                 currency: stockQuote.currency,
-                source: isChileanTicker(ticker) ? "Bolsa Santiago" : "Yahoo Finance",
+                source: stockQuote.source,
                 assetClass: "equity",
               };
             }
@@ -386,6 +439,18 @@ export async function POST(request: NextRequest) {
             console.log(`[match-holdings] #${index} "${fundName.substring(0, 25)}" price=${holdingPrice} → priceMatches=${priceMatches.length}, fundsWithPrice=${searchUniverse.filter(f => priceMap.has(f.id)).length}/${searchUniverse.length}, closest=${closestDiff.toFixed(4)} "${closestFondo.substring(0, 25)}"`);
 
             if (priceMatches.length > 0) {
+              // Use serie detection to boost matches with correct serie
+              const detectedSerie = detectSerieCode(fundName);
+              if (detectedSerie) {
+                for (const pm of priceMatches) {
+                  const fmSerie = (pm.fondo.fm_serie || "").toUpperCase();
+                  const detected = detectedSerie.toUpperCase();
+                  // Exact match or contained (e.g., detected "I-APV" matches fm_serie "I-APV")
+                  if (fmSerie === detected || fmSerie.includes(detected) || detected.includes(fmSerie)) {
+                    pm.nameScore += 10; // Strong boost for serie match
+                  }
+                }
+              }
               // Sort by name score (highest first) to pick the best among price matches
               priceMatches.sort((a, b) => b.nameScore - a.nameScore);
               const best = priceMatches[0];
@@ -436,8 +501,19 @@ export async function POST(request: NextRequest) {
 
           // === STEP 3: No price in cartola — try name matching within AGF ===
           if (searchUniverse.length > 0 && (!holdingPrice || holdingPrice <= 0)) {
+            const detectedSerieStep3 = detectSerieCode(fundName);
             const nameMatches = searchUniverse
-              .map(f => ({ fondo: f, nameScore: scoreNameMatch(fundName, f.nombre_fondo) }))
+              .map(f => {
+                let score = scoreNameMatch(fundName, f.nombre_fondo);
+                if (detectedSerieStep3) {
+                  const fmSerie = (f.fm_serie || "").toUpperCase();
+                  const detected = detectedSerieStep3.toUpperCase();
+                  if (fmSerie === detected || fmSerie.includes(detected) || detected.includes(fmSerie)) {
+                    score += 10;
+                  }
+                }
+                return { fondo: f, nameScore: score };
+              })
               .filter(m => m.nameScore >= 1)
               .sort((a, b) => b.nameScore - a.nameScore);
 
