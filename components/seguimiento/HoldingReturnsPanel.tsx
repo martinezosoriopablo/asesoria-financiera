@@ -122,18 +122,38 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     const basePrices = new Map<string, number>();
     const purchaseDates = new Map<string, string>();
 
-    const extractUnitPrice = (h: HoldingData): number => {
-      const mp = Number(h.marketPrice);
-      if (mp > 0 && isFinite(mp)) return mp;
+    // Purchase price: unitCost first (what the client paid), then fallbacks
+    const extractPurchasePrice = (h: HoldingData): number => {
+      // 1. unitCost — actual purchase price per unit
       const uc = Number(h.unitCost);
       if (uc > 0 && isFinite(uc)) return uc;
+      // 2. costBasis / quantity — total cost / shares
+      const qty = Number(h.quantity);
+      const cb = Number(h.costBasis);
+      if (qty > 0 && cb > 0) return cb / qty;
+      // 3. marketPrice — price at cartola date (fallback)
+      const mp = Number(h.marketPrice);
+      if (mp > 0 && isFinite(mp)) return mp;
+      // 4. marketValue / quantity
+      const mv = Number(h.marketValue);
+      if (qty > 0 && mv > 0) return mv / qty;
+      const mvCLP = Number(h.marketValueCLP);
+      if (qty > 0 && mvCLP > 0) return mvCLP / qty;
+      return 0;
+    };
+
+    // Current market price: marketPrice first, then marketValue/quantity
+    const extractMarketPrice = (h: HoldingData): number => {
+      const mp = Number(h.marketPrice);
+      if (mp > 0 && isFinite(mp)) return mp;
       const qty = Number(h.quantity);
       const mv = Number(h.marketValue);
       if (qty > 0 && mv > 0) return mv / qty;
       const mvCLP = Number(h.marketValueCLP);
       if (qty > 0 && mvCLP > 0) return mvCLP / qty;
-      const cb = Number(h.costBasis);
-      if (qty > 0 && cb > 0) return cb / qty;
+      // Last resort: unitCost
+      const uc = Number(h.unitCost);
+      if (uc > 0 && isFinite(uc)) return uc;
       return 0;
     };
 
@@ -141,7 +161,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       if (!cartola.holdings) continue;
       for (const h of cartola.holdings as HoldingData[]) {
         if (h.fundName && !basePrices.has(h.fundName)) {
-          const price = extractUnitPrice(h);
+          const price = extractPurchasePrice(h);
           if (price > 0) {
             basePrices.set(h.fundName, price);
             purchaseDates.set(h.fundName, cartola.snapshot_date);
@@ -162,7 +182,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       return latestHoldings
         .filter((h) => h.fundName && h.marketValue > 0)
         .map((h) => {
-          const currentPrice = extractUnitPrice(h);
+          const currentPrice = extractMarketPrice(h);
           const purchasePrice = basePrices.get(h.fundName) || currentPrice;
           const returnCalc = purchasePrice > 0 ? ((currentPrice / purchasePrice) - 1) * 100 : 0;
 
