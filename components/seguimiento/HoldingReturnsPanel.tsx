@@ -273,15 +273,44 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     const latestHoldings = latestSnap.holdings as HoldingData[];
     const latestTotal = latestSnap.total_value || latestHoldings.reduce((s, h) => s + (h.marketValue || 0), 0);
 
+    // Build a map of bond-specific fields from the original cartola (statement/manual)
+    // because api-prices snapshots don't carry couponRate, maturityDate, creditRating, etc.
+    const cartolaFieldsByName = new Map<string, Partial<HoldingData>>();
+    for (const cartola of cartolas) {
+      if (!cartola.holdings) continue;
+      for (const h of cartola.holdings as HoldingData[]) {
+        if (!h.fundName) continue;
+        // Only overwrite if this cartola has more data
+        const existing = cartolaFieldsByName.get(h.fundName);
+        if (!existing || (!existing.couponRate && h.couponRate) || (!existing.creditRating && h.creditRating)) {
+          cartolaFieldsByName.set(h.fundName, {
+            assetType: h.assetType,
+            assetClass: h.assetClass,
+            couponRate: h.couponRate,
+            maturityDate: h.maturityDate,
+            creditRating: h.creditRating,
+            unitCost: h.unitCost,
+            costBasis: h.costBasis,
+            currency: h.currency,
+            estIncomeYield: h.estIncomeYield,
+            estAnnualIncome: h.estAnnualIncome,
+          });
+        }
+      }
+    }
+
     function buildSummaries() {
       return latestHoldings
         .filter((h) => h.fundName && h.marketValue > 0)
         .map((h) => {
+          // Merge with cartola fields (api-prices snapshots lose bond data)
+          const cf = cartolaFieldsByName.get(h.fundName);
           const currentPrice = extractMarketPrice(h);
           const purchasePrice = basePrices.get(h.fundName) || currentPrice;
           const returnCalc = purchasePrice > 0 ? ((currentPrice / purchasePrice) - 1) * 100 : 0;
 
-          const assetType = inferAssetType(h);
+          const merged = cf ? { ...h, ...Object.fromEntries(Object.entries(cf).filter(([, v]) => v != null && v !== undefined)) } : h;
+          const assetType = inferAssetType(merged);
           const base = {
             fundName: h.fundName,
             marketValue: h.marketValue,
@@ -291,19 +320,19 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             quantity: h.quantity || 0,
             weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
             returnFromBase: Math.round(returnCalc * 100) / 100,
-            assetClass: h.assetClass || "equity",
+            assetClass: merged.assetClass || "equity",
             assetType,
-            currency: h.currency || "CLP",
-            // Bond fields
-            couponRate: h.couponRate || null,
-            maturityDate: h.maturityDate || null,
-            creditRating: h.creditRating || null,
-            unitCost: h.unitCost || null,
-            costBasis: h.costBasis || null,
+            currency: merged.currency || "CLP",
+            // Bond fields — prefer cartola data over api-prices
+            couponRate: merged.couponRate || null,
+            maturityDate: merged.maturityDate || null,
+            creditRating: merged.creditRating || null,
+            unitCost: merged.unitCost || null,
+            costBasis: merged.costBasis || null,
             securityId: h.securityId || null,
             serie: h.serie || null,
-            estIncomeYield: h.estIncomeYield || null,
-            estAnnualIncome: h.estAnnualIncome || null,
+            estIncomeYield: merged.estIncomeYield || null,
+            estAnnualIncome: merged.estAnnualIncome || null,
           };
 
           // For bonds, extract coupon/maturity/rating from fundName if missing
