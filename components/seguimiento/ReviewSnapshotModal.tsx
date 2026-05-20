@@ -391,14 +391,18 @@ export default function ReviewSnapshotModal({
           for (const m of allMatches) {
             if (m.matched && m.confidence === "high" && updated[m.index]) {
               const h = updated[m.index];
+              // For stocks/ETFs: keep cartola price (it's the price at statement date).
+              // Yahoo/AV prices are today's prices — wrong for a historical snapshot.
+              // Only update securityId, currency, assetClass.
+              const isStock = m.matchType === "stock";
               updated[m.index] = {
                 ...h,
-                marketPrice: m.price || h.marketPrice,
+                ...(!isStock && m.price ? { marketPrice: m.price } : {}),
                 securityId: m.matchedId || h.securityId,
                 serie: m.matchedSerie || h.serie,
                 currency: m.currency || h.currency,
                 ...(m.assetClass ? { assetClass: m.assetClass } : {}),
-                ...(h.quantity && h.quantity > 0 && m.price
+                ...(!isStock && h.quantity && h.quantity > 0 && m.price
                   ? { marketValue: h.quantity * m.price }
                   : {}),
               };
