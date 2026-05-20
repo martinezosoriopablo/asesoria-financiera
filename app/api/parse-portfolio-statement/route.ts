@@ -67,6 +67,74 @@ function detectCurrency(parsed: {
   return { currency: "USD", confidence: "low", reason: "Default USD (sin indicadores claros)" };
 }
 
+// Post-procesar bonos: extraer couponRate, maturityDate, creditRating del fundName
+// cuando Claude los deja embebidos en el nombre (ej: "AT&T INC 4.750% 05/15/2046 BBB+")
+const RATING_REGEX = /\b(AAA|AA\+|AA-|AA|A\+|A-|A|BBB\+|BBB-|BBB|BB\+|BB-|BB|B\+|B-|B|CCC\+|CCC-|CCC|CC|C|D|NR|WR)\b/i;
+const COUPON_REGEX = /\b(\d{1,2}(?:\.\d{1,4})?)\s*%/;
+const MATURITY_DATE_REGEX = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/;
+const MATURITY_ISO_REGEX = /\b(\d{4})-(\d{2})-(\d{2})\b/;
+
+function extractBondFields(holdings: Array<Record<string, unknown>>): void {
+  for (const h of holdings) {
+    if (h.assetType !== "bond") continue;
+    const name = String(h.fundName || "");
+    if (!name) continue;
+
+    // Extract couponRate from fundName if missing
+    if (!h.couponRate || h.couponRate === 0) {
+      const couponMatch = name.match(COUPON_REGEX);
+      if (couponMatch) {
+        h.couponRate = parseFloat(couponMatch[1]);
+      }
+    }
+
+    // Extract maturityDate from fundName if missing
+    if (!h.maturityDate) {
+      // Try MM/DD/YYYY or MM-DD-YYYY
+      const dateMatch = name.match(MATURITY_DATE_REGEX);
+      if (dateMatch) {
+        const [, p1, p2, year] = dateMatch;
+        // Assume MM/DD/YYYY (US format, common in Stonex)
+        const month = p1.padStart(2, "0");
+        const day = p2.padStart(2, "0");
+        h.maturityDate = `${year}-${month}-${day}`;
+      } else {
+        // Try YYYY-MM-DD
+        const isoMatch = name.match(MATURITY_ISO_REGEX);
+        if (isoMatch) {
+          h.maturityDate = `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+        }
+      }
+    }
+
+    // Extract creditRating from fundName if missing
+    if (!h.creditRating) {
+      const ratingMatch = name.match(RATING_REGEX);
+      if (ratingMatch) {
+        h.creditRating = ratingMatch[1].toUpperCase();
+      }
+    }
+
+    // Clean fundName: remove extracted data, keep issuer name only
+    let cleanName = name;
+    // Remove coupon (e.g., "4.750%")
+    cleanName = cleanName.replace(/\s*\d{1,2}(?:\.\d{1,4})?\s*%/g, "");
+    // Remove date (e.g., "05/15/2046" or "2046-05-15")
+    cleanName = cleanName.replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/g, "");
+    cleanName = cleanName.replace(/\s*\d{4}-\d{2}-\d{2}/g, "");
+    // Remove credit rating
+    cleanName = cleanName.replace(RATING_REGEX, "");
+    // Remove trailing/leading spaces, dashes, slashes
+    cleanName = cleanName.replace(/[\s\/\-]+$/g, "").replace(/^[\s\/\-]+/g, "").trim();
+    // Collapse multiple spaces
+    cleanName = cleanName.replace(/\s{2,}/g, " ");
+
+    if (cleanName.length >= 3) {
+      h.fundName = cleanName;
+    }
+  }
+}
+
 // Post-procesar números que pueden haber sido mal parseados
 // Ej: "113.800.300" parseado como 113.8003 en lugar de 113800300
 function fixChileanNumbers(parsed: {
@@ -350,6 +418,11 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
 
       // Post-procesar para corregir números mal parseados (formato chileno)
       fixChileanNumbers(parsed);
+
+      // Post-procesar bonos: extraer campos del fundName si Claude los dejó embebidos
+      if (parsed.holdings && Array.isArray(parsed.holdings)) {
+        extractBondFields(parsed.holdings as Array<Record<string, unknown>>);
+      }
     } catch (parseError) {
       console.error("Error parsing JSON from Claude:", parseError);
       throw new Error("Error al procesar respuesta de Claude");

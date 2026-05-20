@@ -70,6 +70,58 @@ function inferAssetType(h: HoldingData): string {
   return "fund";
 }
 
+// Extract bond fields (coupon, maturity, rating) from fundName when missing
+const COUPON_RE = /\b(\d{1,2}(?:\.\d{1,4})?)\s*%/;
+const MATURITY_RE = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/;
+const MATURITY_ISO_RE = /\b(\d{4})-(\d{2})-(\d{2})\b/;
+const RATING_RE = /\b(AAA|AA\+|AA-|AA|A\+|A-|BBB\+|BBB-|BBB|BB\+|BB-|BB|B\+|B-|CCC\+|CCC-|CCC|CC|D|NR)\b/i;
+
+function parseBondName<T extends { fundName: string; couponRate?: number | null; maturityDate?: string | null; creditRating?: string | null }>(h: T): T {
+  const name = h.fundName || "";
+  if (!name) return h;
+
+  let couponRate = h.couponRate || null;
+  let maturityDate = h.maturityDate || null;
+  let creditRating = h.creditRating || null;
+  let cleanName = name;
+
+  // Extract coupon
+  if (!couponRate) {
+    const m = name.match(COUPON_RE);
+    if (m) couponRate = parseFloat(m[1]);
+  }
+  // Extract maturity
+  if (!maturityDate) {
+    const dm = name.match(MATURITY_RE);
+    if (dm) {
+      maturityDate = `${dm[3]}-${dm[1].padStart(2, "0")}-${dm[2].padStart(2, "0")}`;
+    } else {
+      const im = name.match(MATURITY_ISO_RE);
+      if (im) maturityDate = `${im[1]}-${im[2]}-${im[3]}`;
+    }
+  }
+  // Extract rating
+  if (!creditRating) {
+    const rm = name.match(RATING_RE);
+    if (rm) creditRating = rm[1].toUpperCase();
+  }
+
+  // Clean name: remove extracted data
+  cleanName = cleanName.replace(/\s*\d{1,2}(?:\.\d{1,4})?\s*%/g, "");
+  cleanName = cleanName.replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/g, "");
+  cleanName = cleanName.replace(/\s*\d{4}-\d{2}-\d{2}/g, "");
+  cleanName = cleanName.replace(RATING_RE, "");
+  cleanName = cleanName.replace(/[\s\/\-]+$/g, "").replace(/^[\s\/\-]+/g, "").replace(/\s{2,}/g, " ").trim();
+
+  return {
+    ...h,
+    fundName: cleanName.length >= 3 ? cleanName : h.fundName,
+    couponRate,
+    maturityDate,
+    creditRating,
+  };
+}
+
 interface FundMeta {
   fundName: string;
   run: string;
@@ -196,7 +248,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           const purchasePrice = basePrices.get(h.fundName) || currentPrice;
           const returnCalc = purchasePrice > 0 ? ((currentPrice / purchasePrice) - 1) * 100 : 0;
 
-          return {
+          const assetType = inferAssetType(h);
+          const base = {
             fundName: h.fundName,
             marketValue: h.marketValue,
             currentPrice,
@@ -206,7 +259,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
             returnFromBase: Math.round(returnCalc * 100) / 100,
             assetClass: h.assetClass || "equity",
-            assetType: inferAssetType(h),
+            assetType,
             currency: h.currency || "CLP",
             // Bond fields
             couponRate: h.couponRate || null,
@@ -219,6 +272,12 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             estIncomeYield: h.estIncomeYield || null,
             estAnnualIncome: h.estAnnualIncome || null,
           };
+
+          // For bonds, extract coupon/maturity/rating from fundName if missing
+          if (assetType === "bond") {
+            return parseBondName(base);
+          }
+          return base;
         })
         .sort((a, b) => (b.weight || 0) - (a.weight || 0));
     }
