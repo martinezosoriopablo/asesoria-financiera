@@ -215,7 +215,9 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
       "couponRate": number | null,
       "maturityDate": "string (YYYY-MM-DD) | null",
       "creditRating": "string | null",
-      "currency": "string (USD, CLP, EUR, etc.)"
+      "currency": "string (USD, CLP, EUR, etc.)",
+      "estIncomeYield": number | null,
+      "estAnnualIncome": number | null
     }
   ]
 }
@@ -278,6 +280,10 @@ REGLAS PARA BONOS (assetType = "bond"):
 - "unitCost": Precio de compra como porcentaje del par
 - "securityId": CUSIP o ISIN del bono
 - "currency": Moneda del bono (generalmente USD para bonos internacionales)
+
+REGLAS PARA "estIncomeYield" y "estAnnualIncome":
+- "estIncomeYield": Rendimiento estimado anual (%). Aparece como "Est. Income Yield", "Yield", "Income Yield" en la cartola. Para bonos es el cupón / precio. Para acciones/ETFs es el dividend yield. Si no aparece, usar null.
+- "estAnnualIncome": Ingreso anual estimado en la moneda del instrumento. Aparece como "Est. Annual Income", "Annual Income". Para bonos son los cupones anuales. Para acciones/ETFs son los dividendos anuales estimados. Si no aparece, usar null.
 
 REGLAS PARA "market" (CLASIFICACIÓN DE MERCADO):
 Clasifica CADA holding en uno de estos mercados:

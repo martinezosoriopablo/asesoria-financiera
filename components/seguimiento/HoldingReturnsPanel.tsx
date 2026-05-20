@@ -24,6 +24,9 @@ interface HoldingData {
   currency?: string;
   returnFromBase?: number;
   weight?: number;
+  // Income fields (from cartola)
+  estIncomeYield?: number | null;
+  estAnnualIncome?: number | null;
   // Bond-specific
   couponRate?: number | null;
   maturityDate?: string | null;
@@ -206,6 +209,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             costBasis: h.costBasis || null,
             securityId: h.securityId || null,
             serie: h.serie || null,
+            estIncomeYield: h.estIncomeYield || null,
+            estAnnualIncome: h.estAnnualIncome || null,
           };
         })
         .sort((a, b) => (b.weight || 0) - (a.weight || 0));
@@ -345,9 +350,9 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         marketValue: h.marketValue,
         currency: h.currency,
         returnPrice: h.returnFromBase,
-        dividendAmount: 0,  // TODO: wire up after dividend fetch integration
-        dividendYield: 0,
-        totalReturn: h.returnFromBase,
+        dividendAmount: h.estAnnualIncome || 0,
+        dividendYield: h.estIncomeYield || 0,
+        totalReturn: h.returnFromBase + (h.estIncomeYield || 0),
         contribution: h.weight > 0 ? (h.returnFromBase * h.weight) / 100 : 0,
         tac: h.tac,
       }));
