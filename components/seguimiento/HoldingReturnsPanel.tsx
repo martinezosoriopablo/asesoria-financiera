@@ -1,18 +1,12 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend,
-} from "recharts";
-import { TrendingUp, TrendingDown, BarChart3, Loader } from "lucide-react";
+import { BarChart3, Loader } from "lucide-react";
 import { formatNumber, formatPercent } from "@/lib/format";
+import { calcBondPeriodReturn } from "@/lib/bonds/period-return";
+import { calcYieldToMaturity } from "@/lib/bonds/yield";
+import EquitySection, { type EquityHolding } from "./EquitySection";
+import FixedIncomeSection, { type BondHoldingRow } from "./FixedIncomeSection";
 import type { Snapshot } from "./SeguimientoPage";
 
 interface HoldingData {
@@ -26,9 +20,14 @@ interface HoldingData {
   marketValue: number;
   marketValueCLP?: number;
   assetClass?: string;
+  assetType?: string;
   currency?: string;
   returnFromBase?: number;
   weight?: number;
+  // Bond-specific
+  couponRate?: number | null;
+  maturityDate?: string | null;
+  creditRating?: string | null;
 }
 
 interface FundMeta {
@@ -38,22 +37,6 @@ interface FundMeta {
   tac: number | null;
   quantity: number;
 }
-
-interface Props {
-  snapshots: Snapshot[];
-  clientId?: string;
-  onCurrentValueUpdate?: (totalValue: number) => void;
-  onPriceDateUpdate?: (date: string) => void;
-  fundsMeta?: FundMeta[];
-  usdRate?: number;
-}
-
-// Colors for the chart lines
-const CHART_COLORS = [
-  "#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#9333ea",
-  "#0891b2", "#e11d48", "#65a30d", "#c026d3", "#ea580c",
-  "#4f46e5", "#059669",
-];
 
 interface FintualPrice {
   fundName: string;
@@ -65,57 +48,53 @@ interface FintualPrice {
   currency: string;
 }
 
+interface Props {
+  snapshots: Snapshot[];
+  clientId?: string;
+  onCurrentValueUpdate?: (totalValue: number) => void;
+  onPriceDateUpdate?: (date: string) => void;
+  fundsMeta?: FundMeta[];
+  usdRate?: number;
+}
+
 export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta, usdRate }: Props) {
-  const [selectedHoldings, setSelectedHoldings] = useState<Set<string>>(new Set());
-  const showChart = false; // Chart removed per user request
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
-  const [historicalSeries, setHistoricalSeries] = useState<Array<Record<string, string | number>>>([]);
-  const [loadingHistorical, setLoadingHistorical] = useState(false);
 
   // Extract unique holdings and their returns over time from snapshots
-  const { holdingSummaries, chartData: _chartData, latestRawHoldings } = useMemo(() => {
-    // Get the latest snapshot with holdings that has return data
+  const { holdingSummaries, latestRawHoldings, previousSnapshotDate } = useMemo(() => {
     const snapshotsWithHoldings = snapshots
       .filter((s) => s.holdings && Array.isArray(s.holdings) && s.holdings.length > 0)
       .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
 
     if (snapshotsWithHoldings.length === 0) {
-      return { holdingSummaries: [], chartData: [] };
+      return { holdingSummaries: [] as ReturnType<typeof buildSummaries>, latestRawHoldings: [] as HoldingData[], previousSnapshotDate: null as string | null };
     }
 
-    // Collect all unique holding names
-    const holdingNames = new Set<string>();
-    for (const snap of snapshotsWithHoldings) {
-      for (const h of snap.holdings as HoldingData[]) {
-        if (h.fundName) holdingNames.add(h.fundName);
-      }
-    }
-
-    // For each holding, find the purchase price from the FIRST cartola where it appears
-    // Cartolas are sorted chronologically, so first match = original purchase price
+    // Find previous snapshot date for period calculations
     const cartolas = snapshotsWithHoldings.filter(
       (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
     );
+    const prevSnapDate = cartolas.length >= 2
+      ? cartolas[cartolas.length - 2].snapshot_date
+      : cartolas.length === 1
+        ? cartolas[0].snapshot_date
+        : snapshotsWithHoldings[0].snapshot_date;
+
+    // For each holding, find the purchase price from the FIRST cartola
     const basePrices = new Map<string, number>();
     const purchaseDates = new Map<string, string>();
 
-    // Helper: extract unit price from a holding using all available fields
     const extractUnitPrice = (h: HoldingData): number => {
-      // 1. Explicit marketPrice (cuota vigente, precio de mercado)
       const mp = Number(h.marketPrice);
       if (mp > 0 && isFinite(mp)) return mp;
-      // 2. unitCost (costo unitario)
       const uc = Number(h.unitCost);
       if (uc > 0 && isFinite(uc)) return uc;
-      // 3. Derived from marketValue / quantity
       const qty = Number(h.quantity);
       const mv = Number(h.marketValue);
       if (qty > 0 && mv > 0) return mv / qty;
-      // 4. Derived from marketValueCLP / quantity (when currency conversion applied)
       const mvCLP = Number(h.marketValueCLP);
       if (qty > 0 && mvCLP > 0) return mvCLP / qty;
-      // 5. Derived from costBasis / quantity
       const cb = Number(h.costBasis);
       if (qty > 0 && cb > 0) return cb / qty;
       return 0;
@@ -124,7 +103,6 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     for (const cartola of cartolas) {
       if (!cartola.holdings) continue;
       for (const h of cartola.holdings as HoldingData[]) {
-        // Only set if we haven't seen this holding before (first appearance = purchase)
         if (h.fundName && !basePrices.has(h.fundName)) {
           const price = extractUnitPrice(h);
           if (price > 0) {
@@ -135,8 +113,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       }
     }
 
-    // Build summary from latest snapshot — prefer api-prices snapshot for current prices
-    // (cartola snapshots have frozen prices from upload date, api-prices have live prices)
+    // Build summary from latest snapshot
     const apiPricesSnaps = snapshotsWithHoldings.filter(s => s.source === "api-prices");
     const latestSnap = apiPricesSnaps.length > 0
       ? apiPricesSnaps[apiPricesSnaps.length - 1]
@@ -144,82 +121,57 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     const latestHoldings = latestSnap.holdings as HoldingData[];
     const latestTotal = latestSnap.total_value || latestHoldings.reduce((s, h) => s + (h.marketValue || 0), 0);
 
-    const summaries = latestHoldings
-      .filter((h) => h.fundName && h.marketValue > 0)
-      .map((h) => {
-        const currentPrice = extractUnitPrice(h);
-        const purchasePrice = basePrices.get(h.fundName) || currentPrice;
-        const returnCalc = purchasePrice > 0 ? ((currentPrice / purchasePrice) - 1) * 100 : 0;
+    function buildSummaries() {
+      return latestHoldings
+        .filter((h) => h.fundName && h.marketValue > 0)
+        .map((h) => {
+          const currentPrice = extractUnitPrice(h);
+          const purchasePrice = basePrices.get(h.fundName) || currentPrice;
+          const returnCalc = purchasePrice > 0 ? ((currentPrice / purchasePrice) - 1) * 100 : 0;
 
-        return {
-          fundName: h.fundName,
-          marketValue: h.marketValue,
-          currentPrice,
-          purchasePrice,
-          purchaseDate: purchaseDates.get(h.fundName) || null,
-          quantity: h.quantity || 0,
-          weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
-          // Use stored returnFromBase if available, otherwise calculate from prices
-          returnFromBase: h.returnFromBase ?? Math.round(returnCalc * 100) / 100,
-          assetClass: h.assetClass || "equity",
-          currency: h.currency || "CLP",
-        };
-      })
-      .sort((a, b) => (b.weight || 0) - (a.weight || 0));
-
-    // Build chart data: date → { date, holding1Return, holding2Return, ... }
-    const data: Array<Record<string, string | number>> = [];
-
-    for (const snap of snapshotsWithHoldings) {
-      const holdings = snap.holdings as HoldingData[];
-      if (!holdings) continue;
-
-      const snapTotal = snap.total_value || holdings.reduce((s, h) => s + (h.marketValue || 0), 0);
-
-      const point: Record<string, string | number> = {
-        date: new Date(snap.snapshot_date).toLocaleDateString("es-CL", {
-          day: "2-digit",
-          month: "short",
-        }),
-        fullDate: snap.snapshot_date,
-      };
-
-      // Calculate portfolio return as weighted sum
-      let portfolioReturn = 0;
-      let totalWeight = 0;
-
-      for (const h of holdings) {
-        if (h.fundName && h.returnFromBase !== undefined && h.returnFromBase !== null) {
-          point[h.fundName] = Math.round(h.returnFromBase * 100) / 100;
-          const w = h.weight || (snapTotal > 0 ? (h.marketValue / snapTotal) * 100 : 0);
-          if (w > 0) {
-            portfolioReturn += (h.returnFromBase * w) / 100;
-            totalWeight += w;
-          }
-        }
-      }
-
-      if (totalWeight > 0) {
-        point["Portafolio"] = Math.round(portfolioReturn * 100) / 100;
-      }
-
-      data.push(point);
+          return {
+            fundName: h.fundName,
+            marketValue: h.marketValue,
+            currentPrice,
+            purchasePrice,
+            purchaseDate: purchaseDates.get(h.fundName) || null,
+            quantity: h.quantity || 0,
+            weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
+            returnFromBase: h.returnFromBase ?? Math.round(returnCalc * 100) / 100,
+            assetClass: h.assetClass || "equity",
+            assetType: h.assetType || "fund",
+            currency: h.currency || "CLP",
+            // Bond fields
+            couponRate: h.couponRate || null,
+            maturityDate: h.maturityDate || null,
+            creditRating: h.creditRating || null,
+            unitCost: h.unitCost || null,
+            costBasis: h.costBasis || null,
+            securityId: h.securityId || null,
+            serie: h.serie || null,
+          };
+        })
+        .sort((a, b) => (b.weight || 0) - (a.weight || 0));
     }
 
-    return { holdingSummaries: summaries, chartData: data, latestRawHoldings: latestHoldings };
+    return {
+      holdingSummaries: buildSummaries(),
+      latestRawHoldings: latestHoldings,
+      previousSnapshotDate: prevSnapDate,
+    };
   }, [snapshots]);
 
-  // Fetch current prices from Fintual API
+  // Fetch current prices from Fintual API (for funds only)
   useEffect(() => {
     if (holdingSummaries.length === 0) return;
+    const fundsOnly = holdingSummaries.filter(h => h.assetType === "fund");
+    if (fundsOnly.length === 0) return;
 
     const fetchPrices = async () => {
       setLoadingPrices(true);
       try {
-        const holdingsToFetch = holdingSummaries.map((h) => {
-          const raw = (latestRawHoldings as HoldingData[])?.find(
-            (sh) => sh.fundName === h.fundName
-          );
+        const holdingsToFetch = fundsOnly.map((h) => {
+          const raw = (latestRawHoldings as HoldingData[])?.find((sh) => sh.fundName === h.fundName);
           return {
             fundName: h.fundName,
             securityId: raw?.securityId || null,
@@ -255,64 +207,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     fetchPrices();
   }, [holdingSummaries, latestRawHoldings, clientId]);
 
-  // Fetch historical price series for the chart (cuotas × valor_cuota per date)
-  useEffect(() => {
-    if (holdingSummaries.length === 0) return;
-
-    const holdingsWithRun = holdingSummaries.map((h) => {
-      const raw = (latestRawHoldings as HoldingData[])?.find(
-        (sh) => sh.fundName === h.fundName
-      );
-      const secId = raw?.securityId || "";
-      const isRun = /^\d{3,6}$/.test(secId.trim());
-      return {
-        fundName: h.fundName,
-        run: isRun ? parseInt(secId.trim(), 10) : 0,
-        serie: raw?.serie || "",
-        quantity: h.quantity,
-        currency: h.currency || "CLP",
-      };
-    }).filter((h) => h.run > 0 && h.serie);
-
-    if (holdingsWithRun.length === 0) return;
-
-    // Use the earliest purchase date as fromDate
-    const dates = holdingSummaries
-      .map((h) => h.purchaseDate)
-      .filter(Boolean) as string[];
-    const fromDate = dates.length > 0
-      ? dates.sort()[0]
-      : undefined;
-
-    const fetchHistorical = async () => {
-      setLoadingHistorical(true);
-      try {
-        const res = await fetch("/api/portfolio/historical-prices", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ holdings: holdingsWithRun, fromDate }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.series) {
-            setHistoricalSeries(data.series);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching historical prices:", err);
-      } finally {
-        setLoadingHistorical(false);
-      }
-    };
-
-    fetchHistorical();
-  }, [holdingSummaries, latestRawHoldings]);
-
-  // Build TAC map from fundsMeta (match by RUN+serie from raw holdings)
+  // Build TAC map from fundsMeta
   const tacByFundName = useMemo(() => {
     const map = new Map<string, number | null>();
     if (!fundsMeta || fundsMeta.length === 0 || !latestRawHoldings) return map;
-
     for (const raw of latestRawHoldings as HoldingData[]) {
       const secId = (raw.securityId || "").trim();
       const serie = (raw.serie || "").trim();
@@ -325,25 +223,18 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
   // Merge Fintual prices into summaries
   const enrichedSummaries = useMemo(() => {
-    const base = holdingSummaries.map((h) => ({
-      ...h,
-      tac: tacByFundName.get(h.fundName) ?? null as number | null,
-    }));
-
-    if (fintualPrices.size === 0) return base;
-
-    return base.map((h) => {
+    return holdingSummaries.map((h) => {
+      const tac = tacByFundName.get(h.fundName) ?? null;
       const fp = fintualPrices.get(h.fundName);
-      if (!fp || !fp.currentPrice || fp.currentPrice <= 0) return h;
+
+      if (!fp || !fp.currentPrice || fp.currentPrice <= 0) {
+        return { ...h, tac };
+      }
 
       const fintualCurrentPrice = fp.currentPrice;
-
       const returnCalc = h.purchasePrice > 0
         ? ((fintualCurrentPrice / h.purchasePrice) - 1) * 100
         : 0;
-
-      // For USD funds, convert current USD price to CLP using dólar observado
-      // For CLP funds, recalculate directly with the updated price
       const holdingIsUSD = h.currency === "USD";
       const newMarketValue = holdingIsUSD
         ? (h.quantity > 0 && usdRate ? h.quantity * fintualCurrentPrice * usdRate : h.marketValue)
@@ -351,12 +242,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
       return {
         ...h,
+        tac,
         currentPrice: fintualCurrentPrice,
         marketValue: newMarketValue,
         returnFromBase: Math.round(returnCalc * 100) / 100,
-        fintualName: fp.fintualName,
-        serieName: fp.serieName,
-        lastPriceDate: fp.lastPriceDate,
       };
     });
   }, [holdingSummaries, fintualPrices, tacByFundName, usdRate]);
@@ -367,7 +256,6 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     const total = enrichedSummaries.reduce((sum, h) => sum + (h.marketValue || 0), 0);
     if (total > 0 && onCurrentValueUpdate) onCurrentValueUpdate(total);
 
-    // Report the most recent price date from enriched data
     if (onPriceDateUpdate) {
       const dates = enrichedSummaries
         .map((h) => (h as Record<string, unknown>).lastPriceDate as string | undefined)
@@ -379,73 +267,138 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     }
   }, [enrichedSummaries, onCurrentValueUpdate, onPriceDateUpdate]);
 
-  // Build chart data from historical prices (cuotas × valor_cuota)
-  const valueChartData = useMemo(() => {
-    if (historicalSeries.length === 0) return [];
+  // --- Detect composition ---
+  const hasEquity = enrichedSummaries.some(h => ["fund", "etf", "stock"].includes(h.assetType));
+  const hasBonds = enrichedSummaries.some(h => h.assetType === "bond");
+  const hasStocksOrETFs = enrichedSummaries.some(h => ["etf", "stock"].includes(h.assetType));
+  const hasCash = enrichedSummaries.some(h => h.assetType === "cash");
 
-    return historicalSeries.map((point) => {
-      const fecha = point.fecha as string;
-      const formatted = new Date(fecha + "T12:00:00Z").toLocaleDateString("es-CL", {
-        day: "2-digit",
-        month: "short",
+  const totalValue = enrichedSummaries.reduce((s, h) => s + h.marketValue, 0);
+
+  // --- Build equity holdings ---
+  const equityHoldings: EquityHolding[] = useMemo(() => {
+    return enrichedSummaries
+      .filter(h => ["fund", "etf", "stock"].includes(h.assetType))
+      .map(h => ({
+        fundName: h.fundName,
+        assetType: h.assetType,
+        weight: h.weight,
+        purchasePrice: h.purchasePrice,
+        currentPrice: h.currentPrice,
+        marketValue: h.marketValue,
+        currency: h.currency,
+        returnPrice: h.returnFromBase,
+        dividendAmount: 0,  // TODO: wire up after dividend fetch integration
+        dividendYield: 0,
+        totalReturn: h.returnFromBase,
+        contribution: h.weight > 0 ? (h.returnFromBase * h.weight) / 100 : 0,
+        tac: h.tac,
+      }));
+  }, [enrichedSummaries]);
+
+  // --- Build bond holdings ---
+  const bondHoldings: BondHoldingRow[] = useMemo(() => {
+    const latestDate = snapshots
+      .filter(s => s.holdings && (s.holdings as HoldingData[]).length > 0)
+      .sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date))[0]?.snapshot_date;
+
+    return enrichedSummaries
+      .filter(h => h.assetType === "bond")
+      .map(h => {
+        const couponRatePct = h.couponRate || 0;
+        const couponRateDecimal = couponRatePct / 100;
+        const faceValue = h.costBasis && h.unitCost
+          ? (h.costBasis / h.unitCost) * 100
+          : h.marketValue;
+        const freq = 2; // semi-annual default
+
+        // Calculate period return
+        let accruedInterest = 0;
+        let priceDiff = 0;
+        let couponsPaid = 0;
+        let totalReturnPct = 0;
+
+        if (h.maturityDate && couponRateDecimal > 0 && previousSnapshotDate) {
+          const periodResult = calcBondPeriodReturn({
+            faceValue,
+            couponRate: couponRateDecimal,
+            couponFrequency: freq,
+            maturityDate: h.maturityDate,
+            purchasePrice: h.unitCost || 100,
+            currentPrice: h.currentPrice,
+            startDate: previousSnapshotDate,
+            endDate: latestDate || previousSnapshotDate,
+          });
+          accruedInterest = periodResult.accruedInterest;
+          priceDiff = periodResult.priceDiff;
+          couponsPaid = periodResult.couponsPaid;
+          totalReturnPct = periodResult.totalReturnPercent;
+        }
+
+        // Calculate YTM
+        let ytm = 0;
+        if (h.maturityDate && couponRateDecimal > 0 && h.currentPrice > 0) {
+          try {
+            ytm = calcYieldToMaturity({
+              faceValue,
+              couponRate: couponRateDecimal,
+              couponFrequency: freq,
+              maturityDate: h.maturityDate,
+              purchaseDate: h.purchaseDate || previousSnapshotDate || "2025-01-01",
+              purchasePrice: h.unitCost || 100,
+              currentPrice: h.currentPrice,
+            }) * 100;
+          } catch {
+            ytm = 0;
+          }
+        }
+
+        return {
+          fundName: h.fundName,
+          cusip: h.securityId || "",
+          creditRating: h.creditRating || "NR",
+          couponRate: couponRatePct,
+          maturityDate: h.maturityDate || "",
+          weight: h.weight,
+          purchasePrice: h.unitCost || 100,
+          marketPrice: h.currentPrice,
+          ytm,
+          accruedInterest,
+          priceDiff,
+          couponsPaid,
+          totalReturn: totalReturnPct,
+          contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
+          marketValue: h.marketValue,
+        };
       });
-      return {
-        ...point,
-        date: formatted,
-        fullDate: fecha,
-      };
-    });
-  }, [historicalSeries]);
+  }, [enrichedSummaries, previousSnapshotDate, snapshots]);
 
-  if (holdingSummaries.length === 0) {
-    return null;
-  }
+  // Cash holdings
+  const cashValue = enrichedSummaries
+    .filter(h => h.assetType === "cash")
+    .reduce((s, h) => s + h.marketValue, 0);
 
-  const toggleHolding = (name: string) => {
-    setSelectedHoldings((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-      } else {
-        next.add(name);
-      }
-      return next;
-    });
-  };
+  // Portfolio-level return
+  const equityContrib = equityHoldings.reduce((s, h) => s + h.contribution, 0);
+  const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
+  const portfolioReturn = equityContrib + bondContrib;
 
-  const selectAll = () => {
-    setSelectedHoldings(new Set(enrichedSummaries.map((h) => h.fundName)));
-  };
+  if (holdingSummaries.length === 0) return null;
 
-  const clearAll = () => {
-    setSelectedHoldings(new Set());
-  };
-
-  // Holdings to show in chart (selected ones)
-  const chartHoldings = enrichedSummaries
-    .filter((h) => selectedHoldings.has(h.fundName))
-    .map((h, i) => ({
-      name: h.fundName,
-      color: CHART_COLORS[i % CHART_COLORS.length],
-    }));
-
-  // Calculate portfolio-level return from weighted holding returns
-  const portfolioReturn = enrichedSummaries.reduce((sum, h) => {
-    if (h.returnFromBase !== null && h.weight > 0) {
-      return sum + (h.returnFromBase * h.weight) / 100;
-    }
-    return sum;
-  }, 0);
+  const equityValue = equityHoldings.reduce((s, h) => s + h.marketValue, 0);
+  const bondValue = bondHoldings.reduce((s, h) => s + h.marketValue, 0);
+  const equityPct = totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
+  const bondPct = totalValue > 0 ? (bondValue / totalValue) * 100 : 0;
 
   return (
     <div className="bg-white rounded-lg border border-gb-border shadow-sm mb-6">
+      {/* Header */}
       <div className="px-6 py-4 border-b border-gb-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-blue-600" />
           <h2 className="text-base font-semibold text-gb-black">
             Rentabilidad por Activo
           </h2>
-          <span className="text-xs text-gb-gray ml-1">(desde inicio de cartola)</span>
           {loadingPrices ? (
             <Loader className="w-4 h-4 text-blue-500 animate-spin ml-2" />
           ) : (
@@ -456,250 +409,63 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         </div>
       </div>
 
-      {/* Holdings table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gb-border bg-slate-50">
-              {showChart && (
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gb-gray w-8">
-                  <input
-                    type="checkbox"
-                    checked={selectedHoldings.size === enrichedSummaries.length}
-                    onChange={() => selectedHoldings.size === enrichedSummaries.length ? clearAll() : selectAll()}
-                    className="rounded border-gray-300"
-                  />
-                </th>
-              )}
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gb-gray uppercase">
-                Activo
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                Peso
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                P. Compra
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                P. Actual
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                Valor
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                Rentab.
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                Contrib.
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">
-                TAC
-              </th>
-              <th className="px-3 py-2 text-center text-xs font-semibold text-gb-gray uppercase">
-                Clase
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {enrichedSummaries.map((h, i) => {
-              const contribution = h.returnFromBase !== null && h.weight > 0
-                ? (h.returnFromBase * h.weight) / 100
-                : null;
-
-              return (
-                <tr
-                  key={h.fundName}
-                  className="border-b border-gb-border hover:bg-blue-50 transition-colors"
-                >
-                  {showChart && (
-                    <td className="px-3 py-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedHoldings.has(h.fundName)}
-                        onChange={() => toggleHolding(h.fundName)}
-                        className="rounded border-gray-300"
-                        style={selectedHoldings.has(h.fundName) ? {
-                          accentColor: CHART_COLORS[i % CHART_COLORS.length]
-                        } : undefined}
-                      />
-                    </td>
-                  )}
-                  <td className="px-3 py-2">
-                    <span className="text-[11px] leading-tight font-medium text-gb-black block max-w-[280px]">
-                      {h.fundName}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <div
-                        className="h-1.5 rounded-full bg-blue-500"
-                        style={{ width: `${Math.min(h.weight, 100) * 0.4}px` }}
-                      />
-                      <span className="text-xs font-medium text-gb-black">
-                        {formatNumber(h.weight, 1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span
-                      className="text-xs text-gb-gray cursor-help"
-                      title={h.purchaseDate ? `Cartola del ${new Date(h.purchaseDate).toLocaleDateString("es-CL")}` : "Precio de primera cartola"}
-                    >
-                      {h.currency === "USD" ? "US$" : "$"}{formatNumber(h.purchasePrice, h.purchasePrice < 100 ? 2 : 0)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span
-                      className={`text-xs font-medium ${
-                        h.currentPrice > h.purchasePrice ? "text-green-700" :
-                        h.currentPrice < h.purchasePrice ? "text-red-700" : "text-gb-black"
-                      }`}
-                      title={
-                        (h as Record<string, unknown>).fintualName
-                          ? `Fintual: ${(h as Record<string, unknown>).fintualName}${(h as Record<string, unknown>).serieName ? ` (${(h as Record<string, unknown>).serieName})` : ""}${(h as Record<string, unknown>).lastPriceDate ? `\nFecha: ${(h as Record<string, unknown>).lastPriceDate}` : ""}`
-                          : "Precio de última cartola"
-                      }
-                    >
-                      {h.currency === "USD" ? "US$" : "$"}{formatNumber(h.currentPrice, h.currentPrice < 100 ? 2 : 0)}
-                      {!!(h as Record<string, unknown>).fintualName && (
-                        <span className="text-green-500 ml-0.5">*</span>
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span className="text-sm font-medium text-gb-black">
-                      ${formatNumber(h.marketValue, 0)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {h.returnFromBase !== null ? (
-                      <span
-                        className={`inline-flex items-center gap-0.5 text-sm font-semibold ${
-                          h.returnFromBase >= 0 ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {h.returnFromBase >= 0 ? (
-                          <TrendingUp className="w-3 h-3" />
-                        ) : (
-                          <TrendingDown className="w-3 h-3" />
-                        )}
-                        {formatPercent(h.returnFromBase)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gb-gray">-</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {contribution !== null ? (
-                      <span className={`text-xs font-medium ${contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {formatPercent(contribution)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gb-gray">-</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {h.tac !== null && h.tac !== undefined ? (
-                      <span className="text-xs font-medium text-gb-black">{formatNumber(h.tac, 2)}%</span>
-                    ) : (
-                      <span className="text-xs text-gb-gray">-</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                      /equity/i.test(h.assetClass || "") ? "bg-blue-100 text-blue-700" :
-                      /fixed|renta\s*fija/i.test(h.assetClass || "") ? "bg-green-100 text-green-700" :
-                      /altern/i.test(h.assetClass || "") ? "bg-purple-100 text-purple-700" :
-                      /cash|efect/i.test(h.assetClass || "") ? "bg-gray-100 text-gray-700" :
-                      "bg-slate-100 text-slate-600"
-                    }`}>
-                      {/equity/i.test(h.assetClass || "") ? "RV" :
-                       /fixed|renta\s*fija/i.test(h.assetClass || "") ? "RF" :
-                       /altern/i.test(h.assetClass || "") ? "Alt" :
-                       /cash|efect/i.test(h.assetClass || "") ? "Cash" :
-                       /balanced|balance/i.test(h.assetClass || "") ? "Bal" : h.assetClass || "-"}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Summary cards */}
+      <div className="px-6 py-3 grid grid-cols-4 gap-3 border-b border-gb-border bg-slate-50/50">
+        <SummaryCard label="Valor Total" value={`$${formatNumber(totalValue, 0)}`} />
+        <SummaryCard
+          label="Retorno Total"
+          value={formatPercent(portfolioReturn)}
+          color={portfolioReturn >= 0 ? "text-green-600" : "text-red-600"}
+        />
+        {hasEquity && (
+          <SummaryCard label="Renta Variable" value={`${formatNumber(equityPct, 1)}%`} />
+        )}
+        {hasBonds && (
+          <SummaryCard label="Renta Fija" value={`${formatNumber(bondPct, 1)}%`} />
+        )}
       </div>
 
-      {/* Chart - valor del portafolio en el tiempo */}
-      {showChart && (
-        <div className="px-6 py-4 border-t border-gb-border">
-          {loadingHistorical ? (
-            <div className="flex items-center justify-center gap-2 py-8">
-              <Loader className="w-4 h-4 text-blue-500 animate-spin" />
-              <span className="text-sm text-gb-gray">Cargando serie historica...</span>
+      {/* Sections */}
+      <div className="py-4">
+        {hasEquity && (
+          <EquitySection
+            holdings={equityHoldings}
+            totalPortfolioValue={totalValue}
+            showDividends={hasStocksOrETFs}
+          />
+        )}
+
+        {hasBonds && (
+          <FixedIncomeSection
+            holdings={bondHoldings}
+            totalPortfolioValue={totalValue}
+          />
+        )}
+
+        {hasCash && cashValue > 0 && (
+          <div className="mb-4 px-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-5 bg-gray-400 rounded" />
+              <h3 className="text-sm font-semibold text-gb-black">Cash / Money Market</h3>
             </div>
-          ) : valueChartData.length < 2 ? (
-            <p className="text-sm text-gb-gray text-center py-8">
-              No hay datos historicos de precios para graficar
-            </p>
-          ) : selectedHoldings.size === 0 ? (
-            <p className="text-sm text-gb-gray text-center py-8">
-              Selecciona activos de la tabla para ver su evolucion en el grafico
-            </p>
-          ) : (
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={valueChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10, fill: "#666" }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tickFormatter={(v) => `$${formatNumber(v, 0)}`}
-                    tick={{ fontSize: 10, fill: "#666" }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={80}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid #e5e5e5",
-                      borderRadius: "8px",
-                      fontSize: "11px",
-                    }}
-                    formatter={(value: number | undefined) => [`$${formatNumber(value ?? 0, 0)}`, ""]}
-                    labelFormatter={(label) => `${label}`}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: "11px" }}
-                  />
-                  {/* Total portfolio line */}
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    stroke="#111827"
-                    strokeWidth={2.5}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    name="Total Portafolio"
-                  />
-                  {chartHoldings.map((h) => (
-                    <Line
-                      key={h.name}
-                      type="monotone"
-                      dataKey={h.name}
-                      stroke={h.color}
-                      strokeWidth={1.5}
-                      dot={false}
-                      name={h.name.length > 25 ? h.name.substring(0, 25) + "..." : h.name}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="bg-slate-50 rounded-lg px-4 py-3 flex justify-between items-center">
+              <span className="text-sm text-gb-gray">Cash Balance</span>
+              <span className="text-sm font-semibold text-gb-black">
+                ${formatNumber(cashValue, 0)}
+              </span>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="bg-white rounded-lg border border-gb-border px-3 py-2">
+      <div className="text-[10px] text-gb-gray uppercase tracking-wide">{label}</div>
+      <div className={`text-lg font-semibold ${color || "text-gb-black"}`}>{value}</div>
     </div>
   );
 }
