@@ -30,6 +30,43 @@ interface HoldingData {
   creditRating?: string | null;
 }
 
+/**
+ * Infer assetType from assetClass + holding fields when assetType is missing.
+ * Many older snapshots have assetClass but no assetType.
+ */
+function inferAssetType(h: HoldingData): string {
+  if (h.assetType) return h.assetType;
+
+  const cls = (h.assetClass || "").toLowerCase();
+
+  // Bond detection: assetClass or bond-specific fields
+  if (
+    cls === "fixedincome" || cls === "fixed income" || cls === "renta fija" ||
+    /fixed|bond|bono/i.test(cls) ||
+    (h.couponRate && h.couponRate > 0) ||
+    (h.maturityDate && h.maturityDate.length > 0)
+  ) {
+    return "bond";
+  }
+
+  // Cash detection
+  if (/cash|efect|money\s*market|liquidez/i.test(cls)) {
+    return "cash";
+  }
+
+  // Equity: distinguish fund vs ETF/stock
+  // Funds have numeric securityId (RUN), stocks/ETFs have ticker-like securityId
+  if (/equity|renta\s*variable/i.test(cls) || !cls || cls === "equity") {
+    const secId = (h.securityId || "").trim();
+    // If securityId is purely numeric → Chilean fund (RUN)
+    if (/^\d+$/.test(secId) || !secId) return "fund";
+    // If securityId looks like a ticker (letters, possibly with dots/slashes) → stock or ETF
+    return "stock"; // Will be shown as stock; could refine further
+  }
+
+  return "fund";
+}
+
 interface FundMeta {
   fundName: string;
   run: string;
@@ -139,7 +176,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
             returnFromBase: h.returnFromBase ?? Math.round(returnCalc * 100) / 100,
             assetClass: h.assetClass || "equity",
-            assetType: h.assetType || "fund",
+            assetType: inferAssetType(h),
             currency: h.currency || "CLP",
             // Bond fields
             couponRate: h.couponRate || null,
