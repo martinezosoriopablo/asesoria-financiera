@@ -14,7 +14,7 @@ const BASE =
 
 const DELAY_MS = 3000;
 
-function makeHeaders(): Record<string, string> {
+export function makeHeaders(): Record<string, string> {
   const token = crypto.randomUUID();
   return {
     Accept: "application/json",

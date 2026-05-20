@@ -180,9 +180,17 @@ interface YahooQuote {
   currency: string;
 }
 
+interface BondLookup {
+  cusip: string;
+  issuer: string;
+  couponRate: number;
+  maturityDate: string;
+}
+
 export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta, usdRate }: Props) {
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
   const [yahooPrices, setYahooPrices] = useState<Map<string, YahooQuote>>(new Map());
+  const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
 
   // Extract unique holdings and their returns over time from snapshots
@@ -398,6 +406,37 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     fetchYahooPrices();
   }, [holdingSummaries]);
 
+  // Fetch bond details from FINRA for bonds missing coupon/maturity
+  useEffect(() => {
+    const bondsNeedingLookup = holdingSummaries.filter(h =>
+      h.assetType === "bond" && h.securityId && (!h.couponRate || !h.maturityDate)
+    );
+    if (bondsNeedingLookup.length === 0) return;
+
+    const fetchBondDetails = async () => {
+      const lookupMap = new Map<string, BondLookup>();
+
+      for (const h of bondsNeedingLookup) {
+        try {
+          const cusip = (h.securityId || "").trim();
+          if (!cusip) continue;
+          const res = await fetch(`/api/bonds/lookup/${encodeURIComponent(cusip)}`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data.success && data.bond) {
+            lookupMap.set(h.fundName, data.bond);
+          }
+        } catch {
+          // Skip failed lookups
+        }
+      }
+
+      if (lookupMap.size > 0) setBondLookups(lookupMap);
+    };
+
+    fetchBondDetails();
+  }, [holdingSummaries]);
+
   // Build TAC map from fundsMeta
   const tacByFundName = useMemo(() => {
     const map = new Map<string, number | null>();
@@ -412,10 +451,20 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     return map;
   }, [fundsMeta, latestRawHoldings]);
 
-  // Merge Fintual prices (funds) and Yahoo prices (stocks/ETFs) into summaries
+  // Merge prices and bond lookups into summaries
   const enrichedSummaries = useMemo(() => {
     return holdingSummaries.map((h) => {
       const tac = tacByFundName.get(h.fundName) ?? null;
+
+      // Enrich bonds with FINRA lookup data (coupon, maturity)
+      let enriched = { ...h, tac };
+      if (h.assetType === "bond") {
+        const bl = bondLookups.get(h.fundName);
+        if (bl) {
+          if (!enriched.couponRate && bl.couponRate) enriched = { ...enriched, couponRate: bl.couponRate };
+          if (!enriched.maturityDate && bl.maturityDate) enriched = { ...enriched, maturityDate: bl.maturityDate };
+        }
+      }
 
       // Try Yahoo prices for stocks/ETFs
       const yp = yahooPrices.get(h.fundName);
@@ -429,8 +478,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           : h.marketValue;
 
         return {
-          ...h,
-          tac,
+          ...enriched,
           currentPrice: yahooPrice,
           marketValue: newMarketValue,
           returnFromBase: Math.round(returnCalc * 100) / 100,
@@ -440,7 +488,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       // Try Fintual prices for funds
       const fp = fintualPrices.get(h.fundName);
       if (!fp || !fp.currentPrice || fp.currentPrice <= 0) {
-        return { ...h, tac };
+        return enriched;
       }
 
       const fintualCurrentPrice = fp.currentPrice;
@@ -453,14 +501,13 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         : (h.quantity > 0 ? h.quantity * fintualCurrentPrice : h.marketValue);
 
       return {
-        ...h,
-        tac,
+        ...enriched,
         currentPrice: fintualCurrentPrice,
         marketValue: newMarketValue,
         returnFromBase: Math.round(returnCalc * 100) / 100,
       };
     });
-  }, [holdingSummaries, fintualPrices, yahooPrices, tacByFundName, usdRate]);
+  }, [holdingSummaries, fintualPrices, yahooPrices, bondLookups, tacByFundName, usdRate]);
 
   // Notify parent of updated total value and price date
   useEffect(() => {
@@ -514,14 +561,21 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       .filter(s => s.holdings && (s.holdings as HoldingData[]).length > 0)
       .sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date))[0]?.snapshot_date;
 
+    // Bond prices from Stonex cartolas are stored as decimals (1.0375 = 103.75% of par)
+    // Convert to % of par if the price looks like a decimal ratio
+    const toBondPricePct = (price: number): number => {
+      if (price > 0 && price < 3) return price * 100; // 1.0375 → 103.75
+      return price; // already in % of par (e.g., 103.75)
+    };
+
     return enrichedSummaries
       .filter(h => h.assetType === "bond")
       .map(h => {
         const couponRatePct = h.couponRate || 0;
         const couponRateDecimal = couponRatePct / 100;
-        const faceValue = h.costBasis && h.unitCost
-          ? (h.costBasis / h.unitCost) * 100
-          : h.marketValue;
+        const purchasePricePct = toBondPricePct(h.purchasePrice);
+        const marketPricePct = toBondPricePct(h.currentPrice);
+        const faceValue = h.quantity || (h.marketValue / (marketPricePct / 100));
         const freq = 2; // semi-annual default
 
         // Calculate period return
@@ -536,8 +590,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             couponRate: couponRateDecimal,
             couponFrequency: freq,
             maturityDate: h.maturityDate,
-            purchasePrice: h.unitCost || 100,
-            currentPrice: h.currentPrice,
+            purchasePrice: purchasePricePct,
+            currentPrice: marketPricePct,
             startDate: previousSnapshotDate,
             endDate: latestDate || previousSnapshotDate,
           });
@@ -549,7 +603,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
         // Calculate YTM
         let ytm = 0;
-        if (h.maturityDate && couponRateDecimal > 0 && h.currentPrice > 0) {
+        if (h.maturityDate && couponRateDecimal > 0 && marketPricePct > 0) {
           try {
             ytm = calcYieldToMaturity({
               faceValue,
@@ -557,8 +611,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
               couponFrequency: freq,
               maturityDate: h.maturityDate,
               purchaseDate: h.purchaseDate || previousSnapshotDate || "2025-01-01",
-              purchasePrice: h.unitCost || 100,
-              currentPrice: h.currentPrice,
+              purchasePrice: purchasePricePct,
+              currentPrice: marketPricePct,
             }) * 100;
           } catch {
             ytm = 0;
@@ -572,8 +626,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           couponRate: couponRatePct,
           maturityDate: h.maturityDate || "",
           weight: h.weight,
-          purchasePrice: h.unitCost || 100,
-          marketPrice: h.currentPrice,
+          purchasePrice: purchasePricePct,
+          marketPrice: marketPricePct,
           ytm,
           accruedInterest,
           priceDiff,
