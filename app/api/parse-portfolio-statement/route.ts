@@ -69,10 +69,36 @@ function detectCurrency(parsed: {
 
 // Post-procesar bonos: extraer couponRate, maturityDate, creditRating del fundName
 // cuando Claude los deja embebidos en el nombre (ej: "AT&T INC 4.750% 05/15/2046 BBB+")
-const RATING_REGEX = /\b(AAA|AA\+|AA-|AA|A\+|A-|A|BBB\+|BBB-|BBB|BB\+|BB-|BB|B\+|B-|B|CCC\+|CCC-|CCC|CC|C|D|NR|WR)\b/i;
+const SP_RATING_REGEX = /\b(AAA|AA\+|AA-|AA|A\+|A-|BBB\+|BBB-|BBB|BB\+|BB-|BB|B\+|B-|CCC\+|CCC-|CCC|CC|C|D|NR|WR)\b/i;
 const COUPON_REGEX = /\b(\d{1,2}(?:\.\d{1,4})?)\s*%/;
 const MATURITY_DATE_REGEX = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/;
 const MATURITY_ISO_REGEX = /\b(\d{4})-(\d{2})-(\d{2})\b/;
+
+// Moody's → S&P conversion
+const MOODYS_TO_SP: Record<string, string> = {
+  "AAA": "AAA", "AA1": "AA+", "AA2": "AA", "AA3": "AA-",
+  "A1": "A+", "A2": "A", "A3": "A-",
+  "BAA1": "BBB+", "BAA2": "BBB", "BAA3": "BBB-",
+  "BA1": "BB+", "BA2": "BB", "BA3": "BB-",
+  "B1": "B+", "B2": "B", "B3": "B-",
+  "CAA1": "CCC+", "CAA2": "CCC", "CAA3": "CCC-",
+  "CA": "CC", "C": "C",
+};
+const MOODYS_REGEX = /\b(Aaa|Aa[123]|A[123]|Baa[123]|Ba[123]|B[123]|Caa[123]|Ca|C)\b/i;
+
+function convertMoodysToSP(rating: string): string {
+  return MOODYS_TO_SP[rating.toUpperCase()] || rating;
+}
+
+function extractRatingFromText(text: string): string | null {
+  // Try S&P-style first
+  const spMatch = text.match(SP_RATING_REGEX);
+  if (spMatch) return spMatch[1].toUpperCase();
+  // Try Moody's and convert
+  const moodysMatch = text.match(MOODYS_REGEX);
+  if (moodysMatch) return convertMoodysToSP(moodysMatch[1]);
+  return null;
+}
 
 function extractBondFields(holdings: Array<Record<string, unknown>>): void {
   for (const h of holdings) {
@@ -109,9 +135,13 @@ function extractBondFields(holdings: Array<Record<string, unknown>>): void {
 
     // Extract creditRating from fundName if missing
     if (!h.creditRating) {
-      const ratingMatch = name.match(RATING_REGEX);
-      if (ratingMatch) {
-        h.creditRating = ratingMatch[1].toUpperCase();
+      h.creditRating = extractRatingFromText(name);
+    }
+    // Convert Moody's rating to S&P if needed
+    if (h.creditRating && typeof h.creditRating === "string") {
+      const moodysCheck = String(h.creditRating).match(MOODYS_REGEX);
+      if (moodysCheck) {
+        h.creditRating = convertMoodysToSP(moodysCheck[1]);
       }
     }
 
@@ -122,8 +152,15 @@ function extractBondFields(holdings: Array<Record<string, unknown>>): void {
     // Remove date (e.g., "05/15/2046" or "2046-05-15")
     cleanName = cleanName.replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/g, "");
     cleanName = cleanName.replace(/\s*\d{4}-\d{2}-\d{2}/g, "");
-    // Remove credit rating
-    cleanName = cleanName.replace(RATING_REGEX, "");
+    // Remove S&P-style rating
+    cleanName = cleanName.replace(SP_RATING_REGEX, "");
+    // Remove Moody's-style rating
+    cleanName = cleanName.replace(MOODYS_REGEX, "");
+    // Remove "Rating Information:" prefix and Moody's/S&P labels
+    cleanName = cleanName.replace(/Rating\s*Information\s*:?/gi, "");
+    cleanName = cleanName.replace(/Moody'?s?\s*:\s*/gi, "");
+    cleanName = cleanName.replace(/S&P\s*:\s*/gi, "");
+    cleanName = cleanName.replace(/Fitch\s*:\s*/gi, "");
     // Remove trailing/leading spaces, dashes, slashes
     cleanName = cleanName.replace(/[\s\/\-]+$/g, "").replace(/^[\s\/\-]+/g, "").trim();
     // Collapse multiple spaces
@@ -337,10 +374,10 @@ REGLAS PARA "assetType" (TIPO DE INSTRUMENTO):
 - "other" = Cualquier otro instrumento
 
 REGLAS PARA BONOS (assetType = "bond"):
-- "fundName": Usa el nombre del emisor + cupón + vencimiento. Ej: "AT&T Inc 4.750% 05/15/2046"
-- "couponRate": Tasa del cupón como porcentaje (ej: 4.75 para un bono con cupón 4.750%)
-- "maturityDate": Fecha de vencimiento en formato YYYY-MM-DD
-- "creditRating": Rating crediticio si aparece (ej: "BBB+", "BB", "A-")
+- "fundName": SOLO el nombre del emisor, SIN cupón, SIN fecha, SIN rating. Ej: "AT&T Inc", "Goldman Sachs Group Inc", "Ford Motor Co"
+- "couponRate": Tasa del cupón como porcentaje (ej: 4.75 para un bono con cupón 4.750%). EXTRAER del nombre/descripción del bono, NO dejarlo null.
+- "maturityDate": Fecha de vencimiento en formato YYYY-MM-DD. EXTRAER del nombre/descripción del bono (ej: "05/15/2046" → "2046-05-15"). NO dejarlo null.
+- "creditRating": Rating crediticio. BUSCAR en la línea debajo del nombre del bono donde aparece "Rating Information", "Moody's:", "S&P:", "Fitch:". Usar el rating S&P si hay varios (ej: "Moody's: Baa2 / S&P: BBB" → "BBB"). Si solo hay Moody's, convertir a escala S&P (Aaa→AAA, Aa1→AA+, A1→A+, Baa1→BBB+, Ba1→BB+, B1→B+, Caa1→CCC+). NO dejarlo null si aparece rating.
 - "quantity": Valor nominal (face value / par value), NO el número de bonos. Ej: 200000 para USD 200,000 face value
 - "marketPrice": Precio como porcentaje del par (ej: 98.50 para un bono cotizando a 98.5% del par)
 - "marketValue": Valor de mercado total en la moneda del documento
@@ -348,6 +385,14 @@ REGLAS PARA BONOS (assetType = "bond"):
 - "unitCost": Precio de compra como porcentaje del par
 - "securityId": CUSIP o ISIN del bono
 - "currency": Moneda del bono (generalmente USD para bonos internacionales)
+
+FORMATO TÍPICO DE BONOS EN CARTOLAS (ej: Stonex, Pershing):
+La descripción del bono suele tener esta estructura:
+  Línea 1: "EMISOR CUPÓN% MM/DD/YYYY" (ej: "AT&T INC 4.750% 05/15/2046")
+  Línea 2: "Rating Information: Moody's: Baa2 / S&P: BBB" (o similar)
+  Línea 3: CUSIP, cantidad, precios, etc.
+DEBES descomponer la línea 1 en: fundName="AT&T INC", couponRate=4.75, maturityDate="2046-05-15"
+DEBES extraer el rating de la línea 2 en: creditRating="BBB"
 
 REGLAS PARA "estIncomeYield" y "estAnnualIncome":
 - "estIncomeYield": Rendimiento estimado anual (%). Aparece como "Est. Income Yield", "Yield", "Income Yield" en la cartola. Para bonos es el cupón / precio. Para acciones/ETFs es el dividend yield. Si no aparece, usar null.
