@@ -84,11 +84,41 @@ function extractTicker(name: string, securityId?: string | null): string | null 
     const slashMatch = id.match(/^([A-Z]{1,5})\//);
     if (slashMatch) return slashMatch[1];
   }
+  // Ticker at start: "CRDO - ..."
   const tickerMatch = name.match(/^([A-Z]{1,5})\s*[-–]\s*/);
   if (tickerMatch) return tickerMatch[1];
+  // Ticker in parentheses: "...(CRDO)" or "...(CRDO/G25457105)"
   const parenMatch = name.match(/\(([A-Z]{1,5})\)/);
   if (parenMatch) return parenMatch[1];
+  const parenSlashMatch = name.match(/\(([A-Z]{1,5})\/[A-Z0-9]+\)/);
+  if (parenSlashMatch) return parenSlashMatch[1];
   return null;
+}
+
+// Try to derive a ticker for US stocks/ETFs when securityId is a CUSIP
+// Uses Yahoo Finance symbol search as last resort
+async function lookupTickerFromName(fundName: string): Promise<string | null> {
+  try {
+    // Try Yahoo Finance search API
+    const query = encodeURIComponent(fundName.substring(0, 50));
+    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${query}&quotesCount=3&newsCount=0`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const quotes = data.quotes || [];
+    // Find the best equity match
+    const equity = quotes.find((q: { quoteType?: string }) =>
+      q.quoteType === "EQUITY" || q.quoteType === "ETF"
+    );
+    if (equity?.symbol) return equity.symbol;
+    if (quotes.length > 0 && quotes[0].symbol) return quotes[0].symbol;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // Fetch stock quote from Yahoo Finance (try both query endpoints)
@@ -347,7 +377,15 @@ export async function POST(request: NextRequest) {
           const { fundName, securityId } = holding;
 
           // === STEP 1: Try stock ticker lookup ===
-          const ticker = extractTicker(fundName, securityId);
+          let ticker = extractTicker(fundName, securityId);
+
+          // If no ticker extracted but securityId looks like a CUSIP (not a fund RUN),
+          // try Yahoo Finance search to find the ticker from the company name
+          if (!ticker && securityId && /[A-Z]/.test(securityId) && securityId.length >= 6) {
+            ticker = await lookupTickerFromName(fundName);
+            if (ticker) console.log(`[match-holdings] #${index} Yahoo search: "${fundName.substring(0, 30)}" → ${ticker}`);
+          }
+
           if (ticker) {
             let stockQuote: { name: string; price: number; currency: string; source: string } | null = null;
             if (isChileanTicker(ticker)) {

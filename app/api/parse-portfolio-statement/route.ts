@@ -202,7 +202,7 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
   "holdings": [
     {
       "fundName": "string (nombre completo del fondo o instrumento)",
-      "securityId": "string (Security Identifier / CUSIP / ISIN / ticker)",
+      "securityId": "string — Para acciones y ETFs: SIEMPRE usar el TICKER (ej: CRDO, QQQ, SPY, MU). Para bonos: usar el CUSIP. Si el documento muestra TICKER/CUSIP (ej: CRDO/G25457105), usar SOLO el ticker para stocks/ETFs y SOLO el CUSIP para bonds.",
       "market": "CL | INT | US",
       "assetType": "fund | etf | stock | bond | cash | other",
       "quantity": number,
