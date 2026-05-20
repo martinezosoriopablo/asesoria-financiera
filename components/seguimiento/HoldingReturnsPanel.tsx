@@ -97,8 +97,15 @@ interface Props {
   usdRate?: number;
 }
 
+interface YahooQuote {
+  fundName: string;
+  price: number;
+  currency: string;
+}
+
 export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta, usdRate }: Props) {
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
+  const [yahooPrices, setYahooPrices] = useState<Map<string, YahooQuote>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
 
   // Extract unique holdings and their returns over time from snapshots
@@ -197,7 +204,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             purchaseDate: purchaseDates.get(h.fundName) || null,
             quantity: h.quantity || 0,
             weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
-            returnFromBase: h.returnFromBase ?? Math.round(returnCalc * 100) / 100,
+            returnFromBase: Math.round(returnCalc * 100) / 100,
             assetClass: h.assetClass || "equity",
             assetType: inferAssetType(h),
             currency: h.currency || "CLP",
@@ -269,6 +276,44 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     fetchPrices();
   }, [holdingSummaries, latestRawHoldings, clientId]);
 
+  // Fetch current prices from Yahoo for stocks/ETFs
+  useEffect(() => {
+    if (holdingSummaries.length === 0) return;
+    const stocksAndETFs = holdingSummaries.filter(h =>
+      ["stock", "etf"].includes(h.assetType) && h.securityId
+    );
+    if (stocksAndETFs.length === 0) return;
+
+    const fetchYahooPrices = async () => {
+      const priceMap = new Map<string, YahooQuote>();
+
+      await Promise.all(
+        stocksAndETFs.map(async (h) => {
+          try {
+            const ticker = (h.securityId || "").trim();
+            if (!ticker) return;
+            const res = await fetch(`/api/securities/quote/${encodeURIComponent(ticker)}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.success && data.quote?.price > 0) {
+              priceMap.set(h.fundName, {
+                fundName: h.fundName,
+                price: data.quote.price,
+                currency: data.quote.currency || "USD",
+              });
+            }
+          } catch {
+            // Silently skip failed quotes
+          }
+        })
+      );
+
+      if (priceMap.size > 0) setYahooPrices(priceMap);
+    };
+
+    fetchYahooPrices();
+  }, [holdingSummaries]);
+
   // Build TAC map from fundsMeta
   const tacByFundName = useMemo(() => {
     const map = new Map<string, number | null>();
@@ -283,12 +328,33 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     return map;
   }, [fundsMeta, latestRawHoldings]);
 
-  // Merge Fintual prices into summaries
+  // Merge Fintual prices (funds) and Yahoo prices (stocks/ETFs) into summaries
   const enrichedSummaries = useMemo(() => {
     return holdingSummaries.map((h) => {
       const tac = tacByFundName.get(h.fundName) ?? null;
-      const fp = fintualPrices.get(h.fundName);
 
+      // Try Yahoo prices for stocks/ETFs
+      const yp = yahooPrices.get(h.fundName);
+      if (yp && yp.price > 0 && ["stock", "etf"].includes(h.assetType)) {
+        const yahooPrice = yp.price;
+        const returnCalc = h.purchasePrice > 0
+          ? ((yahooPrice / h.purchasePrice) - 1) * 100
+          : 0;
+        const newMarketValue = h.quantity > 0 && usdRate
+          ? h.quantity * yahooPrice * usdRate
+          : h.marketValue;
+
+        return {
+          ...h,
+          tac,
+          currentPrice: yahooPrice,
+          marketValue: newMarketValue,
+          returnFromBase: Math.round(returnCalc * 100) / 100,
+        };
+      }
+
+      // Try Fintual prices for funds
+      const fp = fintualPrices.get(h.fundName);
       if (!fp || !fp.currentPrice || fp.currentPrice <= 0) {
         return { ...h, tac };
       }
@@ -310,7 +376,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         returnFromBase: Math.round(returnCalc * 100) / 100,
       };
     });
-  }, [holdingSummaries, fintualPrices, tacByFundName, usdRate]);
+  }, [holdingSummaries, fintualPrices, yahooPrices, tacByFundName, usdRate]);
 
   // Notify parent of updated total value and price date
   useEffect(() => {
