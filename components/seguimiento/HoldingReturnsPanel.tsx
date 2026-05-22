@@ -5,6 +5,7 @@ import { BarChart3, Loader } from "lucide-react";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { calcBondPeriodReturn } from "@/lib/bonds/period-return";
 import { calcYieldToMaturity } from "@/lib/bonds/yield";
+import { inferInstrumentType } from "@/lib/instrument-type";
 import EquitySection, { type EquityHolding } from "./EquitySection";
 import FixedIncomeSection, { type BondHoldingRow } from "./FixedIncomeSection";
 import type { Snapshot } from "./SeguimientoPage";
@@ -34,42 +35,7 @@ interface HoldingData {
   purchaseDate?: string | null;
 }
 
-/**
- * Infer assetType from assetClass + holding fields when assetType is missing.
- * Many older snapshots have assetClass but no assetType.
- */
-function inferAssetType(h: HoldingData): string {
-  if (h.assetType) return h.assetType;
-
-  const cls = (h.assetClass || "").toLowerCase();
-
-  // Bond detection: assetClass or bond-specific fields
-  if (
-    cls === "fixedincome" || cls === "fixed income" || cls === "renta fija" ||
-    /fixed|bond|bono/i.test(cls) ||
-    (h.couponRate && h.couponRate > 0) ||
-    (h.maturityDate && h.maturityDate.length > 0)
-  ) {
-    return "bond";
-  }
-
-  // Cash detection
-  if (/cash|efect|money\s*market|liquidez/i.test(cls)) {
-    return "cash";
-  }
-
-  // Equity: distinguish fund vs ETF/stock
-  // Funds have numeric securityId (RUN), stocks/ETFs have ticker-like securityId
-  if (/equity|renta\s*variable/i.test(cls) || !cls || cls === "equity") {
-    const secId = (h.securityId || "").trim();
-    // If securityId is purely numeric → Chilean fund (RUN)
-    if (/^\d+$/.test(secId) || !secId) return "fund";
-    // If securityId looks like a ticker (letters, possibly with dots/slashes) → stock or ETF
-    return "stock"; // Will be shown as stock; could refine further
-  }
-
-  return "fund";
-}
+// inferAssetType removed — now using inferInstrumentType from @/lib/instrument-type
 
 // Extract bond fields (coupon, maturity, rating) from fundName when missing
 const COUPON_RE = /\b(\d{1,2}(?:\.\d{1,4})?)\s*%/;
@@ -312,7 +278,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           const returnCalc = purchasePrice > 0 ? ((currentPrice / purchasePrice) - 1) * 100 : 0;
 
           const merged = cf ? { ...h, ...Object.fromEntries(Object.entries(cf).filter(([, v]) => v != null && v !== undefined)) } : h;
-          const assetType = inferAssetType(merged);
+          const assetType = inferInstrumentType(merged);
           const base = {
             fundName: h.fundName,
             marketValue: h.marketValue,
@@ -609,11 +575,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const faceValue = h.quantity || (h.marketValue / (marketPricePct / 100));
         const freq = 2; // semi-annual default
 
-        // Calculate period return
-        let accruedInterest = 0;
-        let accruedYieldPct = 0;
-        let priceDiff = 0;
-        let couponsPaid = 0;
+        // Calculate period return (devengo-only model)
+        let devengoUSD = 0;
+        let devengoPct = 0;
+        let marketDeviationUSD = 0;
         let totalReturnPct = 0;
 
         if (h.maturityDate && couponRateDecimal > 0 && previousSnapshotDate) {
@@ -628,11 +593,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             endDate: latestDate || previousSnapshotDate,
             purchaseDate: h.purchaseDate || undefined,
           });
-          accruedInterest = periodResult.accruedInterest;
-          accruedYieldPct = periodResult.accruedYieldPct;
-          priceDiff = periodResult.priceDiff;
-          couponsPaid = periodResult.couponsPaid;
-          totalReturnPct = periodResult.totalReturnPercent;
+          devengoUSD = periodResult.devengoUSD;
+          devengoPct = periodResult.devengoPct;
+          marketDeviationUSD = periodResult.marketDeviationUSD;
+          totalReturnPct = periodResult.totalReturnPct;
         }
 
         // Calculate YTM
@@ -663,10 +627,9 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           purchasePrice: purchasePricePct,
           marketPrice: marketPricePct,
           ytm,
-          accruedInterest,
-          accruedYieldPct,
-          priceDiff,
-          couponsPaid,
+          devengoUSD,
+          devengoPct,
+          marketDeviationUSD,
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
           marketValue: h.marketValue,

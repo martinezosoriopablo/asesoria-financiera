@@ -1501,7 +1501,7 @@ export default function ReviewSnapshotModal({
                       </select>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      {(holding.assetType === "bond" || holding.assetClass === "fixedIncome") ? (
+                      {holding.assetType === "bond" ? (
                         <input
                           type="date"
                           value={holding.purchaseDate || ""}

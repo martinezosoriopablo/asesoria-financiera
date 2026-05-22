@@ -5,22 +5,21 @@ import { formatNumber, formatPercent } from "@/lib/format";
 import { RATING_SCALE } from "@/lib/bonds/types";
 
 export interface BondHoldingRow {
-  fundName: string;        // Issuer name (truncated)
+  fundName: string;
   cusip: string;
-  creditRating: string;    // "BBB+", "BB-", etc.
-  couponRate: number;      // annual % (e.g., 5.294)
-  maturityDate: string;    // ISO date
-  weight: number;          // % of total portfolio
-  purchasePrice: number;   // % of par
-  marketPrice: number;     // % of par (FINRA)
-  ytm: number;             // annual % (e.g., 5.7)
-  accruedInterest: number; // USD in period
-  accruedYieldPct: number; // yield on cost for the period (%)
-  priceDiff: number;       // USD in period
-  couponsPaid: number;     // USD in period
-  totalReturn: number;     // %
-  contribution: number;    // totalReturn * weight / 100
-  marketValue: number;     // USD
+  creditRating: string;
+  couponRate: number;       // annual % (e.g., 5.294)
+  maturityDate: string;     // ISO date
+  weight: number;           // % of total portfolio
+  purchasePrice: number;    // % of par
+  marketPrice: number;      // % of par
+  ytm: number;              // annual %
+  devengoUSD: number;       // YTM-based accrual in USD
+  devengoPct: number;       // devengo as % of costBasis
+  marketDeviationUSD: number; // market vs theoretical
+  totalReturn: number;      // %
+  contribution: number;     // totalReturn * weight / 100
+  marketValue: number;      // USD
 }
 
 interface Props {
@@ -30,11 +29,11 @@ interface Props {
 
 function ratingColor(rating: string): string {
   const n = RATING_SCALE[rating.toUpperCase()] ?? 99;
-  if (n <= 4) return "bg-green-100 text-green-700";      // AA and above
-  if (n <= 7) return "bg-blue-100 text-blue-700";        // A range
-  if (n <= 10) return "bg-yellow-100 text-yellow-700";   // BBB range
-  if (n <= 13) return "bg-orange-100 text-orange-700";   // BB range
-  return "bg-red-100 text-red-700";                       // B and below
+  if (n <= 4) return "bg-green-100 text-green-700";
+  if (n <= 7) return "bg-blue-100 text-blue-700";
+  if (n <= 10) return "bg-yellow-100 text-yellow-700";
+  if (n <= 13) return "bg-orange-100 text-orange-700";
+  return "bg-red-100 text-red-700";
 }
 
 export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Props) {
@@ -45,9 +44,8 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
     ? (subtotalValue / totalPortfolioValue) * 100
     : 0;
   const subtotalContrib = holdings.reduce((s, h) => s + h.contribution, 0);
-  const subtotalAccrued = holdings.reduce((s, h) => s + h.accruedInterest, 0);
-  const subtotalPriceDiff = holdings.reduce((s, h) => s + h.priceDiff, 0);
-  const subtotalCoupons = holdings.reduce((s, h) => s + h.couponsPaid, 0);
+  const subtotalDevengo = holdings.reduce((s, h) => s + h.devengoUSD, 0);
+  const subtotalDeviation = holdings.reduce((s, h) => s + h.marketDeviationUSD, 0);
 
   const fmtMaturity = (iso: string) => {
     const d = new Date(iso + "T00:00:00");
@@ -58,7 +56,7 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-3 px-4">
         <div className="w-1 h-5 bg-orange-500 rounded" />
-        <h3 className="text-sm font-semibold text-gb-black">Renta Fija</h3>
+        <h3 className="text-sm font-semibold text-gb-black">Renta Fija (Bonos)</h3>
         <span className="text-xs text-gb-gray bg-orange-50 px-2 py-0.5 rounded">
           {formatNumber(subtotalWeight, 1)}% del portafolio
         </span>
@@ -74,10 +72,9 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Peso</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">P. Compra</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">P. Mercado</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">YTM</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">TIR</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Devengo</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Dif. Precio</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Cupones</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Desv. Mdo.</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Ret. Total</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Contrib.</th>
             </tr>
@@ -114,20 +111,13 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
                   {formatNumber(h.ytm, 2)}%
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <UsdCell value={h.accruedInterest} />
-                  {h.accruedYieldPct > 0 && (
-                    <div className="text-[10px] text-gb-gray">{formatNumber(h.accruedYieldPct, 2)}%</div>
+                  <UsdCell value={h.devengoUSD} />
+                  {h.devengoPct > 0 && (
+                    <div className="text-[10px] text-gb-gray">{formatNumber(h.devengoPct, 2)}%</div>
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <UsdCell value={h.priceDiff} />
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {h.couponsPaid > 0 ? (
-                    <span className="text-xs font-medium text-green-600">+${formatNumber(h.couponsPaid, 0)}</span>
-                  ) : (
-                    <span className="text-xs text-gb-gray">-</span>
-                  )}
+                  <UsdCell value={h.marketDeviationUSD} />
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span className={`text-xs font-semibold ${h.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
@@ -149,17 +139,10 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <td className="px-3 py-2" />
               <td className="px-3 py-2" />
               <td className="px-3 py-2 text-right">
-                <UsdCell value={subtotalAccrued} />
+                <UsdCell value={subtotalDevengo} />
               </td>
               <td className="px-3 py-2 text-right">
-                <UsdCell value={subtotalPriceDiff} />
-              </td>
-              <td className="px-3 py-2 text-right">
-                {subtotalCoupons > 0 ? (
-                  <span className="text-xs font-medium text-green-600">+${formatNumber(subtotalCoupons, 0)}</span>
-                ) : (
-                  <span className="text-xs text-gb-gray">-</span>
-                )}
+                <UsdCell value={subtotalDeviation} />
               </td>
               <td className="px-3 py-2" />
               <td className="px-3 py-2 text-right">
