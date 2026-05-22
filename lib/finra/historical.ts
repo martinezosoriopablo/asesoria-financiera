@@ -51,6 +51,8 @@ export interface HistoricalResult {
   cusip: string;
   symbol?: string;
   issuer?: string;
+  couponRate?: number;
+  maturityDate?: string;
   prices: DailyPrice[];
   error?: string;
 }
@@ -305,6 +307,8 @@ export async function fetchHistoricalPrices(
         cusip,
         symbol: security.issueSymbolIdentifier,
         issuer: security.issuerName,
+        couponRate: security.couponRate,
+        maturityDate: security.maturityDate,
         prices,
       });
     } catch (err) {
