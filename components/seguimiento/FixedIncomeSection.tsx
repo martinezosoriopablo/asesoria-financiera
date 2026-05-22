@@ -12,6 +12,7 @@ export interface BondHoldingRow {
   maturityDate: string;     // ISO date
   weight: number;           // % of total portfolio
   purchasePrice: number;    // % of par
+  costBasis: number;        // USD — what was paid
   marketPrice: number;      // % of par
   ytm: number;              // annual %
   duration: number;         // modified duration in years
@@ -44,7 +45,7 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
   const subtotalWeight = totalPortfolioValue > 0
     ? (subtotalValue / totalPortfolioValue) * 100
     : 0;
-  const subtotalContrib = holdings.reduce((s, h) => s + h.contribution, 0);
+  const subtotalCostBasis = holdings.reduce((s, h) => s + h.costBasis, 0);
   const subtotalDevengo = holdings.reduce((s, h) => s + h.devengoUSD, 0);
   const subtotalDeviation = holdings.reduce((s, h) => s + h.marketDeviationUSD, 0);
   const weightedDuration = subtotalValue > 0
@@ -82,13 +83,12 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Cupon</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Venc.</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Peso</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">P. Compra</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">P. Mercado</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">V. Compra</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">V. Mercado</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">TIR</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Devengo</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Desv. Mdo.</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Ret. Total</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Contrib.</th>
             </tr>
           </thead>
           <tbody>
@@ -113,11 +113,13 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
                 <td className="px-3 py-2 text-right text-xs font-medium text-gb-black">
                   {formatNumber(h.weight, 1)}%
                 </td>
-                <td className="px-3 py-2 text-right text-xs text-gb-gray">
-                  {formatNumber(h.purchasePrice, 2)}
+                <td className="px-3 py-2 text-right">
+                  <span className="text-xs font-medium text-gb-black">${formatNumber(h.costBasis, 0)}</span>
+                  <div className="text-[10px] text-gb-gray">({formatNumber(h.purchasePrice, 2)}%)</div>
                 </td>
-                <td className="px-3 py-2 text-right text-xs font-medium text-gb-black">
-                  {formatNumber(h.marketPrice, 2)}
+                <td className="px-3 py-2 text-right">
+                  <span className="text-xs font-medium text-gb-black">${formatNumber(h.marketValue, 0)}</span>
+                  <div className="text-[10px] text-gb-gray">({formatNumber(h.marketPrice, 2)}%)</div>
                 </td>
                 <td className="px-3 py-2 text-right text-xs font-medium text-gb-black">
                   {formatNumber(h.ytm, 2)}%
@@ -136,19 +138,18 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
                     {formatPercent(h.totalReturn)}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right">
-                  <span className={`text-xs font-medium ${h.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {formatPercent(h.contribution)}
-                  </span>
-                </td>
               </tr>
             ))}
           </tbody>
           <tfoot>
             <tr className="bg-orange-50/50 font-semibold">
               <td colSpan={5} className="px-3 py-2 text-xs text-gb-black">Subtotal Renta Fija</td>
-              <td className="px-3 py-2" />
-              <td className="px-3 py-2" />
+              <td className="px-3 py-2 text-right text-xs text-gb-black">
+                ${formatNumber(subtotalCostBasis, 0)}
+              </td>
+              <td className="px-3 py-2 text-right text-xs text-gb-black">
+                ${formatNumber(subtotalValue, 0)}
+              </td>
               <td className="px-3 py-2" />
               <td className="px-3 py-2 text-right">
                 <UsdCell value={subtotalDevengo} />
@@ -159,11 +160,6 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <td className="px-3 py-2 text-right">
                 <span className={`text-xs font-semibold ${weightedReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {formatPercent(weightedReturn)}
-                </span>
-              </td>
-              <td className="px-3 py-2 text-right">
-                <span className={`text-xs font-medium ${subtotalContrib >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {formatPercent(subtotalContrib)}
                 </span>
               </td>
             </tr>
