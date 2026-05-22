@@ -83,6 +83,9 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
                     <span className="text-[11px] leading-tight font-medium text-gb-black block max-w-[260px] truncate">
                       {h.fundName}
                     </span>
+                    {h.assetType === "fund" && h.tac != null && h.tac > 0 && (
+                      <div className="text-[10px] text-gb-gray">TAC: {formatNumber(h.tac, 2)}%</div>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.bg} ${badge.text}`}>
