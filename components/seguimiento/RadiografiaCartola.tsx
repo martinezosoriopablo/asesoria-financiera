@@ -137,6 +137,7 @@ interface Holding {
   costBasis?: number;
   marketPrice?: number;
   marketValue: number;
+  marketValueCLP?: number;
   assetClass?: string;
   currency?: string;
 }

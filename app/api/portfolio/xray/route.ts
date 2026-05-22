@@ -13,6 +13,7 @@ interface HoldingInput {
   quantity?: number;
   marketPrice?: number;
   marketValue: number;
+  marketValueCLP?: number;
   assetClass?: string;
   currency?: string;
 }
@@ -195,7 +196,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const totalValue = holdings.reduce((s, h) => s + (h.marketValue || 0), 0);
+    // Use marketValueCLP for consistent CLP totals (USD holdings have marketValue in USD)
+    const totalValue = holdings.reduce((s, h) => s + (h.marketValueCLP || h.marketValue || 0), 0);
     if (totalValue <= 0) {
       return NextResponse.json(
         { success: false, error: "El portafolio tiene valor 0" },
@@ -367,7 +369,8 @@ export async function POST(request: NextRequest) {
 
     // Match each holding to a fondo
     const analyzeHolding = (holding: HoldingInput): HoldingAnalysis => {
-      const weight = totalValue > 0 ? (holding.marketValue / totalValue) * 100 : 0;
+      const valueCLP = holding.marketValueCLP || holding.marketValue || 0;
+      const weight = totalValue > 0 ? (valueCLP / totalValue) * 100 : 0;
       const nameNorm = stripAccents(holding.fundName.toLowerCase());
       const words = nameNorm
         .split(/\s+/)
@@ -471,7 +474,7 @@ export async function POST(request: NextRequest) {
         : undefined;
 
       const tac = bestMatch?.tac_sintetica || null;
-      const tacAnnual = tac && holding.marketValue ? (tac / 100) * holding.marketValue : null;
+      const tacAnnual = tac && valueCLP ? (tac / 100) * valueCLP : null;
       // 10-year cost projection (compound effect of TAC on returns)
       const tac10Y = tacAnnual ? tacAnnual * 10 * 1.05 : null; // rough projection with growth
 
@@ -520,7 +523,7 @@ export async function POST(request: NextRequest) {
           if (alternatives.length > 0) {
             const cheapestTac = alternatives[0].tac_sintetica;
             const tacDiff = (tac - cheapestTac) / 100;
-            potentialSavingAnnual = tacDiff * holding.marketValue;
+            potentialSavingAnnual = tacDiff * valueCLP;
             potentialSaving10Y = potentialSavingAnnual * 10 * 1.05;
           }
         }
@@ -528,7 +531,7 @@ export async function POST(request: NextRequest) {
 
       return {
         fundName: holding.fundName,
-        marketValue: holding.marketValue,
+        marketValue: valueCLP,
         weight: Math.round(weight * 100) / 100,
         currency: holding.currency || "CLP",
         matched: !!bestMatch || !!fiMatch,
@@ -686,7 +689,7 @@ export async function POST(request: NextRequest) {
 
     const result: XrayResult = {
       totalValue,
-      totalValueCLP: totalValue, // TODO: convert if multi-currency
+      totalValueCLP: totalValue,
       allocation,
       tacPromedioPortfolio: Math.round(weightedTac * 100) / 100,
       costoAnualTotal: Math.round(costoAnual),
