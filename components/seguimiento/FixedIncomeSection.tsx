@@ -14,6 +14,7 @@ export interface BondHoldingRow {
   purchasePrice: number;    // % of par
   marketPrice: number;      // % of par
   ytm: number;              // annual %
+  duration: number;         // modified duration in years
   devengoUSD: number;       // YTM-based accrual in USD
   devengoPct: number;       // devengo as % of costBasis
   marketDeviationUSD: number; // market vs theoretical
@@ -46,6 +47,9 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
   const subtotalContrib = holdings.reduce((s, h) => s + h.contribution, 0);
   const subtotalDevengo = holdings.reduce((s, h) => s + h.devengoUSD, 0);
   const subtotalDeviation = holdings.reduce((s, h) => s + h.marketDeviationUSD, 0);
+  const weightedDuration = subtotalValue > 0
+    ? holdings.reduce((s, h) => s + h.marketValue * h.duration, 0) / subtotalValue
+    : 0;
 
   const fmtMaturity = (iso: string) => {
     const d = new Date(iso + "T00:00:00");
@@ -60,6 +64,11 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
         <span className="text-xs text-gb-gray bg-orange-50 px-2 py-0.5 rounded">
           {formatNumber(subtotalWeight, 1)}% del portafolio
         </span>
+        {weightedDuration > 0 && (
+          <span className="text-xs text-gb-gray bg-slate-100 px-2 py-0.5 rounded">
+            Duration: {formatNumber(weightedDuration, 1)} a.
+          </span>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">

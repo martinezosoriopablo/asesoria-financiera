@@ -5,6 +5,7 @@ import { BarChart3, Loader } from "lucide-react";
 import { formatNumber, formatPercent } from "@/lib/format";
 import { calcBondPeriodReturn } from "@/lib/bonds/period-return";
 import { calcYieldToMaturity } from "@/lib/bonds/yield";
+import { calcModifiedDuration } from "@/lib/bonds/duration";
 import { inferInstrumentType } from "@/lib/instrument-type";
 import EquitySection, { type EquityHolding } from "./EquitySection";
 import FixedIncomeSection, { type BondHoldingRow } from "./FixedIncomeSection";
@@ -599,22 +600,22 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           totalReturnPct = periodResult.totalReturnPct;
         }
 
-        // Calculate YTM
+        // Calculate YTM and duration
         let ytm = 0;
-        if (h.maturityDate && couponRateDecimal > 0 && marketPricePct > 0) {
-          try {
-            ytm = calcYieldToMaturity({
-              faceValue,
-              couponRate: couponRateDecimal,
-              couponFrequency: freq,
-              maturityDate: h.maturityDate,
-              purchaseDate: h.purchaseDate || previousSnapshotDate || "2025-01-01",
-              purchasePrice: purchasePricePct,
-              currentPrice: marketPricePct,
-            }) * 100;
-          } catch {
-            ytm = 0;
-          }
+        let duration = 0;
+        const bondParams = h.maturityDate && couponRateDecimal > 0 && marketPricePct > 0 ? {
+          faceValue,
+          couponRate: couponRateDecimal,
+          couponFrequency: freq,
+          maturityDate: h.maturityDate,
+          purchaseDate: h.purchaseDate || previousSnapshotDate || "2025-01-01",
+          purchasePrice: purchasePricePct,
+          currentPrice: marketPricePct,
+        } : null;
+
+        if (bondParams) {
+          try { ytm = calcYieldToMaturity(bondParams) * 100; } catch { ytm = 0; }
+          try { duration = calcModifiedDuration(bondParams); } catch { duration = 0; }
         }
 
         return {
@@ -627,6 +628,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           purchasePrice: purchasePricePct,
           marketPrice: marketPricePct,
           ytm,
+          duration,
           devengoUSD,
           devengoPct,
           marketDeviationUSD,
