@@ -8,63 +8,62 @@ interface BondPeriodInput {
   maturityDate: string;     // ISO date
   purchasePrice: number;    // % of par
   currentPrice: number;     // % of par (at endDate)
-  startDate: string;        // ISO date (snapshot A)
-  endDate: string;          // ISO date (snapshot B)
+  startDate: string;        // ISO date (snapshot A — fallback accrual start)
+  endDate: string;          // ISO date (snapshot B — accrual end)
   purchaseDate?: string;    // ISO date — actual purchase date (advisor-provided)
-  couponOverride?: number;  // advisor-provided coupon amount in USD
 }
 
 export interface BondPeriodResult {
-  accruedInterest: number;   // USD accrued in the period (30/360)
-  accruedYieldPct: number;   // yield on cost for the period (%)
-  priceDiff: number;         // USD price change
-  couponsPaid: number;       // USD coupons collected in the period
-  couponDates: string[];     // ISO dates of coupons in the period
-  totalReturnUSD: number;    // accrued + priceDiff + coupons
-  totalReturnPercent: number; // totalReturnUSD / costBasis * 100
-  costBasis: number;         // faceValue * purchasePrice / 100
+  devengoUSD: number;          // YTM-based accrual in USD
+  devengoPct: number;          // devengo as % of costBasis
+  marketDeviationUSD: number;  // market value - theoretical value
+  totalReturnUSD: number;      // devengoUSD + marketDeviationUSD
+  totalReturnPct: number;      // totalReturnUSD / costBasis * 100
+  costBasis: number;           // faceValue * purchasePrice / 100
+  purchaseYTM: number;         // annual YTM at purchase (decimal)
+}
+
+/** 30/360 day count between two dates */
+function days30_360(d1: Date, d2: Date): number {
+  const y1 = d1.getFullYear(), m1 = d1.getMonth() + 1, dd1 = Math.min(d1.getDate(), 30);
+  const y2 = d2.getFullYear(), m2 = d2.getMonth() + 1;
+  let dd2 = Math.min(d2.getDate(), 30);
+  if (dd1 >= 30) dd2 = Math.min(dd2, 30);
+  return (y2 - y1) * 360 + (m2 - m1) * 30 + (dd2 - dd1);
 }
 
 /**
- * Calculate bond return between two snapshot dates.
- * Decomposes into: accrued interest + price diff + coupon payments.
+ * Calculate bond return using devengo-only model.
+ *
+ * Devengo = YTM at purchase * costBasis * days / 360
+ * Market deviation = current market value - (costBasis + devengo)
+ * Total return = devengo + market deviation
+ *
+ * No separate coupon tracking — the YTM-based devengo already captures
+ * coupon income + pull-to-par. Adding coupons would double-count.
  */
 export function calcBondPeriodReturn(input: BondPeriodInput): BondPeriodResult {
   const {
     faceValue, couponRate, couponFrequency, maturityDate,
-    purchasePrice, currentPrice, startDate, endDate, purchaseDate, couponOverride,
+    purchasePrice, currentPrice, startDate, endDate, purchaseDate,
   } = input;
 
   const costBasis = faceValue * purchasePrice / 100;
-  const monthsPerPeriod = 12 / couponFrequency;
-  const couponAmount = faceValue * couponRate / couponFrequency;
-
-  // --- Accrued interest (30/360) for the period ---
-  const days30_360 = (d1: Date, d2: Date): number => {
-    const y1 = d1.getFullYear(), m1 = d1.getMonth() + 1, dd1 = Math.min(d1.getDate(), 30);
-    const y2 = d2.getFullYear(), m2 = d2.getMonth() + 1;
-    let dd2 = Math.min(d2.getDate(), 30);
-    if (dd1 >= 30) dd2 = Math.min(dd2, 30);
-    return (y2 - y1) * 360 + (m2 - m1) * 30 + (dd2 - dd1);
-  };
 
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");
 
-  // Accrual range: from purchaseDate (if provided) to endDate
+  // Accrual starts from purchaseDate if provided, else startDate
   const accrualStart = purchaseDate
     ? new Date(purchaseDate + "T00:00:00")
     : start;
   const periodDays = days30_360(accrualStart, end);
-  const dailyRate = couponAmount / (360 / couponFrequency);
-  const accruedInterest = dailyRate * periodDays;
 
-  // YTM reference: use purchaseDate if available, else startDate
+  // YTM at purchase — reference date is purchaseDate or startDate
   const ytmRefDate = purchaseDate
     ? new Date(purchaseDate + "T00:00:00")
     : start;
 
-  // Accrual based on purchase YTM (effective interest method)
   let purchaseYTM = couponRate; // fallback: coupon rate
   try {
     const ytm = calcYieldToMaturity({
@@ -78,41 +77,27 @@ export function calcBondPeriodReturn(input: BondPeriodInput): BondPeriodResult {
     }, ytmRefDate);
     if (!isNaN(ytm) && ytm > -1) purchaseYTM = ytm;
   } catch { /* keep fallback */ }
-  const accruedYieldPct = purchaseYTM * periodDays / 360 * 100;
 
-  // --- Price difference ---
-  const priceDiff = (currentPrice - purchasePrice) / 100 * faceValue;
+  // Devengo: YTM-based accrual from purchase/start to end
+  const devengoUSD = purchaseYTM * costBasis * periodDays / 360;
+  const devengoPct = costBasis > 0 ? (devengoUSD / costBasis) * 100 : 0;
 
-  // --- Coupons paid in the period ---
-  const maturity = new Date(maturityDate + "T00:00:00");
-  const couponDates: string[] = [];
-  let d = new Date(maturity);
-  while (d > accrualStart) {
-    const dateStr = d.toISOString().split("T")[0];
-    if (d > accrualStart && d <= end) {
-      couponDates.push(dateStr);
-    }
-    d = new Date(d);
-    d.setMonth(d.getMonth() - monthsPerPeriod);
-  }
-  couponDates.sort();
+  // Market deviation: how much better/worse than YTM prediction
+  const marketValue = faceValue * currentPrice / 100;
+  const theoreticalValue = costBasis + devengoUSD;
+  const marketDeviationUSD = marketValue - theoreticalValue;
 
-  const couponsPaid = couponOverride !== undefined
-    ? couponOverride
-    : couponDates.length * couponAmount;
-
-  // --- Totals ---
-  const totalReturnUSD = accruedInterest + priceDiff + couponsPaid;
-  const totalReturnPercent = costBasis > 0 ? (totalReturnUSD / costBasis) * 100 : 0;
+  // Totals
+  const totalReturnUSD = devengoUSD + marketDeviationUSD;
+  const totalReturnPct = costBasis > 0 ? (totalReturnUSD / costBasis) * 100 : 0;
 
   return {
-    accruedInterest,
-    accruedYieldPct,
-    priceDiff,
-    couponsPaid,
-    couponDates,
+    devengoUSD,
+    devengoPct,
+    marketDeviationUSD,
     totalReturnUSD,
-    totalReturnPercent,
+    totalReturnPct,
     costBasis,
+    purchaseYTM,
   };
 }
