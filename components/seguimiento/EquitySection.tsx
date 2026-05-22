@@ -40,6 +40,9 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
     ? (subtotalValue / totalPortfolioValue) * 100
     : 0;
   const subtotalReturn = holdings.reduce((s, h) => s + h.contribution, 0);
+  const weightedReturn = subtotalValue > 0
+    ? holdings.reduce((s, h) => s + h.totalReturn * h.marketValue, 0) / subtotalValue
+    : 0;
 
   return (
     <div className="mb-6">
@@ -140,7 +143,9 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
               </td>
               <td className="px-3 py-2" />
               {showDividends && <td className="px-3 py-2" />}
-              <td className="px-3 py-2" />
+              <td className="px-3 py-2 text-right">
+                <ReturnCell value={weightedReturn} small />
+              </td>
               <td className="px-3 py-2 text-right">
                 <ReturnCell value={subtotalReturn} small />
               </td>

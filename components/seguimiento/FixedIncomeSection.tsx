@@ -50,6 +50,9 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
   const weightedDuration = subtotalValue > 0
     ? holdings.reduce((s, h) => s + h.marketValue * h.duration, 0) / subtotalValue
     : 0;
+  const weightedReturn = subtotalValue > 0
+    ? holdings.reduce((s, h) => s + h.totalReturn * h.marketValue, 0) / subtotalValue
+    : 0;
 
   const fmtMaturity = (iso: string) => {
     const d = new Date(iso + "T00:00:00");
@@ -153,7 +156,11 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <td className="px-3 py-2 text-right">
                 <UsdCell value={subtotalDeviation} />
               </td>
-              <td className="px-3 py-2" />
+              <td className="px-3 py-2 text-right">
+                <span className={`text-xs font-semibold ${weightedReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {formatPercent(weightedReturn)}
+                </span>
+              </td>
               <td className="px-3 py-2 text-right">
                 <span className={`text-xs font-medium ${subtotalContrib >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {formatPercent(subtotalContrib)}
