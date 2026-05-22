@@ -576,13 +576,30 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const faceValue = h.quantity || (h.marketValue / (marketPricePct / 100));
         const freq = 2; // semi-annual default
 
-        // Calculate period return (devengo-only model)
+        // All bond calculations require purchaseDate — without it, show raw data only
         let devengoUSD = 0;
         let devengoPct = 0;
         let marketDeviationUSD = 0;
         let totalReturnPct = 0;
+        let ytm = 0;
+        let duration = 0;
 
-        if (h.maturityDate && couponRateDecimal > 0 && previousSnapshotDate) {
+        if (h.purchaseDate && h.maturityDate && couponRateDecimal > 0) {
+          // TIR de compra: YTM solved at purchase price, not market price
+          const bondParams = {
+            faceValue,
+            couponRate: couponRateDecimal,
+            couponFrequency: freq,
+            maturityDate: h.maturityDate,
+            purchaseDate: h.purchaseDate,
+            purchasePrice: purchasePricePct,
+            currentPrice: purchasePricePct, // solve at purchase price → TIR de compra
+          };
+
+          try { ytm = calcYieldToMaturity(bondParams, new Date(h.purchaseDate + "T00:00:00")) * 100; } catch { ytm = 0; }
+          try { duration = calcModifiedDuration(bondParams); } catch { duration = 0; }
+
+          // Devengo uses the same purchase YTM internally
           const periodResult = calcBondPeriodReturn({
             faceValue,
             couponRate: couponRateDecimal,
@@ -590,32 +607,14 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             maturityDate: h.maturityDate,
             purchasePrice: purchasePricePct,
             currentPrice: marketPricePct,
-            startDate: previousSnapshotDate,
-            endDate: latestDate || previousSnapshotDate,
-            purchaseDate: h.purchaseDate || undefined,
+            startDate: previousSnapshotDate || h.purchaseDate,
+            endDate: latestDate || previousSnapshotDate || h.purchaseDate,
+            purchaseDate: h.purchaseDate,
           });
           devengoUSD = periodResult.devengoUSD;
           devengoPct = periodResult.devengoPct;
           marketDeviationUSD = periodResult.marketDeviationUSD;
           totalReturnPct = periodResult.totalReturnPct;
-        }
-
-        // Calculate YTM and duration
-        let ytm = 0;
-        let duration = 0;
-        const bondParams = h.maturityDate && couponRateDecimal > 0 && marketPricePct > 0 ? {
-          faceValue,
-          couponRate: couponRateDecimal,
-          couponFrequency: freq,
-          maturityDate: h.maturityDate,
-          purchaseDate: h.purchaseDate || previousSnapshotDate || "2025-01-01",
-          purchasePrice: purchasePricePct,
-          currentPrice: marketPricePct,
-        } : null;
-
-        if (bondParams) {
-          try { ytm = calcYieldToMaturity(bondParams) * 100; } catch { ytm = 0; }
-          try { duration = calcModifiedDuration(bondParams); } catch { duration = 0; }
         }
 
         return {
