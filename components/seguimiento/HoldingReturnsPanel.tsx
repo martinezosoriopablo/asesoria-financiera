@@ -159,6 +159,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
   const [yahooPrices, setYahooPrices] = useState<Map<string, YahooQuote>>(new Map());
   const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
+  const [bondPrices, setBondPrices] = useState<Map<string, { price: number; ytm: number | null; date: string }>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
 
   // Extract unique holdings and their returns over time from snapshots
@@ -435,6 +436,38 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     fetchBondDetails();
   }, [holdingSummaries]);
 
+  // Fetch latest bond prices from FINRA (stored in bond_prices table)
+  useEffect(() => {
+    const bonds = holdingSummaries.filter(h => h.assetType === "bond" && h.securityId);
+    if (bonds.length === 0) return;
+
+    const cusips = bonds.map(h => (h.securityId || "").trim()).filter(Boolean);
+    if (cusips.length === 0) return;
+
+    const fetchBondPrices = async () => {
+      try {
+        const res = await fetch(`/api/bonds/latest-prices?cusips=${encodeURIComponent(cusips.join(","))}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.prices) {
+          const map = new Map<string, { price: number; ytm: number | null; date: string }>();
+          // Map by fundName for easy lookup
+          for (const h of bonds) {
+            const cusip = (h.securityId || "").trim();
+            if (cusip && data.prices[cusip]) {
+              map.set(h.fundName, data.prices[cusip]);
+            }
+          }
+          if (map.size > 0) setBondPrices(map);
+        }
+      } catch {
+        // Silently skip — bonds will use cartola prices
+      }
+    };
+
+    fetchBondPrices();
+  }, [holdingSummaries]);
+
   // Build TAC map from fundsMeta
   const tacByFundName = useMemo(() => {
     const map = new Map<string, number | null>();
@@ -572,9 +605,17 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const couponRatePct = h.couponRate || 0;
         const couponRateDecimal = couponRatePct / 100;
         const purchasePricePct = toBondPricePct(h.purchasePrice);
-        const marketPricePct = toBondPricePct(h.currentPrice);
-        const faceValue = h.quantity || (h.marketValue / (marketPricePct / 100));
+        const cartolaMarketPricePct = toBondPricePct(h.currentPrice);
+
+        // Use FINRA price if available, otherwise cartola price
+        const finraPrice = bondPrices.get(h.fundName);
+        const marketPricePct = finraPrice ? finraPrice.price : cartolaMarketPricePct;
+
+        const faceValue = h.quantity || (h.marketValue / (cartolaMarketPricePct / 100));
         const freq = 2; // semi-annual default
+
+        // Market value in USD = faceValue × marketPrice% / 100
+        const marketValueUSD = faceValue * marketPricePct / 100;
 
         // All bond calculations require purchaseDate — without it, show raw data only
         let devengoUSD = 0;
@@ -617,6 +658,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           totalReturnPct = periodResult.totalReturnPct;
         }
 
+        // Prefer cartola's costBasis (real amount paid), fallback to calculated
+        const calcCostBasis = faceValue * purchasePricePct / 100;
+        const actualCostBasis = h.costBasis && h.costBasis > 0 ? h.costBasis : calcCostBasis;
+
         return {
           fundName: h.fundName,
           cusip: h.securityId || "",
@@ -625,6 +670,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           maturityDate: h.maturityDate || "",
           weight: h.weight,
           purchasePrice: purchasePricePct,
+          costBasis: actualCostBasis,
           marketPrice: marketPricePct,
           ytm,
           duration,
@@ -633,10 +679,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           marketDeviationUSD,
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
-          marketValue: h.marketValue,
+          marketValue: marketValueUSD,
         };
       });
-  }, [enrichedSummaries, previousSnapshotDate, snapshots]);
+  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices]);
 
   // Cash holdings
   const cashValue = enrichedSummaries
