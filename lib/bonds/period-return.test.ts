@@ -71,6 +71,95 @@ describe("calcBondPeriodReturn", () => {
     expect(result.totalReturnPercent).toBeCloseTo(1.077, 1);
   });
 
+  it("accruedYieldPct uses purchase YTM — higher than coupon for discount bond", () => {
+    // Bond: 10% coupon, bought at 50% of par, 2 years to maturity
+    // YTM at purchase >> coupon rate because of massive pull-to-par
+    const result = calcBondPeriodReturn({
+      faceValue: 100000,
+      couponRate: 0.10,      // 10%
+      couponFrequency: 2,
+      maturityDate: "2028-06-15",
+      purchasePrice: 50,     // 50% of par — deep discount
+      currentPrice: 52,
+      startDate: "2026-04-01",
+      endDate: "2026-05-01",
+    });
+    // Purchase YTM >> coupon rate (pull-to-par adds significant yield)
+    // Simple coupon accrual for 30d = 0.10 * 30/360 * 100 = 0.833%
+    expect(result.accruedYieldPct).toBeGreaterThan(0.10 * 30 / 360 * 100);
+  });
+
+  it("accruedYieldPct ≈ coupon rate when purchased at par", () => {
+    const result = calcBondPeriodReturn({
+      ...baseBond,
+      purchasePrice: 100,    // at par
+      currentPrice: 100,
+      startDate: "2026-01-01",
+      endDate: "2027-01-01",
+    });
+    // At par, YTM = coupon rate → accruedYieldPct ≈ couponRate * 100
+    expect(result.accruedYieldPct).toBeCloseTo(5.294, 1);
+  });
+
+  it("accruedYieldPct is lower than coupon for premium bond", () => {
+    const result = calcBondPeriodReturn({
+      ...baseBond,
+      purchasePrice: 105,    // premium
+      currentPrice: 104,
+      startDate: "2026-03-31",
+      endDate: "2026-04-30",
+    });
+    // At premium, YTM < coupon rate (amortization of premium)
+    const couponAccrual = 0.05294 * 30 / 360 * 100;
+    expect(result.accruedYieldPct).toBeLessThan(couponAccrual);
+  });
+
+  it("uses purchaseDate for accrual range when provided", () => {
+    // Bond bought 2025-06-01, snapshot period is 2026-03-31 → 2026-04-30
+    // Accrual should cover purchaseDate → endDate (330 days 30/360),
+    // not startDate → endDate (30 days)
+    const result = calcBondPeriodReturn({
+      ...baseBond,
+      currentPrice: 99.12,
+      startDate: "2026-03-31",
+      endDate: "2026-04-30",
+      purchaseDate: "2025-06-01",
+    });
+    // 30/360 days from 2025-06-01 to 2026-04-30 = 329 days
+    // Daily rate = 1323.50 / 180 = 7.3528
+    // Accrued = 7.3528 * 329 = 2419.07
+    expect(result.accruedInterest).toBeCloseTo(2419, 0);
+  });
+
+  it("uses purchaseDate for YTM calculation reference", () => {
+    const withPurchaseDate = calcBondPeriodReturn({
+      ...baseBond,
+      currentPrice: 99.12,
+      startDate: "2026-03-31",
+      endDate: "2026-04-30",
+      purchaseDate: "2025-01-01",
+    });
+    const withoutPurchaseDate = calcBondPeriodReturn({
+      ...baseBond,
+      currentPrice: 99.12,
+      startDate: "2026-03-31",
+      endDate: "2026-04-30",
+    });
+    expect(withPurchaseDate.accruedYieldPct).toBeGreaterThan(0);
+    expect(withoutPurchaseDate.accruedYieldPct).toBeGreaterThan(0);
+  });
+
+  it("falls back to startDate when no purchaseDate", () => {
+    const result = calcBondPeriodReturn({
+      ...baseBond,
+      currentPrice: 99.12,
+      startDate: "2026-03-31",
+      endDate: "2026-04-30",
+    });
+    // Should behave exactly as before — 30 days accrual
+    expect(result.accruedInterest).toBeCloseTo(220.58, 0);
+  });
+
   it("allows coupon override", () => {
     const result = calcBondPeriodReturn({
       ...baseBond,

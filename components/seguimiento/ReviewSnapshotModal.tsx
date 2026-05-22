@@ -21,6 +21,7 @@ interface Holding {
   couponRate?: number | null;
   maturityDate?: string | null;
   creditRating?: string | null;
+  purchaseDate?: string | null;  // ISO date — when the bond was purchased
 }
 
 interface ParsedData {
@@ -694,6 +695,12 @@ export default function ReviewSnapshotModal({
       marketPrice: newPrice,
       marketValue: quantity > 0 ? quantity * newPrice : holding.marketValue,
     };
+    setHoldings(updated);
+  };
+
+  const handlePurchaseDateChange = (index: number, newDate: string) => {
+    const updated = [...holdings];
+    updated[index] = { ...updated[index], purchaseDate: newDate || null };
     setHoldings(updated);
   };
 
@@ -1391,6 +1398,7 @@ export default function ReviewSnapshotModal({
                   <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-28">Precio</th>
                   <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-32">Valor Total</th>
                   <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-28">Clase</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-28">F. Compra</th>
                 </tr>
               </thead>
               <tbody>
@@ -1491,6 +1499,18 @@ export default function ReviewSnapshotModal({
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {(holding.assetType === "bond" || holding.assetClass === "fixedIncome") ? (
+                        <input
+                          type="date"
+                          value={holding.purchaseDate || ""}
+                          onChange={(e) => handlePurchaseDateChange(index, e.target.value)}
+                          className="w-28 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <span className="text-xs text-gb-gray">-</span>
+                      )}
                     </td>
                   </tr>
                   );

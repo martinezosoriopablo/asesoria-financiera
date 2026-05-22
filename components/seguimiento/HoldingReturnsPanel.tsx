@@ -31,6 +31,7 @@ interface HoldingData {
   couponRate?: number | null;
   maturityDate?: string | null;
   creditRating?: string | null;
+  purchaseDate?: string | null;
 }
 
 /**
@@ -294,6 +295,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             currency: h.currency,
             estIncomeYield: h.estIncomeYield,
             estAnnualIncome: h.estAnnualIncome,
+            purchaseDate: h.purchaseDate,
           });
         }
       }
@@ -316,7 +318,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             marketValue: h.marketValue,
             currentPrice,
             purchasePrice,
-            purchaseDate: purchaseDates.get(h.fundName) || null,
+            purchaseDate: merged.purchaseDate || purchaseDates.get(h.fundName) || null,
             quantity: h.quantity || 0,
             weight: h.weight || (latestTotal > 0 ? Math.round((h.marketValue / latestTotal) * 10000) / 100 : 0),
             returnFromBase: Math.round(returnCalc * 100) / 100,
@@ -609,6 +611,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
         // Calculate period return
         let accruedInterest = 0;
+        let accruedYieldPct = 0;
         let priceDiff = 0;
         let couponsPaid = 0;
         let totalReturnPct = 0;
@@ -623,8 +626,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             currentPrice: marketPricePct,
             startDate: previousSnapshotDate,
             endDate: latestDate || previousSnapshotDate,
+            purchaseDate: h.purchaseDate || undefined,
           });
           accruedInterest = periodResult.accruedInterest;
+          accruedYieldPct = periodResult.accruedYieldPct;
           priceDiff = periodResult.priceDiff;
           couponsPaid = periodResult.couponsPaid;
           totalReturnPct = periodResult.totalReturnPercent;
@@ -659,6 +664,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           marketPrice: marketPricePct,
           ytm,
           accruedInterest,
+          accruedYieldPct,
           priceDiff,
           couponsPaid,
           totalReturn: totalReturnPct,

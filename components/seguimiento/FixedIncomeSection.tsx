@@ -15,6 +15,7 @@ export interface BondHoldingRow {
   marketPrice: number;     // % of par (FINRA)
   ytm: number;             // annual % (e.g., 5.7)
   accruedInterest: number; // USD in period
+  accruedYieldPct: number; // yield on cost for the period (%)
   priceDiff: number;       // USD in period
   couponsPaid: number;     // USD in period
   totalReturn: number;     // %
@@ -114,6 +115,9 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
                 </td>
                 <td className="px-3 py-2 text-right">
                   <UsdCell value={h.accruedInterest} />
+                  {h.accruedYieldPct > 0 && (
+                    <div className="text-[10px] text-gb-gray">{formatNumber(h.accruedYieldPct, 2)}%</div>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <UsdCell value={h.priceDiff} />

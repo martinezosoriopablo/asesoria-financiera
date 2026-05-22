@@ -1,4 +1,5 @@
 // lib/bonds/period-return.ts
+import { calcYieldToMaturity } from "./yield";
 
 interface BondPeriodInput {
   faceValue: number;
@@ -9,11 +10,13 @@ interface BondPeriodInput {
   currentPrice: number;     // % of par (at endDate)
   startDate: string;        // ISO date (snapshot A)
   endDate: string;          // ISO date (snapshot B)
+  purchaseDate?: string;    // ISO date — actual purchase date (advisor-provided)
   couponOverride?: number;  // advisor-provided coupon amount in USD
 }
 
 export interface BondPeriodResult {
   accruedInterest: number;   // USD accrued in the period (30/360)
+  accruedYieldPct: number;   // yield on cost for the period (%)
   priceDiff: number;         // USD price change
   couponsPaid: number;       // USD coupons collected in the period
   couponDates: string[];     // ISO dates of coupons in the period
@@ -29,7 +32,7 @@ export interface BondPeriodResult {
 export function calcBondPeriodReturn(input: BondPeriodInput): BondPeriodResult {
   const {
     faceValue, couponRate, couponFrequency, maturityDate,
-    purchasePrice, currentPrice, startDate, endDate, couponOverride,
+    purchasePrice, currentPrice, startDate, endDate, purchaseDate, couponOverride,
   } = input;
 
   const costBasis = faceValue * purchasePrice / 100;
@@ -47,9 +50,35 @@ export function calcBondPeriodReturn(input: BondPeriodInput): BondPeriodResult {
 
   const start = new Date(startDate + "T00:00:00");
   const end = new Date(endDate + "T00:00:00");
-  const periodDays = days30_360(start, end);
+
+  // Accrual range: from purchaseDate (if provided) to endDate
+  const accrualStart = purchaseDate
+    ? new Date(purchaseDate + "T00:00:00")
+    : start;
+  const periodDays = days30_360(accrualStart, end);
   const dailyRate = couponAmount / (360 / couponFrequency);
   const accruedInterest = dailyRate * periodDays;
+
+  // YTM reference: use purchaseDate if available, else startDate
+  const ytmRefDate = purchaseDate
+    ? new Date(purchaseDate + "T00:00:00")
+    : start;
+
+  // Accrual based on purchase YTM (effective interest method)
+  let purchaseYTM = couponRate; // fallback: coupon rate
+  try {
+    const ytm = calcYieldToMaturity({
+      faceValue,
+      couponRate,
+      couponFrequency,
+      maturityDate,
+      purchaseDate: purchaseDate || startDate,
+      purchasePrice,
+      currentPrice: purchasePrice, // solve YTM at purchase price
+    }, ytmRefDate);
+    if (!isNaN(ytm) && ytm > -1) purchaseYTM = ytm;
+  } catch { /* keep fallback */ }
+  const accruedYieldPct = purchaseYTM * periodDays / 360 * 100;
 
   // --- Price difference ---
   const priceDiff = (currentPrice - purchasePrice) / 100 * faceValue;
@@ -58,9 +87,9 @@ export function calcBondPeriodReturn(input: BondPeriodInput): BondPeriodResult {
   const maturity = new Date(maturityDate + "T00:00:00");
   const couponDates: string[] = [];
   let d = new Date(maturity);
-  while (d > start) {
+  while (d > accrualStart) {
     const dateStr = d.toISOString().split("T")[0];
-    if (d > start && d <= end) {
+    if (d > accrualStart && d <= end) {
       couponDates.push(dateStr);
     }
     d = new Date(d);
@@ -78,6 +107,7 @@ export function calcBondPeriodReturn(input: BondPeriodInput): BondPeriodResult {
 
   return {
     accruedInterest,
+    accruedYieldPct,
     priceDiff,
     couponsPaid,
     couponDates,

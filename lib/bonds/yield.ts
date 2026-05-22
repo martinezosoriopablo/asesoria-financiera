@@ -5,8 +5,9 @@ import type { BondParams } from "./types";
  * Calculate Yield to Maturity using Newton-Raphson.
  * Uses currentPrice to solve: price = sum(CF_i / (1 + y/freq)^i)
  * Returns annual yield as decimal (e.g., 0.057 = 5.7%).
+ * @param asOfDate - reference date for counting periods (defaults to today)
  */
-export function calcYieldToMaturity(bond: BondParams): number {
+export function calcYieldToMaturity(bond: BondParams, asOfDate?: Date): number {
   const { faceValue, couponRate, couponFrequency, maturityDate, currentPrice } = bond;
 
   if (faceValue <= 0 || couponFrequency <= 0) return NaN;
@@ -14,9 +15,9 @@ export function calcYieldToMaturity(bond: BondParams): number {
   const coupon = faceValue * couponRate / couponFrequency;
   const monthsPerPeriod = 12 / couponFrequency;
 
-  // Count periods from now to maturity
+  // Count periods from reference date to maturity
   const maturity = new Date(maturityDate + "T00:00:00");
-  const now = new Date();
+  const now = asOfDate ? new Date(asOfDate) : new Date();
   now.setHours(0, 0, 0, 0);
 
   if (maturity <= now) return NaN;
