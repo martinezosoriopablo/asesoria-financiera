@@ -1316,7 +1316,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         {/* Holding Returns Panel — moved to composition section */}
 
         {/* Performance Attribution */}
-        {snapshots.length >= 2 && (
+        {(snapshots.length >= 2 || holdingReturnsData) && (
           <PerformanceAttribution
             snapshots={snapshots}
             recommendation={recommendation}
