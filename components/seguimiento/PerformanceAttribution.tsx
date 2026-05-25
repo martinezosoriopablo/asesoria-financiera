@@ -241,8 +241,8 @@ export default function PerformanceAttribution({
 
     // === PRIMARY: Use holdingReturnsData from HoldingReturnsPanel ===
     if (holdingReturnsData) {
-      const { equityHoldings, bondHoldings, cashValue, totalValue } = holdingReturnsData;
-      if (equityHoldings.length === 0 && bondHoldings.length === 0) return null;
+      const { equityHoldings, fixedIncomeFundHoldings = [], bondHoldings, cashValue, totalValue } = holdingReturnsData;
+      if (equityHoldings.length === 0 && fixedIncomeFundHoldings.length === 0 && bondHoldings.length === 0) return null;
 
       const result: AssetClassWithBreakdown[] = [];
 
@@ -284,12 +284,42 @@ export default function PerformanceAttribution({
         });
       }
 
-      // Fixed Income (bonds): all are type "bond"
-      if (bondHoldings.length > 0) {
-        const totalContribution = bondHoldings.reduce((s, h) => s + h.contribution, 0);
-        const totalWeight = bondHoldings.reduce((s, h) => s + h.weight, 0);
+      // Fixed Income: RF funds + bonds
+      if (fixedIncomeFundHoldings.length > 0 || bondHoldings.length > 0) {
+        const breakdown: InstrumentBreakdown[] = [];
+
+        // RF funds contribution
+        const fundContrib = fixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0);
+        if (fixedIncomeFundHoldings.length > 0) {
+          const fundMeta = INSTRUMENT_COLORS.fund;
+          breakdown.push({
+            type: "fund",
+            label: fundMeta.label,
+            color: fundMeta.color,
+            negColor: fundMeta.negColor,
+            contribution: fundContrib,
+          });
+        }
+
+        // Bonds contribution
+        const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
+        if (bondHoldings.length > 0) {
+          const bondMeta = INSTRUMENT_COLORS.bond;
+          breakdown.push({
+            type: "bond",
+            label: bondMeta.label,
+            color: bondMeta.color,
+            negColor: bondMeta.negColor,
+            contribution: bondContrib,
+          });
+        }
+
+        breakdown.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+
+        const totalContribution = fundContrib + bondContrib;
+        const totalWeight = fixedIncomeFundHoldings.reduce((s, h) => s + h.weight, 0)
+          + bondHoldings.reduce((s, h) => s + h.weight, 0);
         const classReturn = totalWeight > 0 ? (totalContribution / totalWeight) * 100 : 0;
-        const meta = INSTRUMENT_COLORS.bond;
 
         result.push({
           name: classKeyMap.fixedIncome,
@@ -297,13 +327,7 @@ export default function PerformanceAttribution({
           color: classColorMap.fixedIncome,
           totalContribution,
           classReturn,
-          breakdown: [{
-            type: "bond",
-            label: meta.label,
-            color: meta.color,
-            negColor: meta.negColor,
-            contribution: totalContribution,
-          }],
+          breakdown,
         });
       }
 
@@ -580,7 +604,7 @@ export default function PerformanceAttribution({
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  if (snapshots.length < 2) {
+  if (snapshots.length < 2 && !holdingReturnsData) {
     return (
       <div className="bg-white rounded-lg border border-gb-border shadow-sm p-6">
         <h2 className="text-base font-semibold text-gb-black mb-4 flex items-center gap-2">

@@ -7,6 +7,7 @@ import { formatNumber, formatPercent } from "@/lib/format";
 export interface EquityHolding {
   fundName: string;
   assetType: string;        // "fund" | "etf" | "stock"
+  assetClass?: string;      // "equity" | "fixedIncome" | "balanced" | "cash"
   weight: number;           // % of total portfolio
   purchasePrice: number;
   currentPrice: number;
@@ -24,6 +25,8 @@ interface Props {
   holdings: EquityHolding[];
   totalPortfolioValue: number;
   showDividends: boolean;
+  title?: string;
+  sectionColor?: string;    // tailwind color for accent bar and bg
 }
 
 const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -32,7 +35,7 @@ const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = 
   stock: { bg: "bg-green-100",  text: "text-green-700",  label: "Stock" },
 };
 
-export default function EquitySection({ holdings, totalPortfolioValue, showDividends }: Props) {
+export default function EquitySection({ holdings, totalPortfolioValue, showDividends, title = "Renta Variable", sectionColor = "blue" }: Props) {
   if (holdings.length === 0) return null;
 
   const subtotalValue = holdings.reduce((s, h) => s + h.marketValue, 0);
@@ -44,12 +47,17 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
     ? holdings.reduce((s, h) => s + h.totalReturn * h.marketValue, 0) / subtotalValue
     : 0;
 
+  const accentBg = `bg-${sectionColor}-500`;
+  const badgeBg = `bg-${sectionColor}-50`;
+  const hoverBg = `hover:bg-${sectionColor}-50/50`;
+  const footerBg = `bg-${sectionColor}-50/50`;
+
   return (
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-3 px-4">
-        <div className="w-1 h-5 bg-blue-500 rounded" />
-        <h3 className="text-sm font-semibold text-gb-black">Renta Variable</h3>
-        <span className="text-xs text-gb-gray bg-blue-50 px-2 py-0.5 rounded">
+        <div className={`w-1 h-5 ${accentBg} rounded`} />
+        <h3 className="text-sm font-semibold text-gb-black">{title}</h3>
+        <span className={`text-xs text-gb-gray ${badgeBg} px-2 py-0.5 rounded`}>
           {formatNumber(subtotalWeight, 1)}% del portafolio
         </span>
       </div>
@@ -78,7 +86,7 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
               const decimals = h.purchasePrice < 100 ? 2 : 0;
 
               return (
-                <tr key={h.fundName} className="border-b border-gb-border hover:bg-blue-50/50 transition-colors">
+                <tr key={h.fundName} className={`border-b border-gb-border ${hoverBg} transition-colors`}>
                   <td className="px-3 py-2">
                     <span className="text-[11px] leading-tight font-medium text-gb-black block max-w-[260px] truncate">
                       {h.fundName}
@@ -94,7 +102,7 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${Math.min(h.weight, 100) * 0.4}px` }} />
+                      <div className={`h-1.5 rounded-full ${accentBg}`} style={{ width: `${Math.min(h.weight, 100) * 0.4}px` }} />
                       <span className="text-xs font-medium text-gb-black">{formatNumber(h.weight, 1)}%</span>
                     </div>
                   </td>
@@ -137,9 +145,9 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
             })}
           </tbody>
           <tfoot>
-            <tr className="bg-blue-50/50 font-semibold">
+            <tr className={`${footerBg} font-semibold`}>
               <td colSpan={showDividends ? 5 : 4} className="px-3 py-2 text-xs text-gb-black">
-                Subtotal Renta Variable
+                Subtotal {title}
               </td>
               <td className="px-3 py-2 text-right text-sm text-gb-black">
                 ${formatNumber(subtotalValue, 0)}

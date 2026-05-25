@@ -135,6 +135,7 @@ interface FintualPrice {
 
 export interface HoldingReturnsData {
   equityHoldings: EquityHolding[];
+  fixedIncomeFundHoldings: EquityHolding[];
   bondHoldings: BondHoldingRow[];
   cashValue: number;
   totalValue: number;
@@ -566,33 +567,51 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     }
   }, [enrichedSummaries, onCurrentValueUpdate, onPriceDateUpdate]);
 
+  // --- Classify holdings by asset class ---
+  // A fund with assetClass "fixedIncome" is a RF fund, not equity.
+  // "balanced" funds split to equity for display purposes.
+  const isEquityHolding = (h: { assetType: string; assetClass: string }) =>
+    ["etf", "stock"].includes(h.assetType) ||
+    (h.assetType === "fund" && !["fixedIncome", "cash"].includes(h.assetClass));
+
+  const isFixedIncomeFund = (h: { assetType: string; assetClass: string }) =>
+    h.assetType === "fund" && h.assetClass === "fixedIncome";
+
   // --- Detect composition ---
-  const hasEquity = enrichedSummaries.some(h => ["fund", "etf", "stock"].includes(h.assetType));
+  const hasEquity = enrichedSummaries.some(h => isEquityHolding(h));
+  const hasFixedIncomeFunds = enrichedSummaries.some(h => isFixedIncomeFund(h));
   const hasBonds = enrichedSummaries.some(h => h.assetType === "bond");
   const hasStocksOrETFs = enrichedSummaries.some(h => ["etf", "stock"].includes(h.assetType));
   const hasCash = enrichedSummaries.some(h => h.assetType === "cash");
 
   const totalValue = enrichedSummaries.reduce((s, h) => s + h.marketValue, 0);
 
-  // --- Build equity holdings ---
+  // Helper to build EquityHolding from enriched summary
+  const toEquityHolding = (h: typeof enrichedSummaries[number]): EquityHolding => ({
+    fundName: h.fundName,
+    assetType: h.assetType,
+    assetClass: h.assetClass,
+    weight: h.weight,
+    purchasePrice: h.purchasePrice,
+    currentPrice: h.currentPrice,
+    marketValue: h.marketValue,
+    currency: h.currency,
+    returnPrice: h.returnFromBase,
+    dividendAmount: h.estAnnualIncome || 0,
+    dividendYield: h.estIncomeYield || 0,
+    totalReturn: h.returnFromBase + (h.estIncomeYield || 0),
+    contribution: h.weight > 0 ? (h.returnFromBase * h.weight) / 100 : 0,
+    tac: h.tac,
+  });
+
+  // --- Build equity holdings (RV funds + ETFs + stocks) ---
   const equityHoldings: EquityHolding[] = useMemo(() => {
-    return enrichedSummaries
-      .filter(h => ["fund", "etf", "stock"].includes(h.assetType))
-      .map(h => ({
-        fundName: h.fundName,
-        assetType: h.assetType,
-        weight: h.weight,
-        purchasePrice: h.purchasePrice,
-        currentPrice: h.currentPrice,
-        marketValue: h.marketValue,
-        currency: h.currency,
-        returnPrice: h.returnFromBase,
-        dividendAmount: h.estAnnualIncome || 0,
-        dividendYield: h.estIncomeYield || 0,
-        totalReturn: h.returnFromBase + (h.estIncomeYield || 0),
-        contribution: h.weight > 0 ? (h.returnFromBase * h.weight) / 100 : 0,
-        tac: h.tac,
-      }));
+    return enrichedSummaries.filter(h => isEquityHolding(h)).map(toEquityHolding);
+  }, [enrichedSummaries]);
+
+  // --- Build fixed income fund holdings (RF fondos mutuos/FI) ---
+  const fixedIncomeFundHoldings: EquityHolding[] = useMemo(() => {
+    return enrichedSummaries.filter(h => isFixedIncomeFund(h)).map(toEquityHolding);
   }, [enrichedSummaries]);
 
   // --- Build bond holdings ---
@@ -700,8 +719,9 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
   // Portfolio-level return
   const equityContrib = equityHoldings.reduce((s, h) => s + h.contribution, 0);
+  const fiFundContrib = fixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0);
   const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
-  const portfolioReturn = equityContrib + bondContrib;
+  const portfolioReturn = equityContrib + fiFundContrib + bondContrib;
 
   // Expose computed holding returns to parent (for PerformanceAttribution)
   useEffect(() => {
@@ -710,8 +730,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       .filter(h => h.assetType === "cash")
       .reduce((s, h) => s + h.marketValue, 0);
     const tv = enrichedSummaries.reduce((s, h) => s + (h.marketValue || 0), 0);
-    onHoldingReturnsReady({ equityHoldings, bondHoldings, cashValue: cv, totalValue: tv, portfolioReturn });
-  }, [equityHoldings, bondHoldings, onHoldingReturnsReady, enrichedSummaries, portfolioReturn]);
+    onHoldingReturnsReady({ equityHoldings, fixedIncomeFundHoldings, bondHoldings, cashValue: cv, totalValue: tv, portfolioReturn });
+  }, [equityHoldings, fixedIncomeFundHoldings, bondHoldings, onHoldingReturnsReady, enrichedSummaries, portfolioReturn]);
 
   if (holdingSummaries.length === 0) return null;
 
@@ -762,6 +782,16 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             holdings={equityHoldings}
             totalPortfolioValue={totalValue}
             showDividends={hasStocksOrETFs}
+          />
+        )}
+
+        {hasFixedIncomeFunds && (
+          <EquitySection
+            holdings={fixedIncomeFundHoldings}
+            totalPortfolioValue={totalValue}
+            showDividends={false}
+            title="Renta Fija (Fondos)"
+            sectionColor="green"
           />
         )}
 
