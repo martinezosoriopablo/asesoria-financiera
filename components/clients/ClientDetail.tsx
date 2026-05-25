@@ -491,9 +491,37 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
               <ArrowLeft className="w-4 h-4" />
               Clientes
             </Link>
-            <h1 className="text-2xl font-semibold text-gb-black">
-              {client.nombre} {client.apellido}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold text-gb-black">
+                {client.nombre} {client.apellido}
+              </h1>
+              <select
+                value={client.status}
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  try {
+                    const res = await fetch(`/api/clients/${clientId}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: newStatus }),
+                    });
+                    const data = await res.json();
+                    if (data.success) setClient({ ...client, status: newStatus });
+                  } catch (err) {
+                    console.error("Error updating status:", err);
+                  }
+                }}
+                className={`text-xs font-medium px-2 py-0.5 rounded border-0 cursor-pointer ${
+                  client.status === "activo" ? "bg-emerald-50 text-emerald-700" :
+                  client.status === "prospecto" ? "bg-amber-50 text-amber-700" :
+                  "bg-gray-100 text-gray-600"
+                }`}
+              >
+                <option value="activo">Activo</option>
+                <option value="prospecto">Prospecto</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+            </div>
             <p className="text-sm text-gb-gray mt-0.5">
               Cliente desde {formatDate(client.fecha_onboarding)}
             </p>
