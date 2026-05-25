@@ -507,21 +507,28 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         }
       }
 
-      // Try Yahoo prices for stocks/ETFs
+      // Try Yahoo/Bolsa prices for stocks/ETFs
       const yp = yahooPrices.get(h.fundName);
       if (yp && yp.price > 0 && ["stock", "etf"].includes(h.assetType)) {
         const yahooPrice = yp.price;
         const returnCalc = h.purchasePrice > 0
           ? ((yahooPrice / h.purchasePrice) - 1) * 100
           : 0;
-        const newMarketValue = h.quantity > 0 && usdRate
-          ? h.quantity * yahooPrice * usdRate
+        // Chilean stocks (CLP price) don't need USD conversion
+        const priceIsCLP = yp.currency === "CLP";
+        const newMarketValue = h.quantity > 0
+          ? priceIsCLP
+            ? h.quantity * yahooPrice          // CLP price → CLP value directly
+            : usdRate
+              ? h.quantity * yahooPrice * usdRate  // USD price → convert to CLP
+              : h.marketValue
           : h.marketValue;
 
         return {
           ...enriched,
           currentPrice: yahooPrice,
           marketValue: newMarketValue,
+          currency: priceIsCLP ? "CLP" : enriched.currency,
           returnFromBase: Math.round(returnCalc * 100) / 100,
         };
       }

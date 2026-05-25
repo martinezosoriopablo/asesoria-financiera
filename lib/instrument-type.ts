@@ -24,6 +24,11 @@ const ETF_TICKER_SET = new Set([
 ]);
 const CUSIP_RE = /^[A-Z0-9]{9}$/i;
 
+// Chilean ETF nemotécnicos (fondos de inversión tipo ETF en Bolsa de Santiago)
+const CHILEAN_ETF_RE = /^CFI\s*ETF/i;
+// International stocks traded on Bolsa de Santiago end in "CL" (e.g. GOOGLCL, NVDACL)
+const CHILEAN_ADR_RE = /^[A-Z]{3,10}CL$/;
+
 /**
  * Infer instrument type from holding fields.
  * Priority: explicit field -> bond markers -> RUN -> ticker -> name -> default.
@@ -54,13 +59,19 @@ export function inferInstrumentType(h: HoldingLike): InstrumentType {
   // 5. Numeric securityId -> Chilean fund (RUN)
   if (/^\d+$/.test(secId)) return "fund";
 
-  // 6. ETF detection: by ticker set or name pattern
+  // 6. Chilean ETF nemotécnicos (CFIETFIPSA, CFIETFCC, etc.)
+  if (/^CFI/i.test(secId)) return "etf";
+
+  // 7. ETF detection: by ticker set or name pattern
   if (ETF_TICKER_SET.has(secId.toUpperCase()) || ETF_NAME_RE.test(name)) return "etf";
 
-  // 7. Non-numeric securityId -> stock
+  // 8. Chilean ETF by name (e.g. "FI ETF SINGULAR...")
+  if (CHILEAN_ETF_RE.test(name)) return "etf";
+
+  // 9. Non-numeric securityId -> stock (includes GOOGLCL, NVDACL — Chilean ADRs)
   if (secId) return "stock";
 
-  // 8. No securityId — check name for ETF, else default to fund
+  // 10. No securityId — check name for ETF, else default to fund
   if (ETF_NAME_RE.test(name)) return "etf";
   return "fund";
 }

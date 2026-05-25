@@ -58,10 +58,12 @@ interface QuoteResponse {
 // Detectar si es un ticker chileno
 function isChileanTicker(ticker: string): boolean {
   const upperTicker = ticker.toUpperCase();
-  // Tickers con sufijo .SN o sin sufijo que son conocidos como chilenos
-  if (upperTicker.endsWith(".SN") || upperTicker.endsWith(".CL")) {
-    return true;
-  }
+  // Tickers con sufijo .SN
+  if (upperTicker.endsWith(".SN")) return true;
+  // Chilean ETF nemotécnicos (CFIETFIPSA, CFIETFCC, CFIFALCFIW, etc.)
+  if (upperTicker.startsWith("CFI")) return true;
+  // International stocks traded locally — end in "CL" with 5+ chars (GOOGLCL, NVDACL, AMZNCL)
+  if (upperTicker.length >= 5 && /^[A-Z]+CL$/.test(upperTicker)) return true;
   // Lista de nemotécnicos comunes de la Bolsa de Santiago
   const knownChileanTickers = [
     "BSANTANDER", "COPEC", "FALABELLA", "CENCOSUD", "SQM-A", "SQM-B",
