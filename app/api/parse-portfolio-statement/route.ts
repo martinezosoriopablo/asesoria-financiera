@@ -6,9 +6,10 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 // AGFs chilenos conocidos
 const CHILEAN_AGFS = [
-  "banchile", "btg", "larrainvial", "santander", "security", "sura",
+  "banchile", "bci", "btg", "larrainvial", "santander", "security", "sura",
   "itau", "principal", "bice", "credicorp", "scotia", "compass",
-  "moneda", "euroamerica", "nevasa", "renta4", "vector", "tanner"
+  "moneda", "euroamerica", "nevasa", "renta4", "vector", "tanner",
+  "raymond james"
 ];
 
 // Detectar moneda basado en heurísticas
@@ -299,6 +300,8 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
 {
   "clientName": "string",
   "accountNumber": "string",
+  "institution": "string (nombre de la institución: BCI, LarrainVial, Santander, Raymond James, Stonex, etc.)",
+  "institutionType": "agf | corredora | internacional",
   "period": "string - LA FECHA ES MUY IMPORTANTE",
   "beginningValue": number,
   "endingValue": number,
@@ -423,6 +426,14 @@ Determina si cada holding es un fondo previsional (ahorro obligatorio/pensión) 
   * Es una acción, ETF, bono, o instrumento de renta fija
   * La sección dice "Inversiones Voluntarias", "Cartera de Inversión", "Fondos Mutuos"
   * No hay indicadores previsionales
+
+REGLAS PARA "institution" e "institutionType":
+- "institution": Nombre de la institución financiera que emite el documento. Buscar en encabezado, logo, pie de página.
+  Ejemplos: "BCI", "LarrainVial", "Santander", "BTG Pactual", "Stonex", "Pershing", "Raymond James", "Credicorp", "Security"
+- "institutionType": Tipo de institución:
+  * "agf" = Administradora General de Fondos. Solo vende fondos mutuos propios. Indicadores: "AGF", "Administradora", solo tiene fondos mutuos de la misma casa, RUN numéricos
+  * "corredora" = Corredora de Bolsa. Puede tener acciones, ETFs, fondos de múltiples casas, bonos. Indicadores: "Corredores", "Corredora de Bolsa", mezcla de instrumentos de distintas gestoras, acciones chilenas, ETFs
+  * "internacional" = Custodio internacional. Indicadores: Stonex, Pershing, Raymond James, clearing house, instrumentos en USD, bonos corporativos, fondos SICAV, CUSIPs
 
 OTRAS REGLAS:
 - RECORRE TODAS LAS PÁGINAS del documento, no solo la primera

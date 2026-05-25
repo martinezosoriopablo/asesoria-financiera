@@ -52,21 +52,39 @@ interface Props {
 
 type Mode = "select" | "upload" | "manual" | "review";
 
-const CUSTODIAN_OPTIONS = [
-  "BCI",
-  "BTG Pactual",
-  "LarrainVial",
-  "Santander",
-  "Itaú",
-  "Scotiabank",
-  "Credicorp",
-  "Stonex",
-  "Pershing",
-  "Sura",
-  "Principal",
-  "Security",
-  "Bice",
-  "Otro",
+interface CustodianOption {
+  label: string;
+  value: string; // stored as source on holdings
+  type: "agf" | "corredora" | "internacional";
+}
+
+const CUSTODIAN_OPTIONS: CustodianOption[] = [
+  // AGFs chilenas
+  { label: "BCI AGF", value: "BCI AGF", type: "agf" },
+  { label: "BTG Pactual AGF", value: "BTG Pactual AGF", type: "agf" },
+  { label: "LarrainVial AGF", value: "LarrainVial AGF", type: "agf" },
+  { label: "Santander AGF", value: "Santander AGF", type: "agf" },
+  { label: "Itaú AGF", value: "Itaú AGF", type: "agf" },
+  { label: "Scotiabank AGF", value: "Scotiabank AGF", type: "agf" },
+  { label: "Credicorp AGF", value: "Credicorp AGF", type: "agf" },
+  { label: "Sura AGF", value: "Sura AGF", type: "agf" },
+  { label: "Principal AGF", value: "Principal AGF", type: "agf" },
+  { label: "Security AGF", value: "Security AGF", type: "agf" },
+  { label: "Bice AGF", value: "Bice AGF", type: "agf" },
+  // Corredoras chilenas
+  { label: "BCI Corredora", value: "BCI Corredora", type: "corredora" },
+  { label: "BTG Pactual Corredora", value: "BTG Pactual Corredora", type: "corredora" },
+  { label: "LarrainVial Corredora", value: "LarrainVial Corredora", type: "corredora" },
+  { label: "Santander Corredora", value: "Santander Corredora", type: "corredora" },
+  { label: "Credicorp Corredora", value: "Credicorp Corredora", type: "corredora" },
+  { label: "Security Corredora", value: "Security Corredora", type: "corredora" },
+  { label: "Bice Corredora", value: "Bice Corredora", type: "corredora" },
+  { label: "Renta4 Corredora", value: "Renta4 Corredora", type: "corredora" },
+  { label: "Nevasa Corredora", value: "Nevasa Corredora", type: "corredora" },
+  // Internacionales
+  { label: "Raymond James", value: "Raymond James", type: "internacional" },
+  { label: "Stonex", value: "Stonex", type: "internacional" },
+  { label: "Pershing", value: "Pershing", type: "internacional" },
 ];
 
 export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props) {
@@ -349,9 +367,22 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
                   className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Seleccionar...</option>
-                  {CUSTODIAN_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
+                  <optgroup label="AGF">
+                    {CUSTODIAN_OPTIONS.filter(o => o.type === "agf").map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Corredora">
+                    {CUSTODIAN_OPTIONS.filter(o => o.type === "corredora").map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Internacional">
+                    {CUSTODIAN_OPTIONS.filter(o => o.type === "internacional").map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </optgroup>
+                  <option value="Otro">Otro</option>
                 </select>
               </div>
 
