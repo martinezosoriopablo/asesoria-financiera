@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
 
   try {
-    const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue, cartolaDate, currentValue, currentValueDate } = await request.json() as {
+    const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue, cartolaDate, currentValue, currentValueDate, modelData } = await request.json() as {
       xrayData: XrayData;
       clientName?: string;
       advisoryFee?: number;
@@ -72,6 +72,22 @@ export async function POST(request: NextRequest) {
       cartolaDate?: string;
       currentValue?: number;
       currentValueDate?: string;
+      modelData?: {
+        perfil: string;
+        reportDate: string;
+        notaComite: string | null;
+        deviations: Array<{
+          categoria: string;
+          targetWeight: number;
+          actualWeight: number;
+          deviation: number;
+          estado: string;
+          etfRef: string | null;
+          tesis: string | null;
+          mappedFund: { fundName: string | null; ticker: string | null } | null;
+        }>;
+        custodian: { name: string; type: string; commissionPct: number } | null;
+      };
     };
     const fee = advisoryFee || 1.0;
 
@@ -123,6 +139,80 @@ export async function POST(request: NextRequest) {
       })
       .join("\n") : "";
 
+    // Build model portfolio section for prompt
+    let modelSection = "";
+    if (modelData && modelData.deviations.length > 0) {
+      const perfilLabel = modelData.perfil.replace(/_/g, " ");
+      const deviationRows = modelData.deviations
+        .map((d) => {
+          const fundStr = d.mappedFund
+            ? ` -> Fondo recomendado: ${d.mappedFund.fundName || d.mappedFund.ticker || "N/D"}`
+            : "";
+          return `- ${d.categoria}: Target ${d.targetWeight}%, Actual ${d.actualWeight}%, Desviacion ${d.deviation > 0 ? "+" : ""}${d.deviation}% [${d.estado}]${fundStr}${d.tesis ? `\n  Tesis: ${d.tesis}` : ""}`;
+        })
+        .join("\n");
+
+      const custodianStr = modelData.custodian
+        ? `\nCustodio: ${modelData.custodian.name} (${modelData.custodian.type}), Comision por operacion: ${modelData.custodian.commissionPct}%`
+        : "";
+
+      modelSection = `
+CARTERA MODELO DEL COMITE (Perfil: ${perfilLabel}, Fecha: ${modelData.reportDate}):
+${modelData.notaComite ? `Nota del comite: "${modelData.notaComite}"` : ""}
+
+DESVIACIONES ACTUAL VS MODELO:
+${deviationRows}
+${custodianStr}
+
+NOTA: Esta es la recomendacion base del comite. Los fondos definitivos se ajustaran segun la situacion particular del cliente.
+`;
+    }
+
+    const formatSections = modelData ? `FORMATO DEL INFORME (usa exactamente estas secciones con ##):
+
+## Resumen Ejecutivo
+(2-3 oraciones. Describe que tiene el cliente hoy, como se compara vs el modelo del comite, y que podemos mejorar)
+
+## Cartera Modelo vs Actual
+(Tabla de desviaciones por categoria. Indica cuales estan sobre/subponderadas. Explica la vision del comite.)
+
+## Posiciones del Cliente
+(Analiza cada posicion relevante vs lo que recomienda el modelo)
+
+## Analisis de Costos
+(Costo actual vs propuesto. Si hay datos de comision del custodio, incluirlos. Cuantifica impacto a 10 anos)
+
+## Propuesta de Ajuste
+(Cambios especificos por categoria, con fondo recomendado, tesis del comite, y costo estimado de cada movimiento)
+
+## Consideraciones Tributarias
+(Si AGF->AGF misma familia: sin costo tributario. Si hay rescates con ganancia: advertir y sugerir usar simulador tributario. Si custodio es internacional: mencionar declaracion jurada)
+
+## Vision del Comite
+(Resumir las tesis relevantes del comite para este perfil de riesgo)
+
+## Proximos Pasos
+(3-4 acciones concretas: reunion, confirmar fondos, ejecutar, seguimiento)` :
+`FORMATO DEL INFORME (usa exactamente estas secciones con ##):
+
+## Resumen Ejecutivo
+(2-3 oraciones. Describe que tiene el cliente hoy, cuanto le cuesta, y que podemos mejorar)
+
+## Posiciones del Cliente
+(Analiza cada posicion relevante: que fondo tiene, en que categoria cae, y si su TAC es competitivo o no)
+
+## Analisis de Costos
+(Distingue claramente: 1) lo que el cliente PAGA HOY, 2) lo que PAGARIA con la propuesta. Cuantifica el impacto a 10 anos)
+
+## Propuesta de Referencia
+(Describe los cambios sugeridos posicion por posicion. Aclara que es una referencia.)
+
+## Observaciones del Asesor
+(Deja esta seccion con 2-3 puntos genericos. El asesor completara despues)
+
+## Proximos Pasos
+(3-4 acciones concretas sugeridas)`;
+
     const prompt = `Eres un asesor financiero chileno experto. Genera un informe de radiografía de portafolio.
 
 ${customContext ? `NOTAS DEL ASESOR (incorpora este contexto en las secciones que corresponda):
@@ -158,26 +248,8 @@ ${proposal.proposedRent12m != null ? `Rentabilidad 12M ponderada propuesta: ${Nu
 
 COMPARACIÓN POSICIÓN POR POSICIÓN:
 ${positionComparison || "Sin cambios propuestos"}` : ""}
-
-FORMATO DEL INFORME (usa exactamente estas secciones con ##):
-
-## Resumen Ejecutivo
-(2-3 oraciones. Describe qué tiene el cliente hoy, cuánto le cuesta, y qué podemos mejorar)
-
-## Posiciones del Cliente
-(Analiza cada posición relevante: qué fondo tiene, en qué categoría cae, y si su TAC es competitivo o no. Menciona los fondos más caros y las concentraciones)
-
-## Análisis de Costos
-(Distingue claramente: 1) lo que el cliente PAGA HOY, 2) lo que PAGARÍA con la propuesta. Cuantifica el impacto a 10 años)
-
-## Propuesta de Referencia
-(Describe los cambios sugeridos posición por posición. Aclara que es una referencia y que los fondos definitivos se ajustarán. ${ahorroNeto > 0 ? `Destaca que INCLUSO sumando el advisory fee de ${fee.toFixed(1)}%, el costo total baja, generando un ahorro neto de $${ahorroNeto.toLocaleString("es-CL")} anuales.` : `Explica el valor de la asesoría profesional más allá del costo.`})
-
-## Observaciones del Asesor
-(Deja esta sección con 2-3 puntos genéricos sobre el portafolio. El asesor completará con sus propias observaciones después)
-
-## Próximos Pasos
-(3-4 acciones concretas sugeridas: reunión, definir fondos, implementar cambios, seguimiento)
+${modelSection}
+${formatSections}
 
 REGLAS:
 - Español chileno profesional

@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   FileText,
   Upload,
@@ -17,16 +17,19 @@ import {
   Calendar,
   Eye,
   RefreshCw,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 interface ReportStatus {
   id: string;
-  type: "macro" | "rv" | "rf" | "asset_allocation";
+  type: string;
   label: string;
   icon: React.ElementType;
   uploaded: boolean;
   filename?: string;
   uploadedAt?: string;
+  isCustom?: boolean;
 }
 
 const REPORT_TYPES: Omit<ReportStatus, "uploaded" | "filename" | "uploadedAt">[] = [
@@ -47,6 +50,23 @@ export default function ComiteReportsPanel() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [viewingReport, setViewingReport] = useState<{ type: string; label: string; content: string; title: string } | null>(null);
   const [loadingView, setLoadingView] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [customLabel, setCustomLabel] = useState("");
+
+  // Model portfolios state
+  const [showModelUpload, setShowModelUpload] = useState(false);
+  const [modelJson, setModelJson] = useState("");
+  const [modelUploading, setModelUploading] = useState(false);
+  const [modelError, setModelError] = useState("");
+  const [activeModels, setActiveModels] = useState<Array<{
+    id: string;
+    perfil: string;
+    posiciones: Array<{ categoria: string; peso: number; etf_ref?: string; tesis?: string }>;
+    nota_comite: string | null;
+    report_date: string;
+  }>>([]);
+  const [modelReportDate, setModelReportDate] = useState<string | null>(null);
 
   // Cargar estado actual de reportes
   useEffect(() => {
@@ -59,20 +79,29 @@ export default function ComiteReportsPanel() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.reports) {
-          setReports((prev) =>
-            prev.map((r) => {
-              const serverReport = data.reports.find((sr: { type: string; filename?: string; uploaded_at?: string }) => sr.type === r.type);
-              if (serverReport) {
-                return {
-                  ...r,
-                  uploaded: true,
-                  filename: serverReport.filename,
-                  uploadedAt: serverReport.uploaded_at,
-                };
-              }
-              return r;
-            })
-          );
+          const fixedTypes = REPORT_TYPES.map((r) => r.type);
+          // Update fixed reports
+          const updatedFixed = REPORT_TYPES.map((r) => {
+            const serverReport = data.reports.find((sr: { type: string; filename?: string; uploaded_at?: string }) => sr.type === r.type);
+            if (serverReport) {
+              return { ...r, uploaded: true, filename: serverReport.filename, uploadedAt: serverReport.uploaded_at };
+            }
+            return { ...r, uploaded: false };
+          });
+          // Add custom reports from server
+          const customReports: ReportStatus[] = data.reports
+            .filter((sr: { type: string }) => !fixedTypes.includes(sr.type))
+            .map((sr: { type: string; filename?: string; uploaded_at?: string }) => ({
+              id: sr.type,
+              type: sr.type,
+              label: sr.type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
+              icon: FileText,
+              uploaded: true,
+              filename: sr.filename,
+              uploadedAt: sr.uploaded_at,
+              isCustom: true,
+            }));
+          setReports([...updatedFixed, ...customReports]);
           if (data.lastUpdate) {
             setLastUpdate(data.lastUpdate);
           }
@@ -118,18 +147,31 @@ export default function ComiteReportsPanel() {
       const data = await res.json();
 
       if (data.success) {
-        setReports((prev) =>
-          prev.map((r) =>
-            r.type === selectedType
-              ? {
-                  ...r,
-                  uploaded: true,
-                  filename: file.name,
-                  uploadedAt: new Date().toISOString(),
-                }
-              : r
-          )
-        );
+        const existsInList = reports.some((r) => r.type === selectedType);
+        if (existsInList) {
+          setReports((prev) =>
+            prev.map((r) =>
+              r.type === selectedType
+                ? { ...r, uploaded: true, filename: file.name, uploadedAt: new Date().toISOString() }
+                : r
+            )
+          );
+        } else {
+          // Custom report — add to list
+          setReports((prev) => [
+            ...prev,
+            {
+              id: selectedType,
+              type: selectedType,
+              label: selectedType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+              icon: FileText,
+              uploaded: true,
+              filename: file.name,
+              uploadedAt: new Date().toISOString(),
+              isCustom: true,
+            },
+          ]);
+        }
         setLastUpdate(new Date().toISOString());
       } else {
         setError(data.error || "Error al subir el archivo");
@@ -143,6 +185,41 @@ export default function ComiteReportsPanel() {
         fileInputRef.current.value = "";
       }
     }
+  };
+
+  const handleDelete = async (type: string) => {
+    if (!confirm("¿Eliminar este reporte?")) return;
+    setDeleting(type);
+    setError(null);
+    try {
+      const res = await fetch(`/api/comite/${encodeURIComponent(type)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setReports((prev) =>
+          prev
+            .map((r) => (r.type === type && !r.isCustom ? { ...r, uploaded: false, filename: undefined, uploadedAt: undefined } : r))
+            .filter((r) => !(r.type === type && r.isCustom))
+        );
+      } else {
+        setError(data.error || "Error al eliminar");
+      }
+    } catch {
+      setError("Error de conexión al eliminar");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleAddCustomReport = () => {
+    if (!customLabel.trim()) return;
+    const slug = customLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    if (!slug) return;
+    setSelectedType(slug);
+    setShowAddForm(false);
+    setCustomLabel("");
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 0);
   };
 
   const handleViewReport = async (type: string, label: string) => {
@@ -167,8 +244,47 @@ export default function ComiteReportsPanel() {
     }
   };
 
+  const fetchActiveModels = useCallback(async () => {
+    try {
+      const res = await fetch("/api/comite/model-portfolios");
+      const data = await res.json();
+      if (data.success) {
+        setActiveModels(data.models || []);
+        setModelReportDate(data.report_date);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchActiveModels(); }, [fetchActiveModels]);
+
+  const handleModelUpload = async () => {
+    setModelError("");
+    setModelUploading(true);
+    try {
+      const parsed = JSON.parse(modelJson);
+      const res = await fetch("/api/comite/model-portfolios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setModelError(data.error || "Error al subir");
+      } else {
+        setModelJson("");
+        setShowModelUpload(false);
+        fetchActiveModels();
+      }
+    } catch (e) {
+      setModelError(e instanceof SyntaxError ? "JSON inválido" : "Error al procesar");
+    } finally {
+      setModelUploading(false);
+    }
+  };
+
   const uploadedCount = reports.filter((r) => r.uploaded).length;
-  const allUploaded = uploadedCount === 4;
+  const totalCount = reports.length;
+  const allUploaded = uploadedCount === totalCount && totalCount > 0;
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("es-CL", {
@@ -250,9 +366,21 @@ export default function ComiteReportsPanel() {
                   <button
                     onClick={() => handleUploadClick(report.type)}
                     className="flex items-center gap-1 text-xs text-gb-gray hover:text-gb-accent transition-colors"
+                    title="Reemplazar"
                   >
                     <RefreshCw className="w-3 h-3" />
                   </button>
+                  {deleting === report.type ? (
+                    <Loader className="w-3 h-3 text-red-400 animate-spin" />
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(report.type)}
+                      className="flex items-center gap-1 text-xs text-gb-gray hover:text-red-500 transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
@@ -279,16 +407,54 @@ export default function ComiteReportsPanel() {
         </div>
       )}
 
+      {/* Add custom report */}
+      <div className="mt-3">
+        {showAddForm ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+              placeholder="Nombre del informe"
+              className="flex-1 px-3 py-1.5 text-sm border border-gb-border rounded-lg focus:ring-1 focus:ring-gb-accent focus:border-transparent"
+              onKeyDown={(e) => e.key === "Enter" && handleAddCustomReport()}
+              autoFocus
+            />
+            <button
+              onClick={handleAddCustomReport}
+              disabled={!customLabel.trim()}
+              className="px-3 py-1.5 text-xs font-medium bg-gb-accent text-white rounded-lg hover:bg-gb-dark disabled:opacity-50 transition-colors"
+            >
+              Subir
+            </button>
+            <button
+              onClick={() => { setShowAddForm(false); setCustomLabel(""); }}
+              className="p-1.5 text-gb-gray hover:text-gb-black transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-1.5 text-xs font-medium text-gb-accent hover:text-gb-dark transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Agregar otro informe
+          </button>
+        )}
+      </div>
+
       {/* Progress */}
       <div className="mt-4 pt-3 border-t border-gb-border">
         <div className="flex items-center justify-between text-xs text-gb-gray mb-1.5">
           <span>Progreso</span>
-          <span className="font-medium">{uploadedCount}/4 reportes</span>
+          <span className="font-medium">{uploadedCount}/{totalCount} reportes</span>
         </div>
         <div className="w-full h-1.5 bg-gb-light rounded-full overflow-hidden">
           <div
             className="h-full bg-gb-accent rounded-full transition-all duration-300"
-            style={{ width: `${(uploadedCount / 4) * 100}%` }}
+            style={{ width: `${totalCount > 0 ? (uploadedCount / totalCount) * 100 : 0}%` }}
           />
         </div>
       </div>
@@ -302,6 +468,87 @@ export default function ComiteReportsPanel() {
         className="sr-only"
         aria-hidden="true"
       />
+
+      {/* Model Portfolios Section */}
+      <div className="mt-8 border-t border-gb-border pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gb-black">Carteras Modelo</h3>
+            {modelReportDate && (
+              <span className="text-xs text-gb-gray">
+                Ultima sesion: {modelReportDate}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowModelUpload(!showModelUpload)}
+            className="px-3 py-1.5 text-sm bg-gb-primary text-white rounded hover:bg-gb-primary/90"
+          >
+            {showModelUpload ? "Cancelar" : "Subir Carteras"}
+          </button>
+        </div>
+
+        {showModelUpload && (
+          <div className="mb-4 space-y-2">
+            <textarea
+              value={modelJson}
+              onChange={(e) => setModelJson(e.target.value)}
+              placeholder='Pegar JSON del comité con formato: { "report_date": "2026-05-23", "perfiles": { ... } }'
+              rows={8}
+              className="w-full border border-gb-border rounded p-3 text-sm font-mono"
+            />
+            {modelError && <p className="text-red-600 text-sm">{modelError}</p>}
+            <button
+              onClick={handleModelUpload}
+              disabled={modelUploading || !modelJson.trim()}
+              className="px-4 py-2 bg-gb-primary text-white rounded text-sm hover:bg-gb-primary/90 disabled:opacity-50"
+            >
+              {modelUploading ? "Procesando..." : "Procesar JSON"}
+            </button>
+          </div>
+        )}
+
+        {activeModels.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gb-border">
+                  <th className="text-left py-2 px-3 text-gb-gray font-medium">Perfil</th>
+                  <th className="text-left py-2 px-3 text-gb-gray font-medium">Categorias</th>
+                  <th className="text-left py-2 px-3 text-gb-gray font-medium">Nota Comite</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeModels.map((m) => (
+                  <tr key={m.id} className="border-b border-gb-border/50 hover:bg-gray-50">
+                    <td className="py-2 px-3 font-medium capitalize whitespace-nowrap">
+                      {m.perfil.replace(/_/g, " ")}
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="flex flex-wrap gap-1">
+                        {m.posiciones.map((p, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700"
+                            title={`${p.etf_ref || ""} — ${p.tesis || ""}`}
+                          >
+                            {p.categoria} ({p.peso}%)
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2 px-3 text-gb-gray text-xs max-w-xs truncate">
+                      {m.nota_comite || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-gb-gray">No hay carteras modelo cargadas.</p>
+        )}
+      </div>
 
       {/* Modal para ver reporte */}
       {viewingReport && (

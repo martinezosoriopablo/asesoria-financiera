@@ -176,11 +176,15 @@ interface Props {
   cartolaDate?: string;     // fecha de la cartola (snapshot_date)
   currentValue?: number;    // valor actual del portafolio (último punto historicalSeries)
   currentValueDate?: string; // fecha del último precio
+  perfilRiesgo?: string;
+  custodianType?: string;
 }
 
-export default function RadiografiaCartola({ holdings, clientName, clientId, fundsMeta, cartolaDate, currentValue, currentValueDate }: Props) {
+export default function RadiografiaCartola({ holdings, clientName, clientId, fundsMeta, cartolaDate, currentValue, currentValueDate, perfilRiesgo, custodianType }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<XrayData | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [modelData, setModelData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedHolding, setExpandedHolding] = useState<string | null>(null);
 
@@ -261,7 +265,11 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
     const res = await fetch("/api/portfolio/xray", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ holdings: enrichedHoldings }),
+      body: JSON.stringify({
+        holdings: enrichedHoldings,
+        perfilRiesgo,
+        custodianType,
+      }),
     });
     const text = await res.text();
     try {
@@ -324,6 +332,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           const result2 = await callXrayApi();
           if (result2.success) {
             setData(result2.data);
+            setModelData(result2.modelData || null);
             setTacOverrides({});
             setProposalOverrides({});
             setProposedTacOverrides({});
@@ -336,6 +345,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
 
       // Use first-pass result if no FI fetch needed or all failed
       setData(xrayData);
+      setModelData(result.modelData || null);
       setTacOverrides({});
       setProposalOverrides({});
       setProposedTacOverrides({});
@@ -390,6 +400,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           cartolaDate: cartolaDate || undefined,
           currentValue: currentValue || undefined,
           currentValueDate: currentValueDate || undefined,
+          modelData: modelData || undefined,
         }),
       });
       const result = await res.json();
@@ -887,6 +898,63 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           ))}
         </div>
       </div>
+
+      {/* Model Portfolio Deviations */}
+      {modelData && modelData.deviations && modelData.deviations.length > 0 && (
+        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+          <h4 className="text-sm font-semibold text-gb-black mb-2">
+            Cartera Modelo vs Actual
+            <span className="ml-2 text-xs font-normal text-gb-gray">
+              Perfil: {modelData.perfil.replace(/_/g, " ")} | Comite: {modelData.reportDate}
+            </span>
+          </h4>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-blue-200">
+                <th className="text-left py-1 px-2">Categoria</th>
+                <th className="text-right py-1 px-2">Target</th>
+                <th className="text-right py-1 px-2">Actual</th>
+                <th className="text-right py-1 px-2">Desviacion</th>
+                <th className="text-left py-1 px-2">Estado</th>
+                <th className="text-left py-1 px-2">Fondo Recomendado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {modelData.deviations.map((d: {
+                categoria: string;
+                targetWeight: number;
+                actualWeight: number;
+                deviation: number;
+                estado: string;
+                mappedFund: { fundName: string | null; ticker: string | null } | null;
+              }) => (
+                <tr key={d.categoria} className="border-b border-blue-100">
+                  <td className="py-1 px-2 font-medium">{d.categoria}</td>
+                  <td className="py-1 px-2 text-right">{d.targetWeight}%</td>
+                  <td className="py-1 px-2 text-right">{d.actualWeight}%</td>
+                  <td className={`py-1 px-2 text-right font-medium ${
+                    d.deviation > 2 ? "text-orange-600" : d.deviation < -2 ? "text-red-600" : "text-green-600"
+                  }`}>
+                    {d.deviation > 0 ? "+" : ""}{d.deviation}%
+                  </td>
+                  <td className="py-1 px-2">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      d.estado === "SOBREPONDERADO" ? "bg-orange-100 text-orange-700" :
+                      d.estado === "SUBPONDERADO" ? "bg-red-100 text-red-700" :
+                      "bg-green-100 text-green-700"
+                    }`}>
+                      {d.estado === "EN_RANGO" ? "OK" : d.estado.toLowerCase().replace("_", " ")}
+                    </span>
+                  </td>
+                  <td className="py-1 px-2 text-gb-gray">
+                    {d.mappedFund ? (d.mappedFund.fundName || d.mappedFund.ticker || "\u2014") : "\u2014"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Holdings Detail Table */}
       <div className="bg-white rounded-lg border border-gb-border shadow-sm">

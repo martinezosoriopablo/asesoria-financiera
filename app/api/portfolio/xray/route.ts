@@ -187,7 +187,11 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   try {
-    const { holdings } = (await request.json()) as { holdings: HoldingInput[] };
+    const { holdings, perfilRiesgo, custodianType } = (await request.json()) as {
+      holdings: HoldingInput[];
+      perfilRiesgo?: string;
+      custodianType?: string;
+    };
 
     if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
       return NextResponse.json(
@@ -203,6 +207,81 @@ export async function POST(request: NextRequest) {
         { success: false, error: "El portafolio tiene valor 0" },
         { status: 400 }
       );
+    }
+
+    // Load model portfolio if risk profile provided
+    let modelPortfolio: {
+      perfil: string;
+      posiciones: Array<{ categoria: string; peso: number; etf_ref?: string; tesis?: string }>;
+      nota_comite: string | null;
+      report_date: string;
+    } | null = null;
+
+    let fundMappings: Array<{
+      categoria: string;
+      custodian_type: string;
+      preferred_fund_id: string;
+      advisor_preferred_funds: { fund_name: string | null; ticker: string | null; fund_run: string };
+    }> = [];
+
+    let custodianConfig: { name: string; type: string; commission_pct: number } | null = null;
+
+    if (perfilRiesgo) {
+      // Map client perfil_riesgo to model portfolio perfil
+      const perfilMap: Record<string, string> = {
+        defensivo: "ultra_conservador",
+        conservador: "conservador",
+        moderado: "moderado",
+        agresivo: "agresivo",
+        muy_agresivo: "muy_agresivo",
+      };
+      const modelPerfil = perfilMap[perfilRiesgo] || perfilRiesgo;
+
+      // Get latest model portfolio for this profile
+      const { data: latestDate } = await supabase
+        .from("model_portfolios")
+        .select("report_date")
+        .order("report_date", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestDate) {
+        const { data: model } = await supabase
+          .from("model_portfolios")
+          .select("perfil, posiciones, nota_comite, report_date")
+          .eq("report_date", latestDate.report_date)
+          .eq("perfil", modelPerfil)
+          .single();
+
+        if (model) {
+          modelPortfolio = model as NonNullable<typeof modelPortfolio>;
+        }
+      }
+
+      // Load fund mappings for this advisor
+      if (custodianType) {
+        const { data: mappings } = await supabase
+          .from("model_fund_mapping")
+          .select(`
+            categoria, custodian_type, preferred_fund_id,
+            advisor_preferred_funds!inner (fund_name, ticker, fund_run)
+          `)
+          .eq("advisor_id", advisor!.id)
+          .eq("custodian_type", custodianType);
+
+        if (mappings) fundMappings = mappings as unknown as typeof fundMappings;
+
+        // Load custodian config
+        const { data: custodians } = await supabase
+          .from("custodian_config")
+          .select("name, type, commission_pct")
+          .eq("advisor_id", advisor!.id)
+          .eq("type", custodianType)
+          .limit(1)
+          .single();
+
+        if (custodians) custodianConfig = custodians;
+      }
     }
 
     // Pre-fetch all fondos_mutuos with TAC for matching
@@ -706,7 +785,50 @@ export async function POST(request: NextRequest) {
       proposal,
     };
 
-    return NextResponse.json({ success: true, data: result });
+    // Compute deviations if model portfolio exists
+    let modelData = null;
+    if (modelPortfolio) {
+      const mp = modelPortfolio;
+      const actualByCategory = new Map<string, number>();
+      for (const h of analyzedHoldings) {
+        const cat = h.categoria || "Otros";
+        actualByCategory.set(cat, (actualByCategory.get(cat) || 0) + (h.weight || 0));
+      }
+
+      const deviations = mp.posiciones.map((pos) => {
+        const actualWeight = actualByCategory.get(pos.categoria) || 0;
+        const deviation = actualWeight - pos.peso;
+        const mappedFund = fundMappings.find((m) => m.categoria === pos.categoria);
+        return {
+          categoria: pos.categoria,
+          targetWeight: pos.peso,
+          actualWeight: Math.round(actualWeight * 10) / 10,
+          deviation: Math.round(deviation * 10) / 10,
+          estado: deviation > 2 ? "SOBREPONDERADO" : deviation < -2 ? "SUBPONDERADO" : "EN_RANGO",
+          etfRef: pos.etf_ref || null,
+          tesis: pos.tesis || null,
+          mappedFund: mappedFund ? {
+            fundName: mappedFund.advisor_preferred_funds.fund_name,
+            ticker: mappedFund.advisor_preferred_funds.ticker,
+            fundRun: mappedFund.advisor_preferred_funds.fund_run,
+          } : null,
+        };
+      });
+
+      modelData = {
+        perfil: mp.perfil,
+        reportDate: mp.report_date,
+        notaComite: mp.nota_comite,
+        deviations,
+        custodian: custodianConfig ? {
+          name: custodianConfig.name,
+          type: custodianConfig.type,
+          commissionPct: custodianConfig.commission_pct,
+        } : null,
+      };
+    }
+
+    return NextResponse.json({ success: true, data: result, modelData });
   } catch (error) {
     console.error("Error in portfolio xray:", error);
     return NextResponse.json(

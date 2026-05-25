@@ -50,6 +50,7 @@ const NAV_ITEMS = [
 const TOOL_ITEMS = [
   { href: "/fund-center", label: "Centro de Fondos", icon: TrendingUp },
   { href: "/advisor/fondos", label: "Mis Fondos", icon: Star },
+  { href: "/advisor/fund-mapping", label: "Mapeo Fondos", icon: ArrowRightLeft },
   { href: "/advisor/fichas-review", label: "Fichas CMF", icon: FileText },
   { href: "/calculadora-apv", label: "Calculadora APV", icon: Calculator },
   { href: "/tax-optimizer", label: "Simulador Tributario", icon: Scale },

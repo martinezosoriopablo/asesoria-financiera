@@ -1306,6 +1306,8 @@ export default function SeguimientoPage({ clientId }: Props) {
               cartolaDate={snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel")?.snapshot_date || snapshots[0].snapshot_date}
               currentValue={historicalSeries.length > 0 ? historicalSeries[historicalSeries.length - 1].total as number : undefined}
               currentValueDate={historicalSeries.length > 0 ? historicalSeries[historicalSeries.length - 1].fecha as string : undefined}
+              perfilRiesgo={data?.client?.perfil_riesgo}
+              custodianType={undefined}
             />
           </div>
         )}
