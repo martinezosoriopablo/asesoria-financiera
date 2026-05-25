@@ -24,6 +24,7 @@ import {
 import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import { inferInstrumentType } from "@/lib/instrument-type";
 import type { Snapshot } from "./SeguimientoPage";
+import type { HoldingReturnsData } from "./HoldingReturnsPanel";
 
 interface Holding {
   fundName: string;
@@ -35,6 +36,17 @@ interface Holding {
   assetClass?: string;
   currency?: string;
 }
+
+/** Normalize assetClass from various formats to canonical keys */
+const normalizeAC = (ac: string | undefined): string => {
+  const lower = (ac || "").toLowerCase().replace(/\s+/g, "");
+  if (lower === "equity" || lower === "rentavariable") return "equity";
+  if (lower === "fixedincome" || lower === "rentafija") return "fixedIncome";
+  if (lower === "alternatives" || lower === "alternativos") return "alternatives";
+  if (lower === "cash" || lower === "efectivo") return "cash";
+  if (lower === "balanced" || lower === "balanceado") return "balanced";
+  return lower || "equity";
+};
 
 const INSTRUMENT_COLORS: Record<string, { label: string; color: string; negColor: string }> = {
   etf:   { label: "ETFs",     color: "#3b82f6", negColor: "#93c5fd" },
@@ -73,6 +85,7 @@ interface Props {
   recommendation?: BenchmarkAllocation | null;
   previousPortfolio?: Snapshot | null; // Portfolio inicial o anterior para comparar
   totalReturn?: number;
+  holdingReturnsData?: HoldingReturnsData | null;
 }
 
 /**
@@ -117,6 +130,7 @@ export default function PerformanceAttribution({
   recommendation,
   previousPortfolio,
   totalReturn: totalReturnProp,
+  holdingReturnsData,
 }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>("assetClass");
 
@@ -207,19 +221,11 @@ export default function PerformanceAttribution({
 
   // ============================================
   // 1b. INSTRUMENT TYPE BREAKDOWN within each asset class
+  // Uses holdingReturnsData (from HoldingReturnsPanel) when available,
+  // which has real bond returns via FINRA prices + devengo calculation.
+  // Falls back to snapshot-based calculation otherwise.
   // ============================================
   const instrumentBreakdown = useMemo((): AssetClassWithBreakdown[] | null => {
-    if (!firstSnapshot || !lastSnapshot || snapshotsWithAssetData.length < 2) return null;
-
-    const initialHoldings = (firstSnapshot.holdings as Holding[]) || [];
-    const finalHoldings = (lastSnapshot.holdings as Holding[]) || [];
-    if (initialHoldings.length === 0 && finalHoldings.length === 0) return null;
-
-    const portfolioInitialValue = firstSnapshot.total_value;
-    if (portfolioInitialValue <= 0) return null;
-
-    const clpValue = (h: Holding) => h.marketValueCLP ?? h.marketValue ?? 0;
-
     const classKeyMap: Record<string, string> = {
       equity: "Renta Variable",
       fixedIncome: "Renta Fija",
@@ -233,9 +239,110 @@ export default function PerformanceAttribution({
       cash: "#6b7280",
     };
 
-    // Map: assetClass -> instrumentType -> { startValue, endValue }
-    const groups = new Map<string, Map<string, { startValue: number; endValue: number }>>();
+    // === PRIMARY: Use holdingReturnsData from HoldingReturnsPanel ===
+    if (holdingReturnsData) {
+      const { equityHoldings, bondHoldings, cashValue, totalValue } = holdingReturnsData;
+      if (equityHoldings.length === 0 && bondHoldings.length === 0) return null;
 
+      const result: AssetClassWithBreakdown[] = [];
+
+      // Equity: group by instrument type (fund, etf, stock)
+      if (equityHoldings.length > 0) {
+        const byType = new Map<string, { contribution: number; totalReturn: number; weight: number }>();
+        for (const h of equityHoldings) {
+          const t = h.assetType || "fund";
+          const existing = byType.get(t) || { contribution: 0, totalReturn: 0, weight: 0 };
+          existing.contribution += h.contribution;
+          existing.weight += h.weight;
+          byType.set(t, existing);
+        }
+
+        const breakdown: InstrumentBreakdown[] = [];
+        for (const [instType, data] of byType) {
+          const meta = INSTRUMENT_COLORS[instType] || INSTRUMENT_COLORS.fund;
+          breakdown.push({
+            type: instType,
+            label: meta.label,
+            color: meta.color,
+            negColor: meta.negColor,
+            contribution: data.contribution,
+          });
+        }
+        breakdown.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+
+        const totalContribution = breakdown.reduce((s, b) => s + b.contribution, 0);
+        const totalWeight = equityHoldings.reduce((s, h) => s + h.weight, 0);
+        const classReturn = totalWeight > 0 ? (totalContribution / totalWeight) * 100 : 0;
+
+        result.push({
+          name: classKeyMap.equity,
+          key: "equity",
+          color: classColorMap.equity,
+          totalContribution,
+          classReturn,
+          breakdown,
+        });
+      }
+
+      // Fixed Income (bonds): all are type "bond"
+      if (bondHoldings.length > 0) {
+        const totalContribution = bondHoldings.reduce((s, h) => s + h.contribution, 0);
+        const totalWeight = bondHoldings.reduce((s, h) => s + h.weight, 0);
+        const classReturn = totalWeight > 0 ? (totalContribution / totalWeight) * 100 : 0;
+        const meta = INSTRUMENT_COLORS.bond;
+
+        result.push({
+          name: classKeyMap.fixedIncome,
+          key: "fixedIncome",
+          color: classColorMap.fixedIncome,
+          totalContribution,
+          classReturn,
+          breakdown: [{
+            type: "bond",
+            label: meta.label,
+            color: meta.color,
+            negColor: meta.negColor,
+            contribution: totalContribution,
+          }],
+        });
+      }
+
+      // Cash
+      if (cashValue > 0 && totalValue > 0) {
+        const cashWeight = (cashValue / totalValue) * 100;
+        const meta = INSTRUMENT_COLORS.cash;
+        result.push({
+          name: classKeyMap.cash,
+          key: "cash",
+          color: classColorMap.cash,
+          totalContribution: 0,
+          classReturn: 0,
+          breakdown: [{
+            type: "cash",
+            label: meta.label,
+            color: meta.color,
+            negColor: meta.negColor,
+            contribution: 0,
+          }],
+        });
+      }
+
+      return result.length > 0 ? result : null;
+    }
+
+    // === FALLBACK: Calculate from snapshot holdings ===
+    if (!firstSnapshot || !lastSnapshot || snapshotsWithAssetData.length < 2) return null;
+
+    const initialHoldings = (firstSnapshot.holdings as Holding[]) || [];
+    const finalHoldings = (lastSnapshot.holdings as Holding[]) || [];
+    if (initialHoldings.length === 0 && finalHoldings.length === 0) return null;
+
+    const portfolioInitialValue = firstSnapshot.total_value;
+    if (portfolioInitialValue <= 0) return null;
+
+    const clpValue = (h: Holding) => (h.marketValueCLP || 0) > 0 ? h.marketValueCLP! : (h.marketValue ?? 0);
+
+    const groups = new Map<string, Map<string, { startValue: number; endValue: number }>>();
     const getGroup = (ac: string, it: string) => {
       if (!groups.has(ac)) groups.set(ac, new Map());
       const acMap = groups.get(ac)!;
@@ -244,13 +351,12 @@ export default function PerformanceAttribution({
     };
 
     for (const h of initialHoldings) {
-      const ac = h.assetClass || "equity";
+      const ac = normalizeAC(h.assetClass);
       const it = inferInstrumentType(h as Parameters<typeof inferInstrumentType>[0]);
       getGroup(ac, it).startValue += clpValue(h);
     }
-
     for (const h of finalHoldings) {
-      const ac = h.assetClass || "equity";
+      const ac = normalizeAC(h.assetClass);
       const it = inferInstrumentType(h as Parameters<typeof inferInstrumentType>[0]);
       getGroup(ac, it).endValue += clpValue(h);
     }
@@ -269,23 +375,14 @@ export default function PerformanceAttribution({
       for (const [instType, vals] of acMap) {
         const contribution = ((vals.endValue - vals.startValue) / portfolioInitialValue) * 100;
         const meta = INSTRUMENT_COLORS[instType] || INSTRUMENT_COLORS.fund;
-        breakdown.push({
-          type: instType,
-          label: meta.label,
-          color: meta.color,
-          negColor: meta.negColor,
-          contribution,
-        });
+        breakdown.push({ type: instType, label: meta.label, color: meta.color, negColor: meta.negColor, contribution });
         classTotalStart += vals.startValue;
         classTotalEnd += vals.endValue;
       }
 
       breakdown.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
-
       const totalContribution = breakdown.reduce((s, b) => s + b.contribution, 0);
-      const classReturn = classTotalStart > 0
-        ? ((classTotalEnd - classTotalStart) / classTotalStart) * 100
-        : 0;
+      const classReturn = classTotalStart > 0 ? ((classTotalEnd - classTotalStart) / classTotalStart) * 100 : 0;
 
       if (Math.abs(totalContribution) > 0.01 || classTotalStart > 0) {
         result.push({
@@ -300,7 +397,7 @@ export default function PerformanceAttribution({
     }
 
     return result.length > 0 ? result : null;
-  }, [firstSnapshot, lastSnapshot, snapshotsWithAssetData]);
+  }, [holdingReturnsData, firstSnapshot, lastSnapshot, snapshotsWithAssetData]);
 
   // ============================================
   // 2. ATTRIBUTION BY INDIVIDUAL POSITION
@@ -324,7 +421,7 @@ export default function PerformanceAttribution({
     }>();
 
     // Use marketValueCLP when available (handles USD funds correctly)
-    const clpValue = (h: Holding) => h.marketValueCLP ?? h.marketValue ?? 0;
+    const clpValue = (h: Holding) => (h.marketValueCLP || 0) > 0 ? h.marketValueCLP! : (h.marketValue ?? 0);
 
     // Add initial holdings
     initialHoldings.forEach((h) => {
@@ -549,17 +646,19 @@ export default function PerformanceAttribution({
                   {(() => {
                     const maxAbs = Math.max(
                       ...instrumentBreakdown.map(c => Math.abs(c.totalContribution)),
-                      1
+                      0.01
                     );
                     const hasNegative = instrumentBreakdown.some(c => c.totalContribution < 0);
-                    const scale = (val: number) => (Math.abs(val) / maxAbs) * (hasNegative ? 50 : 90);
+                    const scale = (val: number) => Math.max((Math.abs(val) / maxAbs) * (hasNegative ? 50 : 90), 3);
                     const zeroOffset = hasNegative ? 50 : 0;
 
                     return (
                       <div className="space-y-3">
                         {instrumentBreakdown.map((cls) => {
-                          const barWidth = scale(cls.totalContribution);
+                          const hasContribution = Math.abs(cls.totalContribution) > 0.005;
+                          const barWidth = hasContribution ? scale(cls.totalContribution) : 3;
                           const isNeg = cls.totalContribution < 0;
+                          const isSmallBar = barWidth < 25;
 
                           return (
                             <div key={cls.key}>
@@ -569,52 +668,59 @@ export default function PerformanceAttribution({
                                   {cls.totalContribution >= 0 ? "+" : ""}{formatNumber(cls.totalContribution, 2)}%
                                 </span>
                               </div>
-                              <div className="relative h-7">
-                                {hasNegative && (
+                              <div className="flex items-center gap-2">
+                                {/* Bar */}
+                                <div className="relative h-7 flex-1">
+                                  {hasNegative && (
+                                    <div
+                                      className="absolute top-0 bottom-0 w-px bg-slate-400"
+                                      style={{ left: `${zeroOffset}%` }}
+                                    />
+                                  )}
                                   <div
-                                    className="absolute top-0 bottom-0 w-px bg-slate-400"
-                                    style={{ left: `${zeroOffset}%` }}
-                                  />
-                                )}
-                                <div
-                                  className="absolute top-0 h-full flex overflow-hidden rounded"
-                                  style={
-                                    isNeg
-                                      ? { right: `${100 - zeroOffset}%`, width: `${barWidth}%`, flexDirection: "row-reverse" }
-                                      : { left: `${zeroOffset}%`, width: `${barWidth}%` }
-                                  }
-                                >
-                                  {cls.breakdown
-                                    .filter(b => (isNeg ? b.contribution < 0 : b.contribution > 0))
-                                    .map((seg) => {
-                                      const segPct = cls.totalContribution !== 0
-                                        ? (Math.abs(seg.contribution) / Math.abs(cls.totalContribution)) * 100
-                                        : 0;
-                                      return (
-                                        <div
-                                          key={seg.type}
-                                          className="h-full flex items-center justify-center overflow-hidden"
-                                          style={{
-                                            width: `${segPct}%`,
-                                            backgroundColor: isNeg ? seg.negColor : seg.color,
-                                            minWidth: segPct > 0 ? "2px" : "0",
-                                          }}
-                                          title={`${seg.label}: ${seg.contribution >= 0 ? "+" : ""}${formatNumber(seg.contribution, 2)}%`}
-                                        >
-                                          {segPct > 15 && (
-                                            <span className="text-[10px] font-medium text-white truncate px-1">
-                                              {seg.label} {formatNumber(Math.abs(seg.contribution), 1)}
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
+                                    className={`absolute top-0 h-full flex rounded ${!hasContribution ? "opacity-40" : ""}`}
+                                    style={
+                                      isNeg
+                                        ? { right: `${100 - zeroOffset}%`, width: `${barWidth}%`, flexDirection: "row-reverse" }
+                                        : { left: `${zeroOffset}%`, width: `${barWidth}%` }
+                                    }
+                                  >
+                                    {cls.breakdown
+                                      .filter(b => hasContribution ? (isNeg ? b.contribution < 0 : b.contribution > 0) : true)
+                                      .map((seg) => {
+                                        const segPct = hasContribution && cls.totalContribution !== 0
+                                          ? (Math.abs(seg.contribution) / Math.abs(cls.totalContribution)) * 100
+                                          : 100 / Math.max(cls.breakdown.length, 1);
+                                        return (
+                                          <div
+                                            key={seg.type}
+                                            className="h-full flex items-center justify-center overflow-hidden"
+                                            style={{
+                                              width: `${segPct}%`,
+                                              backgroundColor: (isNeg && hasContribution) ? seg.negColor : seg.color,
+                                              minWidth: "2px",
+                                            }}
+                                            title={`${seg.label}: ${seg.contribution >= 0 ? "+" : ""}${formatNumber(seg.contribution, 2)}%`}
+                                          >
+                                            {!isSmallBar && segPct > 15 && (
+                                              <span className="text-[10px] font-medium text-white truncate px-1">
+                                                {seg.label} {formatNumber(Math.abs(seg.contribution), 1)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
                                 </div>
+                                {/* External label when bar is too small */}
+                                {isSmallBar && (
+                                  <span className="text-[11px] text-gb-gray whitespace-nowrap shrink-0">
+                                    {cls.breakdown.map(s => s.label).join(", ")}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-                                {cls.breakdown
-                                  .filter(b => Math.abs(b.contribution) > 0.005)
-                                  .map((seg) => (
+                                {cls.breakdown.map((seg) => (
                                     <span key={seg.type} className="text-[11px] text-gb-gray">
                                       <span className="inline-block w-2 h-2 rounded-sm mr-1" style={{ backgroundColor: seg.color }} />
                                       {seg.label}: <span className={seg.contribution >= 0 ? "text-green-600" : "text-red-600"}>

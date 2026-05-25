@@ -133,11 +133,20 @@ interface FintualPrice {
   currency: string;
 }
 
+export interface HoldingReturnsData {
+  equityHoldings: EquityHolding[];
+  bondHoldings: BondHoldingRow[];
+  cashValue: number;
+  totalValue: number;
+  portfolioReturn: number;
+}
+
 interface Props {
   snapshots: Snapshot[];
   clientId?: string;
   onCurrentValueUpdate?: (totalValue: number) => void;
   onPriceDateUpdate?: (date: string) => void;
+  onHoldingReturnsReady?: (data: HoldingReturnsData) => void;
   fundsMeta?: FundMeta[];
   usdRate?: number;
 }
@@ -155,7 +164,7 @@ interface BondLookup {
   maturityDate: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, fundsMeta, usdRate }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate }: Props) {
   const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
   const [yahooPrices, setYahooPrices] = useState<Map<string, YahooQuote>>(new Map());
   const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
@@ -693,6 +702,16 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const equityContrib = equityHoldings.reduce((s, h) => s + h.contribution, 0);
   const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
   const portfolioReturn = equityContrib + bondContrib;
+
+  // Expose computed holding returns to parent (for PerformanceAttribution)
+  useEffect(() => {
+    if (!onHoldingReturnsReady) return;
+    const cv = enrichedSummaries
+      .filter(h => h.assetType === "cash")
+      .reduce((s, h) => s + h.marketValue, 0);
+    const tv = enrichedSummaries.reduce((s, h) => s + (h.marketValue || 0), 0);
+    onHoldingReturnsReady({ equityHoldings, bondHoldings, cashValue: cv, totalValue: tv, portfolioReturn });
+  }, [equityHoldings, bondHoldings, onHoldingReturnsReady, enrichedSummaries, portfolioReturn]);
 
   if (holdingSummaries.length === 0) return null;
 

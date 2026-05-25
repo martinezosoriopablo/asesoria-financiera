@@ -15,6 +15,13 @@ interface HoldingLike {
 const VALID_TYPES = new Set<string>(["bond", "stock", "etf", "fund", "cash"]);
 
 const CASH_RE = /cash|efect|money\s*market|liquidez|sweep|deposito|depósito/i;
+const ETF_NAME_RE = /\bETF\b|\bSPDR\b|\biShares\b|\bVanguard\b.*\b(Index|Total|Growth|Value)\b/i;
+const ETF_TICKER_SET = new Set([
+  "SPY","QQQ","IVV","VOO","VTI","VEA","VWO","EFA","EEM","AGG","BND","LQD","HYG","TLT","IEF",
+  "SHY","GLD","SLV","XLF","XLK","XLE","XLV","XLI","XLY","XLP","XLU","XLB","XLRE","XLC",
+  "SMH","SOXX","ARKK","ARKW","ARKF","ARKG","DIA","IWM","IWF","IWD","MDY","VIG","VYM","SCHD",
+  "ITOT","IEMG","IJR","IJH","DVY","PFF","EMB","VCIT","VCSH","BNDX","VXUS",
+]);
 const CUSIP_RE = /^[A-Z0-9]{9}$/i;
 
 /**
@@ -47,9 +54,13 @@ export function inferInstrumentType(h: HoldingLike): InstrumentType {
   // 5. Numeric securityId -> Chilean fund (RUN)
   if (/^\d+$/.test(secId)) return "fund";
 
-  // 6. Non-numeric securityId -> stock (ETF detection could be refined later)
+  // 6. ETF detection: by ticker set or name pattern
+  if (ETF_TICKER_SET.has(secId.toUpperCase()) || ETF_NAME_RE.test(name)) return "etf";
+
+  // 7. Non-numeric securityId -> stock
   if (secId) return "stock";
 
-  // 7. No securityId — guess from name
+  // 8. No securityId — check name for ETF, else default to fund
+  if (ETF_NAME_RE.test(name)) return "etf";
   return "fund";
 }

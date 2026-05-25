@@ -38,12 +38,12 @@ describe("inferInstrumentType", () => {
     })).toBe("fund");
   });
 
-  it("does NOT classify RF ETF as bond despite fixedIncome assetClass", () => {
+  it("classifies RF ETF as etf despite fixedIncome assetClass", () => {
     expect(inferInstrumentType({
       fundName: "iShares Core US Aggregate Bond ETF",
       assetClass: "fixedIncome",
       securityId: "AGG",
-    })).toBe("stock"); // non-numeric ticker without explicit type → stock
+    })).toBe("etf"); // known ETF ticker → etf
   });
 
   it("detects fund: numeric securityId (RUN)", () => {

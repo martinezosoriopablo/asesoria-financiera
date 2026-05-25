@@ -10,7 +10,7 @@ import AddSnapshotModal from "./AddSnapshotModal";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
 import PerformanceAttribution from "./PerformanceAttribution";
 import ComparacionBar from "./ComparacionBar";
-import HoldingReturnsPanel from "./HoldingReturnsPanel";
+import HoldingReturnsPanel, { type HoldingReturnsData } from "./HoldingReturnsPanel";
 
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
@@ -138,6 +138,7 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [loadingHistorical, setLoadingHistorical] = useState(false);
   const [livePortfolioValue, setLivePortfolioValue] = useState<number | null>(null);
   const [livePriceDate, setLivePriceDate] = useState<string | null>(null);
+  const [holdingReturnsData, setHoldingReturnsData] = useState<HoldingReturnsData | null>(null);
   const [deflatorData, setDeflatorData] = useState<{ uf: Map<string, number>; usd: Map<string, number> } | null>(null);
   const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
   const [exchangeRates, setExchangeRates] = useState<{ uf: number; usd: number } | null>(null);
@@ -954,7 +955,7 @@ export default function SeguimientoPage({ clientId }: Props) {
 
         {/* Holding Returns Panel */}
         {snapshots.length > 0 && (
-          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} fundsMeta={fundsMeta} usdRate={exchangeRates?.usd} />
+          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} onHoldingReturnsReady={setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={exchangeRates?.usd} />
         )}
 
         {/* Evolution chart */}
@@ -1321,6 +1322,7 @@ export default function SeguimientoPage({ clientId }: Props) {
             recommendation={recommendation}
             previousPortfolio={snapshots.find(s => s.is_baseline) || null}
             totalReturn={metrics?.totalReturn}
+            holdingReturnsData={holdingReturnsData}
           />
         )}
 
