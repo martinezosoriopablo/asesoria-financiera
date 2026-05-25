@@ -631,7 +631,7 @@ export default function PerformanceAttribution({
       </div>
 
       {/* 1. Attribution by Asset Class */}
-      {assetClassAttribution && (
+      {(assetClassAttribution || instrumentBreakdown) && (
         <div className="border-b border-gb-border">
           <button
             onClick={() => toggleSection("assetClass")}
@@ -642,9 +642,16 @@ export default function PerformanceAttribution({
               <span className="font-medium text-sm text-gb-black">Por Clase de Activo</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-sm font-semibold ${assetClassAttribution.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatPercent(assetClassAttribution.totalReturn)}
-              </span>
+              {(() => {
+                const displayReturn = assetClassAttribution?.totalReturn
+                  ?? instrumentBreakdown?.reduce((s, c) => s + c.totalContribution, 0)
+                  ?? 0;
+                return (
+                  <span className={`text-sm font-semibold ${displayReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {formatPercent(displayReturn)}
+                  </span>
+                );
+              })()}
               {expandedSection === "assetClass" ? (
                 <ChevronUp className="w-4 h-4 text-gb-gray" />
               ) : (
@@ -760,7 +767,7 @@ export default function PerformanceAttribution({
                         <div className="border-t-2 border-gb-black pt-2 mt-2 flex justify-between">
                           <span className="text-sm font-bold text-gb-black">Retorno Total Cartera</span>
                           <span className={`text-sm font-bold ${(assetClassAttribution?.totalReturn ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                            {formatPercent(assetClassAttribution?.totalReturn ?? 0)}
+                            {formatPercent(assetClassAttribution?.totalReturn ?? instrumentBreakdown?.reduce((s, c) => s + c.totalContribution, 0) ?? 0)}
                           </span>
                         </div>
                       </div>
