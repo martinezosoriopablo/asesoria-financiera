@@ -377,19 +377,24 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     fetchPrices();
   }, [holdingSummaries, latestRawHoldings, clientId]);
 
-  // Fetch current prices from Yahoo for stocks/ETFs
+  // Fetch current prices from Yahoo/Bolsa for stocks, ETFs, and Chilean FI (CFI* nemotécnicos)
   useEffect(() => {
     if (holdingSummaries.length === 0) return;
-    const stocksAndETFs = holdingSummaries.filter(h =>
-      ["stock", "etf"].includes(h.assetType) && h.securityId
-    );
-    if (stocksAndETFs.length === 0) return;
+    const needsQuote = holdingSummaries.filter(h => {
+      if (!h.securityId) return false;
+      // Stocks and ETFs always need quotes
+      if (["stock", "etf"].includes(h.assetType)) return true;
+      // Chilean fondos de inversión (CFI*) trade on Bolsa de Santiago
+      if (/^CFI/i.test(h.securityId.trim())) return true;
+      return false;
+    });
+    if (needsQuote.length === 0) return;
 
     const fetchYahooPrices = async () => {
       const priceMap = new Map<string, YahooQuote>();
 
       await Promise.all(
-        stocksAndETFs.map(async (h) => {
+        needsQuote.map(async (h) => {
           try {
             const ticker = (h.securityId || "").trim();
             if (!ticker) return;
@@ -507,9 +512,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         }
       }
 
-      // Try Yahoo/Bolsa prices for stocks/ETFs
+      // Try Yahoo/Bolsa prices for stocks, ETFs, and Chilean FI (CFI*)
       const yp = yahooPrices.get(h.fundName);
-      if (yp && yp.price > 0 && ["stock", "etf"].includes(h.assetType)) {
+      const isCFI = h.securityId && /^CFI/i.test(h.securityId.trim());
+      if (yp && yp.price > 0 && (["stock", "etf"].includes(h.assetType) || isCFI)) {
         const yahooPrice = yp.price;
         const returnCalc = h.purchasePrice > 0
           ? ((yahooPrice / h.purchasePrice) - 1) * 100

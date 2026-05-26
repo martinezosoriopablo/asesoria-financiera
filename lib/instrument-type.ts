@@ -59,8 +59,10 @@ export function inferInstrumentType(h: HoldingLike): InstrumentType {
   // 5. Numeric securityId -> Chilean fund (RUN)
   if (/^\d+$/.test(secId)) return "fund";
 
-  // 6. Chilean ETF nemotécnicos (CFIETFIPSA, CFIETFCC, etc.)
-  if (/^CFI/i.test(secId)) return "etf";
+  // 6. Chilean fondos de inversión (CFI* nemotécnicos, transados en Bolsa de Santiago)
+  //    CFIETF* = ETF, other CFI* = fund (FI regular)
+  if (/^CFIETF/i.test(secId)) return "etf";
+  if (/^CFI/i.test(secId)) return "fund";
 
   // 7. ETF detection: by ticker set or name pattern
   if (ETF_TICKER_SET.has(secId.toUpperCase()) || ETF_NAME_RE.test(name)) return "etf";
