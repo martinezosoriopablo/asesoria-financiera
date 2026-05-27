@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { stripAccents } from "@/lib/text";
+import { mapClientProfile } from "@/lib/comite-categories";
 
 interface HoldingInput {
   fundName: string;
@@ -227,15 +228,7 @@ export async function POST(request: NextRequest) {
     let custodianConfig: { name: string; type: string; commission_pct: number } | null = null;
 
     if (perfilRiesgo) {
-      // Map client perfil_riesgo to model portfolio perfil
-      const perfilMap: Record<string, string> = {
-        defensivo: "ultra_conservador",
-        conservador: "conservador",
-        moderado: "moderado",
-        agresivo: "agresivo",
-        muy_agresivo: "muy_agresivo",
-      };
-      const modelPerfil = perfilMap[perfilRiesgo] || perfilRiesgo;
+      const modelPerfil = mapClientProfile(perfilRiesgo);
 
       // Get latest model portfolio for this profile
       const { data: latestDate } = await supabase
