@@ -5,14 +5,33 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 interface PositionInput {
   categoria: string;
-  peso: number;
-  etf_ref?: string;
-  tesis?: string;
+  role: "rv" | "rf" | "alt" | "cash";
+  bench_pct: number;
+  modelo_pct: number;
+  broad_neto_pct?: number | null;
+  delta_pp: number;
+  vista: "OW" | "UW" | "N";
+  conviction: "ALTA" | "MEDIA" | "BAJA" | null;
+  etf_us: string | null;
+  etf_ucits: string | null;
+  justificacion: string | null;
+}
+
+interface SleeveInput {
+  region: string;
+  sector: string;
+  vista: "OW" | "UW" | "N";
+  conviction: "ALTA" | "MEDIA" | "BAJA";
+  etf_us: string | null;
+  etf_ucits: string | null;
+  peso_pct: number;
+  tesis: string | null;
 }
 
 interface PerfilInput {
   nota_comite?: string;
   posiciones: PositionInput[];
+  sleeves?: SleeveInput[];
 }
 
 interface ModelPortfolioUpload {
@@ -21,11 +40,11 @@ interface ModelPortfolioUpload {
 }
 
 const VALID_PERFILES = [
-  "ultra_conservador", "conservador", "moderado",
-  "crecimiento", "agresivo", "muy_agresivo",
+  "conservador", "moderado_conservador", "moderado",
+  "moderado_agresivo", "agresivo",
 ];
 
-// POST — receive JSON, upsert 6 rows (one per profile)
+// POST — receive JSON, upsert 5 rows (one per profile)
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "model-portfolios-post", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
@@ -71,7 +90,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const totalPeso = data.posiciones.reduce((sum, p) => sum + (p.peso || 0), 0);
+      const totalPeso = data.posiciones.reduce((sum, p) => sum + (p.modelo_pct || 0), 0);
       if (Math.abs(totalPeso - 100) > 1) {
         return NextResponse.json(
           { success: false, error: `Perfil ${perfil}: pesos suman ${totalPeso}%, deben sumar 100%` },
@@ -91,6 +110,7 @@ export async function POST(request: NextRequest) {
       report_date: body.report_date,
       perfil,
       posiciones: body.perfiles[perfil].posiciones,
+      sleeves: body.perfiles[perfil].sleeves || [],
       nota_comite: body.perfiles[perfil].nota_comite || null,
       created_by: advisor!.id,
     }));
@@ -120,7 +140,7 @@ export async function POST(request: NextRequest) {
 
 // GET — returns active models (latest report_date per profile)
 // ?perfil=moderado — single profile
-// no param — all 6 active models
+// no param — all 5 active models
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "model-portfolios-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
