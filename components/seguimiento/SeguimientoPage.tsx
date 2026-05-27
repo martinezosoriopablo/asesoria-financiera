@@ -9,6 +9,8 @@ import SnapshotsTable from "./SnapshotsTable";
 import AddSnapshotModal from "./AddSnapshotModal";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
 import PerformanceAttribution from "./PerformanceAttribution";
+import RentabilidadPorActivo from "./RentabilidadPorActivo";
+import RetornosComparados from "./RetornosComparados";
 import ComparacionBar from "./ComparacionBar";
 import HoldingReturnsPanel, { type HoldingReturnsData } from "./HoldingReturnsPanel";
 
@@ -1314,6 +1316,20 @@ export default function SeguimientoPage({ clientId }: Props) {
         )}
 
         {/* Holding Returns Panel — moved to composition section */}
+
+        {/* Rentabilidad por Activo — horizontal bars per month */}
+        {snapshots.length >= 2 && (
+          <RentabilidadPorActivo snapshots={snapshots} />
+        )}
+
+        {/* Retornos Comparados — monthly portfolio vs benchmark */}
+        {snapshots.length >= 2 && (
+          <RetornosComparados
+            snapshots={snapshots}
+            benchmarkLabel="UF +2%"
+            benchmarkMonthlyReturn={0.5}
+          />
+        )}
 
         {/* Performance Attribution */}
         {(snapshots.length >= 2 || holdingReturnsData) && (

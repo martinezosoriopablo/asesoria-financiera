@@ -55,18 +55,33 @@ export default function ComiteReportsPanel() {
   const [customLabel, setCustomLabel] = useState("");
 
   // Model portfolios state
-  const [showModelUpload, setShowModelUpload] = useState(false);
-  const [modelJson, setModelJson] = useState("");
   const [modelUploading, setModelUploading] = useState(false);
   const [modelError, setModelError] = useState("");
+  const [modelSuccess, setModelSuccess] = useState("");
+  const modelFileRef = useRef<HTMLInputElement>(null);
   const [activeModels, setActiveModels] = useState<Array<{
     id: string;
     perfil: string;
-    posiciones: Array<{ categoria: string; peso: number; etf_ref?: string; tesis?: string }>;
+    posiciones: Array<{
+      categoria: string;
+      description?: string;
+      modelo_pct: number;
+      bench_pct?: number;
+      delta_pp?: number;
+      vista?: string;
+      etf_us?: string | null;
+    }>;
+    sleeves: Array<{
+      region: string;
+      sector: string;
+      peso_pct: number;
+      vista?: string;
+    }>;
     nota_comite: string | null;
     report_date: string;
   }>>([]);
   const [modelReportDate, setModelReportDate] = useState<string | null>(null);
+  const [expandedPerfil, setExpandedPerfil] = useState<string | null>(null);
 
   // Cargar estado actual de reportes
   useEffect(() => {
@@ -257,28 +272,41 @@ export default function ComiteReportsPanel() {
 
   useEffect(() => { fetchActiveModels(); }, [fetchActiveModels]);
 
-  const handleModelUpload = async () => {
+  const handleModelFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     setModelError("");
+    setModelSuccess("");
     setModelUploading(true);
+
     try {
-      const parsed = JSON.parse(modelJson);
-      const res = await fetch("/api/comite/model-portfolios", {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      const res = await fetch("/api/comite/upload-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed),
       });
       const data = await res.json();
+
       if (!data.success) {
         setModelError(data.error || "Error al subir");
       } else {
-        setModelJson("");
-        setShowModelUpload(false);
+        const warnings = data.warnings ? ` (${data.warnings.join(", ")})` : "";
+        setModelSuccess(
+          `${data.profiles_count} perfiles cargados para ${data.report_date}${warnings}`
+        );
         fetchActiveModels();
       }
-    } catch (e) {
-      setModelError(e instanceof SyntaxError ? "JSON inválido" : "Error al procesar");
+    } catch (err) {
+      setModelError(
+        err instanceof SyntaxError ? "JSON inválido" : "Error al procesar el archivo"
+      );
     } finally {
       setModelUploading(false);
+      if (modelFileRef.current) modelFileRef.current.value = "";
     }
   };
 
@@ -476,74 +504,168 @@ export default function ComiteReportsPanel() {
             <h3 className="text-lg font-semibold text-gb-black">Carteras Modelo</h3>
             {modelReportDate && (
               <span className="text-xs text-gb-gray">
-                Ultima sesion: {modelReportDate}
+                Sesion: {modelReportDate}
               </span>
             )}
           </div>
-          <button
-            onClick={() => setShowModelUpload(!showModelUpload)}
-            className="px-3 py-1.5 text-sm bg-gb-primary text-white rounded hover:bg-gb-primary/90"
-          >
-            {showModelUpload ? "Cancelar" : "Subir Carteras"}
-          </button>
+          <div className="flex items-center gap-2">
+            {modelUploading && <Loader className="w-4 h-4 text-gb-accent animate-spin" />}
+            <button
+              onClick={() => modelFileRef.current?.click()}
+              disabled={modelUploading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gb-primary text-white rounded hover:bg-gb-primary/90 disabled:opacity-50"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Subir JSON
+            </button>
+            <input
+              ref={modelFileRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleModelFileUpload}
+              className="sr-only"
+            />
+          </div>
         </div>
 
-        {showModelUpload && (
-          <div className="mb-4 space-y-2">
-            <textarea
-              value={modelJson}
-              onChange={(e) => setModelJson(e.target.value)}
-              placeholder='Pegar JSON del comité con formato: { "report_date": "2026-05-23", "perfiles": { ... } }'
-              rows={8}
-              className="w-full border border-gb-border rounded p-3 text-sm font-mono"
-            />
-            {modelError && <p className="text-red-600 text-sm">{modelError}</p>}
-            <button
-              onClick={handleModelUpload}
-              disabled={modelUploading || !modelJson.trim()}
-              className="px-4 py-2 bg-gb-primary text-white rounded text-sm hover:bg-gb-primary/90 disabled:opacity-50"
-            >
-              {modelUploading ? "Procesando..." : "Procesar JSON"}
+        {modelError && (
+          <div className="mb-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 p-2 rounded-md">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            {modelError}
+            <button onClick={() => setModelError("")} className="ml-auto">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {modelSuccess && (
+          <div className="mb-3 flex items-center gap-2 text-xs text-green-700 bg-green-50 p-2 rounded-md">
+            <CheckCircle className="w-3 h-3 shrink-0" />
+            {modelSuccess}
+            <button onClick={() => setModelSuccess("")} className="ml-auto">
+              <X className="w-3 h-3" />
             </button>
           </div>
         )}
 
         {activeModels.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gb-border">
-                  <th className="text-left py-2 px-3 text-gb-gray font-medium">Perfil</th>
-                  <th className="text-left py-2 px-3 text-gb-gray font-medium">Categorias</th>
-                  <th className="text-left py-2 px-3 text-gb-gray font-medium">Nota Comite</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeModels.map((m) => (
-                  <tr key={m.id} className="border-b border-gb-border/50 hover:bg-gray-50">
-                    <td className="py-2 px-3 font-medium capitalize whitespace-nowrap">
+          <div className="space-y-2">
+            {activeModels.map((m) => {
+              const isExpanded = expandedPerfil === m.id;
+              const rvTotal = m.posiciones
+                .filter((p) => p.categoria?.startsWith("usa") || p.categoria?.startsWith("desarrollados") || p.categoria?.startsWith("emergentes") || p.categoria === "chile" || p.categoria === "rv_small_cap_us")
+                .reduce((s, p) => s + (p.modelo_pct || 0), 0);
+              const rfTotal = m.posiciones
+                .filter((p) => ["ust_belly", "ust_short", "ig_corp", "tips", "high_yield", "em_sovereign", "rf_chile"].includes(p.categoria))
+                .reduce((s, p) => s + (p.modelo_pct || 0), 0);
+              const altTotal = m.posiciones
+                .filter((p) => ["gold", "reits"].includes(p.categoria))
+                .reduce((s, p) => s + (p.modelo_pct || 0), 0);
+              const cashTotal = m.posiciones
+                .filter((p) => p.categoria === "tbills")
+                .reduce((s, p) => s + (p.modelo_pct || 0), 0);
+
+              return (
+                <div key={m.id} className="border border-gb-border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExpandedPerfil(isExpanded ? null : m.id)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-gb-light/30 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gb-black capitalize">
                       {m.perfil.replace(/_/g, " ")}
-                    </td>
-                    <td className="py-2 px-3">
-                      <div className="flex flex-wrap gap-1">
-                        {m.posiciones.map((p, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700"
-                            title={`${p.etf_ref || ""} — ${p.tesis || ""}`}
-                          >
-                            {p.categoria} ({p.peso}%)
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="py-2 px-3 text-gb-gray text-xs max-w-xs truncate">
-                      {m.nota_comite || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </span>
+                    <div className="flex items-center gap-3 text-xs text-gb-gray">
+                      <span className="text-blue-600">RV {rvTotal.toFixed(1)}%</span>
+                      <span className="text-green-600">RF {rfTotal.toFixed(1)}%</span>
+                      <span className="text-amber-600">Alt {altTotal.toFixed(1)}%</span>
+                      <span className="text-gray-500">Cash {cashTotal.toFixed(1)}%</span>
+                      <span className="text-gb-gray">{isExpanded ? "▲" : "▼"}</span>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-gb-border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-gb-light/50">
+                            <th className="text-left py-1.5 px-3 font-medium text-gb-gray">Categoria</th>
+                            <th className="text-right py-1.5 px-3 font-medium text-gb-gray">Bench</th>
+                            <th className="text-right py-1.5 px-3 font-medium text-gb-gray">Modelo</th>
+                            <th className="text-right py-1.5 px-3 font-medium text-gb-gray">Delta</th>
+                            <th className="text-center py-1.5 px-3 font-medium text-gb-gray">Vista</th>
+                            <th className="text-left py-1.5 px-3 font-medium text-gb-gray">ETF</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {m.posiciones.map((p, i) => (
+                            <tr key={i} className="border-t border-gb-border/30 hover:bg-gray-50">
+                              <td className="py-1.5 px-3 text-gb-black">
+                                {p.description || p.categoria}
+                              </td>
+                              <td className="py-1.5 px-3 text-right text-gb-gray">
+                                {(p.bench_pct ?? 0).toFixed(1)}%
+                              </td>
+                              <td className="py-1.5 px-3 text-right font-medium text-gb-black">
+                                {p.modelo_pct.toFixed(1)}%
+                              </td>
+                              <td className={`py-1.5 px-3 text-right font-medium ${
+                                (p.delta_pp ?? 0) > 0.5 ? "text-green-600" :
+                                (p.delta_pp ?? 0) < -0.5 ? "text-red-600" : "text-gb-gray"
+                              }`}>
+                                {(p.delta_pp ?? 0) > 0 ? "+" : ""}{(p.delta_pp ?? 0).toFixed(1)}
+                              </td>
+                              <td className="py-1.5 px-3 text-center">
+                                {p.vista && p.vista !== "N" && (
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    p.vista === "OW" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                                  }`}>
+                                    {p.vista}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-3 text-gb-gray font-mono">
+                                {p.etf_us || "—"}
+                              </td>
+                            </tr>
+                          ))}
+                          {m.sleeves && m.sleeves.length > 0 && (
+                            <>
+                              <tr>
+                                <td colSpan={6} className="py-1.5 px-3 text-[10px] font-semibold text-gb-gray uppercase bg-gb-light/30 border-t border-gb-border">
+                                  Sleeves Sectoriales
+                                </td>
+                              </tr>
+                              {m.sleeves.map((s, i) => (
+                                <tr key={`s-${i}`} className="border-t border-gb-border/20 hover:bg-gray-50">
+                                  <td className="py-1.5 px-3 text-gb-black pl-6">
+                                    {s.sector} <span className="text-gb-gray">({s.region.toUpperCase()})</span>
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right text-gb-gray">—</td>
+                                  <td className="py-1.5 px-3 text-right font-medium text-gb-black">
+                                    {s.peso_pct.toFixed(2)}%
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right text-gb-gray">—</td>
+                                  <td className="py-1.5 px-3 text-center">
+                                    {s.vista && s.vista !== "N" && (
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                        s.vista === "OW" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                                      }`}>
+                                        {s.vista}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-1.5 px-3 text-gb-gray">—</td>
+                                </tr>
+                              ))}
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-gb-gray">No hay carteras modelo cargadas.</p>
