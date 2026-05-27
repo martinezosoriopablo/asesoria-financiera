@@ -31,6 +31,8 @@ interface SnapshotData {
     withdrawals: number;
     netFlow: number;
   };
+  custodian?: string;
+  custodianType?: string;
 }
 
 // GET: Obtener snapshots históricos de un cliente
