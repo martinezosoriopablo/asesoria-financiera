@@ -49,7 +49,7 @@ function clpVal(h: Holding): number {
 }
 
 /** Get available month boundaries from snapshots */
-function getMonthPairs(snapshots: Snapshot[]): Array<{
+function getSnapshotPairs(snapshots: Snapshot[]): Array<{
   label: string;
   monthKey: string;
   startIdx: number;
@@ -73,24 +73,41 @@ function getMonthPairs(snapshots: Snapshot[]): Array<{
   const monthKeys = Array.from(byMonth.keys()).sort();
   const pairs: Array<{ label: string; monthKey: string; startIdx: number; endIdx: number }> = [];
 
-  for (let i = 1; i < monthKeys.length; i++) {
-    const prevIndices = byMonth.get(monthKeys[i - 1])!;
-    const currIndices = byMonth.get(monthKeys[i])!;
-    const startIdx = prevIndices[prevIndices.length - 1]; // last snapshot of prev month
-    const endIdx = currIndices[currIndices.length - 1]; // last snapshot of current month
+  if (monthKeys.length >= 2) {
+    // Multiple months: compare last snapshot of each consecutive month
+    for (let i = 1; i < monthKeys.length; i++) {
+      const prevIndices = byMonth.get(monthKeys[i - 1])!;
+      const currIndices = byMonth.get(monthKeys[i])!;
+      const startIdx = prevIndices[prevIndices.length - 1];
+      const endIdx = currIndices[currIndices.length - 1];
 
-    const d = new Date(sorted[endIdx].snapshot_date);
-    const label = d.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+      const d = new Date(sorted[endIdx].snapshot_date);
+      const label = d.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
 
-    pairs.push({
-      label: label.charAt(0).toUpperCase() + label.slice(1),
-      monthKey: monthKeys[i],
-      startIdx,
-      endIdx,
-    });
+      pairs.push({
+        label: label.charAt(0).toUpperCase() + label.slice(1),
+        monthKey: monthKeys[i],
+        startIdx,
+        endIdx,
+      });
+    }
+  } else {
+    // All snapshots in the same month: compare consecutive snapshots
+    for (let i = 1; i < sorted.length; i++) {
+      const startDate = new Date(sorted[i - 1].snapshot_date);
+      const endDate = new Date(sorted[i].snapshot_date);
+      const label = `${startDate.toLocaleDateString("es-CL", { day: "numeric", month: "short" })} → ${endDate.toLocaleDateString("es-CL", { day: "numeric", month: "short" })}`;
+
+      pairs.push({
+        label,
+        monthKey: `_snap_${i}`,
+        startIdx: i - 1,
+        endIdx: i,
+      });
+    }
   }
 
-  // Also add "Total" comparing first to last
+  // Always add "Total" comparing first to last
   if (sorted.length >= 2) {
     const first = new Date(sorted[0].snapshot_date);
     const last = new Date(sorted[sorted.length - 1].snapshot_date);
@@ -106,15 +123,18 @@ function getMonthPairs(snapshots: Snapshot[]): Array<{
 }
 
 export default function RentabilidadPorActivo({ snapshots }: Props) {
+  // Only use snapshots that have holdings data (cartola/manual, not api-prices)
   const sorted = useMemo(
     () =>
-      [...snapshots].sort(
-        (a, b) => new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
-      ),
+      [...snapshots]
+        .filter((s) => Array.isArray(s.holdings) && (s.holdings as unknown[]).length > 0)
+        .sort(
+          (a, b) => new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
+        ),
     [snapshots]
   );
 
-  const monthPairs = useMemo(() => getMonthPairs(sorted), [sorted]);
+  const monthPairs = useMemo(() => getSnapshotPairs(sorted), [sorted]);
   const [selectedIdx, setSelectedIdx] = useState(() =>
     // Default to last real month (before "Acumulado")
     Math.max(0, monthPairs.length - 2)

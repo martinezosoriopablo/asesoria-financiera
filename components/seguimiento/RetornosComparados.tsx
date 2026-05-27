@@ -55,43 +55,59 @@ export default function RetornosComparados({
     for (const s of sorted) {
       const d = new Date(s.snapshot_date);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      byMonth.set(key, s); // overwrites, keeping last per month
+      byMonth.set(key, s);
     }
 
     const monthKeys = Array.from(byMonth.keys()).sort();
-    if (monthKeys.length < 2) return [];
+
+    type PeriodPair = { key: string; label: string; prev: Snapshot; curr: Snapshot };
+    const periods: PeriodPair[] = [];
+
+    if (monthKeys.length >= 2) {
+      // Multiple months: compare consecutive months
+      for (let i = 1; i < monthKeys.length; i++) {
+        const prev = byMonth.get(monthKeys[i - 1])!;
+        const curr = byMonth.get(monthKeys[i])!;
+        const d = new Date(curr.snapshot_date);
+        const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" }).replace(".", "");
+        periods.push({ key: monthKeys[i], label, prev, curr });
+      }
+    } else {
+      // All in same month: compare consecutive snapshots
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curr = sorted[i];
+        const d = new Date(curr.snapshot_date);
+        const label = d.toLocaleDateString("es-CL", { day: "numeric", month: "short" }).replace(".", "");
+        periods.push({ key: `_snap_${i}`, label, prev, curr });
+      }
+    }
+
+    if (periods.length === 0) return [];
 
     const months: MonthData[] = [];
 
-    for (let i = 1; i < monthKeys.length; i++) {
-      const prevSnap = byMonth.get(monthKeys[i - 1])!;
-      const currSnap = byMonth.get(monthKeys[i])!;
-
+    for (const p of periods) {
       const portfolioReturn =
-        prevSnap.total_value > 0
-          ? ((currSnap.total_value - prevSnap.total_value) / prevSnap.total_value) * 100
+        p.prev.total_value > 0
+          ? ((p.curr.total_value - p.prev.total_value) / p.prev.total_value) * 100
           : 0;
 
-      const d = new Date(currSnap.snapshot_date);
-      const label = d
-        .toLocaleDateString("es-CL", { month: "short", year: "2-digit" })
-        .replace(".", "");
-
       let benchReturn: number | null = null;
-      if (benchmarkReturns && benchmarkReturns[monthKeys[i]] != null) {
-        benchReturn = benchmarkReturns[monthKeys[i]];
+      if (benchmarkReturns && benchmarkReturns[p.key] != null) {
+        benchReturn = benchmarkReturns[p.key];
       } else if (benchmarkMonthlyReturn != null) {
         benchReturn = benchmarkMonthlyReturn;
       }
 
       let compReturn: number | null = null;
-      if (comparisonReturns && comparisonReturns[monthKeys[i]] != null) {
-        compReturn = comparisonReturns[monthKeys[i]];
+      if (comparisonReturns && comparisonReturns[p.key] != null) {
+        compReturn = comparisonReturns[p.key];
       }
 
       months.push({
-        monthKey: monthKeys[i],
-        label,
+        monthKey: p.key,
+        label: p.label,
         portfolio: parseFloat(portfolioReturn.toFixed(2)),
         benchmark: benchReturn != null ? parseFloat(benchReturn.toFixed(2)) : null,
         comparison: compReturn != null ? parseFloat(compReturn.toFixed(2)) : null,
@@ -100,8 +116,8 @@ export default function RetornosComparados({
 
     // Add accumulated bar
     if (months.length > 0) {
-      const firstSnap = byMonth.get(monthKeys[0])!;
-      const lastSnap = byMonth.get(monthKeys[monthKeys.length - 1])!;
+      const firstSnap = sorted[0];
+      const lastSnap = sorted[sorted.length - 1];
       const accumPortfolio =
         firstSnap.total_value > 0
           ? ((lastSnap.total_value - firstSnap.total_value) / firstSnap.total_value) * 100
