@@ -927,6 +927,16 @@ export default function ReviewSnapshotModal({
           sources: uniqueSources,
           currency: "CLP",
           exchangeRates,
+          // Custodian info (derived from first source name)
+          custodian: uniqueSources?.[0] || null,
+          custodianType: (() => {
+            const src = uniqueSources?.[0];
+            if (!src) return null;
+            if (/AGF/i.test(src)) return "agf";
+            if (/Corredora/i.test(src)) return "corredora";
+            if (/Raymond|Stonex|Pershing/i.test(src)) return "internacional";
+            return null;
+          })(),
           // Cash flows for return calculation
           cashFlows: {
             deposits: toCLP(deposits, depositsCurrency),

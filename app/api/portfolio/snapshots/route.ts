@@ -135,6 +135,8 @@ export async function POST(request: NextRequest) {
       holdings,
       source = "manual",
       cashFlows,
+      custodian,
+      custodianType,
     } = body;
 
     if (!clientId || !totalValue) {
@@ -265,6 +267,8 @@ export async function POST(request: NextRequest) {
       total_cuotas: clampCuotas(totalCuotas),
       cuotas_change: clampCuotas(cuotasChange),
       source,
+      custodian: custodian || null,
+      custodian_type: custodianType || null,
     };
 
     // Insertar o actualizar snapshot
