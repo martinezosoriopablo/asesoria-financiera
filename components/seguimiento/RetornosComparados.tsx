@@ -177,9 +177,9 @@ export default function RetornosComparados({
               fontSize={11}
             />
             <Tooltip
-              formatter={(value: number, name: string) => [
-                `${formatNumber(value, 2)}%`,
-                name,
+              formatter={(value: number | undefined, name: string | undefined) => [
+                `${formatNumber(value ?? 0, 2)}%`,
+                name ?? "",
               ]}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />

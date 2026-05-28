@@ -256,7 +256,7 @@ export default function RentabilidadPorActivo({ snapshots }: Props) {
               tick={{ fontSize: 11 }}
             />
             <Tooltip
-              formatter={(value: number) => [`${formatNumber(value, 2)}%`, "Rentabilidad"]}
+              formatter={(value: number | undefined) => [`${formatNumber(value ?? 0, 2)}%`, "Rentabilidad"]}
               labelFormatter={(label: string) => {
                 const item = chartData.find((d) => d.name === label);
                 return item?.fullName || label;

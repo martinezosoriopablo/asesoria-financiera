@@ -1,6 +1,6 @@
 // app/api/prices/backfill/route.ts
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
@@ -11,10 +11,10 @@ import type { HoldingForPricing } from "@/lib/prices/types";
 export async function POST(request: NextRequest) {
   return handleApiError("prices-backfill", async () => {
     const rateLimitError = await applyRateLimit(request, "prices-backfill", { limit: 10 });
-    if (rateLimitError) return rateLimitError;
+    if (rateLimitError) return rateLimitError as NextResponse;
 
     const { error } = await requireAdvisor();
-    if (error) return error;
+    if (error) return error as NextResponse;
 
     const body = await request.json();
     const { clientId } = body;

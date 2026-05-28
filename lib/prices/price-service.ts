@@ -182,7 +182,7 @@ export async function storeInternationalPrices(
 
     await sb
       .from("international_prices")
-      .upsert(batch, { onConflict: "symbol,price_date" });
+      .upsert(batch as any, { onConflict: "symbol,price_date" });
   }
 }
 
@@ -201,7 +201,7 @@ export async function getStoredPrices(
     .order("price_date", { ascending: true });
 
   if (error || !data) return [];
-  return data.map((row) => ({
+  return (data as Array<{ price_date: string; close_price: number }>).map((row) => ({
     date: row.price_date,
     price: Number(row.close_price),
   }));
@@ -260,7 +260,7 @@ export async function backfillSymbol(
     .order("price_date", { ascending: false })
     .limit(1);
 
-  const lastStored = latest?.[0]?.price_date;
+  const lastStored = (latest as Array<{ price_date: string }> | null)?.[0]?.price_date;
   const start = lastStored && lastStored > fromDate ? lastStored : fromDate;
   const today = new Date().toISOString().split("T")[0];
 

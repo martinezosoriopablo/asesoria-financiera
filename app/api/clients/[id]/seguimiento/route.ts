@@ -87,7 +87,7 @@ export async function GET(
     // Verificar que el cliente pertenece al advisor
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, nombre, apellido, email, cartera_recomendada, asesor_id")
+      .select("id, nombre, apellido, email, cartera_recomendada, asesor_id, puntaje_riesgo, perfil_riesgo")
       .eq("id", clientId)
       .single();
 
@@ -145,6 +145,7 @@ export async function GET(
       .from("portfolio_snapshots")
       .select("*", { count: "exact" })
       .eq("client_id", clientId)
+      .neq("source", "api-prices")
       .gte("snapshot_date", startDate.toISOString().split("T")[0])
       .lte("snapshot_date", endDate.toISOString().split("T")[0])
       .order("snapshot_date", { ascending: true })
