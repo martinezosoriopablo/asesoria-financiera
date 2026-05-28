@@ -62,11 +62,25 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 5. **Yahoo Finance** (`yahoo-finance2`) for international ETFs/stocks.
 6. Cron jobs in `vercel.json` run weekdays: Fintual sync (10:00), report distribution (12:00), drift check (13:00), CMF auto-sync (21:00).
 
+**Unified price service** (`lib/prices/`): Single-thermometer architecture that routes any holding to its correct price source. Key files:
+- `types.ts` — `PriceSource`, `HoldingForPricing`, `BenchmarkComponent`, `DailyPrice`
+- `price-service.ts` — `resolveSource()` (pure routing: FX→bcch, RUN→cmf, CFIETF/CFI→yahoo, CUSIP-bond→finra, US/INT→alphavantage, .SN→yahoo, fallback→cmf), `fetchPriceRange()`, `fetchLatestPrice()`, DB ops for `international_prices` table, `backfillSymbol()`
+- `alphavantage.ts` — AlphaVantage client (daily prices + quotes). Env: `ALPHAVANTAGE_API_KEY`.
+- `yahoo.ts` — Yahoo Finance wrapper (historical + quotes) using `yahoo-finance2`.
+
+**Price API routes:**
+- `POST /api/prices/backfill` — Backfills international prices for a client's holdings (AV/Yahoo sources only)
+- `GET /api/prices/quote` — Single quote for a symbol
+- `GET /api/prices/historical` — Historical range for a symbol
+- `GET /api/benchmark/config` + `PUT /api/benchmark/config` — Per-client benchmark configuration (stored in `clients.benchmark_config` JSONB)
+
+**Seguimiento API filters:** The `GET /api/clients/[id]/seguimiento` route excludes `source=api-prices` snapshots to avoid polluting manual cartola tracking with auto-generated price snapshots.
+
 ### Database
 
 Supabase Postgres with RLS on all sensitive tables. Migrations in `supabase/migrations/` (chronological, `YYYYMMDD_description.sql`). **Max rows per request set to 5000** in Supabase dashboard (default was 1000). For queries that may exceed this (e.g., `vw_fondos_completo` ~3000 rows), always paginate with `.range()` as a safety net.
 
-Key tables: `clients`, `advisors`, `portfolio_snapshots`, `risk_profiles`, `client_cartolas`, `messages`, `direct_portfolios`, `direct_portfolio_holdings`, `client_reports`, `client_report_config`, `client_advisors` (sharing), `advisor_ai_usage`, `tac_upload_log`, `fund_fichas` (FM folleto data), `fi_fichas` (FI folleto data), `fondos_inversion` (FI catalog).
+Key tables: `clients`, `advisors`, `portfolio_snapshots`, `risk_profiles`, `client_cartolas`, `messages`, `direct_portfolios`, `direct_portfolio_holdings`, `client_reports`, `client_report_config`, `client_advisors` (sharing), `advisor_ai_usage`, `tac_upload_log`, `fund_fichas` (FM folleto data), `fi_fichas` (FI folleto data), `fondos_inversion` (FI catalog), `international_prices` (symbol+date→close_price, for AV/Yahoo prices).
 
 RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessible_client_ids()` (own + subordinates + shared + orphan clients).
 
@@ -77,6 +91,7 @@ RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessibl
 - `app/api/` — ~112 API route handlers
 - `app/(portal)/` — Client portal pages (route group)
 - `components/` — React components organized by domain (seguimiento, portfolio, risk, market, etc.)
+- `lib/prices/` — Unified price service (source routing, AV/Yahoo clients, DB ops, 34 tests)
 - `lib/returns/` — Returns calculator (pure functions, replaces TWR)
 - `lib/auth/` — Auth helpers (`api-auth.ts` for API routes, `require-client.ts` for portal)
 - `lib/supabase/` — Supabase client factories (browser, server, middleware)
