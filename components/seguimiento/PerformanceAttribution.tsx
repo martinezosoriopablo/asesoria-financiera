@@ -2,17 +2,6 @@
 
 import React, { useState, useMemo } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  ReferenceLine,
-} from "recharts";
-import {
   TrendingUp,
   TrendingDown,
   PieChart,
@@ -813,45 +802,67 @@ export default function PerformanceAttribution({
                   })()}
                 </>
               ) : assetClassAttribution ? (
-                /* Fallback: original simple bars when no holdings data */
-                <>
-                  <div className="h-64 mb-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={assetClassAttribution.contributions}
-                        layout="vertical"
-                        margin={{ left: 80, right: 20 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" tickFormatter={(v) => `${formatNumber(v, 1)}%`} />
-                        <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} />
-                        <Tooltip formatter={(value: number | undefined) => [`${formatNumber(value ?? 0, 2)}%`, "Contribución"]} />
-                        <ReferenceLine x={0} stroke="#000" />
-                        <Bar dataKey="contribution" name="Contribución">
-                          {assetClassAttribution.contributions.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.contribution >= 0 ? "#22c55e" : "#ef4444"} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="grid grid-cols-4 gap-3">
-                    {assetClassAttribution.contributions.map((cls) => (
-                      <div key={cls.key} className="p-3 rounded-lg bg-slate-50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cls.color }} />
-                          <span className="text-xs font-medium text-gb-black">{cls.name}</span>
-                        </div>
-                        <p className={`text-lg font-bold ${cls.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {formatPercent(cls.contribution)}
-                        </p>
-                        <p className="text-xs text-gb-gray">
-                          Retorno: {formatPercent(cls.return)}
-                        </p>
+                /* Fallback: same horizontal bar style using asset class data */
+                (() => {
+                  const contributions = assetClassAttribution.contributions;
+                  const maxAbs = Math.max(...contributions.map(c => Math.abs(c.contribution)), 0.01);
+                  const hasNegative = contributions.some(c => c.contribution < 0);
+                  const scale = (val: number) => Math.max((Math.abs(val) / maxAbs) * (hasNegative ? 50 : 90), 3);
+                  const zeroOffset = hasNegative ? 50 : 0;
+
+                  return (
+                    <div className="space-y-3">
+                      {contributions.map((cls) => {
+                        const hasContribution = Math.abs(cls.contribution) > 0.005;
+                        const barWidth = hasContribution ? scale(cls.contribution) : 3;
+                        const isNeg = cls.contribution < 0;
+
+                        return (
+                          <div key={cls.key}>
+                            <div className="flex items-baseline justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cls.color }} />
+                                <span className="text-sm font-semibold text-gb-black">{cls.name}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-gb-gray">
+                                  Retorno: {formatPercent(cls.return)}
+                                </span>
+                                <span className={`text-sm font-bold ${cls.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                  {cls.contribution >= 0 ? "+" : ""}{formatNumber(cls.contribution, 2)}%
+                                </span>
+                              </div>
+                            </div>
+                            <div className="relative h-7 flex-1">
+                              {hasNegative && (
+                                <div
+                                  className="absolute top-0 bottom-0 w-px bg-slate-400"
+                                  style={{ left: `${zeroOffset}%` }}
+                                />
+                              )}
+                              <div
+                                className={`absolute top-0 h-full rounded ${!hasContribution ? "opacity-40" : ""}`}
+                                style={{
+                                  backgroundColor: cls.color,
+                                  ...(isNeg
+                                    ? { right: `${100 - zeroOffset}%`, width: `${barWidth}%` }
+                                    : { left: `${zeroOffset}%`, width: `${barWidth}%` }),
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div className="border-t-2 border-gb-black pt-2 mt-2 flex justify-between">
+                        <span className="text-sm font-bold text-gb-black">Retorno Total Cartera</span>
+                        <span className={`text-sm font-bold ${assetClassAttribution.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {formatPercent(assetClassAttribution.totalReturn)}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </>
+                    </div>
+                  );
+                })()
               ) : null}
             </div>
           )}
