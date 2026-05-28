@@ -73,6 +73,8 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 - `GET /api/prices/quote` — Single quote for a symbol
 - `GET /api/prices/historical` — Historical range for a symbol
 - `GET /api/benchmark/config` + `PUT /api/benchmark/config` — Per-client benchmark configuration (stored in `clients.benchmark_config` JSONB)
+- `POST /api/portfolio/historical-prices` — Dot-product portfolio evolution: accepts `holdings` (by RUN), `holdingsByName` (name-matching), and `internationalHoldings` (Yahoo/AV). Processes international holdings in parallel via `Promise.allSettled`. Requires ≥50% of instruments to have data per date (not all).
+- `POST /api/portfolio/prices-at-date` — Per-holding prices at two dates for return calculation. On-demand Yahoo/AV fallback when `international_prices` DB is empty.
 
 **Seguimiento API filters:** The `GET /api/clients/[id]/seguimiento` route excludes `source=api-prices` snapshots to avoid polluting manual cartola tracking with auto-generated price snapshots.
 
