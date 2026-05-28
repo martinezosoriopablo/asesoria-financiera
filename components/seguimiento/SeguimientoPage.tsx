@@ -14,6 +14,8 @@ import RetornosComparados from "./RetornosComparados";
 import ComparacionBar from "./ComparacionBar";
 import HoldingReturnsPanel, { type HoldingReturnsData } from "./HoldingReturnsPanel";
 
+import BenchmarkConfig from "./BenchmarkConfig";
+import type { BenchmarkComponent } from "@/lib/prices/types";
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
 import RadiografiaCartola from "./RadiografiaCartola";
@@ -133,8 +135,6 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [savingExecution, setSavingExecution] = useState(false);
   const [showExecutions, setShowExecutions] = useState(false);
 
-  const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
-  const [autoFillTriggered, setAutoFillTriggered] = useState(false);
   const [historicalSeries, setHistoricalSeries] = useState<Array<{ fecha: string; total: number; [key: string]: string | number }>>([]);
   const [fundsMeta, setFundsMeta] = useState<Array<{ fundName: string; run: string; serie: string; tac: number | null; moneda: string; quantity: number; lastPriceDate?: string | null; stale?: boolean }>>([]);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
@@ -144,6 +144,9 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [deflatorData, setDeflatorData] = useState<{ uf: Map<string, number>; usd: Map<string, number> } | null>(null);
   const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
   const [exchangeRates, setExchangeRates] = useState<{ uf: number; usd: number } | null>(null);
+  const [benchmarkConfig, setBenchmarkConfig] = useState<BenchmarkComponent[] | null>(null);
+  const [benchmarkReturns, setBenchmarkReturns] = useState<Record<string, number> | null>(null);
+  const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
 
   const fetchExecutions = useCallback(async () => {
     try {
@@ -166,14 +169,6 @@ export default function SeguimientoPage({ clientId }: Props) {
 
       if (result.success) {
         setData(result.data);
-        // Track the most recent api-prices snapshot date for staleness indicator
-        const apiPriceSnaps = (result.data.snapshots || []).filter(
-          (s: Snapshot) => s.source === "api-prices"
-        );
-        if (apiPriceSnaps.length > 0) {
-          const latest = apiPriceSnaps[apiPriceSnaps.length - 1];
-          setLastPriceUpdate(latest.created_at || latest.snapshot_date);
-        }
       } else {
         setError(result.error || "Error al cargar datos");
       }
@@ -195,53 +190,36 @@ export default function SeguimientoPage({ clientId }: Props) {
       .catch(() => { /* fallback handled */ });
   }, [fetchData, fetchExecutions]);
 
-  // Auto-fill prices if snapshots exist but prices are stale (>24h since last api-prices snapshot)
+  // Fetch benchmark returns when config and snapshots are available
   useEffect(() => {
-    if (autoFillTriggered || !data || fillingPrices) return;
-    const snaps = data.snapshots || [];
-    if (snaps.length === 0) return;
+    if (!data || !benchmarkConfig || data.snapshots.length < 2) return;
 
-    const cartolaSnaps = snaps.filter(
+    const cartolaSnaps = data.snapshots.filter(
       (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
     );
-    if (cartolaSnaps.length === 0) return;
+    if (cartolaSnaps.length < 1) return;
 
-    const apiPriceSnaps = snaps.filter((s) => s.source === "api-prices");
-    const latestCartola = cartolaSnaps[cartolaSnaps.length - 1];
+    const firstDate = cartolaSnaps[0].snapshot_date;
+    const today = new Date().toISOString().split("T")[0];
 
-    // Check if fill-prices needs to run:
-    // 1) No api-prices snapshots at all (never filled)
-    // 2) Latest api-prices is older than latest cartola (new cartola uploaded)
-    // 3) Latest api-prices is >24h old and there are business days to fill
-    let shouldAutoFill = false;
-
-    if (apiPriceSnaps.length === 0) {
-      shouldAutoFill = true;
-    } else {
-      const latestApiPrice = apiPriceSnaps[apiPriceSnaps.length - 1];
-      const latestApiDate = new Date(latestApiPrice.snapshot_date);
-      const latestCartolaDate = new Date(latestCartola.snapshot_date);
-      const now = new Date();
-      const hoursSinceUpdate = (now.getTime() - new Date(latestApiPrice.created_at || latestApiPrice.snapshot_date).getTime()) / (1000 * 60 * 60);
-
-      if (latestCartolaDate > latestApiDate) {
-        shouldAutoFill = true;
-      } else if (hoursSinceUpdate > 24) {
-        // Check if there are business days to fill (today vs latest api-prices date)
-        const daysSinceLastPrice = (now.getTime() - latestApiDate.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysSinceLastPrice > 1) {
-          shouldAutoFill = true;
+    fetch("/api/prices/benchmark-returns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        benchmark: benchmarkConfig,
+        fromDate: firstDate,
+        toDate: today,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) {
+          setBenchmarkReturns(d.data.returns);
+          setBenchmarkLabel(d.data.label);
         }
-      }
-    }
-
-    if (shouldAutoFill) {
-      setAutoFillTriggered(true);
-      // Trigger fill-prices silently in the background (no banner unless critical error)
-      handleFillPrices(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, autoFillTriggered, fillingPrices]);
+      })
+      .catch(() => {});
+  }, [data, benchmarkConfig]);
 
   // Fetch historical price series for the evolution chart
   useEffect(() => {
@@ -500,6 +478,18 @@ export default function SeguimientoPage({ clientId }: Props) {
     };
   }, [fundsMeta, historicalSeries]);
 
+  const triggerBackfill = useCallback(async () => {
+    try {
+      await fetch("/api/prices/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId }),
+      });
+    } catch {
+      // Backfill is best-effort
+    }
+  }, [clientId]);
+
   const handleSnapshotAdded = () => {
     setShowAddModal(false);
     fetchData();
@@ -756,24 +746,6 @@ export default function SeguimientoPage({ clientId }: Props) {
                 <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
                 {fillingPrices ? "Llenando..." : "Llenar Precios"}
               </button>
-              {lastPriceUpdate && (
-                <span className={`text-xs ${
-                  (() => {
-                    const hours = (Date.now() - new Date(lastPriceUpdate).getTime()) / (1000 * 60 * 60);
-                    if (hours < 24) return "text-green-600";
-                    if (hours < 72) return "text-amber-600";
-                    return "text-red-500";
-                  })()
-                }`} title={`Última actualización de precios: ${new Date(lastPriceUpdate).toLocaleString("es-CL")}`}>
-                  {(() => {
-                    const hours = Math.floor((Date.now() - new Date(lastPriceUpdate).getTime()) / (1000 * 60 * 60));
-                    if (hours < 1) return "Precios actualizados";
-                    if (hours < 24) return `Precios: hace ${hours}h`;
-                    const days = Math.floor(hours / 24);
-                    return `Precios: hace ${days}d`;
-                  })()}
-                </span>
-              )}
             </div>
             <button
               onClick={() => setShowAddModal(true)}
@@ -1319,16 +1291,24 @@ export default function SeguimientoPage({ clientId }: Props) {
 
         {/* Rentabilidad por Activo — horizontal bars per month */}
         {snapshots.length >= 2 && (
-          <RentabilidadPorActivo snapshots={snapshots} />
+          <RentabilidadPorActivo
+            snapshots={data.snapshots.filter((s) => s.source !== "api-prices")}
+          />
         )}
 
         {/* Retornos Comparados — monthly portfolio vs benchmark */}
         {snapshots.length >= 2 && (
-          <RetornosComparados
-            snapshots={snapshots}
-            benchmarkLabel="UF +2%"
-            benchmarkMonthlyReturn={0.5}
-          />
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <BenchmarkConfig clientId={clientId} onBenchmarkChange={setBenchmarkConfig} />
+            </div>
+            <RetornosComparados
+              snapshots={data.snapshots.filter((s) => s.source !== "api-prices")}
+              benchmarkLabel={benchmarkLabel}
+              benchmarkReturns={benchmarkReturns || undefined}
+              benchmarkMonthlyReturn={!benchmarkReturns ? 0.5 : undefined}
+            />
+          </>
         )}
 
         {/* Performance Attribution */}
