@@ -253,11 +253,19 @@ export default function SeguimientoPage({ clientId }: Props) {
         cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
       }));
 
-    // International holdings: anything with a non-numeric securityId and quantity
+    // International holdings: tradeable instruments with non-numeric securityId
+    // Filter out ISIN-like codes (e.g. G1R06N212) and FDIC/cash that have no price source
     const internationalHoldings = holdings
       .filter((h) => {
-        const id = (h.securityId || "").trim();
-        return id && !/^\d{1,6}$/.test(id) && (h.quantity || 0) > 0;
+        const id = (h.securityId || "").trim().toUpperCase();
+        if (!id || /^\d{1,6}$/.test(id) || (h.quantity || 0) <= 0) return false;
+        // Include: CFI*, CFIETF*, Chilean ADRs (ending CL), tickers with .SN, known ETF tickers (2-5 uppercase letters)
+        if (/^CFI/.test(id)) return true; // Chilean FI/ETF
+        if (/^[A-Z]{3,10}CL$/.test(id)) return true; // Chilean ADR (GOOGLCL, NVDACL)
+        if (id.includes(".SN")) return true; // Explicit Santiago suffix
+        if (/^[A-Z]{1,5}$/.test(id)) return true; // US ETF/stock ticker (ACWI, SPY, etc.)
+        // Exclude: ISIN-like (starts with letter + digits mix), CUSIP-like with letters
+        return false;
       })
       .map((h) => ({
         fundName: h.fundName || "",
@@ -267,7 +275,23 @@ export default function SeguimientoPage({ clientId }: Props) {
         currency: h.currency || "CLP",
       }));
 
-    if (holdingsWithRun.length === 0 && internationalHoldings.length === 0) return;
+    // Holdings without securityId but with fundName — resolve by name matching in API
+    const holdingsByName = holdings
+      .filter((h) => {
+        const id = (h.securityId || "").trim();
+        const name = (h.fundName || "").trim();
+        // No securityId (or too short), has a fund name, has quantity
+        return (!id || /^\d{1,2}$/.test(id)) && name.length > 3 && (h.quantity || 0) > 0;
+      })
+      .map((h) => ({
+        fundName: h.fundName || "",
+        serie: h.serie || "",
+        quantity: h.quantity || 0,
+        currency: h.currency || "CLP",
+        cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
+      }));
+
+    if (holdingsWithRun.length === 0 && internationalHoldings.length === 0 && holdingsByName.length === 0) return;
 
     // Go back 1 year from today for historical data (rent 1Y, 6M, etc.)
     const oneYearAgo = new Date();
@@ -283,6 +307,7 @@ export default function SeguimientoPage({ clientId }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             holdings: holdingsWithRun,
+            holdingsByName: holdingsByName.length > 0 ? holdingsByName : undefined,
             internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
             fromDate,
           }),
@@ -313,6 +338,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           holdings: holdingsWithRun,
+                          holdingsByName: holdingsByName.length > 0 ? holdingsByName : undefined,
                           internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
                           fromDate,
                         }),
