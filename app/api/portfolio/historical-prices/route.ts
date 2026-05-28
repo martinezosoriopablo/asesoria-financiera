@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { preloadYear, getDolarObservado } from "@/lib/bcch";
+import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
 
 // POST /api/portfolio/historical-prices
 // Producto punto: vector de cuotas × vector de precios por fecha
@@ -16,6 +17,14 @@ interface HoldingInput {
   cartolaPrice?: number; // precio de la cartola (puede ser CLP o USD)
 }
 
+interface InternationalHoldingInput {
+  fundName: string;
+  securityId: string;
+  quantity: number;
+  marketValue?: number;
+  currency?: string;
+}
+
 export async function POST(req: NextRequest) {
   try {
   const blocked = await applyRateLimit(req, "historical-prices", { limit: 10, windowSeconds: 60 });
@@ -23,12 +32,13 @@ export async function POST(req: NextRequest) {
 
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
-  const { holdings, fromDate } = await req.json() as {
+  const { holdings, internationalHoldings, fromDate } = await req.json() as {
     holdings: HoldingInput[];
+    internationalHoldings?: InternationalHoldingInput[];
     fromDate?: string;
   };
 
-  if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
+  if ((!holdings || holdings.length === 0) && (!internationalHoldings || internationalHoldings.length === 0)) {
     return NextResponse.json({ error: "holdings required" }, { status: 400 });
   }
 
@@ -234,6 +244,101 @@ export async function POST(req: NextRequest) {
     }
 
     normalizedPrices.set(key, fechaMap);
+  }
+
+  // 4b. International holdings: fetch from international_prices + Yahoo/AV fallback
+  if (internationalHoldings && internationalHoldings.length > 0) {
+    const toDate = new Date().toISOString().split("T")[0];
+    const intFromDate = fromDate || new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+
+    for (const ih of internationalHoldings) {
+      if (!ih.securityId || !ih.quantity || ih.quantity <= 0) continue;
+
+      const resolution = resolveSource({
+        securityId: ih.securityId,
+        fundName: ih.fundName,
+        marketValue: ih.marketValue || 0,
+        currency: ih.currency,
+      });
+
+      if (resolution.source === "cmf" || resolution.source === "bcch") continue;
+
+      const key = `int-${ih.securityId}`;
+
+      // Check international_prices DB first
+      let offset2 = 0;
+      const intPriceMap = new Map<string, number>();
+      while (true) {
+        const { data: rows } = await supabase
+          .from("international_prices")
+          .select("price_date, close_price")
+          .eq("symbol", resolution.symbol)
+          .gte("price_date", intFromDate)
+          .lte("price_date", toDate)
+          .order("price_date", { ascending: true })
+          .range(offset2, offset2 + 999);
+
+        const typedRows = rows as Array<{ price_date: string; close_price: number }> | null;
+        if (!typedRows || typedRows.length === 0) break;
+        for (const r of typedRows) intPriceMap.set(r.price_date, r.close_price);
+        if (typedRows.length < 1000) break;
+        offset2 += 1000;
+      }
+
+      // If DB has < 30 days of data, backfill from Yahoo/AV
+      if (intPriceMap.size < 30 && (resolution.source === "yahoo" || resolution.source === "alphavantage")) {
+        try {
+          const fetched = await fetchPriceRange(resolution, intFromDate, toDate);
+          if (fetched.length > 0) {
+            for (const p of fetched) intPriceMap.set(p.date, p.price);
+            // Store for future use (fire-and-forget)
+            storeInternationalPrices(resolution.symbol, fetched, resolution.currency, resolution.source)
+              .catch(() => {});
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      if (intPriceMap.size === 0) continue;
+
+      // Determine if this is CLP or USD and needs conversion
+      const isCLP = resolution.currency === "CLP";
+
+      fundInfo.set(key, {
+        id: key,
+        fundName: ih.fundName,
+        quantity: ih.quantity,
+        tac: null,
+        cartolaPrice: 0,
+        moneda: isCLP ? "CLP" : (ih.currency || "USD"),
+      });
+
+      // For USD instruments, convert to CLP using dólar observado
+      const fechaMap = new Map<string, number>();
+      if (!isCLP) {
+        // Ensure dólar data is loaded
+        const startYear = parseInt(intFromDate.split("-")[0], 10);
+        const endYear = new Date().getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          await preloadYear("dolar", y);
+        }
+        for (const [fecha, price] of intPriceMap) {
+          try {
+            const dolar = await getDolarObservado(fecha);
+            fechaMap.set(fecha, price * dolar);
+          } catch {
+            // Skip dates without FX rate
+          }
+        }
+      } else {
+        for (const [fecha, price] of intPriceMap) {
+          fechaMap.set(fecha, price);
+        }
+      }
+
+      normalizedPrices.set(key, fechaMap);
+    }
   }
 
   // 5. Producto punto por fecha: sum(cuotas_i × precio_i(t))

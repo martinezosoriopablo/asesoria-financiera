@@ -250,12 +250,24 @@ export default function SeguimientoPage({ clientId }: Props) {
         serie: h.serie || "",
         quantity: h.quantity || 0,
         currency: h.currency || "CLP",
-        // Always use CLP-based price (marketValue/quantity) for currency detection in the API.
-        // marketPrice can be in USD for USD-denominated funds, which breaks the ratio check.
         cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
       }));
 
-    if (holdingsWithRun.length === 0) return;
+    // International holdings: anything with a non-numeric securityId and quantity
+    const internationalHoldings = holdings
+      .filter((h) => {
+        const id = (h.securityId || "").trim();
+        return id && !/^\d{1,6}$/.test(id) && (h.quantity || 0) > 0;
+      })
+      .map((h) => ({
+        fundName: h.fundName || "",
+        securityId: (h.securityId || "").trim(),
+        quantity: h.quantity || 0,
+        marketValue: h.marketValue || 0,
+        currency: h.currency || "CLP",
+      }));
+
+    if (holdingsWithRun.length === 0 && internationalHoldings.length === 0) return;
 
     // Go back 1 year from today for historical data (rent 1Y, 6M, etc.)
     const oneYearAgo = new Date();
@@ -269,7 +281,11 @@ export default function SeguimientoPage({ clientId }: Props) {
         const res = await fetch("/api/portfolio/historical-prices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ holdings: holdingsWithRun, fromDate }),
+          body: JSON.stringify({
+            holdings: holdingsWithRun,
+            internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
+            fromDate,
+          }),
         });
         if (res.ok) {
           const result = await res.json();
@@ -295,7 +311,11 @@ export default function SeguimientoPage({ clientId }: Props) {
                       fetch("/api/portfolio/historical-prices", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ holdings: holdingsWithRun, fromDate }),
+                        body: JSON.stringify({
+                          holdings: holdingsWithRun,
+                          internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
+                          fromDate,
+                        }),
                       })
                         .then((r2) => r2.json())
                         .then((r2) => {
