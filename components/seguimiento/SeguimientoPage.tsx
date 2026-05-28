@@ -1289,21 +1289,23 @@ export default function SeguimientoPage({ clientId }: Props) {
 
         {/* Holding Returns Panel — moved to composition section */}
 
-        {/* Rentabilidad por Activo — horizontal bars per month */}
-        {snapshots.length >= 2 && (
+        {/* Rentabilidad por Activo — returns per holding with month selector */}
+        {holdingReturnsData && (
           <RentabilidadPorActivo
-            snapshots={data.snapshots.filter((s) => s.source !== "api-prices")}
+            holdingReturnsData={holdingReturnsData}
+            snapshots={snapshots}
           />
         )}
 
         {/* Retornos Comparados — monthly portfolio vs benchmark */}
-        {snapshots.length >= 2 && (
+        {(snapshots.length >= 2 || historicalSeries.length > 1) && (
           <>
             <div className="flex items-center justify-between mb-2">
               <BenchmarkConfig clientId={clientId} onBenchmarkChange={setBenchmarkConfig} />
             </div>
             <RetornosComparados
               snapshots={data.snapshots.filter((s) => s.source !== "api-prices")}
+              historicalSeries={historicalSeries}
               benchmarkLabel={benchmarkLabel}
               benchmarkReturns={benchmarkReturns || undefined}
               benchmarkMonthlyReturn={!benchmarkReturns ? 0.5 : undefined}

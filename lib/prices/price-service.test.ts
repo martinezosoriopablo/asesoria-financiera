@@ -118,6 +118,18 @@ describe("resolveSource", () => {
     expect(res.currency).toBe("CLP");
   });
 
+  it("routes Chilean ADR stock (GOOGLCL) to yahoo with .SN", () => {
+    const h: HoldingForPricing = {
+      fundName: "Alphabet Inc. A",
+      securityId: "GOOGLCL",
+      marketValue: 5_000_000,
+    };
+    const res = resolveSource(h);
+    expect(res.source).toBe("yahoo");
+    expect(res.symbol).toBe("GOOGLCL.SN");
+    expect(res.currency).toBe("CLP");
+  });
+
   it("routes USD FX ticker by name when no securityId", () => {
     const h: HoldingForPricing = {
       fundName: "USD",

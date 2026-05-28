@@ -59,7 +59,12 @@ export function resolveSource(h: HoldingForPricing): SourceResolution {
     return { source: "yahoo", symbol, currency: "CLP" };
   }
 
-  // 5. Bond with CUSIP → finra
+  // 5. Chilean ADR stocks (GOOGLCL, NVDACL) → yahoo with .SN suffix
+  if (/^[A-Z]{3,10}CL$/.test(secId.toUpperCase()) && !/^CFI/.test(secId.toUpperCase())) {
+    return { source: "yahoo", symbol: `${secId.toUpperCase()}.SN`, currency: "CLP" };
+  }
+
+  // 6. Bond with CUSIP → finra
   const iType = inferInstrumentType(h);
   if (iType === "bond" && secId && /^[A-Z0-9]{9}$/i.test(secId)) {
     return { source: "finra", symbol: secId.toUpperCase(), currency: "USD" };

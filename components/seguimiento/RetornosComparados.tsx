@@ -16,8 +16,15 @@ import { GitCompare } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import type { Snapshot } from "./SeguimientoPage";
 
+interface HistoricalPoint {
+  fecha: string;
+  total: number;
+  [key: string]: string | number;
+}
+
 interface Props {
   snapshots: Snapshot[];
+  historicalSeries?: HistoricalPoint[];
   benchmarkLabel?: string; // e.g. "UF +2%"
   benchmarkMonthlyReturn?: number; // fixed monthly return for simple benchmarks (e.g. 0.5 for UF+2%/12)
   /** Optional: actual monthly benchmark returns keyed by "YYYY-MM" */
@@ -37,6 +44,7 @@ interface MonthData {
 
 export default function RetornosComparados({
   snapshots,
+  historicalSeries,
   benchmarkLabel = "UF +2%",
   benchmarkMonthlyReturn,
   benchmarkReturns,
@@ -44,102 +52,152 @@ export default function RetornosComparados({
   comparisonReturns,
 }: Props) {
   const chartData = useMemo(() => {
-    if (snapshots.length < 2) return [];
+    // Derive monthly portfolio returns from historicalSeries (daily prices) when available
+    // This gives proper month-by-month granularity even with few cartola snapshots
+    const monthlyPortfolioReturns = new Map<string, number>();
+    let accumPortfolio = 0;
 
-    const sorted = [...snapshots].sort(
-      (a, b) => new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
-    );
+    if (historicalSeries && historicalSeries.length > 1) {
+      // Group historical points by month, get first and last value per month
+      const byMonth = new Map<string, { first: number; last: number; firstDate: string; lastDate: string }>();
+      for (const p of historicalSeries) {
+        const fecha = typeof p.fecha === "string" ? p.fecha : String(p.fecha);
+        const ym = fecha.slice(0, 7); // "YYYY-MM"
+        const total = typeof p.total === "number" ? p.total : Number(p.total);
+        if (total <= 0) continue;
+        const existing = byMonth.get(ym);
+        if (!existing) {
+          byMonth.set(ym, { first: total, last: total, firstDate: fecha, lastDate: fecha });
+        } else {
+          if (fecha < existing.firstDate) { existing.first = total; existing.firstDate = fecha; }
+          if (fecha > existing.lastDate) { existing.last = total; existing.lastDate = fecha; }
+        }
+      }
 
-    // Group snapshots by YYYY-MM, keep last snapshot per month
-    const byMonth = new Map<string, Snapshot>();
-    for (const s of sorted) {
-      const d = new Date(s.snapshot_date);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      byMonth.set(key, s);
-    }
-
-    const monthKeys = Array.from(byMonth.keys()).sort();
-
-    type PeriodPair = { key: string; label: string; prev: Snapshot; curr: Snapshot };
-    const periods: PeriodPair[] = [];
-
-    if (monthKeys.length >= 2) {
-      // Multiple months: compare consecutive months
+      const monthKeys = Array.from(byMonth.keys()).sort();
       for (let i = 1; i < monthKeys.length; i++) {
-        const prev = byMonth.get(monthKeys[i - 1])!;
-        const curr = byMonth.get(monthKeys[i])!;
-        const d = new Date(curr.snapshot_date);
-        const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" }).replace(".", "");
-        periods.push({ key: monthKeys[i], label, prev, curr });
+        const prevMonth = byMonth.get(monthKeys[i - 1])!;
+        const currMonth = byMonth.get(monthKeys[i])!;
+        // Return = currMonth.last / prevMonth.last - 1
+        if (prevMonth.last > 0) {
+          const ret = ((currMonth.last / prevMonth.last) - 1) * 100;
+          monthlyPortfolioReturns.set(monthKeys[i], ret);
+        }
       }
-    } else {
-      // All in same month: compare consecutive snapshots
-      for (let i = 1; i < sorted.length; i++) {
-        const prev = sorted[i - 1];
-        const curr = sorted[i];
-        const d = new Date(curr.snapshot_date);
-        const label = d.toLocaleDateString("es-CL", { day: "numeric", month: "short" }).replace(".", "");
-        periods.push({ key: `_snap_${i}`, label, prev, curr });
+
+      // Accumulated from first point to last point
+      const firstTotal = historicalSeries[0].total;
+      const lastTotal = historicalSeries[historicalSeries.length - 1].total;
+      if (typeof firstTotal === "number" && typeof lastTotal === "number" && firstTotal > 0) {
+        accumPortfolio = ((lastTotal / firstTotal) - 1) * 100;
       }
     }
 
-    if (periods.length === 0) return [];
+    const useHistorical = monthlyPortfolioReturns.size > 0;
 
+    if (!useHistorical) {
+      // Fallback: use snapshots (original logic)
+      if (snapshots.length < 2) return [];
+
+      const sorted = [...snapshots].sort(
+        (a, b) => new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime()
+      );
+
+      const byMonth = new Map<string, Snapshot>();
+      for (const s of sorted) {
+        const d = new Date(s.snapshot_date);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        byMonth.set(key, s);
+      }
+
+      const monthKeys = Array.from(byMonth.keys()).sort();
+      const months: MonthData[] = [];
+
+      if (monthKeys.length >= 2) {
+        for (let i = 1; i < monthKeys.length; i++) {
+          const prev = byMonth.get(monthKeys[i - 1])!;
+          const curr = byMonth.get(monthKeys[i])!;
+          const d = new Date(curr.snapshot_date);
+          const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" }).replace(".", "");
+          const portfolioReturn = prev.total_value > 0
+            ? ((curr.total_value - prev.total_value) / prev.total_value) * 100 : 0;
+
+          let benchReturn: number | null = null;
+          if (benchmarkReturns && benchmarkReturns[monthKeys[i]] != null) benchReturn = benchmarkReturns[monthKeys[i]];
+          else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
+
+          let compReturn: number | null = null;
+          if (comparisonReturns && comparisonReturns[monthKeys[i]] != null) compReturn = comparisonReturns[monthKeys[i]];
+
+          months.push({
+            monthKey: monthKeys[i],
+            label,
+            portfolio: parseFloat(portfolioReturn.toFixed(2)),
+            benchmark: benchReturn != null ? parseFloat(benchReturn.toFixed(2)) : null,
+            comparison: compReturn != null ? parseFloat(compReturn.toFixed(2)) : null,
+          });
+        }
+      }
+
+      if (months.length > 0) {
+        const accumP = sorted[0].total_value > 0
+          ? ((sorted[sorted.length - 1].total_value - sorted[0].total_value) / sorted[0].total_value) * 100 : 0;
+        let accumBench: number | null = null;
+        if (benchmarkMonthlyReturn != null || benchmarkReturns) {
+          let compound = 1;
+          for (const m of months) { if (m.benchmark != null) compound *= 1 + m.benchmark / 100; }
+          accumBench = (compound - 1) * 100;
+        }
+        months.push({
+          monthKey: "_acum", label: "Acumulado",
+          portfolio: parseFloat(accumP.toFixed(2)),
+          benchmark: accumBench != null ? parseFloat(accumBench.toFixed(2)) : null,
+          comparison: null,
+        });
+      }
+
+      return months;
+    }
+
+    // Use historicalSeries-derived monthly returns
+    const sortedKeys = Array.from(monthlyPortfolioReturns.keys()).sort();
     const months: MonthData[] = [];
 
-    for (const p of periods) {
-      const portfolioReturn =
-        p.prev.total_value > 0
-          ? ((p.curr.total_value - p.prev.total_value) / p.prev.total_value) * 100
-          : 0;
+    for (const key of sortedKeys) {
+      const [y, m] = key.split("-").map(Number);
+      const d = new Date(y, m - 1, 1);
+      const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" }).replace(".", "");
+
+      const portfolioReturn = monthlyPortfolioReturns.get(key) ?? 0;
 
       let benchReturn: number | null = null;
-      if (benchmarkReturns && benchmarkReturns[p.key] != null) {
-        benchReturn = benchmarkReturns[p.key];
-      } else if (benchmarkMonthlyReturn != null) {
-        benchReturn = benchmarkMonthlyReturn;
-      }
+      if (benchmarkReturns && benchmarkReturns[key] != null) benchReturn = benchmarkReturns[key];
+      else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
 
       let compReturn: number | null = null;
-      if (comparisonReturns && comparisonReturns[p.key] != null) {
-        compReturn = comparisonReturns[p.key];
-      }
+      if (comparisonReturns && comparisonReturns[key] != null) compReturn = comparisonReturns[key];
 
       months.push({
-        monthKey: p.key,
-        label: p.label,
+        monthKey: key,
+        label,
         portfolio: parseFloat(portfolioReturn.toFixed(2)),
         benchmark: benchReturn != null ? parseFloat(benchReturn.toFixed(2)) : null,
         comparison: compReturn != null ? parseFloat(compReturn.toFixed(2)) : null,
       });
     }
 
-    // Add accumulated bar
+    // Accumulated
     if (months.length > 0) {
-      const firstSnap = sorted[0];
-      const lastSnap = sorted[sorted.length - 1];
-      const accumPortfolio =
-        firstSnap.total_value > 0
-          ? ((lastSnap.total_value - firstSnap.total_value) / firstSnap.total_value) * 100
-          : 0;
-
-      // Compound benchmark
       let accumBench: number | null = null;
       if (benchmarkMonthlyReturn != null || benchmarkReturns) {
         let compound = 1;
-        for (const m of months) {
-          if (m.benchmark != null) compound *= 1 + m.benchmark / 100;
-        }
+        for (const m of months) { if (m.benchmark != null) compound *= 1 + m.benchmark / 100; }
         accumBench = (compound - 1) * 100;
       }
-
-      // Compound comparison
       let accumComp: number | null = null;
       if (comparisonReturns) {
         let compound = 1;
-        for (const m of months) {
-          if (m.comparison != null) compound *= 1 + m.comparison / 100;
-        }
+        for (const m of months) { if (m.comparison != null) compound *= 1 + m.comparison / 100; }
         accumComp = (compound - 1) * 100;
       }
 
@@ -153,7 +211,7 @@ export default function RetornosComparados({
     }
 
     return months;
-  }, [snapshots, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns]);
+  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns]);
 
   if (chartData.length === 0) return null;
 
