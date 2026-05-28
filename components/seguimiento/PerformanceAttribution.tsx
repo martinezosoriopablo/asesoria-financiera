@@ -425,8 +425,53 @@ export default function PerformanceAttribution({
 
   // ============================================
   // 2. ATTRIBUTION BY INDIVIDUAL POSITION
+  // Uses holdingReturnsData (live prices) when available,
+  // falls back to snapshot-based calculation otherwise.
   // ============================================
   const positionAttribution = useMemo(() => {
+    // === PRIMARY: Use holdingReturnsData (has real returns from live prices) ===
+    if (holdingReturnsData) {
+      const { equityHoldings, fixedIncomeFundHoldings = [], bondHoldings, totalValue } = holdingReturnsData;
+      const positions: Array<{
+        name: string;
+        initialValue: number;
+        finalValue: number;
+        return: number;
+        contribution: number;
+        weight: number;
+        assetClass?: string;
+      }> = [];
+
+      for (const h of [...equityHoldings, ...fixedIncomeFundHoldings]) {
+        positions.push({
+          name: h.fundName,
+          initialValue: 0,
+          finalValue: h.marketValue,
+          return: h.totalReturn ?? h.returnPrice ?? 0,
+          contribution: h.contribution ?? 0,
+          weight: h.weight ?? (totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0),
+          assetClass: h.assetClass,
+        });
+      }
+
+      for (const b of bondHoldings) {
+        positions.push({
+          name: b.fundName,
+          initialValue: 0,
+          finalValue: b.marketValue,
+          return: b.totalReturn ?? 0,
+          contribution: b.contribution ?? 0,
+          weight: b.weight ?? (totalValue > 0 ? (b.marketValue / totalValue) * 100 : 0),
+          assetClass: "fixedIncome",
+        });
+      }
+
+      if (positions.length === 0) return null;
+      positions.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+      return positions.slice(0, 10);
+    }
+
+    // === FALLBACK: Snapshot-based calculation (requires 2+ snapshots) ===
     if (!firstSnapshot || !lastSnapshot) return null;
 
     const initialHoldings = (firstSnapshot.holdings as Holding[]) || [];
@@ -434,7 +479,6 @@ export default function PerformanceAttribution({
 
     if (initialHoldings.length === 0 && finalHoldings.length === 0) return null;
 
-    // Create a map of holdings by name
     const holdingsMap = new Map<string, {
       name: string;
       initialValue: number;
@@ -444,10 +488,8 @@ export default function PerformanceAttribution({
       assetClass?: string;
     }>();
 
-    // Use marketValueCLP when available (handles USD funds correctly)
     const clpValue = (h: Holding) => (h.marketValueCLP || 0) > 0 ? h.marketValueCLP! : (h.marketValue ?? 0);
 
-    // Add initial holdings
     initialHoldings.forEach((h) => {
       holdingsMap.set(h.fundName, {
         name: h.fundName,
@@ -459,7 +501,6 @@ export default function PerformanceAttribution({
       });
     });
 
-    // Update with final holdings
     finalHoldings.forEach((h) => {
       const existing = holdingsMap.get(h.fundName);
       if (existing) {
@@ -476,7 +517,6 @@ export default function PerformanceAttribution({
       }
     });
 
-    // Calculate returns and contributions
     const totalInitialValue = firstSnapshot.total_value;
     const positions = Array.from(holdingsMap.values()).map((pos) => {
       const posReturn = pos.initialValue > 0
@@ -493,11 +533,9 @@ export default function PerformanceAttribution({
       };
     });
 
-    // Sort by absolute contribution
     positions.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
-
-    return positions.slice(0, 10); // Top 10 contributors
-  }, [firstSnapshot, lastSnapshot]);
+    return positions.slice(0, 10);
+  }, [holdingReturnsData, firstSnapshot, lastSnapshot]);
 
   // ============================================
   // 3. BENCHMARK COMPARISON (Allocation + Selection Effect)
