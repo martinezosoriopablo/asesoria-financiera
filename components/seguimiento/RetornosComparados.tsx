@@ -215,8 +215,13 @@ export default function RetornosComparados({
 
   if (chartData.length === 0) return null;
 
+  // Separate monthly data from accumulated totals
+  const monthlyData = chartData.filter((d) => d.monthKey !== "_acum");
+  const accumData = chartData.find((d) => d.monthKey === "_acum");
+
   const hasBenchmark = chartData.some((d) => d.benchmark != null);
   const hasComparison = chartData.some((d) => d.comparison != null);
+  const accumDiff = accumData && accumData.benchmark != null ? accumData.portfolio - accumData.benchmark : null;
 
   return (
     <div className="bg-white rounded-lg border border-gb-border shadow-sm p-6">
@@ -225,9 +230,47 @@ export default function RetornosComparados({
         Retornos Comparados
       </h3>
 
-      <div style={{ height: 350 }}>
+      {/* Accumulated summary cards */}
+      {accumData && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="bg-gray-50 rounded-lg px-3 py-2">
+            <div className="text-[11px] text-gb-gray">Portafolio</div>
+            <div className={`text-lg font-semibold ${accumData.portfolio >= 0 ? "text-green-600" : "text-red-600"}`}>
+              {accumData.portfolio >= 0 ? "+" : ""}{formatNumber(accumData.portfolio, 2)}%
+            </div>
+          </div>
+          {hasBenchmark && accumData.benchmark != null && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2">
+              <div className="text-[11px] text-gb-gray">{benchmarkLabel}</div>
+              <div className="text-lg font-semibold text-yellow-600">
+                {accumData.benchmark >= 0 ? "+" : ""}{formatNumber(accumData.benchmark, 2)}%
+              </div>
+            </div>
+          )}
+          {accumDiff != null && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2">
+              <div className="text-[11px] text-gb-gray">Diferencia</div>
+              <div className={`text-lg font-semibold ${accumDiff >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {accumDiff >= 0 ? "+" : ""}{formatNumber(accumDiff, 2)}pp
+              </div>
+            </div>
+          )}
+          {hasComparison && accumData.comparison != null && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2">
+              <div className="text-[11px] text-gb-gray">{comparisonLabel || "Comparación"}</div>
+              <div className="text-lg font-semibold text-red-500">
+                {accumData.comparison >= 0 ? "+" : ""}{formatNumber(accumData.comparison, 2)}%
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Monthly bar chart — without accumulated */}
+      {monthlyData.length > 0 && (
+      <div style={{ height: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
+          <BarChart data={monthlyData} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" fontSize={11} />
             <YAxis
@@ -270,9 +313,10 @@ export default function RetornosComparados({
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Summary table below chart */}
-      {chartData.length > 1 && (
+      {monthlyData.length > 1 && (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -291,13 +335,12 @@ export default function RetornosComparados({
               </tr>
             </thead>
             <tbody>
-              {chartData.map((d) => {
+              {monthlyData.map((d) => {
                 const diff = d.benchmark != null ? d.portfolio - d.benchmark : null;
-                const isAccum = d.monthKey === "_acum";
                 return (
                   <tr
                     key={d.monthKey}
-                    className={`border-b border-gb-border/30 ${isAccum ? "font-semibold bg-gb-light/30" : ""}`}
+                    className="border-b border-gb-border/30"
                   >
                     <td className="py-1.5 px-2 text-gb-black">{d.label}</td>
                     <td className={`py-1.5 px-2 text-right ${d.portfolio >= 0 ? "text-green-600" : "text-red-600"}`}>

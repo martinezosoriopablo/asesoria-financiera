@@ -257,7 +257,7 @@ export default function PerformanceAttribution({
             contribution: data.contribution,
           });
         }
-        breakdown.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+        breakdown.sort((a, b) => b.contribution - a.contribution);
 
         const totalContribution = breakdown.reduce((s, b) => s + b.contribution, 0);
         const totalWeight = equityHoldings.reduce((s, h) => s + h.weight, 0);
@@ -303,7 +303,7 @@ export default function PerformanceAttribution({
           });
         }
 
-        breakdown.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+        breakdown.sort((a, b) => b.contribution - a.contribution);
 
         const totalContribution = fundContrib + bondContrib;
         const totalWeight = fixedIncomeFundHoldings.reduce((s, h) => s + h.weight, 0)
@@ -340,6 +340,7 @@ export default function PerformanceAttribution({
         });
       }
 
+      result.sort((a, b) => b.totalContribution - a.totalContribution);
       return result.length > 0 ? result : null;
     }
 
@@ -393,7 +394,7 @@ export default function PerformanceAttribution({
         classTotalEnd += vals.endValue;
       }
 
-      breakdown.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+      breakdown.sort((a, b) => b.contribution - a.contribution);
       const totalContribution = breakdown.reduce((s, b) => s + b.contribution, 0);
       const classReturn = classTotalStart > 0 ? ((classTotalEnd - classTotalStart) / classTotalStart) * 100 : 0;
 
@@ -456,7 +457,7 @@ export default function PerformanceAttribution({
       }
 
       if (positions.length === 0) return null;
-      positions.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+      positions.sort((a, b) => b.contribution - a.contribution);
       return positions.slice(0, 10);
     }
 
@@ -522,7 +523,7 @@ export default function PerformanceAttribution({
       };
     });
 
-    positions.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+    positions.sort((a, b) => b.contribution - a.contribution);
     return positions.slice(0, 10);
   }, [holdingReturnsData, firstSnapshot, lastSnapshot]);
 
@@ -657,8 +658,8 @@ export default function PerformanceAttribution({
         </p>
       </div>
 
-      {/* 1. Attribution by Asset Class */}
-      {(assetClassAttribution || instrumentBreakdown) && (
+      {/* 1. Attribution by Asset Class — prefer instrumentBreakdown, fallback only when no holdingReturnsData */}
+      {(instrumentBreakdown || (!holdingReturnsData && assetClassAttribution)) && (
         <div className="border-b border-gb-border">
           <button
             onClick={() => toggleSection("assetClass")}
@@ -691,15 +692,17 @@ export default function PerformanceAttribution({
             <div className="px-6 pb-6">
               {instrumentBreakdown ? (
                 <>
-                  {/* Legend */}
-                  <div className="flex flex-wrap gap-3 mb-4">
-                    {Object.entries(INSTRUMENT_COLORS).map(([key, meta]) => (
-                      <div key={key} className="flex items-center gap-1.5 text-xs text-gb-gray">
-                        <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: meta.color }} />
-                        {meta.label}
-                      </div>
-                    ))}
-                  </div>
+                  {/* Legend — only show instrument type colors when there are multiple types */}
+                  {instrumentBreakdown.some(cls => cls.breakdown.length > 1) && (
+                    <div className="flex flex-wrap gap-3 mb-4">
+                      {Object.entries(INSTRUMENT_COLORS).map(([key, meta]) => (
+                        <div key={key} className="flex items-center gap-1.5 text-xs text-gb-gray">
+                          <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: meta.color }} />
+                          {meta.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {(() => {
                     const maxAbs = Math.max(
@@ -801,8 +804,8 @@ export default function PerformanceAttribution({
                     );
                   })()}
                 </>
-              ) : assetClassAttribution ? (
-                /* Fallback: same horizontal bar style using asset class data */
+              ) : (!holdingReturnsData && assetClassAttribution) ? (
+                /* Fallback: same horizontal bar style using asset class data (only when no live prices) */
                 (() => {
                   const contributions = assetClassAttribution.contributions;
                   const maxAbs = Math.max(...contributions.map(c => Math.abs(c.contribution)), 0.01);
@@ -879,9 +882,21 @@ export default function PerformanceAttribution({
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-green-500" />
               <span className="font-medium text-sm text-gb-black">Por Posición Individual</span>
+              {firstSnapshot && (
+                <span className="text-xs text-gb-gray ml-1">
+                  (desde {formatDate(firstSnapshot.snapshot_date)})
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gb-gray">Top {positionAttribution.length} contribuidores</span>
+              {(() => {
+                const totalContrib = positionAttribution.reduce((s, p) => s + p.contribution, 0);
+                return (
+                  <span className={`text-sm font-semibold ${totalContrib >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {formatPercent(totalContrib)}
+                  </span>
+                );
+              })()}
               {expandedSection === "positions" ? (
                 <ChevronUp className="w-4 h-4 text-gb-gray" />
               ) : (
@@ -892,29 +907,71 @@ export default function PerformanceAttribution({
 
           {expandedSection === "positions" && (
             <div className="px-6 pb-6">
-              <div className="space-y-2">
-                {positionAttribution.map((pos, index) => (
-                  <div
-                    key={pos.name}
-                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
-                  >
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gb-black truncate" title={pos.name}>
-                        {index + 1}. {pos.name}
-                      </p>
-                      <p className="text-xs text-gb-gray">
-                        Peso: {formatNumber(pos.weight, 1)}% | Retorno: {formatPercent(pos.return)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-bold ${pos.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {formatPercent(pos.contribution)}
-                      </p>
-                      <p className="text-xs text-gb-gray">contribución</p>
+              {(() => {
+                const maxAbs = Math.max(...positionAttribution.map(p => Math.abs(p.return)), 0.01);
+                const hasNegative = positionAttribution.some(p => p.return < 0);
+                const scale = (val: number) => Math.max((Math.abs(val) / maxAbs) * (hasNegative ? 45 : 85), 3);
+                const zeroOffset = hasNegative ? 50 : 0;
+
+                return (
+                  <div className="space-y-3">
+                    {positionAttribution.map((pos) => {
+                      const barWidth = scale(pos.return);
+                      const isNeg = pos.return < 0;
+
+                      return (
+                        <div key={pos.name}>
+                          <div className="flex items-baseline justify-between mb-1">
+                            <span className="text-sm font-medium text-gb-black truncate max-w-[60%]" title={pos.name}>
+                              {pos.name}
+                            </span>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-xs text-gb-gray">
+                                Peso: {formatNumber(pos.weight, 1)}%
+                              </span>
+                              <span className={`text-sm font-bold ${pos.return >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {pos.return >= 0 ? "+" : ""}{formatNumber(pos.return, 2)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="relative h-6 flex-1 bg-slate-100 rounded">
+                            {hasNegative && (
+                              <div
+                                className="absolute top-0 bottom-0 w-px bg-slate-400"
+                                style={{ left: `${zeroOffset}%` }}
+                              />
+                            )}
+                            <div
+                              className="absolute top-0 h-full rounded"
+                              style={{
+                                backgroundColor: isNeg ? "#ef4444" : "#22c55e",
+                                ...(isNeg
+                                  ? { right: `${100 - zeroOffset}%`, width: `${barWidth}%` }
+                                  : { left: `${zeroOffset}%`, width: `${barWidth}%` }),
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-0.5">
+                            <span className="text-[11px] text-gb-gray">
+                              {pos.assetClass === "fixedIncome" ? "RF" : pos.assetClass === "equity" ? "RV" : pos.assetClass === "alternatives" ? "Alt" : pos.assetClass || ""}
+                            </span>
+                            <span className={`text-[11px] ${pos.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              Contribución: {pos.contribution >= 0 ? "+" : ""}{formatNumber(pos.contribution, 2)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <div className="border-t-2 border-gb-black pt-2 mt-2 flex justify-between">
+                      <span className="text-sm font-bold text-gb-black">Contribución Total</span>
+                      <span className={`text-sm font-bold ${positionAttribution.reduce((s, p) => s + p.contribution, 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {formatPercent(positionAttribution.reduce((s, p) => s + p.contribution, 0))}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
           )}
         </div>
