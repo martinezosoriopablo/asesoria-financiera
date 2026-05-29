@@ -908,16 +908,16 @@ export default function PerformanceAttribution({
           {expandedSection === "positions" && (
             <div className="px-6 pb-6">
               {(() => {
-                const maxAbs = Math.max(...positionAttribution.map(p => Math.abs(p.return)), 0.01);
-                const hasNegative = positionAttribution.some(p => p.return < 0);
+                const maxAbs = Math.max(...positionAttribution.map(p => Math.abs(p.contribution)), 0.01);
+                const hasNegative = positionAttribution.some(p => p.contribution < 0);
                 const scale = (val: number) => Math.max((Math.abs(val) / maxAbs) * (hasNegative ? 45 : 85), 3);
                 const zeroOffset = hasNegative ? 50 : 0;
 
                 return (
                   <div className="space-y-3">
                     {positionAttribution.map((pos) => {
-                      const barWidth = scale(pos.return);
-                      const isNeg = pos.return < 0;
+                      const barWidth = scale(pos.contribution);
+                      const isNeg = pos.contribution < 0;
 
                       return (
                         <div key={pos.name}>
@@ -929,8 +929,8 @@ export default function PerformanceAttribution({
                               <span className="text-xs text-gb-gray">
                                 Peso: {formatNumber(pos.weight, 1)}%
                               </span>
-                              <span className={`text-sm font-bold ${pos.return >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                {pos.return >= 0 ? "+" : ""}{formatNumber(pos.return, 2)}%
+                              <span className={`text-sm font-bold ${pos.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {pos.contribution >= 0 ? "+" : ""}{formatNumber(pos.contribution, 2)}%
                               </span>
                             </div>
                           </div>
@@ -955,8 +955,8 @@ export default function PerformanceAttribution({
                             <span className="text-[11px] text-gb-gray">
                               {pos.assetClass === "fixedIncome" ? "RF" : pos.assetClass === "equity" ? "RV" : pos.assetClass === "alternatives" ? "Alt" : pos.assetClass || ""}
                             </span>
-                            <span className={`text-[11px] ${pos.contribution >= 0 ? "text-green-600" : "text-red-600"}`}>
-                              Contribución: {pos.contribution >= 0 ? "+" : ""}{formatNumber(pos.contribution, 2)}%
+                            <span className={`text-[11px] text-gb-gray`}>
+                              Retorno: {pos.return >= 0 ? "+" : ""}{formatNumber(pos.return, 2)}%
                             </span>
                           </div>
                         </div>
