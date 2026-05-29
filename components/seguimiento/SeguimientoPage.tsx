@@ -1365,18 +1365,7 @@ export default function SeguimientoPage({ clientId }: Props) {
             snapshots={snapshots}
             recommendation={recommendation}
             previousPortfolio={snapshots.find(s => s.is_baseline) || null}
-            totalReturn={
-              // Prefer historicalSeries return (same source as RetornosComparados) for consistency
-              historicalSeries.length > 1
-                ? (() => {
-                    const first = historicalSeries[0].total;
-                    const last = historicalSeries[historicalSeries.length - 1].total;
-                    return typeof first === "number" && typeof last === "number" && first > 0
-                      ? ((last / first) - 1) * 100
-                      : metrics?.totalReturn;
-                  })()
-                : metrics?.totalReturn
-            }
+            totalReturn={metrics?.totalReturn}
             holdingReturnsData={holdingReturnsData}
           />
         )}
