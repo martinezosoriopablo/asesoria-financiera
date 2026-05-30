@@ -123,16 +123,6 @@ interface FundMeta {
   quantity: number;
 }
 
-interface FintualPrice {
-  fundName: string;
-  fintualId: string | null;
-  fintualName: string | null;
-  serieName: string | null;
-  currentPrice: number | null;
-  lastPriceDate: string | null;
-  currency: string;
-}
-
 export interface HoldingReturnsData {
   equityHoldings: EquityHolding[];
   fixedIncomeFundHoldings: EquityHolding[];
@@ -152,12 +142,6 @@ interface Props {
   usdRate?: number;
 }
 
-interface YahooQuote {
-  fundName: string;
-  price: number;
-  currency: string;
-}
-
 interface BondLookup {
   cusip: string;
   issuer: string;
@@ -166,8 +150,7 @@ interface BondLookup {
 }
 
 export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate }: Props) {
-  const [fintualPrices, setFintualPrices] = useState<Map<string, FintualPrice>>(new Map());
-  const [yahooPrices, setYahooPrices] = useState<Map<string, YahooQuote>>(new Map());
+  const [marketPrices, setMarketPrices] = useState<Map<string, { price: number; currency: string }>>(new Map());
   const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
   const [bondPrices, setBondPrices] = useState<Map<string, { price: number; ytm: number | null; date: string }>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -196,19 +179,19 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     const basePrices = new Map<string, number>();
     const purchaseDates = new Map<string, string>();
 
-    // Purchase price: unitCost first (what the client paid), then fallbacks
+    // Purchase price: costBasis first (set by enrichHoldingsWithCostBasis), then legacy fallbacks
     const extractPurchasePrice = (h: HoldingData): number => {
-      // 1. unitCost — actual purchase price per unit
+      // 1. costBasis — set by enrichHoldingsWithCostBasis on save (per-unit acquisition price)
+      const cb2 = Number(h.costBasis);
+      if (cb2 > 0 && isFinite(cb2)) return cb2;
+      // 2. unitCost — actual purchase price per unit (legacy)
       const uc = Number(h.unitCost);
       if (uc > 0 && isFinite(uc)) return uc;
-      // 2. costBasis / quantity — total cost / shares
-      const qty = Number(h.quantity);
-      const cb = Number(h.costBasis);
-      if (qty > 0 && cb > 0) return cb / qty;
       // 3. marketPrice — price at cartola date (fallback)
       const mp = Number(h.marketPrice);
       if (mp > 0 && isFinite(mp)) return mp;
       // 4. marketValue / quantity
+      const qty = Number(h.quantity);
       const mv = Number(h.marketValue);
       if (qty > 0 && mv > 0) return mv / qty;
       const mvCLP = Number(h.marketValueCLP);
@@ -331,93 +314,59 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     };
   }, [snapshots]);
 
-  // Fetch current prices from Fintual API (for funds only)
+  // Fetch current market prices for all non-bond, non-cash holdings via unified price service
   useEffect(() => {
     if (holdingSummaries.length === 0) return;
-    const fundsOnly = holdingSummaries.filter(h => h.assetType === "fund");
-    if (fundsOnly.length === 0) return;
+
+    // Only funds, stocks, ETFs (not bonds — they use FINRA, not cash)
+    const needsPricing = holdingSummaries.filter(h =>
+      h.assetType !== "bond" && h.assetType !== "cash"
+    );
+    if (needsPricing.length === 0) return;
+
+    const today = new Date().toISOString().split("T")[0];
+    // Use yesterday as startDate to get "today's" price
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
     const fetchPrices = async () => {
       setLoadingPrices(true);
       try {
-        const holdingsToFetch = fundsOnly.map((h) => {
-          const raw = (latestRawHoldings as HoldingData[])?.find((sh) => sh.fundName === h.fundName);
-          return {
-            fundName: h.fundName,
-            securityId: raw?.securityId || null,
-            serie: raw?.serie || null,
-            currency: h.currency || "CLP",
-            cartolaPrice: h.purchasePrice || 0,
-          };
-        });
-
-        const res = await fetch("/api/portfolio/current-prices", {
+        const res = await fetch("/api/portfolio/prices-at-date", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ holdings: holdingsToFetch, clientId }),
+          body: JSON.stringify({
+            holdings: needsPricing.map(h => ({
+              fundName: h.fundName,
+              securityId: h.securityId || null,
+              serie: h.serie || null,
+              quantity: h.quantity,
+              assetClass: h.assetClass,
+            })),
+            startDate: yesterday,
+            endDate: today,
+          }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.prices) {
-            const priceMap = new Map<string, FintualPrice>();
-            for (const p of data.prices) {
-              priceMap.set(p.fundName, p);
+          if (data.success && data.results) {
+            const priceMap = new Map<string, { price: number; currency: string }>();
+            for (const r of data.results) {
+              if (r.endPrice && r.endPrice > 0) {
+                priceMap.set(r.fundName, { price: r.endPrice, currency: "CLP" });
+              }
             }
-            setFintualPrices(priceMap);
+            setMarketPrices(priceMap);
           }
         }
       } catch (err) {
-        console.error("Error fetching Fintual prices:", err);
+        console.error("Error fetching market prices:", err);
       } finally {
         setLoadingPrices(false);
       }
     };
 
     fetchPrices();
-  }, [holdingSummaries, latestRawHoldings, clientId]);
-
-  // Fetch current prices from Yahoo/Bolsa for stocks, ETFs, and Chilean FI (CFI* nemotécnicos)
-  useEffect(() => {
-    if (holdingSummaries.length === 0) return;
-    const needsQuote = holdingSummaries.filter(h => {
-      if (!h.securityId) return false;
-      // Stocks and ETFs always need quotes
-      if (["stock", "etf"].includes(h.assetType)) return true;
-      // Chilean fondos de inversión (CFI*) trade on Bolsa de Santiago
-      if (/^CFI/i.test(h.securityId.trim())) return true;
-      return false;
-    });
-    if (needsQuote.length === 0) return;
-
-    const fetchYahooPrices = async () => {
-      const priceMap = new Map<string, YahooQuote>();
-
-      await Promise.all(
-        needsQuote.map(async (h) => {
-          try {
-            const ticker = (h.securityId || "").trim();
-            if (!ticker) return;
-            const res = await fetch(`/api/securities/quote/${encodeURIComponent(ticker)}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            if (data.success && data.quote?.price > 0) {
-              priceMap.set(h.fundName, {
-                fundName: h.fundName,
-                price: data.quote.price,
-                currency: data.quote.currency || "USD",
-              });
-            }
-          } catch {
-            // Silently skip failed quotes
-          }
-        })
-      );
-
-      if (priceMap.size > 0) setYahooPrices(priceMap);
-    };
-
-    fetchYahooPrices();
   }, [holdingSummaries]);
 
   // Fetch bond details from FINRA for bonds missing coupon/maturity
@@ -510,58 +459,36 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           if (!enriched.couponRate && bl.couponRate) enriched = { ...enriched, couponRate: bl.couponRate };
           if (!enriched.maturityDate && bl.maturityDate) enriched = { ...enriched, maturityDate: bl.maturityDate };
         }
+        return enriched; // bonds use their own pricing logic (FINRA)
       }
 
-      // Try Yahoo/Bolsa prices for stocks, ETFs, and Chilean FI (CFI*)
-      const yp = yahooPrices.get(h.fundName);
-      const isCFI = h.securityId && /^CFI/i.test(h.securityId.trim());
-      if (yp && yp.price > 0 && (["stock", "etf"].includes(h.assetType) || isCFI)) {
-        const yahooPrice = yp.price;
+      // Unified market price from prices-at-date
+      const mp = marketPrices.get(h.fundName);
+      if (mp && mp.price > 0) {
         const returnCalc = h.purchasePrice > 0
-          ? ((yahooPrice / h.purchasePrice) - 1) * 100
+          ? ((mp.price / h.purchasePrice) - 1) * 100
           : 0;
-        // Chilean stocks (CLP price) don't need USD conversion
-        const priceIsCLP = yp.currency === "CLP";
+        const priceIsCLP = mp.currency === "CLP";
         const newMarketValue = h.quantity > 0
           ? priceIsCLP
-            ? h.quantity * yahooPrice          // CLP price → CLP value directly
+            ? h.quantity * mp.price
             : usdRate
-              ? h.quantity * yahooPrice * usdRate  // USD price → convert to CLP
+              ? h.quantity * mp.price * usdRate
               : h.marketValue
           : h.marketValue;
 
         return {
           ...enriched,
-          currentPrice: yahooPrice,
+          currentPrice: mp.price,
           marketValue: newMarketValue,
           currency: priceIsCLP ? "CLP" : enriched.currency,
           returnFromBase: Math.round(returnCalc * 100) / 100,
         };
       }
 
-      // Try Fintual prices for funds
-      const fp = fintualPrices.get(h.fundName);
-      if (!fp || !fp.currentPrice || fp.currentPrice <= 0) {
-        return enriched;
-      }
-
-      const fintualCurrentPrice = fp.currentPrice;
-      const returnCalc = h.purchasePrice > 0
-        ? ((fintualCurrentPrice / h.purchasePrice) - 1) * 100
-        : 0;
-      const holdingIsUSD = h.currency === "USD";
-      const newMarketValue = holdingIsUSD
-        ? (h.quantity > 0 && usdRate ? h.quantity * fintualCurrentPrice * usdRate : h.marketValue)
-        : (h.quantity > 0 ? h.quantity * fintualCurrentPrice : h.marketValue);
-
-      return {
-        ...enriched,
-        currentPrice: fintualCurrentPrice,
-        marketValue: newMarketValue,
-        returnFromBase: Math.round(returnCalc * 100) / 100,
-      };
+      return enriched;
     });
-  }, [holdingSummaries, fintualPrices, yahooPrices, bondLookups, tacByFundName, usdRate]);
+  }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate]);
 
   // Notify parent of updated total value and price date
   useEffect(() => {
