@@ -147,6 +147,8 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [benchmarkConfig, setBenchmarkConfig] = useState<BenchmarkComponent[] | null>(null);
   const [benchmarkReturns, setBenchmarkReturns] = useState<Record<string, number> | null>(null);
   const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
+  const [baselineSeries, setBaselineSeries] = useState<Array<{ fecha: string; total: number }> | null>(null);
+  const [loadingBaseline, setLoadingBaseline] = useState(false);
 
   const fetchExecutions = useCallback(async () => {
     try {
@@ -220,6 +222,34 @@ export default function SeguimientoPage({ clientId }: Props) {
       })
       .catch(() => {});
   }, [data, benchmarkConfig]);
+
+  // Fetch baseline evolution (portfolio inicial revalorizado)
+  useEffect(() => {
+    if (!data || data.snapshots.length === 0) return;
+
+    const baseline = data.snapshots.find((s) => s.is_baseline);
+    const latestSnap = data.snapshots[data.snapshots.length - 1];
+    // Only fetch if baseline exists and is different from latest snapshot
+    if (!baseline || !latestSnap || baseline.id === latestSnap.id) {
+      setBaselineSeries(null);
+      return;
+    }
+
+    setLoadingBaseline(true);
+    fetch('/api/portfolio/baseline-evolution', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success && result.series) {
+          setBaselineSeries(result.series);
+        }
+      })
+      .catch((err) => console.error('Error fetching baseline evolution:', err))
+      .finally(() => setLoadingBaseline(false));
+  }, [data, clientId]);
 
   // Fetch historical price series for the evolution chart
   useEffect(() => {
@@ -495,6 +525,43 @@ export default function SeguimientoPage({ clientId }: Props) {
       "YTD": getReturnForPeriod(`${latestDate.getFullYear()}-01-01`),
     };
   }, [historicalSeries, deflatorData, findDeflatorValue]);
+
+  // Calculate monthly returns from baseline series for RetornosComparados
+  const baselineMonthlyReturns = useMemo(() => {
+    if (!baselineSeries || baselineSeries.length < 2) return undefined;
+
+    const returns: Record<string, number> = {};
+    const byMonth = new Map<string, { first: number; last: number }>();
+    for (const point of baselineSeries) {
+      const monthKey = (point.fecha as string).substring(0, 7);
+      const entry = byMonth.get(monthKey);
+      if (!entry) {
+        byMonth.set(monthKey, { first: point.total, last: point.total });
+      } else {
+        entry.last = point.total;
+      }
+    }
+
+    let prevLast: number | null = null;
+    for (const [monthKey, { first, last }] of byMonth) {
+      const startVal = prevLast ?? first;
+      if (startVal > 0) {
+        returns[monthKey] = ((last / startVal) - 1) * 100;
+      }
+      prevLast = last;
+    }
+
+    return Object.keys(returns).length > 0 ? returns : undefined;
+  }, [baselineSeries]);
+
+  // Baseline accumulated return for summary cards
+  const baselineAccReturn = useMemo(() => {
+    if (!baselineSeries || baselineSeries.length < 2) return null;
+    const first = baselineSeries[0].total;
+    const last = baselineSeries[baselineSeries.length - 1].total;
+    if (first <= 0) return null;
+    return ((last / first) - 1) * 100;
+  }, [baselineSeries]);
 
   // TAC ponderado del portafolio
   const weightedTAC = useMemo(() => {
@@ -892,6 +959,11 @@ export default function SeguimientoPage({ clientId }: Props) {
                     )}</span>
                   )}
                 </p>
+                {baselineAccReturn !== null && (
+                  <p className="text-xs text-gb-gray mt-1">
+                    Sin cambios: <span className={baselineAccReturn >= 0 ? "text-green-600" : "text-red-600"}>{baselineAccReturn >= 0 ? '+' : ''}{baselineAccReturn.toFixed(1)}%</span>
+                  </p>
+                )}
               </div>
 
               {/* TAC ponderado */}
@@ -1020,6 +1092,7 @@ export default function SeguimientoPage({ clientId }: Props) {
               <EvolucionChart
                 snapshots={chartSnapshots}
                 historicalSeries={historicalSeries}
+                baselineSeries={baselineSeries || undefined}
                 loadingHistorical={loadingHistorical}
                 period={period}
               />
@@ -1355,6 +1428,8 @@ export default function SeguimientoPage({ clientId }: Props) {
               benchmarkLabel={benchmarkLabel}
               benchmarkReturns={benchmarkReturns || undefined}
               benchmarkMonthlyReturn={!benchmarkReturns ? 0.5 : undefined}
+              comparisonLabel="Portfolio Inicial"
+              comparisonReturns={baselineMonthlyReturns}
             />
           </>
         )}
