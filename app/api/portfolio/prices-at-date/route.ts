@@ -15,6 +15,7 @@ interface HoldingInput {
   serie?: string | null;
   quantity?: number;
   assetClass?: string;
+  currency?: string;
 }
 
 interface PriceAtDateResult {
@@ -212,7 +213,9 @@ async function getPriceForHolding(
   if (/^\d{3,6}$/.test(secId)) {
     const run = parseInt(secId, 10);
     const result = await getChileanFundPrice(run, h.serie || null, targetDate, supabase);
-    if (result) return { ...result, currency: "CLP" };
+    // Some Chilean funds have USD-denominated quota values (e.g. INDEX FUND US)
+    // Respect the currency from the cartola when available
+    if (result) return { ...result, currency: h.currency || "CLP" };
   }
 
   // 2. International instrument (has non-numeric securityId)
@@ -252,7 +255,7 @@ async function getPriceForHolding(
 
   // 3. Fallback: Chilean fund by name matching
   const byName = await getChileanFundPriceByName(h.fundName, targetDate, supabase);
-  if (byName) return { ...byName, currency: "CLP" };
+  if (byName) return { ...byName, currency: h.currency || "CLP" };
 
   return null;
 }
