@@ -1,4 +1,7 @@
 // scripts/backfill-cost-basis.mjs
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
