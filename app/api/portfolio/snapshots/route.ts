@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
 
 interface HoldingData {
   fundName: string;
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
     // Obtener snapshot anterior para calcular retorno diario y cambio de cuotas
     const { data: prevSnapshot } = await supabase
       .from("portfolio_snapshots")
-      .select("total_value, cumulative_return, total_cuotas")
+      .select("total_value, cumulative_return, total_cuotas, holdings")
       .eq("client_id", clientId)
       .lt("snapshot_date", date)
       .order("snapshot_date", { ascending: false })
@@ -240,6 +241,17 @@ export async function POST(request: NextRequest) {
       return Math.max(-999999999999, Math.min(999999999999, Math.round(value * 1000000) / 1000000));
     };
 
+    // Enrich holdings with cost basis before saving
+    let enrichedHoldings = holdings || null;
+    if (holdings && holdings.length > 0) {
+      const previousHoldings = (prevSnapshot?.holdings as HoldingWithCostBasis[]) || [];
+      enrichedHoldings = enrichHoldingsWithCostBasis(
+        holdings as HoldingWithCostBasis[],
+        previousHoldings,
+        date
+      );
+    }
+
     // Prepare data with clamped values
     const snapshotData = {
       client_id: clientId,
@@ -255,7 +267,7 @@ export async function POST(request: NextRequest) {
       fixed_income_value: clampMoney(composition.fixedIncome?.value || 0),
       alternatives_value: clampMoney(composition.alternatives?.value || 0),
       cash_value: clampMoney(composition.cash?.value || 0),
-      holdings: holdings || null,
+      holdings: enrichedHoldings,
       daily_return: clampPercent(dailyReturn),
       cumulative_return: clampPercent(cumulativeReturn),
       // Cash flows for return calculation
