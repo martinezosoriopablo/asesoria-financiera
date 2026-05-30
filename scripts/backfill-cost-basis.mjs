@@ -49,7 +49,8 @@ async function backfill() {
           return holding.fundName === prev.fundName;
         });
 
-        const cartolaPrice = holding.marketPrice || (holding.quantity ? holding.marketValue / holding.quantity : holding.marketValue);
+        // unitCost = actual purchase price from cartola; marketPrice = market price at snapshot date
+        const cartolaPrice = holding.unitCost || holding.marketPrice || (holding.quantity ? holding.marketValue / holding.quantity : holding.marketValue);
 
         if (!match || match.costBasis == null) {
           return { ...holding, costBasis: cartolaPrice, costBasisDate: snapshot.snapshot_date };

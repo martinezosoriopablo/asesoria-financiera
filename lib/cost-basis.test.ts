@@ -63,6 +63,26 @@ describe('calculateCostBasis', () => {
     expect(result.costBasisDate).toBe('2026-03-15');
   });
 
+  it('unitCost available — uses unitCost over marketPrice', () => {
+    const result = calculateCostBasis(
+      { fundName: 'GOOGLCL', quantity: 19, marketPrice: 254910, unitCost: 291600, marketValue: 4843290 },
+      null,
+      '2026-03-31'
+    );
+    expect(result.costBasis).toBe(291600);
+    expect(result.costBasisDate).toBe('2026-03-31');
+  });
+
+  it('unitCost available and quantity changed — uses unitCost', () => {
+    const result = calculateCostBasis(
+      { fundName: 'GOOGLCL', quantity: 25, marketPrice: 260000, unitCost: 270000, marketValue: 6500000 },
+      { fundName: 'GOOGLCL', quantity: 19, marketPrice: 254910, marketValue: 4843290, costBasis: 291600, costBasisDate: '2026-03-31' },
+      '2026-04-30'
+    );
+    expect(result.costBasis).toBe(270000);
+    expect(result.costBasisDate).toBe('2026-04-30');
+  });
+
   it('no marketPrice — calculates from marketValue/quantity', () => {
     const result = calculateCostBasis(
       { fundName: 'Fondo X', quantity: 200, marketValue: 1000000 },

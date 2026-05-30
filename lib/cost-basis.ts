@@ -9,6 +9,7 @@ export interface HoldingWithCostBasis {
   securityId?: string | null;
   quantity?: number;
   marketPrice?: number;
+  unitCost?: number;
   marketValue: number;
   costBasis?: number;
   costBasisDate?: string;
@@ -45,11 +46,12 @@ export function matchHolding(
  * Returns { costBasis, costBasisDate }.
  */
 export function calculateCostBasis(
-  current: { fundName: string; quantity?: number; marketPrice?: number; marketValue: number; [key: string]: unknown },
+  current: { fundName: string; quantity?: number; marketPrice?: number; unitCost?: number; marketValue: number; [key: string]: unknown },
   previous: HoldingWithCostBasis | null,
   snapshotDate: string
 ): { costBasis: number; costBasisDate: string } {
-  const cartolaPrice = current.marketPrice || (current.quantity ? current.marketValue / current.quantity : current.marketValue);
+  // Priority: unitCost (actual purchase price from cartola) > marketPrice > derived from marketValue/quantity
+  const cartolaPrice = current.unitCost || current.marketPrice || (current.quantity ? current.marketValue / current.quantity : current.marketValue);
 
   // No previous match or legacy data without costBasis
   if (!previous || previous.costBasis == null || previous.costBasisDate == null) {

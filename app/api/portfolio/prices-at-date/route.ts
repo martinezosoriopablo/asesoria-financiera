@@ -25,6 +25,7 @@ interface PriceAtDateResult {
   endPrice: number | null;
   endDate: string | null;
   returnPct: number | null;
+  currency: string;
 }
 
 // Lookup price for a Chilean fund (by RUN + serie) at a specific date
@@ -204,14 +205,14 @@ async function getPriceForHolding(
   h: HoldingInput,
   targetDate: string,
   supabase: ReturnType<typeof createAdminClient>
-): Promise<{ price: number; date: string } | null> {
+): Promise<{ price: number; date: string; currency: string } | null> {
   const secId = (h.securityId || "").trim();
 
   // 1. Chilean fund by RUN
   if (/^\d{3,6}$/.test(secId)) {
     const run = parseInt(secId, 10);
     const result = await getChileanFundPrice(run, h.serie || null, targetDate, supabase);
-    if (result) return result;
+    if (result) return { ...result, currency: "CLP" };
   }
 
   // 2. International instrument (has non-numeric securityId)
@@ -224,7 +225,7 @@ async function getPriceForHolding(
     if (resolution.source !== "cmf") {
       // Try DB first
       const result = await getInternationalPrice(resolution.symbol, targetDate, supabase);
-      if (result) return result;
+      if (result) return { ...result, currency: resolution.currency };
 
       // Fallback: fetch on-demand from Yahoo/AlphaVantage
       if (resolution.source === "yahoo" || resolution.source === "alphavantage") {
@@ -240,7 +241,7 @@ async function getPriceForHolding(
             // Find closest price on or before targetDate
             const sorted = prices.sort((a, b) => b.date.localeCompare(a.date));
             const match = sorted.find(p => p.date <= targetDate);
-            if (match) return { price: match.price, date: match.date };
+            if (match) return { price: match.price, date: match.date, currency: resolution.currency };
           }
         } catch {
           // Non-fatal — continue to name matching
@@ -251,7 +252,7 @@ async function getPriceForHolding(
 
   // 3. Fallback: Chilean fund by name matching
   const byName = await getChileanFundPriceByName(h.fundName, targetDate, supabase);
-  if (byName) return byName;
+  if (byName) return { ...byName, currency: "CLP" };
 
   return null;
 }
@@ -297,6 +298,9 @@ export async function POST(request: NextRequest) {
             returnPct = ((endP.price / startP.price) - 1) * 100;
           }
 
+          // Currency from price lookup (both dates should agree); fallback to CLP
+          const currency = endP?.currency || startP?.currency || "CLP";
+
           return {
             fundName: h.fundName,
             assetClass: h.assetClass,
@@ -305,6 +309,7 @@ export async function POST(request: NextRequest) {
             endPrice: endP?.price ?? null,
             endDate: endP?.date ?? null,
             returnPct,
+            currency,
           };
         })
       );

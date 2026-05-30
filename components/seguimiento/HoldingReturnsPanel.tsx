@@ -353,7 +353,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             const priceMap = new Map<string, { price: number; currency: string }>();
             for (const r of data.results) {
               if (r.endPrice && r.endPrice > 0) {
-                priceMap.set(r.fundName, { price: r.endPrice, currency: "CLP" });
+                priceMap.set(r.fundName, { price: r.endPrice, currency: r.currency || "CLP" });
               }
             }
             setMarketPrices(priceMap);
