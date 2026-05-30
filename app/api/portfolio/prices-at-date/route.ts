@@ -16,6 +16,7 @@ interface HoldingInput {
   quantity?: number;
   assetClass?: string;
   currency?: string;
+  market?: string;
 }
 
 interface PriceAtDateResult {
@@ -224,6 +225,8 @@ async function getPriceForHolding(
       securityId: secId,
       fundName: h.fundName,
       marketValue: 0,
+      market: h.market as 'CL' | 'INT' | 'US' | null | undefined,
+      currency: h.currency,
     });
     if (resolution.source !== "cmf") {
       // Try DB first

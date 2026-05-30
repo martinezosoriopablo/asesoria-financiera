@@ -25,6 +25,8 @@ interface Holding {
   marketPrice?: number;
   quantity?: number;
   assetClass?: string;
+  currency?: string;
+  market?: string;
 }
 
 interface Props {
@@ -271,6 +273,8 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
           securityId: h.securityId || null,
           serie: h.serie || null,
           assetClass: h.assetClass,
+          currency: h.currency || null,
+          market: h.market || null,
         })),
         startDate,
         endDate,

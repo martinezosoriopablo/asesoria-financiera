@@ -60,6 +60,7 @@ interface CustodianOption {
 
 const CUSTODIAN_OPTIONS: CustodianOption[] = [
   // AGFs chilenas
+  { label: "Banchile AGF", value: "Banchile AGF", type: "agf" },
   { label: "BCI AGF", value: "BCI AGF", type: "agf" },
   { label: "BTG Pactual AGF", value: "BTG Pactual AGF", type: "agf" },
   { label: "LarrainVial AGF", value: "LarrainVial AGF", type: "agf" },
@@ -72,6 +73,7 @@ const CUSTODIAN_OPTIONS: CustodianOption[] = [
   { label: "Security AGF", value: "Security AGF", type: "agf" },
   { label: "Bice AGF", value: "Bice AGF", type: "agf" },
   // Corredoras chilenas
+  { label: "Banchile Corredora", value: "Banchile Corredora", type: "corredora" },
   { label: "BCI Corredora", value: "BCI Corredora", type: "corredora" },
   { label: "BTG Pactual Corredora", value: "BTG Pactual Corredora", type: "corredora" },
   { label: "LarrainVial Corredora", value: "LarrainVial Corredora", type: "corredora" },
@@ -101,6 +103,7 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
   const [currentSource, setCurrentSource] = useState("");
   const [customSource, setCustomSource] = useState("");
   const [uploadType, setUploadType] = useState<"pdf" | "excel">("pdf");
+  const [pdfPassword, setPdfPassword] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (file: File, type: "pdf" | "excel") => {
@@ -117,6 +120,9 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (type === "pdf" && pdfPassword) {
+        formData.append("password", pdfPassword);
+      }
 
       const parseEndpoint = type === "pdf"
         ? "/api/parse-portfolio-statement"
@@ -409,6 +415,18 @@ export default function AddSnapshotModal({ clientId, onClose, onSuccess }: Props
                 onChange={handleFileSelect}
                 className="hidden"
               />
+
+              {/* PDF password (optional) */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Contraseña PDF (si tiene clave)</label>
+                <input
+                  type="password"
+                  value={pdfPassword}
+                  onChange={(e) => setPdfPassword(e.target.value)}
+                  placeholder="Dejar vacío si no tiene clave"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
 
               {/* Upload buttons */}
               <div className="flex gap-2">

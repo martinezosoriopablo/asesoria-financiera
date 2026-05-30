@@ -24,6 +24,7 @@ interface HoldingData {
   assetClass?: string;
   assetType?: string;
   currency?: string;
+  market?: string;
   returnFromBase?: number;
   weight?: number;
   // Income fields (from cartola)
@@ -254,6 +255,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             unitCost: h.unitCost,
             costBasis: h.costBasis,
             currency: h.currency,
+            market: h.market,
             estIncomeYield: h.estIncomeYield,
             estAnnualIncome: h.estAnnualIncome,
             purchaseDate: h.purchaseDate,
@@ -286,6 +288,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             assetClass: merged.assetClass || "equity",
             assetType,
             currency: merged.currency || "CLP",
+            market: merged.market || h.market || null,
             // Bond fields — prefer cartola data over api-prices
             couponRate: merged.couponRate || null,
             maturityDate: merged.maturityDate || null,
@@ -342,6 +345,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
               quantity: h.quantity,
               assetClass: h.assetClass,
               currency: h.currency || null,
+              market: h.market || null,
             })),
             startDate: yesterday,
             endDate: today,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { extractText, getDocumentProxy } from "unpdf";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -256,6 +257,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
+    const password = formData.get("password") as string | null;
 
     if (!file) {
       return NextResponse.json(
@@ -266,7 +268,47 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString("base64");
+
+    // If password provided, decrypt PDF via pdf.js and send as text instead of document
+    let contentBlock: { type: string; source?: Record<string, string>; text?: string };
+    if (password) {
+      try {
+        const pdf = await getDocumentProxy(new Uint8Array(buffer), { password });
+        const { text: pdfText } = await extractText(pdf, { mergePages: true });
+        if (!pdfText || pdfText.trim().length === 0) {
+          return NextResponse.json(
+            { error: "No se pudo extraer texto del PDF protegido. Verifica la contraseña." },
+            { status: 400 }
+          );
+        }
+        contentBlock = {
+          type: "text",
+          text: `[Contenido extraído de PDF protegido con contraseña]\n\n${pdfText}`,
+        };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("password") || msg.includes("Password") || msg.includes("decrypt")) {
+          return NextResponse.json(
+            { error: "Contraseña incorrecta para el PDF" },
+            { status: 400 }
+          );
+        }
+        return NextResponse.json(
+          { error: `Error al desencriptar PDF: ${msg}` },
+          { status: 400 }
+        );
+      }
+    } else {
+      const base64 = buffer.toString("base64");
+      contentBlock = {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: base64,
+        },
+      };
+    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -282,14 +324,7 @@ export async function POST(request: NextRequest) {
           {
             role: "user",
             content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: "application/pdf",
-                  data: base64,
-                },
-              },
+              contentBlock,
               {
                 type: "text",
                 text: `Analiza esta cartola o estado de cuenta de inversiones y extrae los datos como JSON.

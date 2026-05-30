@@ -70,7 +70,16 @@ export function resolveSource(h: HoldingForPricing): SourceResolution {
     return { source: "finra", symbol: secId.toUpperCase(), currency: "USD" };
   }
 
-  // 6. US/INT market or short letter-only ticker → alphavantage
+  // 6a. Chilean market stock/ETF → yahoo with .SN suffix
+  // When market=CL, always use Santiago exchange (not NYSE ADR)
+  if (h.market === "CL" && secId && !/^\d+$/.test(secId)) {
+    const symbol = secId.toUpperCase().endsWith(".SN")
+      ? secId.toUpperCase()
+      : `${secId.toUpperCase()}.SN`;
+    return { source: "yahoo", symbol, currency: "CLP" };
+  }
+
+  // 6b. US/INT market or short letter-only ticker → alphavantage
   if (h.market === "US" || h.market === "INT") {
     return {
       source: "alphavantage",
