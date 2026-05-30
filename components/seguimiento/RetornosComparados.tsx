@@ -148,11 +148,17 @@ export default function RetornosComparados({
           for (const m of months) { if (m.benchmark != null) compound *= 1 + m.benchmark / 100; }
           accumBench = (compound - 1) * 100;
         }
+        let accumComp: number | null = null;
+        if (comparisonReturns) {
+          let compound = 1;
+          for (const m of months) { if (m.comparison != null) compound *= 1 + m.comparison / 100; }
+          accumComp = (compound - 1) * 100;
+        }
         months.push({
           monthKey: "_acum", label: "Acumulado",
           portfolio: parseFloat(accumP.toFixed(2)),
           benchmark: accumBench != null ? parseFloat(accumBench.toFixed(2)) : null,
-          comparison: null,
+          comparison: accumComp != null ? parseFloat(accumComp.toFixed(2)) : null,
         });
       }
 
@@ -257,8 +263,8 @@ export default function RetornosComparados({
           )}
           {hasComparison && accumData.comparison != null && (
             <div className="bg-gray-50 rounded-lg px-3 py-2">
-              <div className="text-[11px] text-gb-gray">{comparisonLabel || "Comparación"}</div>
-              <div className="text-lg font-semibold text-red-500">
+              <div className="text-[11px] text-gb-gray">{comparisonLabel || "Portfolio Inicial"}</div>
+              <div className="text-lg font-semibold text-orange-500">
                 {accumData.comparison >= 0 ? "+" : ""}{formatNumber(accumData.comparison, 2)}%
               </div>
             </div>
@@ -304,8 +310,8 @@ export default function RetornosComparados({
             {hasComparison && (
               <Bar
                 dataKey="comparison"
-                name={comparisonLabel || "Comparación"}
-                fill="#ef4444"
+                name={comparisonLabel || "Portfolio Inicial"}
+                fill="#f97316"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
               />
@@ -327,7 +333,7 @@ export default function RetornosComparados({
                   <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{benchmarkLabel}</th>
                 )}
                 {hasComparison && (
-                  <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{comparisonLabel}</th>
+                  <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{comparisonLabel || "Portfolio Inicial"}</th>
                 )}
                 {hasBenchmark && (
                   <th className="text-right py-1.5 px-2 text-gb-gray font-medium">Diferencia</th>
