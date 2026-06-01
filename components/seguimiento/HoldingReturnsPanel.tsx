@@ -650,16 +650,22 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             : 0;
         }
 
-        // Market price & value:
+        // Market value today:
         // International bonds: use actual FINRA price
-        // Chilean bonds: cartola price as base, adjusted by duration × Δyield if advisor set a different marketYield
-        const finraPriceForDisplay = finraPrice ? finraPrice.price : cartolaMarketPricePct;
-        const hasAdvisorYield = isChileanBond && h.marketYield != null && ytm > 0 && Math.abs(h.marketYield - ytm) > 0.001;
-        const durationAdjustedPricePct = hasAdvisorYield && duration > 0
-          ? cartolaMarketPricePct - (duration * (marketYieldPct - ytm))
-          : cartolaMarketPricePct;
-        const displayMarketPricePct = isChileanBond ? durationAdjustedPricePct : finraPriceForDisplay;
-        let marketValueCalc = faceValue * displayMarketPricePct / 100;
+        // Chilean bonds: costBasis + devengo + marketDeviation (valued at purchaseYTM,
+        //   adjusted by duration × Δyield if advisor provided a different marketYield)
+        let marketValueCalc: number;
+        let displayMarketPricePct: number;
+        if (isChileanBond) {
+          const costBasisCalcForMV = faceValue * purchasePricePct / 100;
+          marketValueCalc = costBasisCalcForMV + devengoUSD + marketDeviationUSD;
+          // Back-derive display price as % of par for the table
+          displayMarketPricePct = faceValue > 0 ? (marketValueCalc / faceValue) * 100 : purchasePricePct;
+        } else {
+          const finraPriceForDisplay = finraPrice ? finraPrice.price : cartolaMarketPricePct;
+          displayMarketPricePct = finraPriceForDisplay;
+          marketValueCalc = faceValue * displayMarketPricePct / 100;
+        }
 
         // Prefer cartola's costBasis (real amount paid), fallback to calculated
         const calcCostBasis = faceValue * purchasePricePct / 100;
