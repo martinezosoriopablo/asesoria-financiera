@@ -643,11 +643,15 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             : 0;
         }
 
-        // Effective market price via duration adjustment (for display + market value)
-        const effectiveMarketPricePct = duration > 0
+        // Market price & value:
+        // International bonds: use actual FINRA price for market value
+        // Chilean bonds: approximate via duration × Δyield (no market price available)
+        const finraPriceForDisplay = finraPrice ? finraPrice.price : cartolaMarketPricePct;
+        const durationAdjustedPricePct = duration > 0
           ? purchasePricePct - (duration * (marketYieldPct - ytm))
           : purchasePricePct;
-        let marketValueCalc = faceValue * effectiveMarketPricePct / 100;
+        const displayMarketPricePct = isChileanBond ? durationAdjustedPricePct : finraPriceForDisplay;
+        let marketValueCalc = faceValue * displayMarketPricePct / 100;
 
         // Prefer cartola's costBasis (real amount paid), fallback to calculated
         const calcCostBasis = faceValue * purchasePricePct / 100;
@@ -670,7 +674,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           weight: h.weight,
           purchasePrice: purchasePricePct,
           costBasis: actualCostBasis,
-          marketPrice: effectiveMarketPricePct,
+          marketPrice: displayMarketPricePct,
           ytm,
           marketYield: marketYieldPct,
           duration,
