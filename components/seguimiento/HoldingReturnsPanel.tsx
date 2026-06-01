@@ -495,6 +495,13 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         };
       }
 
+      // No market price update — but if currency is USD, convert marketValue to CLP
+      if (enriched.currency === "USD" && usdRate && enriched.marketValue > 0) {
+        return {
+          ...enriched,
+          marketValue: enriched.marketValue * usdRate,
+        };
+      }
       return enriched;
     });
   }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate]);
