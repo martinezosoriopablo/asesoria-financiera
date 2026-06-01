@@ -22,7 +22,8 @@ export interface BondHoldingRow {
   marketDeviationUSD: number; // market vs theoretical
   totalReturn: number;      // %
   contribution: number;     // totalReturn * weight / 100
-  marketValue: number;      // USD
+  marketValue: number;      // USD or CLP (Chilean bonds × UF)
+  currency?: string;        // "USD" | "CLP"
 }
 
 interface Props {

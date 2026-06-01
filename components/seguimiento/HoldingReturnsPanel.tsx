@@ -142,6 +142,7 @@ interface Props {
   onHoldingReturnsReady?: (data: HoldingReturnsData) => void;
   fundsMeta?: FundMeta[];
   usdRate?: number;
+  ufRate?: number;
 }
 
 interface BondLookup {
@@ -151,7 +152,7 @@ interface BondLookup {
   maturityDate: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate }: Props) {
   const [marketPrices, setMarketPrices] = useState<Map<string, { price: number; currency: string }>>(new Map());
   const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
   const [bondPrices, setBondPrices] = useState<Map<string, { price: number; ytm: number | null; date: string }>>(new Map());
@@ -674,11 +675,19 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const effectiveMarketPricePct = isChileanBond && duration > 0
           ? purchasePricePct - (duration * ((h.marketYield != null ? h.marketYield : ytm) - ytm))
           : marketPricePct;
-        const marketValueCalc = faceValue * effectiveMarketPricePct / 100;
+        let marketValueCalc = faceValue * effectiveMarketPricePct / 100;
 
         // Prefer cartola's costBasis (real amount paid), fallback to calculated
         const calcCostBasis = faceValue * purchasePricePct / 100;
-        const actualCostBasis = h.costBasis && h.costBasis > 0 ? h.costBasis : calcCostBasis;
+        let actualCostBasis = h.costBasis && h.costBasis > 0 ? h.costBasis : calcCostBasis;
+
+        // Chilean bonds are in UF — convert to CLP
+        if (isChileanBond && ufRate) {
+          marketValueCalc *= ufRate;
+          actualCostBasis *= ufRate;
+          devengoUSD *= ufRate;
+          marketDeviationUSD *= ufRate;
+        }
 
         return {
           fundName: h.fundName,
@@ -699,9 +708,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
           marketValue: marketValueCalc,
+          currency: isChileanBond ? "CLP" : "USD",
         };
       });
-  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices]);
+  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate]);
 
   // Cash holdings
   const cashValue = enrichedSummaries
