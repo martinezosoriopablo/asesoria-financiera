@@ -499,22 +499,17 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     });
   }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate]);
 
-  // Notify parent of updated total value and price date
+  // Price date notification (doesn't depend on totalValue)
   useEffect(() => {
-    if (enrichedSummaries.length === 0) return;
-    const total = enrichedSummaries.reduce((sum, h) => sum + (h.marketValue || 0), 0);
-    if (total > 0 && onCurrentValueUpdate) onCurrentValueUpdate(total);
-
-    if (onPriceDateUpdate) {
-      const dates = enrichedSummaries
-        .map((h) => (h as Record<string, unknown>).lastPriceDate as string | undefined)
-        .filter(Boolean) as string[];
-      if (dates.length > 0) {
-        dates.sort();
-        onPriceDateUpdate(dates[dates.length - 1]);
-      }
+    if (enrichedSummaries.length === 0 || !onPriceDateUpdate) return;
+    const dates = enrichedSummaries
+      .map((h) => (h as Record<string, unknown>).lastPriceDate as string | undefined)
+      .filter(Boolean) as string[];
+    if (dates.length > 0) {
+      dates.sort();
+      onPriceDateUpdate(dates[dates.length - 1]);
     }
-  }, [enrichedSummaries, onCurrentValueUpdate, onPriceDateUpdate]);
+  }, [enrichedSummaries, onPriceDateUpdate]);
 
   // --- Classify holdings by asset class ---
   // A fund with assetClass "fixedIncome" is a RF fund, not equity.
@@ -532,8 +527,6 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const hasBonds = enrichedSummaries.some(h => h.assetType === "bond");
   const hasStocksOrETFs = enrichedSummaries.some(h => ["etf", "stock"].includes(h.assetType));
   const hasCash = enrichedSummaries.some(h => h.assetType === "cash");
-
-  const totalValue = enrichedSummaries.reduce((s, h) => s + h.marketValue, 0);
 
   // Helper to build EquityHolding from enriched summary
   const toEquityHolding = (h: typeof enrichedSummaries[number]): EquityHolding => ({
@@ -697,21 +690,26 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     .filter(h => h.assetType === "cash")
     .reduce((s, h) => s + h.marketValue, 0);
 
+  // Total value: use recalculated bond values (duration-adjusted + UF converted)
+  const nonBondValue = enrichedSummaries.filter(h => h.assetType !== "bond").reduce((s, h) => s + h.marketValue, 0);
+  const totalValue = nonBondValue + bondHoldings.reduce((s, h) => s + h.marketValue, 0);
+
   // Portfolio-level return
   const equityContrib = equityHoldings.reduce((s, h) => s + h.contribution, 0);
   const fiFundContrib = fixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0);
   const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
   const portfolioReturn = equityContrib + fiFundContrib + bondContrib;
 
+  // Notify parent of total value (after bond recalculation)
+  useEffect(() => {
+    if (totalValue > 0 && onCurrentValueUpdate) onCurrentValueUpdate(totalValue);
+  }, [totalValue, onCurrentValueUpdate]);
+
   // Expose computed holding returns to parent (for PerformanceAttribution)
   useEffect(() => {
     if (!onHoldingReturnsReady) return;
-    const cv = enrichedSummaries
-      .filter(h => h.assetType === "cash")
-      .reduce((s, h) => s + h.marketValue, 0);
-    const tv = enrichedSummaries.reduce((s, h) => s + (h.marketValue || 0), 0);
-    onHoldingReturnsReady({ equityHoldings, fixedIncomeFundHoldings, bondHoldings, cashValue: cv, totalValue: tv, portfolioReturn });
-  }, [equityHoldings, fixedIncomeFundHoldings, bondHoldings, onHoldingReturnsReady, enrichedSummaries, portfolioReturn]);
+    onHoldingReturnsReady({ equityHoldings, fixedIncomeFundHoldings, bondHoldings, cashValue, totalValue, portfolioReturn });
+  }, [equityHoldings, fixedIncomeFundHoldings, bondHoldings, onHoldingReturnsReady, cashValue, totalValue, portfolioReturn]);
 
   if (holdingSummaries.length === 0) return null;
 
