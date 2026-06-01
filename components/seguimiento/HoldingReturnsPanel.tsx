@@ -651,12 +651,13 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         }
 
         // Market price & value:
-        // International bonds: use actual FINRA price for market value
-        // Chilean bonds: approximate via duration × Δyield (no market price available)
+        // International bonds: use actual FINRA price
+        // Chilean bonds: cartola price as base, adjusted by duration × Δyield if advisor set a different marketYield
         const finraPriceForDisplay = finraPrice ? finraPrice.price : cartolaMarketPricePct;
-        const durationAdjustedPricePct = duration > 0
-          ? purchasePricePct - (duration * (marketYieldPct - ytm))
-          : purchasePricePct;
+        const hasAdvisorYield = isChileanBond && h.marketYield != null && ytm > 0 && Math.abs(h.marketYield - ytm) > 0.001;
+        const durationAdjustedPricePct = hasAdvisorYield && duration > 0
+          ? cartolaMarketPricePct - (duration * (marketYieldPct - ytm))
+          : cartolaMarketPricePct;
         const displayMarketPricePct = isChileanBond ? durationAdjustedPricePct : finraPriceForDisplay;
         let marketValueCalc = faceValue * displayMarketPricePct / 100;
 
