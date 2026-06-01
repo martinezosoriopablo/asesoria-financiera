@@ -590,12 +590,6 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const finraPrice = bondPrices.get(h.fundName);
         const isChileanBond = !hasValidCusip && !finraPrice;
 
-        // For international bonds: use FINRA price, fallback to cartola price
-        // For Chilean bonds: no market price available — use purchase price as base
-        const marketPricePct = isChileanBond
-          ? purchasePricePct  // will be adjusted via duration × Δyield below
-          : (finraPrice ? finraPrice.price : cartolaMarketPricePct);
-
         const faceValue = h.quantity || (h.marketValue / (cartolaMarketPricePct / 100));
         const freq = 2; // semi-annual default
 
@@ -622,59 +616,44 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           try { ytm = calcYieldToMaturity(bondParams, new Date(h.purchaseDate + "T00:00:00")) * 100; } catch { ytm = 0; }
           try { duration = calcModifiedDuration(bondParams); } catch { duration = 0; }
 
-          if (isChileanBond) {
-            // Chilean bond: no market price — approximate via duration × Δyield
-            // marketYield defaults to purchase YTM if advisor hasn't set it
-            marketYieldPct = h.marketYield != null ? h.marketYield : ytm;
-            const yieldDeltaDecimal = (marketYieldPct - ytm) / 100; // convert pct → decimal
-            // ΔPrice ≈ -Duration × ΔYield × faceValue
-            marketDeviationUSD = -duration * yieldDeltaDecimal * faceValue;
+          // --- Unified model for ALL bonds (Chilean + international) ---
+          // Devengo: linear accrual at purchase YTM (independent of market)
+          const periodResult = calcBondPeriodReturn({
+            faceValue,
+            couponRate: couponRateDecimal,
+            couponFrequency: freq,
+            maturityDate: h.maturityDate,
+            purchasePrice: purchasePricePct,
+            currentPrice: purchasePricePct, // devengo only — same as purchase
+            startDate: previousSnapshotDate || h.purchaseDate,
+            endDate: latestDate || previousSnapshotDate || h.purchaseDate,
+            purchaseDate: h.purchaseDate,
+          });
+          devengoUSD = periodResult.devengoUSD;
+          devengoPct = periodResult.devengoPct;
 
-            // Devengo: use calcBondPeriodReturn with currentPrice = purchasePrice
-            // (devengo is interest accrual, independent of market price)
-            const periodResult = calcBondPeriodReturn({
-              faceValue,
-              couponRate: couponRateDecimal,
-              couponFrequency: freq,
-              maturityDate: h.maturityDate,
-              purchasePrice: purchasePricePct,
-              currentPrice: purchasePricePct, // no market price → same as purchase
-              startDate: previousSnapshotDate || h.purchaseDate,
-              endDate: latestDate || previousSnapshotDate || h.purchaseDate,
-              purchaseDate: h.purchaseDate,
-            });
-            devengoUSD = periodResult.devengoUSD;
-            devengoPct = periodResult.devengoPct;
-            // Total return = devengo + market deviation (from duration approx)
-            const costBasisCalc = faceValue * purchasePricePct / 100;
-            totalReturnPct = costBasisCalc > 0
-              ? ((devengoUSD + marketDeviationUSD) / costBasisCalc) * 100
-              : 0;
+          // Market deviation via duration × Δyield
+          // Chilean: marketYield from advisor (default = purchaseYTM → deviation = 0)
+          // International: marketYield from FINRA
+          if (isChileanBond) {
+            marketYieldPct = h.marketYield != null ? h.marketYield : ytm;
           } else {
-            // International bond: use FINRA/cartola market price as before
-            const periodResult = calcBondPeriodReturn({
-              faceValue,
-              couponRate: couponRateDecimal,
-              couponFrequency: freq,
-              maturityDate: h.maturityDate,
-              purchasePrice: purchasePricePct,
-              currentPrice: marketPricePct,
-              startDate: previousSnapshotDate || h.purchaseDate,
-              endDate: latestDate || previousSnapshotDate || h.purchaseDate,
-              purchaseDate: h.purchaseDate,
-            });
-            devengoUSD = periodResult.devengoUSD;
-            devengoPct = periodResult.devengoPct;
-            marketDeviationUSD = periodResult.marketDeviationUSD;
-            totalReturnPct = periodResult.totalReturnPct;
+            marketYieldPct = finraPrice?.ytm != null ? finraPrice.ytm : ytm;
           }
+          const yieldDeltaDecimal = (marketYieldPct - ytm) / 100;
+          marketDeviationUSD = -duration * yieldDeltaDecimal * faceValue;
+
+          // Total return = devengo + market deviation (duration approx)
+          const costBasisCalc = faceValue * purchasePricePct / 100;
+          totalReturnPct = costBasisCalc > 0
+            ? ((devengoUSD + marketDeviationUSD) / costBasisCalc) * 100
+            : 0;
         }
 
-        // Market value: for Chilean bonds use purchase price + duration adjustment
-        // For international bonds use market price
-        const effectiveMarketPricePct = isChileanBond && duration > 0
-          ? purchasePricePct - (duration * ((h.marketYield != null ? h.marketYield : ytm) - ytm))
-          : marketPricePct;
+        // Effective market price via duration adjustment (for display + market value)
+        const effectiveMarketPricePct = duration > 0
+          ? purchasePricePct - (duration * (marketYieldPct - ytm))
+          : purchasePricePct;
         let marketValueCalc = faceValue * effectiveMarketPricePct / 100;
 
         // Prefer cartola's costBasis (real amount paid), fallback to calculated
@@ -700,7 +679,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           costBasis: actualCostBasis,
           marketPrice: effectiveMarketPricePct,
           ytm,
-          marketYield: isChileanBond ? marketYieldPct : (finraPrice?.ytm ?? ytm),
+          marketYield: marketYieldPct,
           duration,
           devengoUSD,
           devengoPct,
