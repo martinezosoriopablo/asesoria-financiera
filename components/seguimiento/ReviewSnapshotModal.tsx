@@ -22,6 +22,7 @@ interface Holding {
   maturityDate?: string | null;
   creditRating?: string | null;
   purchaseDate?: string | null;  // ISO date — when the bond was purchased
+  marketYield?: number | null;   // % — advisor-provided market yield for Chilean bonds
 }
 
 interface ParsedData {
@@ -1409,6 +1410,7 @@ export default function ReviewSnapshotModal({
                   <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-32">Valor Total</th>
                   <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-28">Clase</th>
                   <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 w-28">F. Compra</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 w-24">Tasa Mdo.</th>
                 </tr>
               </thead>
               <tbody>
@@ -1518,6 +1520,27 @@ export default function ReviewSnapshotModal({
                           onChange={(e) => handlePurchaseDateChange(index, e.target.value)}
                           className="w-28 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
                         />
+                      ) : (
+                        <span className="text-xs text-gb-gray">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {holding.assetType === "bond" ? (
+                        <div className="flex items-center gap-0.5 justify-end">
+                          <input
+                            type="number"
+                            value={holding.marketYield ?? ""}
+                            onChange={(e) => {
+                              const updated = [...holdings];
+                              updated[index] = { ...updated[index], marketYield: e.target.value ? parseFloat(e.target.value) : null };
+                              setHoldings(updated);
+                            }}
+                            placeholder="-"
+                            step="0.01"
+                            className="w-16 px-1 py-1 text-right text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-gb-gray">%</span>
+                        </div>
                       ) : (
                         <span className="text-xs text-gb-gray">-</span>
                       )}

@@ -14,7 +14,8 @@ export interface BondHoldingRow {
   purchasePrice: number;    // % of par
   costBasis: number;        // USD — what was paid
   marketPrice: number;      // % of par
-  ytm: number;              // annual %
+  ytm: number;              // annual % — TIR de compra
+  marketYield: number;      // annual % — tasa de mercado (Chilean: advisor input, Intl: FINRA)
   duration: number;         // modified duration in years
   devengoUSD: number;       // YTM-based accrual in USD
   devengoPct: number;       // devengo as % of costBasis
@@ -85,7 +86,8 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Peso</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">V. Compra</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">V. Mercado</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">TIR</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">TIR Compra</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Tasa Mdo.</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Devengo</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Desv. Mdo.</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gb-gray uppercase">Ret. Total</th>
@@ -124,6 +126,9 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
                 <td className="px-3 py-2 text-right text-xs font-medium text-gb-black">
                   {formatNumber(h.ytm, 2)}%
                 </td>
+                <td className="px-3 py-2 text-right text-xs font-medium text-gb-black">
+                  {formatNumber(h.marketYield, 2)}%
+                </td>
                 <td className="px-3 py-2 text-right">
                   <UsdCell value={h.devengoUSD} />
                   {h.devengoPct > 0 && (
@@ -150,6 +155,7 @@ export default function FixedIncomeSection({ holdings, totalPortfolioValue }: Pr
               <td className="px-3 py-2 text-right text-xs text-gb-black">
                 ${formatNumber(subtotalValue, 0)}
               </td>
+              <td className="px-3 py-2" />
               <td className="px-3 py-2" />
               <td className="px-3 py-2 text-right">
                 <UsdCell value={subtotalDevengo} />

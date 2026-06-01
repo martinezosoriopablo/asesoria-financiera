@@ -35,6 +35,7 @@ interface HoldingData {
   maturityDate?: string | null;
   creditRating?: string | null;
   purchaseDate?: string | null;
+  marketYield?: number | null;
 }
 
 // inferAssetType removed — now using inferInstrumentType from @/lib/instrument-type
@@ -259,6 +260,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             estIncomeYield: h.estIncomeYield,
             estAnnualIncome: h.estAnnualIncome,
             purchaseDate: h.purchaseDate,
+            marketYield: h.marketYield,
           });
         }
       }
@@ -299,6 +301,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             serie: h.serie || null,
             estIncomeYield: merged.estIncomeYield || null,
             estAnnualIncome: merged.estAnnualIncome || null,
+            marketYield: merged.marketYield ?? null,
           };
 
           // For bonds, extract coupon/maturity/rating from fundName if missing
@@ -580,15 +583,20 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const purchasePricePct = toBondPricePct(h.purchasePrice);
         const cartolaMarketPricePct = toBondPricePct(h.currentPrice);
 
-        // Use FINRA price if available, otherwise cartola price
+        // Chilean bond = no valid CUSIP (9-char alphanumeric) and no FINRA price
+        const secId = (h.securityId || "").trim();
+        const hasValidCusip = /^[A-Z0-9]{9}$/i.test(secId);
         const finraPrice = bondPrices.get(h.fundName);
-        const marketPricePct = finraPrice ? finraPrice.price : cartolaMarketPricePct;
+        const isChileanBond = !hasValidCusip && !finraPrice;
+
+        // For international bonds: use FINRA price, fallback to cartola price
+        // For Chilean bonds: no market price available — use purchase price as base
+        const marketPricePct = isChileanBond
+          ? purchasePricePct  // will be adjusted via duration × Δyield below
+          : (finraPrice ? finraPrice.price : cartolaMarketPricePct);
 
         const faceValue = h.quantity || (h.marketValue / (cartolaMarketPricePct / 100));
         const freq = 2; // semi-annual default
-
-        // Market value in USD = faceValue × marketPrice% / 100
-        const marketValueUSD = faceValue * marketPricePct / 100;
 
         // All bond calculations require purchaseDate — without it, show raw data only
         let devengoUSD = 0;
@@ -597,9 +605,9 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         let totalReturnPct = 0;
         let ytm = 0;
         let duration = 0;
+        let marketYieldPct = 0;
 
         if (h.purchaseDate && h.maturityDate && couponRateDecimal > 0) {
-          // TIR de compra: YTM solved at purchase price, not market price
           const bondParams = {
             faceValue,
             couponRate: couponRateDecimal,
@@ -613,23 +621,60 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           try { ytm = calcYieldToMaturity(bondParams, new Date(h.purchaseDate + "T00:00:00")) * 100; } catch { ytm = 0; }
           try { duration = calcModifiedDuration(bondParams); } catch { duration = 0; }
 
-          // Devengo uses the same purchase YTM internally
-          const periodResult = calcBondPeriodReturn({
-            faceValue,
-            couponRate: couponRateDecimal,
-            couponFrequency: freq,
-            maturityDate: h.maturityDate,
-            purchasePrice: purchasePricePct,
-            currentPrice: marketPricePct,
-            startDate: previousSnapshotDate || h.purchaseDate,
-            endDate: latestDate || previousSnapshotDate || h.purchaseDate,
-            purchaseDate: h.purchaseDate,
-          });
-          devengoUSD = periodResult.devengoUSD;
-          devengoPct = periodResult.devengoPct;
-          marketDeviationUSD = periodResult.marketDeviationUSD;
-          totalReturnPct = periodResult.totalReturnPct;
+          if (isChileanBond) {
+            // Chilean bond: no market price — approximate via duration × Δyield
+            // marketYield defaults to purchase YTM if advisor hasn't set it
+            marketYieldPct = h.marketYield != null ? h.marketYield : ytm;
+            const yieldDeltaDecimal = (marketYieldPct - ytm) / 100; // convert pct → decimal
+            // ΔPrice ≈ -Duration × ΔYield × faceValue
+            marketDeviationUSD = -duration * yieldDeltaDecimal * faceValue;
+
+            // Devengo: use calcBondPeriodReturn with currentPrice = purchasePrice
+            // (devengo is interest accrual, independent of market price)
+            const periodResult = calcBondPeriodReturn({
+              faceValue,
+              couponRate: couponRateDecimal,
+              couponFrequency: freq,
+              maturityDate: h.maturityDate,
+              purchasePrice: purchasePricePct,
+              currentPrice: purchasePricePct, // no market price → same as purchase
+              startDate: previousSnapshotDate || h.purchaseDate,
+              endDate: latestDate || previousSnapshotDate || h.purchaseDate,
+              purchaseDate: h.purchaseDate,
+            });
+            devengoUSD = periodResult.devengoUSD;
+            devengoPct = periodResult.devengoPct;
+            // Total return = devengo + market deviation (from duration approx)
+            const costBasisCalc = faceValue * purchasePricePct / 100;
+            totalReturnPct = costBasisCalc > 0
+              ? ((devengoUSD + marketDeviationUSD) / costBasisCalc) * 100
+              : 0;
+          } else {
+            // International bond: use FINRA/cartola market price as before
+            const periodResult = calcBondPeriodReturn({
+              faceValue,
+              couponRate: couponRateDecimal,
+              couponFrequency: freq,
+              maturityDate: h.maturityDate,
+              purchasePrice: purchasePricePct,
+              currentPrice: marketPricePct,
+              startDate: previousSnapshotDate || h.purchaseDate,
+              endDate: latestDate || previousSnapshotDate || h.purchaseDate,
+              purchaseDate: h.purchaseDate,
+            });
+            devengoUSD = periodResult.devengoUSD;
+            devengoPct = periodResult.devengoPct;
+            marketDeviationUSD = periodResult.marketDeviationUSD;
+            totalReturnPct = periodResult.totalReturnPct;
+          }
         }
+
+        // Market value: for Chilean bonds use purchase price + duration adjustment
+        // For international bonds use market price
+        const effectiveMarketPricePct = isChileanBond && duration > 0
+          ? purchasePricePct - (duration * ((h.marketYield != null ? h.marketYield : ytm) - ytm))
+          : marketPricePct;
+        const marketValueCalc = faceValue * effectiveMarketPricePct / 100;
 
         // Prefer cartola's costBasis (real amount paid), fallback to calculated
         const calcCostBasis = faceValue * purchasePricePct / 100;
@@ -644,15 +689,16 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           weight: h.weight,
           purchasePrice: purchasePricePct,
           costBasis: actualCostBasis,
-          marketPrice: marketPricePct,
+          marketPrice: effectiveMarketPricePct,
           ytm,
+          marketYield: isChileanBond ? marketYieldPct : (finraPrice?.ytm ?? ytm),
           duration,
           devengoUSD,
           devengoPct,
           marketDeviationUSD,
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
-          marketValue: marketValueUSD,
+          marketValue: marketValueCalc,
         };
       });
   }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices]);
