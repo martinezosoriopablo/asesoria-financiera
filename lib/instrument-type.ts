@@ -17,10 +17,17 @@ const VALID_TYPES = new Set<string>(["bond", "stock", "etf", "fund", "cash"]);
 const CASH_RE = /cash|efect|money\s*market|liquidez|sweep|deposito|depósito/i;
 const ETF_NAME_RE = /\bETF\b|\bSPDR\b|\biShares\b|\bVanguard\b.*\b(Index|Total|Growth|Value)\b/i;
 const ETF_TICKER_SET = new Set([
+  // Core & broad market
   "SPY","QQQ","IVV","VOO","VTI","VEA","VWO","EFA","EEM","AGG","BND","LQD","HYG","TLT","IEF",
   "SHY","GLD","SLV","XLF","XLK","XLE","XLV","XLI","XLY","XLP","XLU","XLB","XLRE","XLC",
   "SMH","SOXX","ARKK","ARKW","ARKF","ARKG","DIA","IWM","IWF","IWD","MDY","VIG","VYM","SCHD",
   "ITOT","IEMG","IJR","IJH","DVY","PFF","EMB","VCIT","VCSH","BNDX","VXUS",
+  // Comite categories (primary + UCITS)
+  "ECH","TIP","VNQ","SGOV",
+  "CSPX","IWDA","EIMI","IDTM","IBTS","LQDE","ITPS","IHYG","EMHC","SGLN","IPRP","ERNS",
+  // Secondary / additional
+  "SPLG","SCHX","IEFA","SPDW","SCHE","GOVT","VGIT","VGSH","SCHO","BIL",
+  "IGIB","SCHP","VTIP","JNK","USHY","VWOB","PCY","IAU","GLDM","SCHH","IYR","SHV","GBIL",
 ]);
 const CUSIP_RE = /^[A-Z0-9]{9}$/i;
 
@@ -77,3 +84,6 @@ export function inferInstrumentType(h: HoldingLike): InstrumentType {
   if (ETF_NAME_RE.test(name)) return "etf";
   return "fund";
 }
+
+/** Alias for inferInstrumentType — used by radiografia v2 pipeline */
+export const detectInstrumentType = inferInstrumentType;
