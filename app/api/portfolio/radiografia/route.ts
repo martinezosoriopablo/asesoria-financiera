@@ -14,6 +14,7 @@ import {
   type HoldingForClassification,
   type ComiteRole,
 } from "@/lib/comite-categories";
+import { mapSectorToSleeve, mapSectorToCategory, type StockProfile } from "@/lib/sector-mapping";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,32 @@ interface CategoryResult {
     custodian: string;
     custodianType: string;
   } | null;
+}
+
+interface SectorBreakdownItem {
+  sector: string;
+  sleeveId: string | null;
+  actualPct: number;
+  sleevePct: number | null;
+  deltaPp: number;
+  sleeveVista: "OW" | "UW" | "N" | null;
+  sleeveConviction: "ALTA" | "MEDIA" | "BAJA" | null;
+  holdings: Array<{
+    fundName: string;
+    ticker: string;
+    marketValueUSD: number;
+    weightInSector: number;
+  }>;
+}
+
+interface TradeSuggestion {
+  action: "REDUCIR" | "AGREGAR" | "MANTENER";
+  reason: string;
+  holdings?: string[];
+  amountUSD?: number;
+  instrument?: string;
+  instrumentTicker?: string;
+  priority: "alta" | "media" | "baja";
 }
 
 // ── POST handler ─────────────────────────────────────────────────────────
@@ -237,6 +264,72 @@ export async function POST(request: NextRequest) {
         valueCLP: h.marketValueCLP || h.marketValue || 0,
       };
     });
+
+    // ── 8b. Enrich stocks with sector data ────────────────────────────
+    const stockTickers = classifiedHoldings
+      .filter((h) => {
+        const sid = h.securityId?.trim() || "";
+        return sid && !/^\d+$/.test(sid) && /^[A-Z]{1,5}$/.test(sid);
+      })
+      .map((h) => h.securityId!.trim().toUpperCase());
+
+    const uniqueStockTickers = [...new Set(stockTickers)];
+    const stockProfiles = new Map<string, StockProfile>();
+
+    if (uniqueStockTickers.length > 0) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+
+      const { data: cached } = await supabase
+        .from("stock_profiles" as any)
+        .select("ticker, name, sector, industry, market_cap, country, exchange")
+        .in("ticker", uniqueStockTickers)
+        .gte("fetched_at", cutoff.toISOString());
+
+      for (const row of (cached || []) as any[]) {
+        stockProfiles.set(row.ticker, {
+          ticker: row.ticker,
+          name: row.name || row.ticker,
+          sector: row.sector || "",
+          industry: row.industry || "",
+          marketCap: row.market_cap || 0,
+          country: row.country || "",
+          exchange: row.exchange || "",
+        });
+      }
+
+      const missingTickers = uniqueStockTickers.filter((t) => !stockProfiles.has(t));
+      if (missingTickers.length > 0) {
+        const { fetchStockOverviews } = await import("@/lib/stock-profiles");
+        const fetched = await fetchStockOverviews(missingTickers);
+
+        const rows = Array.from(fetched.values()).map((p) => ({
+          ticker: p.ticker,
+          name: p.name,
+          sector: p.sector,
+          industry: p.industry,
+          market_cap: p.marketCap,
+          country: p.country,
+          exchange: p.exchange,
+          fetched_at: new Date().toISOString(),
+        }));
+        if (rows.length > 0) {
+          await supabase.from("stock_profiles" as any).upsert(rows, { onConflict: "ticker" });
+        }
+
+        for (const [t, p] of fetched) stockProfiles.set(t, p);
+      }
+
+      // Reclassify stocks using sector data (upgrade from low to medium confidence)
+      for (const h of classifiedHoldings) {
+        const sid = h.securityId?.trim().toUpperCase() || "";
+        const profile = stockProfiles.get(sid);
+        if (profile && h.confidence === "low") {
+          h.categoryId = mapSectorToCategory(profile);
+          h.confidence = "medium";
+        }
+      }
+    }
 
     // ── 9. Load model portfolio ──────────────────────────────────────────
     const { data: latestDate } = await supabase
@@ -433,6 +526,120 @@ export async function POST(request: NextRequest) {
       allocation[role].delta = Math.round((allocation[role].actual - allocation[role].target) * 100) / 100;
     }
 
+    // ── 12b. Build sector breakdown (normalized within RV) ─────────
+    const rvHoldings = classifiedHoldings.filter((h) => {
+      const cat = getCategoryById(h.categoryId);
+      return cat?.role === "rv";
+    });
+
+    const rvTotalCLP = rvHoldings.reduce((s, h) => s + h.valueCLP, 0);
+
+    const sectorGroups = new Map<string, typeof rvHoldings>();
+    for (const h of rvHoldings) {
+      const sid = h.securityId?.trim().toUpperCase() || "";
+      const profile = stockProfiles.get(sid);
+      const sector = profile?.sector || "Other";
+      if (!sectorGroups.has(sector)) sectorGroups.set(sector, []);
+      sectorGroups.get(sector)!.push(h);
+    }
+
+    const sleeveMap = new Map<string, { vista: string; conviction: string; peso_pct: number }>();
+    for (const s of sleeves) {
+      const id = (s.id as string) || (s.sector as string) || "";
+      if (id) {
+        sleeveMap.set(id, {
+          vista: (s.vista as string) || "N",
+          conviction: (s.conviction as string) || "",
+          peso_pct: (s.peso_pct as number) || 0,
+        });
+      }
+    }
+
+    const sectorBreakdown: SectorBreakdownItem[] = Array.from(sectorGroups.entries())
+      .map(([sector, holdings]) => {
+        const sectorValueCLP = holdings.reduce((s, h) => s + h.valueCLP, 0);
+        const actualPct = rvTotalCLP > 0
+          ? Math.round((sectorValueCLP / rvTotalCLP) * 10000) / 100
+          : 0;
+
+        const sleeveId = mapSectorToSleeve(sector);
+        const sleeve = sleeveId ? sleeveMap.get(sleeveId) : null;
+
+        return {
+          sector,
+          sleeveId,
+          actualPct,
+          sleevePct: sleeve?.peso_pct ?? null,
+          deltaPp: sleeve?.peso_pct != null
+            ? Math.round((actualPct - sleeve.peso_pct) * 100) / 100
+            : 0,
+          sleeveVista: (sleeve?.vista as SectorBreakdownItem["sleeveVista"]) ?? null,
+          sleeveConviction: (sleeve?.conviction as SectorBreakdownItem["sleeveConviction"]) ?? null,
+          holdings: holdings.map((h) => ({
+            fundName: h.fundName,
+            ticker: h.securityId?.trim() || "",
+            marketValueUSD: h.marketValue || 0,
+            weightInSector: sectorValueCLP > 0
+              ? Math.round((h.valueCLP / sectorValueCLP) * 10000) / 100
+              : 0,
+          })),
+        };
+      })
+      .sort((a, b) => Math.abs(b.deltaPp) - Math.abs(a.deltaPp));
+
+    // ── 12c. Generate trade suggestions ────────────────────────────
+    const tradeSuggestions: TradeSuggestion[] = [];
+
+    for (const role of ["rf", "alt", "cash"] as ComiteRole[]) {
+      const alloc = allocation[role];
+      if (alloc.target > 0 && alloc.actual < alloc.target - 3) {
+        const gap = alloc.target - alloc.actual;
+        const roleCats = categories.filter((c) => c.role === role && c.targetPct > 0);
+        const biggest = roleCats.sort((a, b) => b.targetPct - a.targetPct)[0];
+        if (biggest) {
+          const catDef = getCategoryById(biggest.categoria);
+          tradeSuggestions.push({
+            action: "AGREGAR",
+            reason: `${role.toUpperCase()} subponderado ${Math.abs(gap).toFixed(1)}pp vs modelo. Considerar agregar exposicion.`,
+            instrument: catDef?.etfUS ? `ETF ${catDef.etfUS}` : biggest.categoriaLabel,
+            instrumentTicker: catDef?.etfUS || undefined,
+            amountUSD: undefined,
+            priority: gap > 10 ? "alta" : "media",
+          });
+        }
+      }
+    }
+
+    for (const sb of sectorBreakdown) {
+      if (sb.sleevePct == null) continue;
+      const delta = sb.actualPct - sb.sleevePct;
+
+      if (delta > 5) {
+        const topHoldings = sb.holdings
+          .sort((a, b) => b.marketValueUSD - a.marketValueUSD)
+          .slice(0, 3)
+          .map((h) => h.ticker);
+
+        tradeSuggestions.push({
+          action: "REDUCIR",
+          reason: `${sb.sector} sobreponderado +${delta.toFixed(1)}pp vs sleeve${sb.sleeveVista ? ` (vista: ${sb.sleeveVista})` : ""}.`,
+          holdings: topHoldings,
+          priority: delta > 15 ? "alta" : "media",
+        });
+      } else if (delta < -5 && sb.sleeveVista === "OW") {
+        tradeSuggestions.push({
+          action: "AGREGAR",
+          reason: `${sb.sector} subponderado ${Math.abs(delta).toFixed(1)}pp, vista OW del comite${sb.sleeveConviction ? ` (conviction ${sb.sleeveConviction})` : ""}.`,
+          priority: sb.sleeveConviction === "ALTA" ? "alta" : "media",
+        });
+      }
+    }
+
+    const priorityOrder = { alta: 0, media: 1, baja: 2 };
+    tradeSuggestions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+
+    const isAllInternacional = custodiansList.every((c) => c.type === "internacional");
+
     // ── 13. Flag unmapped custodians ─────────────────────────────────────
     for (const cust of custodiansList) {
       if (cust.type !== "internacional") {
@@ -462,6 +669,10 @@ export async function POST(request: NextRequest) {
         flags,
         sleeves,
         custodians: custodiansList,
+        sectorBreakdown,
+        tradeSuggestions,
+        stockProfiles: Object.fromEntries(stockProfiles),
+        taxAnalysisEnabled: !isAllInternacional,
       },
     });
   });
