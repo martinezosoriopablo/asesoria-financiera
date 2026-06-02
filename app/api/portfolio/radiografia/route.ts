@@ -15,6 +15,8 @@ import {
   type ComiteRole,
 } from "@/lib/comite-categories";
 import { mapSectorToSleeve, mapSectorToCategory, type StockProfile } from "@/lib/sector-mapping";
+import { detectInstrumentType } from "@/lib/instrument-type";
+import { generateObservations } from "@/lib/observations";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
     // ── 2. Load client ───────────────────────────────────────────────────
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, first_name, last_name")
+      .select("id, nombre, apellido")
       .eq("id", clientId)
       .single();
 
@@ -136,7 +138,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("Cliente no encontrado", 404);
     }
 
-    const clientName = `${client.first_name} ${client.last_name}`.trim();
+    const clientName = `${client.nombre} ${client.apellido}`.trim();
 
     // ── 3. Load risk profile ─────────────────────────────────────────────
     const { data: riskProfile } = await supabase
@@ -269,7 +271,7 @@ export async function POST(request: NextRequest) {
     const stockTickers = classifiedHoldings
       .filter((h) => {
         const sid = h.securityId?.trim() || "";
-        return sid && !/^\d+$/.test(sid) && /^[A-Z]{1,5}$/.test(sid);
+        return sid && !/^\d+$/.test(sid) && /^[A-Z]{1,6}$/.test(sid);
       })
       .map((h) => h.securityId!.trim().toUpperCase());
 
@@ -587,6 +589,154 @@ export async function POST(request: NextRequest) {
       })
       .sort((a, b) => Math.abs(b.deltaPp) - Math.abs(a.deltaPp));
 
+    // ── 12d. Build instrument breakdown ─────────────────────────────────
+    const instrumentBreakdown: {
+      stocks: Array<{
+        ticker: string;
+        name: string;
+        sector: string;
+        industry: string;
+        country: string;
+        marketValueUSD: number;
+        marketValueCLP: number;
+        weightPct: number;
+        categoryId: string;
+        confidence: string;
+      }>;
+      funds: Array<{
+        fundName: string;
+        securityId: string;
+        categoryId: string;
+        categoryLabel: string;
+        marketValueCLP: number;
+        weightPct: number;
+        confidence: string;
+      }>;
+      bonds: Array<{
+        name: string;
+        securityId: string;
+        couponRate: number;
+        maturityDate: string;
+        creditRating: string | null;
+        bondType: "government" | "corporate" | "em_sovereign";
+        marketValueUSD: number;
+        marketValueCLP: number;
+        weightPct: number;
+      }>;
+      etfs: Array<{
+        ticker: string;
+        name: string;
+        categoryId: string;
+        categoryLabel: string;
+        marketValueCLP: number;
+        weightPct: number;
+      }>;
+      cash: Array<{
+        name: string;
+        marketValueCLP: number;
+        weightPct: number;
+        currency: string;
+      }>;
+    } = { stocks: [], funds: [], bonds: [], etfs: [], cash: [] };
+
+    for (const h of classifiedHoldings) {
+      const instrType = detectInstrumentType(h);
+      const weightPct = totalValueCLP > 0
+        ? Math.round((h.valueCLP / totalValueCLP) * 10000) / 100
+        : 0;
+
+      switch (instrType) {
+        case "stock": {
+          const sid = h.securityId?.trim().toUpperCase() || "";
+          const profile = stockProfiles.get(sid);
+          instrumentBreakdown.stocks.push({
+            ticker: sid,
+            name: profile?.name || h.fundName,
+            sector: profile?.sector || "Sin clasificar",
+            industry: profile?.industry || "",
+            country: profile?.country || "",
+            marketValueUSD: h.marketValue || 0,
+            marketValueCLP: h.valueCLP,
+            weightPct,
+            categoryId: h.categoryId,
+            confidence: h.confidence,
+          });
+          break;
+        }
+        case "fund": {
+          const cat = getCategoryById(h.categoryId);
+          instrumentBreakdown.funds.push({
+            fundName: h.fundName,
+            securityId: h.securityId?.trim() || "",
+            categoryId: h.categoryId,
+            categoryLabel: cat?.label || h.categoryId,
+            marketValueCLP: h.valueCLP,
+            weightPct,
+            confidence: h.confidence,
+          });
+          break;
+        }
+        case "bond": {
+          const bondType: "government" | "corporate" | "em_sovereign" =
+            h.categoryId === "rf_em_sovereign" ? "em_sovereign" :
+            h.categoryId === "rf_ust_belly" || h.categoryId === "rf_ust_short" || h.categoryId === "rf_tips" ? "government" :
+            "corporate";
+          instrumentBreakdown.bonds.push({
+            name: h.fundName,
+            securityId: h.securityId?.trim() || "",
+            couponRate: h.couponRate || 0,
+            maturityDate: h.maturityDate || "",
+            creditRating: (h as any).creditRating || null,
+            bondType,
+            marketValueUSD: h.marketValue || 0,
+            marketValueCLP: h.valueCLP,
+            weightPct,
+          });
+          break;
+        }
+        case "etf": {
+          const cat = getCategoryById(h.categoryId);
+          instrumentBreakdown.etfs.push({
+            ticker: h.securityId?.trim().toUpperCase() || "",
+            name: h.fundName,
+            categoryId: h.categoryId,
+            categoryLabel: cat?.label || h.categoryId,
+            marketValueCLP: h.valueCLP,
+            weightPct,
+          });
+          break;
+        }
+        case "cash": {
+          instrumentBreakdown.cash.push({
+            name: h.fundName,
+            marketValueCLP: h.valueCLP,
+            weightPct,
+            currency: h.currency || "USD",
+          });
+          break;
+        }
+      }
+    }
+
+    // ── 12e. Generate observations ──────────────────────────────────
+    const allHoldingsForObs = classifiedHoldings.map((h) => ({
+      name: h.securityId?.trim() || h.fundName,
+      weightPct: totalValueCLP > 0
+        ? Math.round((h.valueCLP / totalValueCLP) * 10000) / 100
+        : 0,
+      confidence: h.confidence,
+    }));
+
+    const observations = generateObservations({
+      allocation,
+      holdings: allHoldingsForObs,
+      sectorBreakdown: sectorBreakdown.map((s) => ({
+        sector: s.sector,
+        sleeveVista: s.sleeveVista,
+        deltaPp: s.deltaPp,
+      })),
+    });
+
     // ── 12c. Generate trade suggestions ────────────────────────────
     const tradeSuggestions: TradeSuggestion[] = [];
 
@@ -672,6 +822,8 @@ export async function POST(request: NextRequest) {
         sectorBreakdown,
         tradeSuggestions,
         stockProfiles: Object.fromEntries(stockProfiles),
+        instrumentBreakdown,
+        observations,
         taxAnalysisEnabled: !isAllInternacional,
       },
     });
