@@ -18,7 +18,7 @@ import BenchmarkConfig from "./BenchmarkConfig";
 import type { BenchmarkComponent } from "@/lib/prices/types";
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
-import RadiografiaCartola from "./RadiografiaCartola";
+import ClientMonthlyClosing from "./ClientMonthlyClosing";
 import PortfolioBreakdownPies from "./PortfolioBreakdownPies";
 import MonthlyReportSection from "./MonthlyReportSection";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
@@ -888,6 +888,13 @@ export default function SeguimientoPage({ clientId }: Props) {
             </h1>
           </div>
           <div className="flex gap-2">
+            <Link
+              href={`/recomendacion/${clientId}`}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              <Scale className="w-4 h-4" />
+              Ver Radiografia
+            </Link>
             <button
               onClick={fetchData}
               disabled={loading}
@@ -1583,34 +1590,16 @@ export default function SeguimientoPage({ clientId }: Props) {
           <RecommendationHistory clientId={clientId} />
         </div>
 
-        {/* Simulador Tributario shortcut */}
-        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
-          <div className="mb-4">
-            <a
-              href={`/tax-optimizer?clientId=${clientId}`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gb-border rounded-lg text-sm font-medium text-gb-black hover:border-gb-primary hover:text-gb-primary transition-colors"
-            >
-              <Scale className="w-4 h-4" />
-              Simulador Tributario
-            </a>
-          </div>
-        )}
-
-        {/* Radiografía del Portafolio - X-ray de costos y alternativas */}
-        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
-          <div className="mb-6">
-            <RadiografiaCartola
-              holdings={(snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; securityId?: string | null; serie?: string | null; quantity?: number; costBasis?: number; unitCost?: number; marketPrice?: number; marketValue: number; marketValueCLP?: number; assetClass?: string; currency?: string }>)}
-              clientName={data?.client ? `${data.client.nombre} ${data.client.apellido}` : undefined}
-              clientId={clientId}
-              fundsMeta={fundsMeta}
-              cartolaDate={snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel")?.snapshot_date || snapshots[0].snapshot_date}
-              currentValue={historicalSeries.length > 0 ? historicalSeries[historicalSeries.length - 1].total as number : undefined}
-              currentValueDate={historicalSeries.length > 0 ? historicalSeries[historicalSeries.length - 1].fecha as string : undefined}
-              perfilRiesgo={data?.client?.perfil_riesgo}
-              custodianType={undefined}
-            />
-          </div>
+{/* Explicación de Resultados — AI-generated monthly closing */}
+        {snapshots.length > 0 && (
+          <ClientMonthlyClosing
+            clientId={clientId}
+            month={(() => {
+              const now = new Date();
+              const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+              return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+            })()}
+          />
         )}
 
         {/* Portfolio Breakdown — asset class & currency pie charts */}

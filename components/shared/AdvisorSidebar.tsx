@@ -25,6 +25,7 @@ import {
   FileText,
   LineChart,
   Scale,
+  Target,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 
@@ -44,6 +45,7 @@ const NAV_ITEMS = [
   { href: "/advisor/clients-overview", label: "Vista General", icon: Activity },
   { href: "/analisis-cartola", label: "Cartola & Riesgo", icon: Shield },
   { href: "/seguimiento", label: "Seguimiento", icon: LineChart },
+  { href: "/recomendacion", label: "Radiografia", icon: Target },
   { href: "/portfolio-designer?mode=comparison", label: "Portfolio Designer", icon: BarChart3 },
 ];
 
