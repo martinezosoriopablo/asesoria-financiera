@@ -137,7 +137,7 @@ export default function MacroAllocationV2({ allocation, totalValueCLP }: Props) 
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number | undefined, name: string) => [`${(value ?? 0).toFixed(1)}%`, name]}
+                  formatter={(value, name) => [`${((value as number) ?? 0).toFixed(1)}%`, name as string]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -162,7 +162,7 @@ export default function MacroAllocationV2({ allocation, totalValueCLP }: Props) 
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number | undefined, name: string) => [`${(value ?? 0).toFixed(1)}%`, name]}
+                  formatter={(value, name) => [`${((value as number) ?? 0).toFixed(1)}%`, name as string]}
                 />
               </PieChart>
             </ResponsiveContainer>
