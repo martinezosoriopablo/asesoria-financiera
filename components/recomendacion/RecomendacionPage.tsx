@@ -1,11 +1,91 @@
+// components/recomendacion/RecomendacionPage.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Loader, RefreshCw, AlertTriangle } from "lucide-react";
-import MacroAllocation from "./MacroAllocation";
-import SectorBreakdown from "./SectorBreakdown";
-import HoldingsTable from "./HoldingsTable";
+import MacroAllocationV2 from "./MacroAllocationV2";
+import StocksTreemap from "./StocksTreemap";
+import FundsBreakdown from "./FundsBreakdown";
+import BondsBreakdown from "./BondsBreakdown";
+import ObservacionesPanel from "./ObservacionesPanel";
+import NarrativeAnalysis from "./NarrativeAnalysis";
 import TradeSuggestions from "./TradeSuggestions";
+
+// ── Types matching API response ──────────────────────────────────────
+
+interface StockItem {
+  ticker: string;
+  name: string;
+  sector: string;
+  industry: string;
+  country: string;
+  marketValueUSD: number;
+  marketValueCLP: number;
+  weightPct: number;
+  categoryId: string;
+  confidence: string;
+}
+
+interface FundItem {
+  fundName: string;
+  securityId: string;
+  categoryId: string;
+  categoryLabel: string;
+  marketValueCLP: number;
+  weightPct: number;
+  confidence: string;
+}
+
+interface BondItem {
+  name: string;
+  securityId: string;
+  couponRate: number;
+  maturityDate: string;
+  creditRating: string | null;
+  bondType: "government" | "corporate" | "em_sovereign";
+  marketValueUSD: number;
+  marketValueCLP: number;
+  weightPct: number;
+}
+
+interface EtfItem {
+  ticker: string;
+  name: string;
+  categoryId: string;
+  categoryLabel: string;
+  marketValueCLP: number;
+  weightPct: number;
+}
+
+interface CashItem {
+  name: string;
+  marketValueCLP: number;
+  weightPct: number;
+  currency: string;
+}
+
+interface Observation {
+  severity: "alta" | "media" | "info";
+  text: string;
+}
+
+interface SectorBreakdownItem {
+  sector: string;
+  sleeveVista: string | null;
+  deltaPp: number;
+  sleevePct: number | null;
+  actualPct: number;
+}
+
+interface TradeSuggestion {
+  action: "REDUCIR" | "AGREGAR" | "MANTENER";
+  reason: string;
+  holdings?: string[];
+  amountUSD?: number;
+  instrument?: string;
+  instrumentTicker?: string;
+  priority: "alta" | "media" | "baja";
+}
 
 interface RadiografiaData {
   clientId: string;
@@ -15,75 +95,36 @@ interface RadiografiaData {
   reportDate: string;
   notaComite: string | null;
   totalValueCLP: number;
-  categories: Array<{
-    categoria: string;
-    categoriaLabel: string;
-    role: "rv" | "rf" | "alt" | "cash";
-    targetPct: number;
-    actualPct: number;
-    deltaPp: number;
-    estado: "SOBREPONDERADO" | "SUBPONDERADO" | "EN_RANGO";
-    vista: "OW" | "UW" | "N";
-    conviction: string | null;
-    currentHoldings: Array<{
-      fundName: string;
-      securityId: string | null;
-      marketValueCLP: number;
-      weightPct: number;
-      custodian: string;
-      custodianType: string;
-      classificationConfidence: "high" | "medium" | "low";
-    }>;
-    proposedAction: {
-      direction: "buy" | "sell" | "hold";
-      amountCLP: number;
-      instrument: string;
-      ticker: string | null;
-      custodian: string;
-      custodianType: string;
-    } | null;
-  }>;
   allocation: Record<string, { actual: number; target: number; delta: number }>;
   flags: Array<{ type: string; holdingName: string; message: string }>;
-  sleeves: Array<Record<string, unknown>>;
-  custodians: Array<{ name: string; type: string; snapshotDate: string }>;
-  sectorBreakdown: Array<{
-    sector: string;
-    sleeveId: string | null;
-    actualPct: number;
-    sleevePct: number | null;
-    deltaPp: number;
-    sleeveVista: "OW" | "UW" | "N" | null;
-    sleeveConviction: "ALTA" | "MEDIA" | "BAJA" | null;
-    holdings: Array<{
-      fundName: string;
-      ticker: string;
-      marketValueUSD: number;
-      weightInSector: number;
-    }>;
-  }>;
-  tradeSuggestions: Array<{
-    action: "REDUCIR" | "AGREGAR" | "MANTENER";
-    reason: string;
-    holdings?: string[];
-    amountUSD?: number;
-    instrument?: string;
-    instrumentTicker?: string;
-    priority: "alta" | "media" | "baja";
-  }>;
-  stockProfiles: Record<string, {
-    ticker: string;
-    name: string;
-    sector: string;
-    industry: string;
-    marketCap: number;
-    country: string;
-  }>;
-  taxAnalysisEnabled: boolean;
+  sectorBreakdown: SectorBreakdownItem[];
+  tradeSuggestions: TradeSuggestion[];
+  instrumentBreakdown: {
+    stocks: StockItem[];
+    funds: FundItem[];
+    bonds: BondItem[];
+    etfs: EtfItem[];
+    cash: CashItem[];
+  };
+  observations: Observation[];
 }
 
 interface Props {
   clientId: string;
+}
+
+const PROFILE_LABELS: Record<string, string> = {
+  conservador: "Conservador",
+  moderado_conservador: "Moderado Conservador",
+  moderado: "Moderado",
+  moderado_agresivo: "Moderado Agresivo",
+  agresivo: "Agresivo",
+};
+
+function formatCLP(value: number): string {
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(0)}M`;
+  return `$${(value / 1e3).toFixed(0)}K`;
 }
 
 export default function RecomendacionPage({ clientId }: Props) {
@@ -120,7 +161,10 @@ export default function RecomendacionPage({ clientId }: Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader className="w-6 h-6 animate-spin text-gb-gray" />
+        <div className="text-center">
+          <Loader className="w-6 h-6 animate-spin text-gb-primary mx-auto mb-3" />
+          <p className="text-sm text-gb-gray">Generando radiografia...</p>
+        </div>
       </div>
     );
   }
@@ -136,29 +180,33 @@ export default function RecomendacionPage({ clientId }: Props) {
     );
   }
 
-  const profileLabels: Record<string, string> = {
-    conservador: "Conservador",
-    moderado_conservador: "Moderado Conservador",
-    moderado: "Moderado",
-    moderado_agresivo: "Moderado Agresivo",
-    agresivo: "Agresivo",
-  };
+  const { instrumentBreakdown: ib } = data;
+  const hasStocks = ib.stocks.length > 0;
+  const hasFunds = ib.funds.length > 0;
+  const hasBonds = ib.bonds.length > 0;
+  const hasEtfs = ib.etfs.length > 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
+      {/* ── Section 1: Header ────────────────────────────────────────── */}
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gb-black">
             Radiografia — {data.clientName}
           </h1>
-          <p className="text-sm text-gb-gray mt-1">
-            Perfil: {profileLabels[data.perfilCliente] || data.perfilCliente}
-            {" → "}
-            Modelo: {profileLabels[data.perfilModelo] || data.perfilModelo}
-            {" · "}
-            Comite: {data.reportDate}
-          </p>
+          <div className="flex items-center gap-3 mt-1.5">
+            <span className="text-sm text-gb-gray">
+              Perfil: {PROFILE_LABELS[data.perfilCliente] || data.perfilCliente}
+              {" → "}
+              Modelo: {PROFILE_LABELS[data.perfilModelo] || data.perfilModelo}
+            </span>
+            <span className="text-xs text-gb-gray bg-slate-100 px-2 py-0.5 rounded">
+              Comite: {data.reportDate}
+            </span>
+            <span className="text-xs font-mono text-gb-black bg-slate-100 px-2 py-0.5 rounded">
+              {formatCLP(data.totalValueCLP)}
+            </span>
+          </div>
         </div>
         <button
           onClick={fetchRadiografia}
@@ -180,25 +228,66 @@ export default function RecomendacionPage({ clientId }: Props) {
         </div>
       )}
 
-      {/* Macro Allocation */}
-      <MacroAllocation allocation={data.allocation} />
-
-      {/* Sector Breakdown (if RV > 0) */}
-      {data.sectorBreakdown.length > 0 && (
-        <SectorBreakdown sectors={data.sectorBreakdown} />
-      )}
-
-      {/* Holdings Table */}
-      <HoldingsTable
-        categories={data.categories}
-        stockProfiles={data.stockProfiles}
-        sectorBreakdown={data.sectorBreakdown}
+      {/* ── Section 2: Macro Allocation ──────────────────────────────── */}
+      <MacroAllocationV2
+        allocation={data.allocation}
+        totalValueCLP={data.totalValueCLP}
       />
 
-      {/* Trade Suggestions */}
+      {/* ── Section 3: Instrument Breakdown ──────────────────────────── */}
+      {hasStocks && (
+        <StocksTreemap
+          stocks={ib.stocks}
+          sectorBreakdown={data.sectorBreakdown}
+        />
+      )}
+
+      {hasFunds && (
+        <FundsBreakdown
+          items={ib.funds}
+          title="Fondos por Categoria"
+          subtitle={`${ib.funds.length} fondos · Agrupados por categoria del comite`}
+        />
+      )}
+
+      {hasEtfs && (
+        <FundsBreakdown
+          items={ib.etfs.map((e) => ({
+            fundName: e.name,
+            ticker: e.ticker,
+            securityId: e.ticker,
+            categoryId: e.categoryId,
+            categoryLabel: e.categoryLabel,
+            marketValueCLP: e.marketValueCLP,
+            weightPct: e.weightPct,
+          }))}
+          title="ETFs"
+          subtitle={`${ib.etfs.length} ETFs · Agrupados por categoria del comite`}
+        />
+      )}
+
+      {hasBonds && <BondsBreakdown bonds={ib.bonds} />}
+
+      {/* ── Section 4: Observations ──────────────────────────────────── */}
+      <ObservacionesPanel observations={data.observations} />
+
+      {/* Trade Suggestions (keep existing component) */}
       {data.tradeSuggestions.length > 0 && (
         <TradeSuggestions suggestions={data.tradeSuggestions} />
       )}
+
+      {/* ── Section 5: Narrative Analysis ────────────────────────────── */}
+      <NarrativeAnalysis
+        clientId={data.clientId}
+        clientName={data.clientName}
+        allocation={data.allocation}
+        observations={data.observations}
+        sectorBreakdown={data.sectorBreakdown}
+        totalValueCLP={data.totalValueCLP}
+        perfilCliente={data.perfilCliente}
+        perfilModelo={data.perfilModelo}
+        notaComite={data.notaComite}
+      />
     </div>
   );
 }
