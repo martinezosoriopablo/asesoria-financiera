@@ -20,6 +20,7 @@ import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
 import RadiografiaCartola from "./RadiografiaCartola";
 import PortfolioBreakdownPies from "./PortfolioBreakdownPies";
+import MonthlyReportSection from "./MonthlyReportSection";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import {
   ArrowLeft,
@@ -1655,6 +1656,18 @@ export default function SeguimientoPage({ clientId }: Props) {
             holdingReturnsData={holdingReturnsData}
           />
         )}
+
+        {/* Reporte Mensual de Mercados */}
+        <MonthlyReportSection
+          currentMonth={(() => {
+            const latestCartola = snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel");
+            if (latestCartola) {
+              return latestCartola.snapshot_date.slice(0, 7);
+            }
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          })()}
+        />
 
         {/* Cartolas ingresadas (always visible) */}
         {(() => {
