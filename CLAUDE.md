@@ -90,7 +90,7 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 Supabase Postgres with RLS on all sensitive tables. Migrations in `supabase/migrations/` (chronological, `YYYYMMDD_description.sql`). **Max rows per request set to 5000** in Supabase dashboard (default was 1000). For queries that may exceed this (e.g., `vw_fondos_completo` ~3000 rows), always paginate with `.range()` as a safety net.
 
-Key tables: `clients`, `advisors`, `portfolio_snapshots`, `risk_profiles`, `client_cartolas`, `messages`, `direct_portfolios`, `direct_portfolio_holdings`, `client_reports`, `client_report_config`, `client_advisors` (sharing), `advisor_ai_usage`, `tac_upload_log`, `fund_fichas` (FM folleto data), `fi_fichas` (FI folleto data), `fondos_inversion` (FI catalog), `international_prices` (symbol+date→close_price, for AV/Yahoo prices).
+Key tables: `clients`, `advisors`, `portfolio_snapshots`, `risk_profiles`, `client_cartolas`, `messages`, `direct_portfolios`, `direct_portfolio_holdings`, `client_reports`, `client_report_config`, `client_advisors` (sharing), `advisor_ai_usage`, `tac_upload_log`, `fund_fichas` (FM folleto data), `fi_fichas` (FI folleto data), `fondos_inversion` (FI catalog), `international_prices` (ticker+price_date→close_price, for AV/Yahoo prices). **NOTE:** DB column is `ticker`, not `symbol`. Code maps `SourceResolution.symbol` → DB `ticker`.
 
 RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessible_client_ids()` (own + subordinates + shared + orphan clients).
 

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { inferInstrumentType } from "@/lib/instrument-type";
 import { fetchDailyPricesRange, fetchQuote } from "./alphavantage";
 import { fetchYahooHistorical, fetchYahooQuote } from "./yahoo";
+import { getHistoricalPrices as getBolsaHistorical, getResumenAccion } from "@/lib/bolsa-santiago/client";
 import type { DailyPrice, HoldingForPricing, PriceSource } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -51,12 +52,9 @@ export function resolveSource(h: HoldingForPricing): SourceResolution {
     return { source: "yahoo", symbol, currency: "CLP" };
   }
 
-  // 4. CFI* → yahoo with .SN suffix
-  if (/^CFI/i.test(secId)) {
-    const symbol = secId.toUpperCase().endsWith(".SN")
-      ? secId.toUpperCase()
-      : `${secId.toUpperCase()}.SN`;
-    return { source: "yahoo", symbol, currency: "CLP" };
+  // 4. CFI* (non-ETF) → CMF (fondos_inversion_precios), with Yahoo .SN as fallback
+  if (/^CFI/i.test(secId) && !/^CFIETF/i.test(secId)) {
+    return { source: "cmf", symbol: secId.toUpperCase(), currency: "CLP" };
   }
 
   // 5. Chilean ADR stocks (GOOGLCL, NVDACL) → yahoo with .SN suffix
@@ -146,6 +144,23 @@ export async function fetchPriceRange(
     return fetchYahooHistorical(resolution.symbol, fromDate, toDate);
   }
 
+  if (resolution.source === "bolsa-santiago") {
+    // Try Bolsa de Santiago API first, fall back to Yahoo .SN
+    try {
+      const bsData = await getBolsaHistorical(resolution.symbol, fromDate, toDate);
+      if (bsData.length > 0) {
+        return bsData.map((d) => ({ date: d.date, price: d.close }));
+      }
+    } catch {
+      // Bolsa API may be unavailable outside market hours
+    }
+    // Fallback: Yahoo with .SN suffix
+    const yahooSymbol = resolution.symbol.toUpperCase().endsWith(".SN")
+      ? resolution.symbol
+      : `${resolution.symbol}.SN`;
+    return fetchYahooHistorical(yahooSymbol, fromDate, toDate);
+  }
+
   // cmf, fintual, finra, bcch → handled by existing code elsewhere
   return [];
 }
@@ -165,6 +180,23 @@ export async function fetchLatestPrice(
 
   if (resolution.source === "yahoo") {
     return fetchYahooQuote(resolution.symbol);
+  }
+
+  if (resolution.source === "bolsa-santiago") {
+    try {
+      const stock = await getResumenAccion(resolution.symbol);
+      if (stock && stock.price > 0) {
+        const today = new Date().toISOString().split("T")[0];
+        return { price: stock.price, date: stock.lastUpdate?.split("T")[0] || today };
+      }
+    } catch {
+      // Bolsa API unavailable
+    }
+    // Fallback: Yahoo .SN
+    const yahooSymbol = resolution.symbol.toUpperCase().endsWith(".SN")
+      ? resolution.symbol
+      : `${resolution.symbol}.SN`;
+    return fetchYahooQuote(yahooSymbol);
   }
 
   return null;
@@ -187,7 +219,7 @@ export async function storeInternationalPrices(
 
   for (let i = 0; i < prices.length; i += BATCH_SIZE) {
     const batch = prices.slice(i, i + BATCH_SIZE).map((p) => ({
-      symbol,
+      ticker: symbol,
       price_date: p.date,
       close_price: p.price,
       currency,
@@ -196,7 +228,7 @@ export async function storeInternationalPrices(
 
     await sb
       .from("international_prices")
-      .upsert(batch as any, { onConflict: "symbol,price_date" });
+      .upsert(batch as any, { onConflict: "ticker,price_date" });
   }
 }
 
@@ -209,7 +241,7 @@ export async function getStoredPrices(
   const { data, error } = await sb
     .from("international_prices")
     .select("price_date, close_price")
-    .eq("symbol", symbol)
+    .eq("ticker", symbol)
     .gte("price_date", fromDate)
     .lte("price_date", toDate)
     .order("price_date", { ascending: true });
@@ -270,7 +302,7 @@ export async function backfillSymbol(
   const { data: latest } = await sb
     .from("international_prices")
     .select("price_date")
-    .eq("symbol", symbol)
+    .eq("ticker", symbol)
     .order("price_date", { ascending: false })
     .limit(1);
 

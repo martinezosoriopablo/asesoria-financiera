@@ -366,7 +366,7 @@ export async function POST(req: NextRequest) {
             const { data: rows } = await supabase
               .from("international_prices")
               .select("price_date, close_price")
-              .eq("symbol", resolution.symbol)
+              .eq("ticker", resolution.symbol)
               .gte("price_date", intFromDate)
               .lte("price_date", toDate)
               .order("price_date", { ascending: true })

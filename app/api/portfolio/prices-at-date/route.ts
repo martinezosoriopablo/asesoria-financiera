@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
+import { getHistoricalPrices as getBolsaHistorical } from "@/lib/bolsa-santiago/client";
 import { detectSerieCode } from "@/lib/fund-utils";
 import { stripAccents } from "@/lib/text";
 
@@ -176,6 +177,91 @@ async function getChileanFundPriceByName(
   return null;
 }
 
+// Lookup price for a Fondo de Inversión (CFI*) by fund name + serie
+// Searches fondos_inversion by name tokens, then gets valor_libro from fondos_inversion_precios
+async function getFondoInversionPrice(
+  fundName: string,
+  nemo: string,
+  serie: string | null,
+  targetDate: string,
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<{ price: number; date: string } | null> {
+  // Extract serie from nemo suffix if not provided: CFIBAIN11A → "A"
+  const nemoUpper = nemo.toUpperCase().replace(/^CFI/, "");
+  const serieFromNemo = serie || nemoUpper.match(/([A-Z]{1,2})$/)?.[1] || null;
+
+  // Tokenize fund name for search (same approach as getChileanFundPriceByName)
+  const nameNorm = stripAccents(fundName.toLowerCase());
+  const words = nameNorm.split(/\s+/).filter(
+    (w) => w.length > 2 && !/^(fondo|inversion|de|del|la|los|las|el|en|con|por|serie?|tipo|inv|fi)$/i.test(w)
+  );
+
+  if (words.length === 0) return null;
+
+  // Sort by length descending (most distinctive first)
+  const sortedWords = [...words].sort((a, b) => b.length - a.length);
+
+  // Progressive search: try 3→2→1 terms
+  let fondos: Array<{ id: string; rut: string; nombre: string }> | null = null;
+  for (let termCount = Math.min(sortedWords.length, 3); termCount >= 1; termCount--) {
+    let q = supabase
+      .from("fondos_inversion")
+      .select("id, rut, nombre")
+      .eq("activo", true);
+    for (const term of sortedWords.slice(0, termCount)) {
+      q = q.ilike("nombre", `%${term}%`);
+    }
+    const { data } = await q.limit(10);
+    if (data && data.length > 0) {
+      fondos = data;
+      break;
+    }
+  }
+
+  if (!fondos || fondos.length === 0) return null;
+
+  // Score matches
+  let bestFondo = fondos[0];
+  let bestScore = 0;
+  for (const f of fondos) {
+    const fNorm = stripAccents(f.nombre.toLowerCase());
+    let score = 0;
+    for (const w of words) {
+      if (fNorm.includes(w)) score++;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestFondo = f;
+    }
+  }
+
+  const minDate = new Date(targetDate);
+  minDate.setDate(minDate.getDate() - 7);
+  const minDateStr = minDate.toISOString().split("T")[0];
+
+  // Build price query
+  let priceQuery = supabase
+    .from("fondos_inversion_precios")
+    .select("valor_libro, fecha, serie")
+    .eq("fondo_id", bestFondo.id)
+    .gte("fecha", minDateStr)
+    .lte("fecha", targetDate)
+    .order("fecha", { ascending: false });
+
+  if (serieFromNemo) {
+    priceQuery = priceQuery.eq("serie", serieFromNemo);
+  }
+
+  const { data: priceRows } = await priceQuery.limit(1);
+  const row = priceRows?.[0] as { valor_libro: number; fecha: string; serie: string } | undefined;
+
+  if (row && Number(row.valor_libro) > 0) {
+    return { price: Number(row.valor_libro), date: row.fecha };
+  }
+
+  return null;
+}
+
 // Lookup price for an international instrument from international_prices table
 async function getInternationalPrice(
   symbol: string,
@@ -189,7 +275,7 @@ async function getInternationalPrice(
   const { data } = await supabase
     .from("international_prices")
     .select("close_price, price_date")
-    .eq("symbol", symbol)
+    .eq("ticker", symbol)
     .gte("price_date", minDateStr)
     .lte("price_date", targetDate)
     .order("price_date", { ascending: false })
@@ -219,7 +305,33 @@ async function getPriceForHolding(
     if (result) return { ...result, currency: h.currency || "CLP" };
   }
 
-  // 2. International instrument (has non-numeric securityId)
+  // 2. CFI* Fondo de Inversión → CMF (fondos_inversion_precios), fallback Yahoo .SN
+  if (/^CFI/i.test(secId) && !/^CFIETF/i.test(secId)) {
+    const fiPrice = await getFondoInversionPrice(h.fundName, secId, h.serie || null, targetDate, supabase);
+    if (fiPrice) return { ...fiPrice, currency: "CLP" };
+
+    // Fallback: try Yahoo .SN
+    const yahooSymbol = secId.toUpperCase().endsWith(".SN")
+      ? secId.toUpperCase()
+      : `${secId.toUpperCase()}.SN`;
+    try {
+      const { fetchYahooHistorical } = await import("@/lib/prices/yahoo");
+      const minDate = new Date(targetDate);
+      minDate.setDate(minDate.getDate() - 7);
+      const prices = await fetchYahooHistorical(yahooSymbol, minDate.toISOString().split("T")[0], targetDate);
+      if (prices.length > 0) {
+        storeInternationalPrices(secId.toUpperCase(), prices, "CLP", "yahoo")
+          .catch(() => {});
+        const sorted = prices.sort((a, b) => b.date.localeCompare(a.date));
+        const match = sorted.find(p => p.date <= targetDate);
+        if (match) return { price: match.price, date: match.date, currency: "CLP" };
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  // 3. International instrument (has non-numeric securityId)
   if (secId && !/^\d+$/.test(secId)) {
     const resolution = resolveSource({
       securityId: secId,
@@ -233,13 +345,15 @@ async function getPriceForHolding(
       const result = await getInternationalPrice(resolution.symbol, targetDate, supabase);
       if (result) return { ...result, currency: resolution.currency };
 
-      // Fallback: fetch on-demand from Yahoo/AlphaVantage
-      if (resolution.source === "yahoo" || resolution.source === "alphavantage") {
+      // Fallback: fetch on-demand from Yahoo/AlphaVantage/Bolsa de Santiago
+      if (resolution.source === "yahoo" || resolution.source === "alphavantage" || resolution.source === "bolsa-santiago") {
         const minDate = new Date(targetDate);
         minDate.setDate(minDate.getDate() - 7);
         const minDateStr = minDate.toISOString().split("T")[0];
         try {
-          const prices = await fetchPriceRange(resolution, minDateStr, targetDate);
+          // bolsa-santiago: try Bolsa API first, then Yahoo .SN fallback
+          let prices = await fetchPriceRange(resolution, minDateStr, targetDate);
+
           if (prices.length > 0) {
             // Store fetched prices for future lookups
             storeInternationalPrices(resolution.symbol, prices, resolution.currency, resolution.source)
@@ -256,7 +370,7 @@ async function getPriceForHolding(
     }
   }
 
-  // 3. Fallback: Chilean fund by name matching
+  // 4. Fallback: Chilean fund by name matching
   const byName = await getChileanFundPriceByName(h.fundName, targetDate, supabase);
   if (byName) return { ...byName, currency: h.currency || "CLP" };
 
