@@ -41,6 +41,14 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 **Returns calculation:** Simple returns per position via `lib/returns/calculator.ts`. Rule: < 365 days = simple return (never annualize), >= 365 days = annualized. No TWR/Sharpe — those were removed.
 
+**HoldingReturnsPanel:** Toggle "Desde Cartola" / "Desde Compra" switches return base between cartola market price and cost basis. All marketValues are CLP-converted (USD×usdRate, UF×ufRate). Weights recalculated AFTER totalValue (non-bond+bond) via `final*Holdings` useMemos. Bonds: `costBasisPricePct` (always real) for MV/devengo/duration; `purchasePricePct` (mode-dependent) only for return %.
+
+**PerformanceAttribution:** Position contributions = `(finalCLP - initialCLP) / portfolioInitialCLP × 100` (captures price + FX impact). Initial CLP from snapshot `marketValueCLP` or proportion × total_value. Sorted highest→lowest contribution (green top, red bottom), all positions shown.
+
+**Composition boxes (RV/RF/Alt/Caja):** Initial values derived from holdingReturnsData: `marketValue × (purchasePrice / currentPrice)` per holding. NOT from snapshot stored class values (those may have classification mismatches). Final values from live holdingReturnsData directly.
+
+**Snapshot data note:** `exchangeRates` is sent from ReviewSnapshotModal but NOT persisted as a DB column. Only `marketValueCLP` per holding (in JSONB) is saved. To reconstruct historical CLP values, use `marketValueCLP` or derive from proportion × `total_value`.
+
 **AI usage tracking:** All Claude API calls go through `lib/ai-usage.ts` which tracks tokens/cost per advisor per month in `advisor_ai_usage` table. Advisors choose model (Sonnet 4 default, Opus 4 premium) in profile settings.
 
 **Fichas CMF extraction:** `lib/ficha-extract.ts` downloads and extracts data from CMF fund folletos (PDF). Uses Gemini 2.5 Flash as primary extractor (sends PDF as base64 inline), regex as fallback. Returns `ExtractionResult = { data: ExtractedFichaData; gemini_exhausted?: boolean }`. The `extraction_method` field exists only in the TS interface, NOT as a DB column — always strip it before upsert: `const { extraction_method: _em, ...dbFields } = extracted;`. Stored in `fund_fichas` (FM, PK: fo_run+fm_serie) and `fi_fichas` (FI, PK: fi_rut+fi_serie).

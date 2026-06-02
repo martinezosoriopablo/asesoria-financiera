@@ -19,6 +19,7 @@ import type { BenchmarkComponent } from "@/lib/prices/types";
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
 import RadiografiaCartola from "./RadiografiaCartola";
+import PortfolioBreakdownPies from "./PortfolioBreakdownPies";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import {
   ArrowLeft,
@@ -144,6 +145,8 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [deflatorData, setDeflatorData] = useState<{ uf: Map<string, number>; usd: Map<string, number> } | null>(null);
   const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
   const [exchangeRates, setExchangeRates] = useState<{ uf: number; usd: number } | null>(null);
+  const [compositionBaseMode, setCompositionBaseMode] = useState<"inicio" | "fecha">("inicio");
+  const [compositionBaseDate, setCompositionBaseDate] = useState<string>("");
   const [benchmarkConfig, setBenchmarkConfig] = useState<BenchmarkComponent[] | null>(null);
   const [benchmarkReturns, setBenchmarkReturns] = useState<Record<string, number> | null>(null);
   const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
@@ -413,26 +416,23 @@ export default function SeguimientoPage({ clientId }: Props) {
       const ufMap = new Map<string, number>();
       const usdMap = new Map<string, number>();
 
-      await Promise.all(
-        years.flatMap((year) => [
-          fetch(`/api/exchange-rates/historical?indicator=uf&year=${year}`)
-            .then((r) => r.json())
-            .then((d) => {
-              for (const e of (d.serie || []) as Array<{ fecha: string; valor: number }>) {
-                ufMap.set(e.fecha, e.valor);
-              }
-            })
-            .catch(() => {}),
-          fetch(`/api/exchange-rates/historical?indicator=dolar&year=${year}`)
-            .then((r) => r.json())
-            .then((d) => {
-              for (const e of (d.serie || []) as Array<{ fecha: string; valor: number }>) {
-                usdMap.set(e.fecha, e.valor);
-              }
-            })
-            .catch(() => {}),
-        ])
-      );
+      // Fetch sequentially to avoid rate-limit (4 calls + StrictMode double-mount = 8+)
+      for (const year of years) {
+        try {
+          const ufRes = await fetch(`/api/exchange-rates/historical?indicator=uf&year=${year}`);
+          const ufData = await ufRes.json();
+          for (const e of (ufData.serie || []) as Array<{ fecha: string; valor: number }>) {
+            ufMap.set(e.fecha, e.valor);
+          }
+        } catch { /* ignore */ }
+        try {
+          const usdRes = await fetch(`/api/exchange-rates/historical?indicator=dolar&year=${year}`);
+          const usdData = await usdRes.json();
+          for (const e of (usdData.serie || []) as Array<{ fecha: string; valor: number }>) {
+            usdMap.set(e.fecha, e.valor);
+          }
+        } catch { /* ignore */ }
+      }
 
       if (ufMap.size > 0 || usdMap.size > 0) {
         setDeflatorData({ uf: ufMap, usd: usdMap });
@@ -455,6 +455,52 @@ export default function SeguimientoPage({ clientId }: Props) {
     }
     return bestVal;
   }, []);
+
+  // Helper: find closest value >= date (next-day lookup for USD observado)
+  const findDeflatorValueNext = useCallback((map: Map<string, number> | undefined, date: string): number | null => {
+    if (!map || map.size === 0) return null;
+    const exact = map.get(date);
+    if (exact) return exact;
+    let bestDate = "9999-12-31";
+    let bestVal: number | null = null;
+    for (const [d, v] of map) {
+      if (d >= date && d < bestDate) { bestDate = d; bestVal = v; }
+    }
+    return bestVal;
+  }, []);
+
+  // Exchange rates at cartola date: UF same day, USD observado next day (T+1 convention)
+  const cartolaExchangeRates = useMemo(() => {
+    if (!deflatorData || !data?.snapshots?.length) return null;
+    const cartolaSnaps = data.snapshots.filter(
+      (s: { source: string }) => s.source === "statement" || s.source === "manual" || s.source === "excel"
+    );
+    if (!cartolaSnaps.length) return null;
+    const cartolaDate = cartolaSnaps[0].snapshot_date;
+    const ufVal = findDeflatorValue(deflatorData.uf, cartolaDate);
+    // USD: observado from next calendar day (corredora convention)
+    const nextDay = new Date(cartolaDate + "T12:00:00");
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextDayStr = nextDay.toISOString().split("T")[0];
+    const usdVal = findDeflatorValueNext(deflatorData.usd, nextDayStr);
+    if (!ufVal || !usdVal) return null;
+    return { uf: ufVal, usd: usdVal };
+  }, [deflatorData, data, findDeflatorValue, findDeflatorValueNext]);
+
+  // Exchange rates at current valuation date: same T+1 convention for USD
+  const currentExchangeRates = useMemo(() => {
+    if (!deflatorData) return null;
+    // Use livePriceDate (from HoldingReturnsPanel) or today
+    const valDate = livePriceDate || new Date().toISOString().split("T")[0];
+    const ufVal = findDeflatorValue(deflatorData.uf, valDate);
+    // USD: observado T+1
+    const nextDay = new Date(valDate + "T12:00:00");
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextDayStr = nextDay.toISOString().split("T")[0];
+    const usdVal = findDeflatorValueNext(deflatorData.usd, nextDayStr);
+    if (!ufVal || !usdVal) return null;
+    return { uf: ufVal, usd: usdVal };
+  }, [deflatorData, livePriceDate, findDeflatorValue, findDeflatorValueNext]);
 
   // Calculate period returns from historical series (nominal + real + USD)
   type PeriodReturn = { nominal: number; real: number | null; usd: number | null };
@@ -932,13 +978,24 @@ export default function SeguimientoPage({ clientId }: Props) {
                   {formatCurrency(metrics.initialValue)}
                 </p>
                 <p className="text-xs text-gb-gray mt-1">
-                  {exchangeRates && (
-                    <span>UF {(metrics.initialValue / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {(metrics.initialValue / exchangeRates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
-                  )}
+                  {(() => {
+                    const rates = cartolaExchangeRates || exchangeRates;
+                    return rates ? (
+                      <span>UF {(metrics.initialValue / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {(metrics.initialValue / rates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
+                    ) : null;
+                  })()}
                   {snapshots.length > 0 && (
-                    <span>{exchangeRates ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel")?.snapshot_date || snapshots[0].snapshot_date)}</span>
+                    <span>{(cartolaExchangeRates || exchangeRates) ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel")?.snapshot_date || snapshots[0].snapshot_date)}</span>
                   )}
                 </p>
+                {(() => {
+                  const rates = cartolaExchangeRates || exchangeRates;
+                  return rates ? (
+                    <p className="text-[10px] text-gb-gray/60 mt-0.5">
+                      TC: USD ${rates.usd.toLocaleString("es-CL", { maximumFractionDigits: 2 })} · UF ${rates.uf.toLocaleString("es-CL", { maximumFractionDigits: 2 })}
+                    </p>
+                  ) : null;
+                })()}
               </div>
 
               {/* Valor Actual */}
@@ -948,17 +1005,28 @@ export default function SeguimientoPage({ clientId }: Props) {
                   {formatCurrency(livePortfolioValue ?? metrics.currentValue)}
                 </p>
                 <p className="text-xs text-gb-gray mt-1">
-                  {exchangeRates && (
-                    <span>UF {((livePortfolioValue ?? metrics.currentValue) / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {((livePortfolioValue ?? metrics.currentValue) / exchangeRates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
-                  )}
+                  {(() => {
+                    const rates = currentExchangeRates || exchangeRates;
+                    return rates ? (
+                      <span>UF {((livePortfolioValue ?? metrics.currentValue) / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {((livePortfolioValue ?? metrics.currentValue) / rates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
+                    ) : null;
+                  })()}
                   {(livePriceDate || historicalSeries.length > 0 || snapshots.length > 0) && (
-                    <span>{exchangeRates ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(
+                    <span>{(currentExchangeRates || exchangeRates) ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(
                       livePriceDate
                       || (historicalSeries.length > 0 ? historicalSeries[historicalSeries.length - 1].fecha as string : null)
                       || snapshots[snapshots.length - 1].snapshot_date
                     )}</span>
                   )}
                 </p>
+                {(() => {
+                  const rates = currentExchangeRates || exchangeRates;
+                  return rates ? (
+                    <p className="text-[10px] text-gb-gray/60 mt-0.5">
+                      TC: USD ${rates.usd.toLocaleString("es-CL", { maximumFractionDigits: 2 })} · UF ${rates.uf.toLocaleString("es-CL", { maximumFractionDigits: 2 })}
+                    </p>
+                  ) : null;
+                })()}
                 {baselineAccReturn !== null && (
                   <p className="text-xs text-gb-gray mt-1">
                     Sin cambios: <span className={baselineAccReturn >= 0 ? "text-green-600" : "text-red-600"}>{baselineAccReturn >= 0 ? '+' : ''}{baselineAccReturn.toFixed(1)}%</span>
@@ -1016,38 +1084,176 @@ export default function SeguimientoPage({ clientId }: Props) {
           </div>
         )}
 
-        {/* Composition breakdown with values */}
-        {metrics && snapshots.length > 0 && (() => {
-          const latest = snapshots[snapshots.length - 1];
+        {/* Composition breakdown with initial → final + sub-breakdown */}
+        {holdingReturnsData && snapshots.length > 0 && (() => {
+          const d = holdingReturnsData;
+          const cashVal = d.cashValue > 0 ? d.cashValue : (snapshots[snapshots.length - 1].cash_value || 0);
+
+          // Base snapshot: "Desde inicio" = first snapshot, "Desde fecha" = nearest to selected date
+          const useCustomBase = compositionBaseMode === "fecha" && compositionBaseDate;
+          const baseSnap = useCustomBase
+            ? (snapshots
+                .filter(s => s.snapshot_date <= compositionBaseDate)
+                .sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date))[0] || snapshots[0])
+            : snapshots[0];
+
+          const baseLabel = useCustomBase
+            ? new Date(baseSnap.snapshot_date + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "2-digit" })
+            : "Inicio";
+
+          // Derive initial CLP value per holding: marketValue × (purchasePrice / currentPrice)
+          // This uses the same classification and CLP conversion as final values,
+          // just at cartola-date prices instead of current prices.
+          const initCLP = (h: { marketValue: number; purchasePrice: number; currentPrice: number }) =>
+            h.currentPrice > 0 && h.purchasePrice > 0
+              ? h.marketValue * (h.purchasePrice / h.currentPrice)
+              : h.marketValue;
+
+          const rvInitial = d.equityHoldings.reduce((s, h) => s + initCLP(h), 0);
+          const rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + initCLP(h), 0)
+            + d.bondHoldings.reduce((s, h) => {
+              // Bonds: use costBasis as initial value (already in CLP)
+              return s + (h.costBasis > 0 ? h.costBasis : h.marketValue);
+            }, 0);
+          const altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + initCLP(h), 0);
+          const cashInitial = baseSnap.cash_value || 0;
+
+          // Final (current) values: from live holdingReturnsData
+          const rvFinal = d.equityHoldings.reduce((s, h) => s + h.marketValue, 0);
+          const rfFinal = d.fixedIncomeFundHoldings.reduce((s, h) => s + h.marketValue, 0)
+            + d.bondHoldings.reduce((s, h) => s + h.marketValue, 0);
+          const altFinal = (d.alternativesHoldings || []).reduce((s, h) => s + h.marketValue, 0);
+
+          // Sub-lines for detail
+          type SubLine = { label: string; initial: number; final: number };
+          type Box = { label: string; initial: number; final: number; pct: number; bg: string; border: string; text: string; textBold: string; subs: SubLine[] };
+
+          const etfsFinal = d.equityHoldings.filter(h => h.assetType === "etf").reduce((s, h) => s + h.marketValue, 0);
+          const fondosRVFinal = d.equityHoldings.filter(h => h.assetType === "fund").reduce((s, h) => s + h.marketValue, 0);
+          const accionesFinal = d.equityHoldings.filter(h => h.assetType === "stock").reduce((s, h) => s + h.marketValue, 0);
+          const fondosRFFinal = d.fixedIncomeFundHoldings.reduce((s, h) => s + h.marketValue, 0);
+          const bonosFinal = d.bondHoldings.reduce((s, h) => s + h.marketValue, 0);
+
+          // For sub-lines, distribute initial proportionally based on final weights
+          const rvSubDistrib = (subFinal: number) => rvFinal > 0 ? rvInitial * (subFinal / rvFinal) : 0;
+          const rfSubDistrib = (subFinal: number) => rfFinal > 0 ? rfInitial * (subFinal / rfFinal) : 0;
+
+          const rvSubs: SubLine[] = [
+            etfsFinal > 0 ? { label: "ETFs", initial: rvSubDistrib(etfsFinal), final: etfsFinal } : null,
+            fondosRVFinal > 0 ? { label: "Fondos", initial: rvSubDistrib(fondosRVFinal), final: fondosRVFinal } : null,
+            accionesFinal > 0 ? { label: "Acciones", initial: rvSubDistrib(accionesFinal), final: accionesFinal } : null,
+          ].filter(Boolean) as SubLine[];
+          const rfSubs: SubLine[] = [
+            fondosRFFinal > 0 ? { label: "Fondos RF", initial: rfSubDistrib(fondosRFFinal), final: fondosRFFinal } : null,
+            bonosFinal > 0 ? { label: "Bonos", initial: rfSubDistrib(bonosFinal), final: bonosFinal } : null,
+          ].filter(Boolean) as SubLine[];
+
+          const total = d.totalValue || 1;
+          const boxes: Box[] = [
+            rvFinal > 0 || rvInitial > 0 ? { label: "Renta Variable", initial: rvInitial, final: rvFinal, pct: (rvFinal / total) * 100, bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-600", textBold: "text-blue-800", subs: rvSubs } : null,
+            rfFinal > 0 || rfInitial > 0 ? { label: "Renta Fija", initial: rfInitial, final: rfFinal, pct: (rfFinal / total) * 100, bg: "bg-green-50", border: "border-green-200", text: "text-green-600", textBold: "text-green-800", subs: rfSubs } : null,
+            altFinal > 0 || altInitial > 0 ? { label: "Alternativos", initial: altInitial, final: altFinal, pct: (altFinal / total) * 100, bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-600", textBold: "text-orange-800", subs: [] } : null,
+            cashVal > 0 ? { label: "Caja", initial: cashInitial, final: cashVal, pct: (cashVal / total) * 100, bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", textBold: "text-slate-800", subs: [] } : null,
+          ].filter(Boolean) as Box[];
+
           return (
-            <div className="grid grid-cols-4 gap-3 mb-6">
-              <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
-                <p className="text-xs text-blue-600 font-medium">Renta Variable</p>
-                <p className="text-lg font-bold text-blue-800">{formatCurrency(latest.equity_value || 0)}</p>
-                <p className="text-xs text-blue-600">{formatNumber(latest.equity_percent || 0, 1)}%</p>
+            <>
+              {/* Tab: Desde inicio / Desde fecha */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex rounded-lg border border-gb-border overflow-hidden">
+                  <button
+                    onClick={() => setCompositionBaseMode("inicio")}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      compositionBaseMode === "inicio"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gb-gray hover:bg-slate-50"
+                    }`}
+                  >
+                    Desde inicio
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCompositionBaseMode("fecha");
+                      if (!compositionBaseDate && snapshots.length > 1) {
+                        setCompositionBaseDate(snapshots[Math.max(0, snapshots.length - 2)].snapshot_date);
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium border-l border-gb-border transition-colors ${
+                      compositionBaseMode === "fecha"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gb-gray hover:bg-slate-50"
+                    }`}
+                  >
+                    Desde fecha
+                  </button>
+                </div>
+                {compositionBaseMode === "fecha" && (
+                  <input
+                    type="date"
+                    value={compositionBaseDate}
+                    onChange={(e) => setCompositionBaseDate(e.target.value)}
+                    min={snapshots[0]?.snapshot_date}
+                    max={snapshots[snapshots.length - 1]?.snapshot_date}
+                    className="px-2 py-1 text-xs border border-gb-border rounded-lg bg-white text-gb-black focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                )}
               </div>
-              <div className="bg-green-50 rounded-lg border border-green-200 p-3">
-                <p className="text-xs text-green-600 font-medium">Renta Fija</p>
-                <p className="text-lg font-bold text-green-800">{formatCurrency(latest.fixed_income_value || 0)}</p>
-                <p className="text-xs text-green-600">{formatNumber(latest.fixed_income_percent || 0, 1)}%</p>
+
+              <div className="grid grid-cols-4 gap-3 mb-6">
+                {boxes.map(b => {
+                  const ret = b.initial > 0 ? ((b.final / b.initial) - 1) * 100 : 0;
+                  return (
+                    <div key={b.label} className={`${b.bg} rounded-lg border ${b.border} p-3 flex flex-col`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className={`text-xs ${b.text} font-medium`}>{b.label}</p>
+                        <span className={`text-[10px] ${b.text}`}>{formatNumber(b.pct, 1)}%</span>
+                      </div>
+                      <div className="flex items-baseline justify-between mb-1">
+                        <div>
+                          <p className="text-[10px] text-gb-gray leading-tight">{baseLabel}</p>
+                          <p className={`text-sm font-semibold ${b.textBold}`}>{formatCurrency(b.initial)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-gb-gray leading-tight">Actual</p>
+                          <p className={`text-sm font-semibold ${b.textBold}`}>{formatCurrency(b.final)}</p>
+                        </div>
+                      </div>
+                      {b.initial > 0 && b.label !== "Caja" && (
+                        <p className={`text-xs font-semibold text-right ${ret >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {ret >= 0 ? "+" : ""}{formatNumber(ret, 1)}%
+                        </p>
+                      )}
+                      {b.subs.length > 0 && (
+                        <div className="mt-auto pt-1.5 border-t border-black/5 space-y-0.5">
+                          {b.subs.map(sub => {
+                            const subRet = sub.initial > 0 ? ((sub.final / sub.initial) - 1) * 100 : 0;
+                            return (
+                              <div key={sub.label} className="flex items-center justify-between text-[10px]">
+                                <span className="text-gb-gray">{sub.label}</span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="text-gb-gray">{formatCurrency(sub.final)}</span>
+                                  {sub.initial > 0 && (
+                                    <span className={`font-medium ${subRet >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                      {subRet >= 0 ? "+" : ""}{formatNumber(subRet, 1)}%
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="bg-orange-50 rounded-lg border border-orange-200 p-3">
-                <p className="text-xs text-orange-600 font-medium">Alternativos</p>
-                <p className="text-lg font-bold text-orange-800">{formatCurrency(latest.alternatives_value || 0)}</p>
-                <p className="text-xs text-orange-600">{formatNumber(latest.alternatives_percent || 0, 1)}%</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
-                <p className="text-xs text-slate-600 font-medium">Caja</p>
-                <p className="text-lg font-bold text-slate-800">{formatCurrency(latest.cash_value || 0)}</p>
-                <p className="text-xs text-slate-600">{formatNumber(latest.cash_percent || 0, 1)}%</p>
-              </div>
-            </div>
+            </>
           );
         })()}
 
         {/* Holding Returns Panel */}
         {snapshots.length > 0 && (
-          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} onHoldingReturnsReady={setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={exchangeRates?.usd} ufRate={exchangeRates?.uf} />
+          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={setLivePortfolioValue} onPriceDateUpdate={setLivePriceDate} onHoldingReturnsReady={setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={(currentExchangeRates || exchangeRates)?.usd} ufRate={(currentExchangeRates || exchangeRates)?.uf} ufRateInitial={deflatorData ? findDeflatorValue(deflatorData.uf, snapshots[0]?.snapshot_date) ?? undefined : undefined} />
         )}
 
         {/* Evolution chart */}
@@ -1406,7 +1612,12 @@ export default function SeguimientoPage({ clientId }: Props) {
           </div>
         )}
 
-        {/* Holding Returns Panel — moved to composition section */}
+        {/* Portfolio Breakdown — asset class & currency pie charts */}
+        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
+          <PortfolioBreakdownPies
+            holdings={snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; marketValue: number; assetClass?: string; currency?: string }>}
+          />
+        )}
 
         {/* Rentabilidad por Activo — returns per holding with month selector */}
         {holdingReturnsData && (

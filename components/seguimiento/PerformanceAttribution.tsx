@@ -230,8 +230,8 @@ export default function PerformanceAttribution({
 
     // === PRIMARY: Use holdingReturnsData from HoldingReturnsPanel ===
     if (holdingReturnsData) {
-      const { equityHoldings, fixedIncomeFundHoldings = [], bondHoldings, cashValue, totalValue } = holdingReturnsData;
-      if (equityHoldings.length === 0 && fixedIncomeFundHoldings.length === 0 && bondHoldings.length === 0) return null;
+      const { equityHoldings, fixedIncomeFundHoldings = [], alternativesHoldings = [], bondHoldings, cashValue, totalValue } = holdingReturnsData;
+      if (equityHoldings.length === 0 && fixedIncomeFundHoldings.length === 0 && alternativesHoldings.length === 0 && bondHoldings.length === 0) return null;
 
       const result: AssetClassWithBreakdown[] = [];
 
@@ -314,6 +314,44 @@ export default function PerformanceAttribution({
           name: classKeyMap.fixedIncome,
           key: "fixedIncome",
           color: classColorMap.fixedIncome,
+          totalContribution,
+          classReturn,
+          breakdown,
+        });
+      }
+
+      // Alternatives
+      if (alternativesHoldings && alternativesHoldings.length > 0) {
+        const byType = new Map<string, { contribution: number; weight: number }>();
+        for (const h of alternativesHoldings) {
+          const t = h.assetType || "fund";
+          const existing = byType.get(t) || { contribution: 0, weight: 0 };
+          existing.contribution += h.contribution;
+          existing.weight += h.weight;
+          byType.set(t, existing);
+        }
+
+        const breakdown: InstrumentBreakdown[] = [];
+        for (const [instType, data] of byType) {
+          const meta = INSTRUMENT_COLORS[instType] || INSTRUMENT_COLORS.fund;
+          breakdown.push({
+            type: instType,
+            label: meta.label,
+            color: meta.color,
+            negColor: meta.negColor,
+            contribution: data.contribution,
+          });
+        }
+        breakdown.sort((a, b) => b.contribution - a.contribution);
+
+        const totalContribution = breakdown.reduce((s, b) => s + b.contribution, 0);
+        const totalWeight = alternativesHoldings.reduce((s, h) => s + h.weight, 0);
+        const classReturn = totalWeight > 0 ? (totalContribution / totalWeight) * 100 : 0;
+
+        result.push({
+          name: classKeyMap.alternatives,
+          key: "alternatives",
+          color: classColorMap.alternatives,
           totalContribution,
           classReturn,
           breakdown,
@@ -420,8 +458,55 @@ export default function PerformanceAttribution({
   // ============================================
   const positionAttribution = useMemo(() => {
     // === PRIMARY: Use holdingReturnsData (has real returns from live prices) ===
+    // Contribution = (finalValueCLP - initialValueCLP) / portfolioInitialValue * 100
+    // This captures both price changes AND FX impact in CLP terms.
     if (holdingReturnsData) {
-      const { equityHoldings, fixedIncomeFundHoldings = [], bondHoldings, totalValue } = holdingReturnsData;
+      const { equityHoldings, fixedIncomeFundHoldings = [], alternativesHoldings = [], bondHoldings, totalValue } = holdingReturnsData;
+
+      // Build initial CLP values from the first snapshot's holdings
+      // marketValueCLP is set at save time (toCLP conversion). If missing, derive from
+      // the holding's share of raw marketValue within its asset class × class CLP value.
+      const initialCLPByName = new Map<string, number>();
+      const portfolioInitialValue = firstSnapshot?.total_value || 0;
+      if (firstSnapshot?.holdings && portfolioInitialValue > 0) {
+        const holdings = firstSnapshot.holdings as Array<Holding & { weight?: number }>;
+
+        // First pass: try marketValueCLP (saved since ReviewSnapshotModal toCLP)
+        let totalCLPFromHoldings = 0;
+        const rawEntries: Array<{ name: string; clp: number; hasCLP: boolean }> = [];
+
+        for (const h of holdings) {
+          if (!h.fundName) continue;
+          const hasCLP = (h.marketValueCLP || 0) > 0;
+          const clp = hasCLP ? h.marketValueCLP! : 0;
+          rawEntries.push({ name: h.fundName, clp, hasCLP });
+          totalCLPFromHoldings += clp;
+        }
+
+        // If most holdings have marketValueCLP, use it directly
+        const withCLP = rawEntries.filter(e => e.hasCLP).length;
+        if (withCLP > rawEntries.length / 2) {
+          // Scale to match total_value (handles rounding)
+          const scale = totalCLPFromHoldings > 0 ? portfolioInitialValue / totalCLPFromHoldings : 1;
+          for (const e of rawEntries) {
+            if (!e.hasCLP) continue;
+            const scaled = e.clp * scale;
+            initialCLPByName.set(e.name, (initialCLPByName.get(e.name) || 0) + scaled);
+          }
+        } else {
+          // Fallback: derive CLP from raw marketValue share × total_value
+          const totalRaw = holdings.reduce((s, h) => s + Math.abs(h.marketValue ?? 0), 0);
+          if (totalRaw > 0) {
+            for (const h of holdings) {
+              if (!h.fundName) continue;
+              const share = Math.abs(h.marketValue ?? 0) / totalRaw;
+              const clp = share * portfolioInitialValue;
+              initialCLPByName.set(h.fundName, (initialCLPByName.get(h.fundName) || 0) + clp);
+            }
+          }
+        }
+      }
+
       const positions: Array<{
         name: string;
         initialValue: number;
@@ -432,25 +517,39 @@ export default function PerformanceAttribution({
         assetClass?: string;
       }> = [];
 
-      for (const h of [...equityHoldings, ...fixedIncomeFundHoldings]) {
+      for (const h of [...equityHoldings, ...fixedIncomeFundHoldings, ...alternativesHoldings]) {
+        const initCLP = initialCLPByName.get(h.fundName) || 0;
+        const valueDelta = h.marketValue - initCLP;
+        const contribution = portfolioInitialValue > 0
+          ? (valueDelta / portfolioInitialValue) * 100
+          : (h.contribution ?? 0);
+        const posReturn = initCLP > 0 ? (valueDelta / initCLP) * 100 : (h.totalReturn ?? 0);
+
         positions.push({
           name: h.fundName,
-          initialValue: 0,
+          initialValue: initCLP,
           finalValue: h.marketValue,
-          return: h.totalReturn ?? h.returnPrice ?? 0,
-          contribution: h.contribution ?? 0,
+          return: posReturn,
+          contribution,
           weight: h.weight ?? (totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0),
           assetClass: h.assetClass,
         });
       }
 
       for (const b of bondHoldings) {
+        const initCLP = initialCLPByName.get(b.fundName) || 0;
+        const valueDelta = b.marketValue - initCLP;
+        const contribution = portfolioInitialValue > 0
+          ? (valueDelta / portfolioInitialValue) * 100
+          : (b.contribution ?? 0);
+        const posReturn = initCLP > 0 ? (valueDelta / initCLP) * 100 : (b.totalReturn ?? 0);
+
         positions.push({
           name: b.fundName,
-          initialValue: 0,
+          initialValue: initCLP,
           finalValue: b.marketValue,
-          return: b.totalReturn ?? 0,
-          contribution: b.contribution ?? 0,
+          return: posReturn,
+          contribution,
           weight: b.weight ?? (totalValue > 0 ? (b.marketValue / totalValue) * 100 : 0),
           assetClass: "fixedIncome",
         });
@@ -458,7 +557,7 @@ export default function PerformanceAttribution({
 
       if (positions.length === 0) return null;
       positions.sort((a, b) => b.contribution - a.contribution);
-      return positions.slice(0, 10);
+      return positions;
     }
 
     // === FALLBACK: Snapshot-based calculation (requires 2+ snapshots) ===
@@ -524,7 +623,7 @@ export default function PerformanceAttribution({
     });
 
     positions.sort((a, b) => b.contribution - a.contribution);
-    return positions.slice(0, 10);
+    return positions;
   }, [holdingReturnsData, firstSnapshot, lastSnapshot]);
 
   // ============================================

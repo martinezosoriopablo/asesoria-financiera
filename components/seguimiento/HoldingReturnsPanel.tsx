@@ -128,6 +128,7 @@ interface FundMeta {
 export interface HoldingReturnsData {
   equityHoldings: EquityHolding[];
   fixedIncomeFundHoldings: EquityHolding[];
+  alternativesHoldings: EquityHolding[];
   bondHoldings: BondHoldingRow[];
   cashValue: number;
   totalValue: number;
@@ -143,6 +144,7 @@ interface Props {
   fundsMeta?: FundMeta[];
   usdRate?: number;
   ufRate?: number;
+  ufRateInitial?: number;
 }
 
 interface BondLookup {
@@ -152,13 +154,15 @@ interface BondLookup {
   maturityDate: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, ufRateInitial }: Props) {
   const [marketPrices, setMarketPrices] = useState<Map<string, { price: number; currency: string }>>(new Map());
   const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
   const [bondPrices, setBondPrices] = useState<Map<string, { price: number; ytm: number | null; date: string }>>(new Map());
   const [loadingPrices, setLoadingPrices] = useState(false);
+  const [returnMode, setReturnMode] = useState<"cartola" | "compra">("cartola");
 
   // Extract unique holdings and their returns over time from snapshots
+  // Note: usdRate/ufRate used to convert non-CLP holdings to CLP at build time
   const { holdingSummaries, latestRawHoldings, previousSnapshotDate } = useMemo(() => {
     const snapshotsWithHoldings = snapshots
       .filter((s) => s.holdings && Array.isArray(s.holdings) && s.holdings.length > 0)
@@ -178,8 +182,9 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         ? cartolas[0].snapshot_date
         : snapshotsWithHoldings[0].snapshot_date;
 
-    // For each holding, find the purchase price from the FIRST cartola
-    const basePrices = new Map<string, number>();
+    // For each holding, find the base price from the FIRST cartola
+    const cartolaBasePrices = new Map<string, number>(); // market price at cartola date
+    const compraBasePrices = new Map<string, number>();   // cost basis (purchase price)
     const purchaseDates = new Map<string, string>();
 
     // Purchase price: costBasis first (set by enrichHoldingsWithCostBasis), then legacy fallbacks
@@ -220,15 +225,22 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     for (const cartola of cartolas) {
       if (!cartola.holdings) continue;
       for (const h of cartola.holdings as HoldingData[]) {
-        if (h.fundName && !basePrices.has(h.fundName)) {
-          const price = extractPurchasePrice(h);
-          if (price > 0) {
-            basePrices.set(h.fundName, price);
+        if (h.fundName && !cartolaBasePrices.has(h.fundName)) {
+          const mktPrice = extractMarketPrice(h);
+          if (mktPrice > 0) {
+            cartolaBasePrices.set(h.fundName, mktPrice);
             purchaseDates.set(h.fundName, cartola.snapshot_date);
+          }
+          const purchasePrice = extractPurchasePrice(h);
+          if (purchasePrice > 0) {
+            compraBasePrices.set(h.fundName, purchasePrice);
           }
         }
       }
     }
+
+    // Select base prices according to returnMode
+    const basePrices = returnMode === "compra" ? compraBasePrices : cartolaBasePrices;
 
     // Build summary from latest snapshot
     const apiPricesSnaps = snapshotsWithHoldings.filter(s => s.source === "api-prices");
@@ -319,7 +331,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       latestRawHoldings: latestHoldings,
       previousSnapshotDate: prevSnapDate,
     };
-  }, [snapshots]);
+  }, [snapshots, returnMode]);
 
   // Fetch current market prices for all non-bond, non-cash holdings via unified price service
   useEffect(() => {
@@ -457,7 +469,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
   // Merge prices and bond lookups into summaries
   const enrichedSummaries = useMemo(() => {
-    return holdingSummaries.map((h) => {
+    const mapped = holdingSummaries.map((h) => {
       const tac = tacByFundName.get(h.fundName) ?? null;
 
       // Enrich bonds with FINRA lookup data (coupon, maturity)
@@ -504,6 +516,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       }
       return enriched;
     });
+    // Weights will be recalculated after totalValue is known (includes bonds)
+    return mapped;
   }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate]);
 
   // Price date notification (doesn't depend on totalValue)
@@ -519,18 +533,22 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   }, [enrichedSummaries, onPriceDateUpdate]);
 
   // --- Classify holdings by asset class ---
-  // A fund with assetClass "fixedIncome" is a RF fund, not equity.
-  // "balanced" funds split to equity for display purposes.
+  const isAlternativesHolding = (h: { assetType: string; assetClass: string }) =>
+    h.assetClass === "alternatives";
+
   const isEquityHolding = (h: { assetType: string; assetClass: string }) =>
-    ["etf", "stock"].includes(h.assetType) ||
-    (h.assetType === "fund" && !["fixedIncome", "cash"].includes(h.assetClass));
+    !isAlternativesHolding(h) && (
+      ["etf", "stock"].includes(h.assetType) ||
+      (h.assetType === "fund" && !["fixedIncome", "cash"].includes(h.assetClass))
+    );
 
   const isFixedIncomeFund = (h: { assetType: string; assetClass: string }) =>
-    h.assetType === "fund" && h.assetClass === "fixedIncome";
+    !isAlternativesHolding(h) && h.assetType === "fund" && h.assetClass === "fixedIncome";
 
   // --- Detect composition ---
   const hasEquity = enrichedSummaries.some(h => isEquityHolding(h));
   const hasFixedIncomeFunds = enrichedSummaries.some(h => isFixedIncomeFund(h));
+  const hasAlternatives = enrichedSummaries.some(h => isAlternativesHolding(h));
   const hasBonds = enrichedSummaries.some(h => h.assetType === "bond");
   const hasStocksOrETFs = enrichedSummaries.some(h => ["etf", "stock"].includes(h.assetType));
   const hasCash = enrichedSummaries.some(h => h.assetType === "cash");
@@ -563,6 +581,11 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     return enrichedSummaries.filter(h => isFixedIncomeFund(h)).map(toEquityHolding);
   }, [enrichedSummaries]);
 
+  // --- Build alternatives holdings ---
+  const alternativesHoldings: EquityHolding[] = useMemo(() => {
+    return enrichedSummaries.filter(h => isAlternativesHolding(h)).map(toEquityHolding);
+  }, [enrichedSummaries]);
+
   // --- Build bond holdings ---
   const bondHoldings: BondHoldingRow[] = useMemo(() => {
     const latestDate = snapshots
@@ -581,8 +604,11 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       .map(h => {
         const couponRatePct = h.couponRate || 0;
         const couponRateDecimal = couponRatePct / 100;
+        // purchasePrice changes with returnMode toggle — used for return calculation
         const purchasePricePct = toBondPricePct(h.purchasePrice);
         const cartolaMarketPricePct = toBondPricePct(h.currentPrice);
+        // costBasisPricePct is always the actual cost basis — used for market value calc
+        const costBasisPricePct = toBondPricePct(h.costBasis || h.unitCost || h.purchasePrice);
 
         // Chilean bond = no valid CUSIP (9-char alphanumeric) and no FINRA price
         const secId = (h.securityId || "").trim();
@@ -603,14 +629,15 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         let marketYieldPct = 0;
 
         if (h.purchaseDate && h.maturityDate && couponRateDecimal > 0) {
+          // Bond model always uses actual cost basis for YTM, devengo, duration
           const bondParams = {
             faceValue,
             couponRate: couponRateDecimal,
             couponFrequency: freq,
             maturityDate: h.maturityDate,
             purchaseDate: h.purchaseDate,
-            purchasePrice: purchasePricePct,
-            currentPrice: purchasePricePct, // solve at purchase price → TIR de compra
+            purchasePrice: costBasisPricePct,
+            currentPrice: costBasisPricePct, // solve at cost basis → TIR de compra
           };
 
           try { ytm = calcYieldToMaturity(bondParams, new Date(h.purchaseDate + "T00:00:00")) * 100; } catch { ytm = 0; }
@@ -623,8 +650,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             couponRate: couponRateDecimal,
             couponFrequency: freq,
             maturityDate: h.maturityDate,
-            purchasePrice: purchasePricePct,
-            currentPrice: purchasePricePct, // devengo only — same as purchase
+            purchasePrice: costBasisPricePct,
+            currentPrice: costBasisPricePct, // devengo only — same as purchase
             startDate: previousSnapshotDate || h.purchaseDate,
             endDate: latestDate || previousSnapshotDate || h.purchaseDate,
             purchaseDate: h.purchaseDate,
@@ -644,9 +671,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           marketDeviationUSD = -duration * yieldDeltaDecimal * faceValue;
 
           // Total return = devengo + market deviation (duration approx)
-          const costBasisCalc = faceValue * purchasePricePct / 100;
-          totalReturnPct = costBasisCalc > 0
-            ? ((devengoUSD + marketDeviationUSD) / costBasisCalc) * 100
+          // Uses purchasePricePct (mode-dependent) for return, costBasisPricePct for MV
+          const returnBase = faceValue * purchasePricePct / 100;
+          totalReturnPct = returnBase > 0
+            ? ((devengoUSD + marketDeviationUSD) / returnBase) * 100
             : 0;
         }
 
@@ -654,10 +682,11 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         // International bonds: use actual FINRA price
         // Chilean bonds: costBasis + devengo + marketDeviation (valued at purchaseYTM,
         //   adjusted by duration × Δyield if advisor provided a different marketYield)
+        // Always uses costBasisPricePct — MV is independent of returnMode toggle
         let marketValueCalc: number;
         let displayMarketPricePct: number;
         if (isChileanBond) {
-          const costBasisCalcForMV = faceValue * purchasePricePct / 100;
+          const costBasisCalcForMV = faceValue * costBasisPricePct / 100;
           marketValueCalc = costBasisCalcForMV + devengoUSD + marketDeviationUSD;
           // Back-derive display price as % of par for the table
           displayMarketPricePct = faceValue > 0 ? (marketValueCalc / faceValue) * 100 : purchasePricePct;
@@ -667,16 +696,24 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           marketValueCalc = faceValue * displayMarketPricePct / 100;
         }
 
-        // Prefer cartola's costBasis (real amount paid), fallback to calculated
-        const calcCostBasis = faceValue * purchasePricePct / 100;
-        let actualCostBasis = h.costBasis && h.costBasis > 0 ? h.costBasis : calcCostBasis;
+        // costBasis from cartola may be price-as-%-of-par (e.g. 87.825) rather than total amount.
+        // Use calculated costBasis (faceValue × costBasisPrice%) which is always in the right units.
+        const calcCostBasis = faceValue * costBasisPricePct / 100;
+        let actualCostBasis = calcCostBasis;
 
-        // Chilean bonds are in UF — convert to CLP
+        // Convert to CLP based on currency
         if (isChileanBond && ufRate) {
+          // Chilean bonds are in UF
           marketValueCalc *= ufRate;
-          actualCostBasis *= ufRate;
+          actualCostBasis *= (ufRateInitial || ufRate);
           devengoUSD *= ufRate;
           marketDeviationUSD *= ufRate;
+        } else if (!isChileanBond && usdRate) {
+          // International bonds are in USD
+          marketValueCalc *= usdRate;
+          actualCostBasis *= usdRate;
+          devengoUSD *= usdRate;
+          marketDeviationUSD *= usdRate;
         }
 
         return {
@@ -685,7 +722,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           creditRating: h.creditRating || "NR",
           couponRate: couponRatePct,
           maturityDate: h.maturityDate || "",
-          weight: h.weight,
+          weight: 0, // recalculated below after totalValue is known
           purchasePrice: purchasePricePct,
           costBasis: actualCostBasis,
           marketPrice: displayMarketPricePct,
@@ -698,10 +735,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
           marketValue: marketValueCalc,
-          currency: isChileanBond ? "CLP" : "USD",
+          currency: "CLP", // all bonds converted to CLP (UF or USD × rate)
         };
       });
-  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate]);
+  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate, ufRateInitial, usdRate]);
 
   // Cash holdings
   const cashValue = enrichedSummaries
@@ -710,13 +747,49 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
   // Total value: use recalculated bond values (duration-adjusted + UF converted)
   const nonBondValue = enrichedSummaries.filter(h => h.assetType !== "bond").reduce((s, h) => s + h.marketValue, 0);
-  const totalValue = nonBondValue + bondHoldings.reduce((s, h) => s + h.marketValue, 0);
+  const bondValue = bondHoldings.reduce((s, h) => s + h.marketValue, 0);
+  const totalValue = nonBondValue + bondValue;
+
+  // Recalculate weights and contributions using full portfolio totalValue
+  // (weights must use total portfolio as denominator, not just non-bond or just bond)
+  const finalEquityHoldings = useMemo(() => {
+    if (totalValue <= 0) return equityHoldings;
+    return equityHoldings.map(h => {
+      const w = Math.round((h.marketValue / totalValue) * 10000) / 100;
+      return { ...h, weight: w, contribution: (h.totalReturn * w) / 100 };
+    });
+  }, [equityHoldings, totalValue]);
+
+  const finalFixedIncomeFundHoldings = useMemo(() => {
+    if (totalValue <= 0) return fixedIncomeFundHoldings;
+    return fixedIncomeFundHoldings.map(h => {
+      const w = Math.round((h.marketValue / totalValue) * 10000) / 100;
+      return { ...h, weight: w, contribution: (h.totalReturn * w) / 100 };
+    });
+  }, [fixedIncomeFundHoldings, totalValue]);
+
+  const finalAlternativesHoldings = useMemo(() => {
+    if (totalValue <= 0) return alternativesHoldings;
+    return alternativesHoldings.map(h => {
+      const w = Math.round((h.marketValue / totalValue) * 10000) / 100;
+      return { ...h, weight: w, contribution: (h.totalReturn * w) / 100 };
+    });
+  }, [alternativesHoldings, totalValue]);
+
+  const finalBondHoldings = useMemo(() => {
+    if (totalValue <= 0) return bondHoldings;
+    return bondHoldings.map(h => {
+      const w = Math.round((h.marketValue / totalValue) * 10000) / 100;
+      return { ...h, weight: w, contribution: (h.totalReturn * w) / 100 };
+    });
+  }, [bondHoldings, totalValue]);
 
   // Portfolio-level return
-  const equityContrib = equityHoldings.reduce((s, h) => s + h.contribution, 0);
-  const fiFundContrib = fixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0);
-  const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
-  const portfolioReturn = equityContrib + fiFundContrib + bondContrib;
+  const equityContrib = finalEquityHoldings.reduce((s, h) => s + h.contribution, 0);
+  const fiFundContrib = finalFixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0);
+  const altContrib = finalAlternativesHoldings.reduce((s, h) => s + h.contribution, 0);
+  const bondContrib = finalBondHoldings.reduce((s, h) => s + h.contribution, 0);
+  const portfolioReturn = equityContrib + fiFundContrib + altContrib + bondContrib;
 
   // Notify parent of total value (after bond recalculation)
   useEffect(() => {
@@ -726,15 +799,10 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   // Expose computed holding returns to parent (for PerformanceAttribution)
   useEffect(() => {
     if (!onHoldingReturnsReady) return;
-    onHoldingReturnsReady({ equityHoldings, fixedIncomeFundHoldings, bondHoldings, cashValue, totalValue, portfolioReturn });
-  }, [equityHoldings, fixedIncomeFundHoldings, bondHoldings, onHoldingReturnsReady, cashValue, totalValue, portfolioReturn]);
+    onHoldingReturnsReady({ equityHoldings: finalEquityHoldings, fixedIncomeFundHoldings: finalFixedIncomeFundHoldings, alternativesHoldings: finalAlternativesHoldings, bondHoldings: finalBondHoldings, cashValue, totalValue, portfolioReturn });
+  }, [finalEquityHoldings, finalFixedIncomeFundHoldings, finalAlternativesHoldings, finalBondHoldings, onHoldingReturnsReady, cashValue, totalValue, portfolioReturn]);
 
   if (holdingSummaries.length === 0) return null;
-
-  const equityValue = equityHoldings.reduce((s, h) => s + h.marketValue, 0);
-  const bondValue = bondHoldings.reduce((s, h) => s + h.marketValue, 0);
-  const equityPct = totalValue > 0 ? (equityValue / totalValue) * 100 : 0;
-  const bondPct = totalValue > 0 ? (bondValue / totalValue) * 100 : 0;
 
   return (
     <div className="bg-white rounded-lg border border-gb-border shadow-sm mb-6">
@@ -753,6 +821,28 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             </span>
           )}
         </div>
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setReturnMode("cartola")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              returnMode === "cartola"
+                ? "bg-white text-gb-black shadow-sm"
+                : "text-gb-gray hover:text-gb-black"
+            }`}
+          >
+            Desde Cartola
+          </button>
+          <button
+            onClick={() => setReturnMode("compra")}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              returnMode === "compra"
+                ? "bg-white text-gb-black shadow-sm"
+                : "text-gb-gray hover:text-gb-black"
+            }`}
+          >
+            Desde Compra
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -763,19 +853,13 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           value={formatPercent(portfolioReturn)}
           color={portfolioReturn >= 0 ? "text-green-600" : "text-red-600"}
         />
-        {hasEquity && (
-          <SummaryCard label="Renta Variable" value={`${formatNumber(equityPct, 1)}%`} />
-        )}
-        {hasBonds && (
-          <SummaryCard label="Renta Fija" value={`${formatNumber(bondPct, 1)}%`} />
-        )}
       </div>
 
       {/* Sections */}
       <div className="py-4">
         {hasEquity && (
           <EquitySection
-            holdings={equityHoldings}
+            holdings={finalEquityHoldings}
             totalPortfolioValue={totalValue}
             showDividends={hasStocksOrETFs}
           />
@@ -783,7 +867,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
         {hasFixedIncomeFunds && (
           <EquitySection
-            holdings={fixedIncomeFundHoldings}
+            holdings={finalFixedIncomeFundHoldings}
             totalPortfolioValue={totalValue}
             showDividends={false}
             title="Renta Fija (Fondos)"
@@ -791,9 +875,19 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           />
         )}
 
+        {hasAlternatives && (
+          <EquitySection
+            holdings={finalAlternativesHoldings}
+            totalPortfolioValue={totalValue}
+            showDividends={false}
+            title="Alternativos"
+            sectionColor="orange"
+          />
+        )}
+
         {hasBonds && (
           <FixedIncomeSection
-            holdings={bondHoldings}
+            holdings={finalBondHoldings}
             totalPortfolioValue={totalValue}
           />
         )}

@@ -237,11 +237,19 @@ export default function ReviewSnapshotModal({
           fetch(`https://mindicador.cl/api/euro/${cartolaYear}`, { signal: controller.signal }).catch(() => null),
         ]);
 
-        // Helper: find closest value <= fechaCartola from a sorted serie
-        const findClosest = (serie: Array<{ fecha: string; valor: number }>): number | null => {
-          const candidates = serie.filter(e => e.fecha <= fechaCartola);
+        // Helper: find closest value <= date from a serie
+        const findClosest = (serie: Array<{ fecha: string; valor: number }>, targetDate: string): number | null => {
+          const candidates = serie.filter(e => e.fecha <= targetDate);
           if (candidates.length === 0) return null;
           candidates.sort((a, b) => b.fecha.localeCompare(a.fecha));
+          return candidates[0].valor;
+        };
+
+        // Helper: find closest value >= date (for T+1 USD lookup)
+        const findClosestNext = (serie: Array<{ fecha: string; valor: number }>, targetDate: string): number | null => {
+          const candidates = serie.filter(e => e.fecha >= targetDate);
+          if (candidates.length === 0) return null;
+          candidates.sort((a, b) => a.fecha.localeCompare(b.fecha));
           return candidates[0].valor;
         };
 
@@ -250,24 +258,30 @@ export default function ReviewSnapshotModal({
         let eurRate = 1060;
         let anyHistorical = false;
 
-        // Dólar observado at cartola date
+        // Dólar observado: use T+1 convention (observado from next calendar day)
+        // Chilean brokerages value USD positions using the dólar observado published
+        // the day AFTER the valuation date (the observado published on day D is the
+        // average from D-1).
         if (dolarRes) {
           try {
             const data = await dolarRes.json();
             if (data.success && data.serie?.length > 0) {
-              const val = findClosest(data.serie);
+              const nextDay = new Date(fechaCartola + "T12:00:00");
+              nextDay.setDate(nextDay.getDate() + 1);
+              const nextDayStr = nextDay.toISOString().split("T")[0];
+              const val = findClosestNext(data.serie, nextDayStr);
               if (val) { usdRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] Dólar observado ${fechaCartola}: $${usdRate}`);
+              console.log(`[ReviewSnapshot] Dólar observado T+1 (>=${nextDayStr}): $${usdRate}`);
             }
           } catch { /* use fallback */ }
         }
 
-        // UF at cartola date
+        // UF at cartola date (same day, no T+1)
         if (ufRes) {
           try {
             const data = await ufRes.json();
             if (data.success && data.serie?.length > 0) {
-              const val = findClosest(data.serie);
+              const val = findClosest(data.serie, fechaCartola);
               if (val) { ufRate = val; anyHistorical = true; }
               console.log(`[ReviewSnapshot] UF ${fechaCartola}: $${ufRate}`);
             }
@@ -283,7 +297,7 @@ export default function ReviewSnapshotModal({
                 fecha: e.fecha.split("T")[0],
                 valor: e.valor,
               }));
-              const val = findClosest(serie);
+              const val = findClosest(serie, fechaCartola);
               if (val) { eurRate = val; anyHistorical = true; }
               console.log(`[ReviewSnapshot] EUR ${fechaCartola}: $${eurRate}`);
             }

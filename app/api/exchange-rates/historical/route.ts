@@ -1,16 +1,17 @@
 // app/api/exchange-rates/historical/route.ts
-// Proxy for mindicador.cl historical UF/USD data
-// Avoids CORS issues from client-side direct calls
+// Historical UF/USD data from Banco Central de Chile (SI3 API)
+// Fallback: mindicador.cl
 
 import { NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { fetchBcchSeries } from "@/lib/bcch";
 
 // Cache per indicator+year (1 hour)
 const cache: Record<string, { data: Array<{ fecha: string; valor: number }>; expiry: number }> = {};
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
 export async function GET(request: NextRequest) {
-  const blocked = await applyRateLimit(request, "exchange-rates-historical", { limit: 10, windowSeconds: 60 });
+  const blocked = await applyRateLimit(request, "exchange-rates-historical", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const indicator = request.nextUrl.searchParams.get("indicator"); // "uf" or "dolar"
@@ -25,8 +26,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, serie: cache[cacheKey].data, cached: true });
   }
 
+  // Primary: Banco Central de Chile
   try {
-    const res = await fetch(`https://mindicador.cl/api/${indicator}/${year}`, {
+    const serie = await fetchBcchSeries(
+      indicator as "dolar" | "uf",
+      `${year}-01-01`,
+      `${year}-12-31`,
+    );
+
+    cache[cacheKey] = { data: serie, expiry: Date.now() + CACHE_DURATION };
+    return NextResponse.json({ success: true, serie, source: "Banco Central de Chile" });
+  } catch (bcchError) {
+    console.warn(`[exchange-rates/historical] BCCH failed for ${indicator}/${year}:`, bcchError);
+  }
+
+  // Fallback: mindicador.cl
+  try {
+    const minIndicator = indicator === "dolar" ? "dolar" : "uf";
+    const res = await fetch(`https://mindicador.cl/api/${minIndicator}/${year}`, {
       next: { revalidate: 3600 },
     });
     if (!res.ok) throw new Error(`mindicador ${res.status}`);
@@ -37,7 +54,7 @@ export async function GET(request: NextRequest) {
     }));
 
     cache[cacheKey] = { data: serie, expiry: Date.now() + CACHE_DURATION };
-    return NextResponse.json({ success: true, serie });
+    return NextResponse.json({ success: true, serie, source: "mindicador.cl (fallback)" });
   } catch {
     return NextResponse.json({ success: true, serie: [] });
   }
