@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient();
     const { data: client } = await supabase
       .from("clients")
-      .select("id, name")
+      .select("id, nombre")
       .eq("id", clientId)
-      .eq("advisor_id", advisor!.id)
+      .eq("asesor_id", advisor!.id)
       .single();
 
     if (!client) {
