@@ -362,10 +362,24 @@ export async function POST(request: NextRequest) {
     const posiciones = (modelRow.posiciones || []) as ModelPosicion[];
     const sleeves = (modelRow.sleeves || []) as Array<Record<string, unknown>>;
 
-    // Build label → posicion map for matching
-    const posicionByLabel = new Map<string, ModelPosicion>();
+    // Build categoria → posicion map for matching
+    // Model stores short IDs (e.g. "usa_large_cap"), COMITE_CATEGORIES uses
+    // prefixed IDs (e.g. "rv_usa_large_cap"). Build a lookup that maps both.
+    const posicionByCat = new Map<string, ModelPosicion>();
     for (const pos of posiciones) {
-      posicionByLabel.set(pos.categoria, pos);
+      posicionByCat.set(pos.categoria, pos);
+    }
+
+    // Build COMITE_CATEGORIES.id → ModelPosicion by stripping role prefix
+    // e.g. "rv_usa_large_cap" → try "usa_large_cap", "rf_chile" → try "chile" then "rf_chile"
+    function findPosicion(cat: { id: string; label: string }): ModelPosicion | undefined {
+      // Direct match by full id (e.g. "rf_chile" → "rf_chile")
+      if (posicionByCat.has(cat.id)) return posicionByCat.get(cat.id);
+      // Strip role prefix: "rv_usa_large_cap" → "usa_large_cap"
+      const withoutPrefix = cat.id.replace(/^(rv|rf|alt|cash)_/, "");
+      if (posicionByCat.has(withoutPrefix)) return posicionByCat.get(withoutPrefix);
+      // Match by label (legacy fallback)
+      return posicionByCat.get(cat.label);
     }
 
     // ── 10. Load fund mappings per custodian_type ────────────────────────
@@ -413,8 +427,8 @@ export async function POST(request: NextRequest) {
     const flags: Array<{ type: string; holdingName: string; message: string }> = [];
 
     const categories: CategoryResult[] = COMITE_CATEGORIES.map((cat) => {
-      // Match model posicion by label
-      const posicion = posicionByLabel.get(cat.label);
+      // Match model posicion by category id
+      const posicion = findPosicion(cat);
       const targetPct = posicion?.modelo_pct ?? 0;
       const actualValueCLP = actualByCat.get(cat.id) || 0;
       const actualPct = totalValueCLP > 0
