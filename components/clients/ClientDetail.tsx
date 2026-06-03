@@ -995,21 +995,41 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
             </div>
 
             {/* Risk Profile */}
-            {client.perfil_riesgo && (
-              <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 shadow-sm">
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 shadow-sm">
                 <h2 className="text-sm font-semibold text-gb-black mb-3 flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-indigo-500" />
                   Perfil de Riesgo
                 </h2>
                 <div className="space-y-2">
                   <div>
-                    <p className="text-xs text-gb-gray">Clasificación</p>
-                    <p className="text-base font-semibold text-gb-black capitalize">
-                      {client.perfil_riesgo.replace("_", " ")}
-                    </p>
+                    <p className="text-xs text-gb-gray mb-1">Clasificación</p>
+                    <select
+                      value={client.perfil_riesgo || ""}
+                      onChange={async (e) => {
+                        try {
+                          await fetch(`/api/clients/${client.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ perfil_riesgo: e.target.value }),
+                          });
+                          fetchClient();
+                        } catch (err) {
+                          console.error("Error updating perfil:", err);
+                        }
+                      }}
+                      className="text-sm font-semibold border border-gb-border rounded px-2 py-1.5 w-full capitalize"
+                    >
+                      <option value="">Sin perfil</option>
+                      <option value="defensivo">Defensivo</option>
+                      <option value="conservador">Conservador</option>
+                      <option value="moderado">Moderado</option>
+                      <option value="agresivo">Agresivo</option>
+                      <option value="muy_agresivo">Muy Agresivo</option>
+                    </select>
                   </div>
+                  {client.puntaje_riesgo > 0 && (
                   <div>
-                    <p className="text-xs text-gb-gray mb-1">Puntaje</p>
+                    <p className="text-xs text-gb-gray mb-1">Puntaje (cuestionario)</p>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5">
                         <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${client.puntaje_riesgo}%` }} />
@@ -1017,7 +1037,8 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                       <span className="text-sm font-semibold text-gb-black">{client.puntaje_riesgo}</span>
                     </div>
                   </div>
-                  {client.tolerancia_perdida && (
+                  )}
+                  {client.tolerancia_perdida > 0 && (
                     <div>
                       <p className="text-xs text-gb-gray">Tolerancia a Pérdida</p>
                       <p className="text-base font-semibold text-gb-black">{client.tolerancia_perdida}%</p>
@@ -1063,7 +1084,6 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                   )}
                 </div>
               </div>
-            )}
 
             {/* Goals */}
             {(client.objetivo_inversion || client.horizonte_temporal) && (

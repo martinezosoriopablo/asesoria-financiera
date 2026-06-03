@@ -371,6 +371,15 @@ export async function PATCH(
       }
     }
 
+    // Handle perfil_riesgo override
+    if (body.perfil_riesgo !== undefined) {
+      const validProfiles = ["defensivo", "conservador", "moderado", "agresivo", "muy_agresivo", ""];
+      if (!validProfiles.includes(body.perfil_riesgo)) {
+        return errorResponse("Perfil de riesgo no valido", 400);
+      }
+      updateData.perfil_riesgo = body.perfil_riesgo || null;
+    }
+
     // Handle fund_selection_mode
     if (body.fund_selection_mode) {
       const validModes = ["only_my_list", "my_list_with_fallback", "all_funds"];
