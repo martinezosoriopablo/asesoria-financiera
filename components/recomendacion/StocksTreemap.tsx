@@ -31,20 +31,25 @@ interface Props {
   sectorBreakdown: SectorBreakdownItem[];
 }
 
+// Lowercase keys — all lookups go through sectorColor() helper
 const SECTOR_COLORS: Record<string, string> = {
-  Technology: "#3b82f6",
-  Healthcare: "#10b981",
-  "Financial Services": "#f59e0b",
-  "Consumer Cyclical": "#ef4444",
-  "Consumer Defensive": "#8b5cf6",
-  Energy: "#f97316",
-  Industrials: "#6366f1",
-  "Communication Services": "#ec4899",
-  Utilities: "#14b8a6",
-  "Real Estate": "#a855f7",
-  "Basic Materials": "#78716c",
-  "Sin clasificar": "#d1d5db",
+  technology: "#3b82f6",
+  healthcare: "#10b981",
+  "financial services": "#f59e0b",
+  "consumer cyclical": "#ef4444",
+  "consumer defensive": "#8b5cf6",
+  energy: "#f97316",
+  industrials: "#6366f1",
+  "communication services": "#ec4899",
+  utilities: "#14b8a6",
+  "real estate": "#a855f7",
+  "basic materials": "#78716c",
+  "sin clasificar": "#d1d5db",
 };
+
+function sectorColor(sector: string): string {
+  return SECTOR_COLORS[sector.toLowerCase()] || "#94a3b8";
+}
 
 function deviationColor(deltaPp: number): string {
   if (Math.abs(deltaPp) <= 3) return "#22c55e";
@@ -111,7 +116,7 @@ export default function StocksTreemap({ stocks, sectorBreakdown }: Props) {
       ticker: s.ticker,
       size: s.weightPct,
       weightPct: s.weightPct,
-      color: SECTOR_COLORS[sector] || "#94a3b8",
+      color: sectorColor(sector),
     })),
   }));
 
@@ -121,8 +126,8 @@ export default function StocksTreemap({ stocks, sectorBreakdown }: Props) {
     ticker: s.ticker,
     size: Math.max(s.weightPct, 0.1),
     weightPct: s.weightPct,
-    color: SECTOR_COLORS[s.sector] || "#94a3b8",
-    fill: SECTOR_COLORS[s.sector] || "#94a3b8",
+    color: sectorColor(s.sector),
+    fill: sectorColor(s.sector),
   }));
 
   // Sector totals for table
@@ -177,7 +182,7 @@ export default function StocksTreemap({ stocks, sectorBreakdown }: Props) {
             <div key={sector} className="flex items-center gap-1.5">
               <div
                 className="w-2.5 h-2.5 rounded-sm"
-                style={{ backgroundColor: SECTOR_COLORS[sector] || "#94a3b8" }}
+                style={{ backgroundColor: sectorColor(sector) }}
               />
               <span className="text-[11px] text-gb-gray">{sector}</span>
             </div>
@@ -201,7 +206,7 @@ export default function StocksTreemap({ stocks, sectorBreakdown }: Props) {
                     : <ChevronRight className="w-4 h-4 text-gb-gray" />}
                   <div
                     className="w-3 h-3 rounded-sm"
-                    style={{ backgroundColor: SECTOR_COLORS[sector] || "#94a3b8" }}
+                    style={{ backgroundColor: sectorColor(sector) }}
                   />
                   <span className="text-sm font-medium text-gb-black">{sector}</span>
                   <span className="text-xs text-gb-gray">
