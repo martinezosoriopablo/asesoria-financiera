@@ -19,6 +19,7 @@ interface Props {
   perfilCliente: string;
   perfilModelo: string;
   notaComite: string | null;
+  onNarrativeGenerated?: (text: string) => void;
 }
 
 export default function NarrativeAnalysis({
@@ -30,6 +31,7 @@ export default function NarrativeAnalysis({
   perfilCliente,
   perfilModelo,
   notaComite,
+  onNarrativeGenerated,
 }: Props) {
   const [narrative, setNarrative] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,6 +59,7 @@ export default function NarrativeAnalysis({
       const data = await res.json();
       if (data.success) {
         setNarrative(data.narrative);
+        onNarrativeGenerated?.(data.narrative);
         setModel(data.model);
       } else {
         setError(data.error || "Error al generar analisis");
