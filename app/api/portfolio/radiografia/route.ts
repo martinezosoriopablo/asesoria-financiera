@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     // ── 2. Load client ───────────────────────────────────────────────────
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, nombre, apellido")
+      .select("id, nombre, apellido, perfil_riesgo")
       .eq("id", clientId)
       .single();
 
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    const perfilCliente = perfilOverride || riskProfile?.perfil_riesgo || "moderado";
+    const perfilCliente = perfilOverride || client.perfil_riesgo || riskProfile?.perfil_riesgo || "moderado";
     const perfilModelo = mapClientProfile(perfilCliente);
 
     // ── 4. Load latest snapshots per custodian ───────────────────────────
