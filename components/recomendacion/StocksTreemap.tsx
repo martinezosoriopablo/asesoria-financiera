@@ -60,11 +60,12 @@ function formatUSD(value: number): string {
 
 // Custom treemap content renderer
 function CustomTreemapContent(props: any) {
-  const { x, y, width, height, name, ticker, weightPct, color } = props;
+  const { x, y, width, height, name, ticker, weightPct, color, fill } = props;
+  const rectColor = color || fill || "#94a3b8";
   if (width < 40 || height < 25) return null;
   return (
     <g>
-      <rect x={x} y={y} width={width} height={height} fill={color} rx={4} stroke="#fff" strokeWidth={2} />
+      <rect x={x} y={y} width={width} height={height} fill={rectColor} rx={4} stroke="#fff" strokeWidth={2} />
       {width > 50 && height > 35 && (
         <>
           <text x={x + 6} y={y + 16} fontSize={12} fontWeight="bold" fill="#fff">
@@ -121,6 +122,7 @@ export default function StocksTreemap({ stocks, sectorBreakdown }: Props) {
     size: Math.max(s.weightPct, 0.1),
     weightPct: s.weightPct,
     color: SECTOR_COLORS[s.sector] || "#94a3b8",
+    fill: SECTOR_COLORS[s.sector] || "#94a3b8",
   }));
 
   // Sector totals for table
