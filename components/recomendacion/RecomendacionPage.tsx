@@ -309,6 +309,7 @@ export default function RecomendacionPage({ clientId }: Props) {
         allocation={data.allocation}
         observations={data.observations}
         sectorBreakdown={data.sectorBreakdown}
+        instrumentBreakdown={data.instrumentBreakdown}
         totalValueCLP={data.totalValueCLP}
         perfilCliente={data.perfilCliente}
         perfilModelo={data.perfilModelo}

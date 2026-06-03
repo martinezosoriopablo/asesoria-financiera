@@ -15,6 +15,13 @@ interface Props {
     sleevePct: number | null;
     deltaPp: number;
   }>;
+  instrumentBreakdown?: {
+    stocks: Array<{ ticker: string; name: string; sector: string; weightPct: number; marketValueUSD: number }>;
+    funds: Array<{ fundName: string; weightPct: number; categoryLabel?: string }>;
+    bonds: Array<{ name: string; couponRate: number; maturityDate: string; weightPct: number; marketValueUSD: number }>;
+    etfs: Array<{ ticker: string; name: string; weightPct: number; categoryLabel?: string }>;
+    cash: Array<{ name: string; weightPct: number }>;
+  };
   totalValueCLP: number;
   perfilCliente: string;
   perfilModelo: string;
@@ -27,6 +34,7 @@ export default function NarrativeAnalysis({
   allocation,
   observations,
   sectorBreakdown,
+  instrumentBreakdown,
   totalValueCLP,
   perfilCliente,
   perfilModelo,
@@ -50,6 +58,7 @@ export default function NarrativeAnalysis({
           allocation,
           observations,
           sectorBreakdown,
+          instrumentBreakdown,
           totalValueCLP,
           perfilCliente,
           perfilModelo,

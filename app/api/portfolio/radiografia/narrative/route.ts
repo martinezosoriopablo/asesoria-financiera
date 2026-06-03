@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
       allocation,
       observations,
       sectorBreakdown,
+      instrumentBreakdown,
       totalValueCLP,
       perfilCliente,
       perfilModelo,
@@ -26,6 +27,13 @@ export async function POST(request: NextRequest) {
       allocation: Record<string, { actual: number; target: number; delta: number }>;
       observations: Array<{ severity: string; text: string }>;
       sectorBreakdown: Array<{ sector: string; actualPct: number; sleevePct: number | null; deltaPp: number }>;
+      instrumentBreakdown?: {
+        stocks: Array<{ ticker: string; name: string; sector: string; weightPct: number; marketValueUSD: number }>;
+        funds: Array<{ fundName: string; weightPct: number; categoryLabel?: string }>;
+        bonds: Array<{ name: string; couponRate: number; maturityDate: string; weightPct: number; marketValueUSD: number }>;
+        etfs: Array<{ ticker: string; name: string; weightPct: number; categoryLabel?: string }>;
+        cash: Array<{ name: string; weightPct: number }>;
+      };
       totalValueCLP: number;
       perfilCliente: string;
       perfilModelo: string;
@@ -64,6 +72,57 @@ export async function POST(request: NextRequest) {
       .map((s) => `- ${s.sector}: ${s.actualPct.toFixed(1)}% actual${s.sleevePct != null ? ` vs ${s.sleevePct.toFixed(1)}% sleeve` : ""} (${s.deltaPp > 0 ? "+" : ""}${s.deltaPp.toFixed(1)}pp)`)
       .join("\n");
 
+    // Build instrument detail summaries
+    let topPositionsSummary = "";
+    let sectorDiversificationSummary = "";
+    let instrumentMixSummary = "";
+
+    if (instrumentBreakdown) {
+      const ib = instrumentBreakdown;
+
+      // Top 10 positions across all types
+      const allPositions = [
+        ...ib.stocks.map((s) => ({ name: `${s.ticker} (${s.name})`, type: "Accion", weight: s.weightPct, sector: s.sector })),
+        ...ib.funds.map((f) => ({ name: f.fundName, type: "Fondo", weight: f.weightPct, sector: f.categoryLabel || "" })),
+        ...ib.bonds.map((b) => ({ name: b.name, type: "Bono", weight: b.weightPct, sector: "" })),
+        ...ib.etfs.map((e) => ({ name: `${e.ticker} (${e.name})`, type: "ETF", weight: e.weightPct, sector: e.categoryLabel || "" })),
+        ...ib.cash.map((c) => ({ name: c.name, type: "Caja", weight: c.weightPct, sector: "" })),
+      ].sort((a, b) => b.weight - a.weight);
+
+      const top10 = allPositions.slice(0, 10);
+      topPositionsSummary = top10
+        .map((p) => `- ${p.name} [${p.type}]: ${p.weight.toFixed(1)}%`)
+        .join("\n");
+
+      const top3Weight = top10.slice(0, 3).reduce((s, p) => s + p.weight, 0);
+      const top5Weight = top10.slice(0, 5).reduce((s, p) => s + p.weight, 0);
+
+      // Sector concentration (stocks only)
+      if (ib.stocks.length > 0) {
+        const bySector = new Map<string, number>();
+        for (const s of ib.stocks) {
+          const sec = s.sector || "Sin clasificar";
+          bySector.set(sec, (bySector.get(sec) || 0) + s.weightPct);
+        }
+        const sortedSectors = [...bySector.entries()].sort((a, b) => b[1] - a[1]);
+        sectorDiversificationSummary = sortedSectors
+          .map(([sec, pct]) => `- ${sec}: ${pct.toFixed(1)}% (${ib.stocks.filter((s) => (s.sector || "Sin clasificar") === sec).length} posiciones)`)
+          .join("\n");
+        const uniqueSectors = sortedSectors.length;
+        sectorDiversificationSummary = `${uniqueSectors} sectores representados.\n${sectorDiversificationSummary}`;
+      }
+
+      // Instrument mix summary
+      const counts = {
+        acciones: ib.stocks.length,
+        fondos: ib.funds.length,
+        bonos: ib.bonds.length,
+        etfs: ib.etfs.length,
+        caja: ib.cash.length,
+      };
+      instrumentMixSummary = `${counts.acciones} acciones, ${counts.fondos} fondos, ${counts.bonos} bonos, ${counts.etfs} ETFs, ${counts.caja} posiciones en caja. Concentracion: Top 3 = ${top3Weight.toFixed(1)}%, Top 5 = ${top5Weight.toFixed(1)}%.`;
+    }
+
     const totalUSD = Math.round(totalValueCLP / 950);
     const prompt = `Eres un asesor financiero senior chileno redactando un diagnostico de cartera para tu cliente ${clientName}.
 
@@ -71,6 +130,7 @@ Datos del portafolio:
 - Valor total: ~USD ${totalUSD.toLocaleString()} (CLP ${Math.round(totalValueCLP / 1e6).toLocaleString()}M)
 - Perfil de riesgo del cliente: ${perfilCliente}
 - Modelo asignado: ${perfilModelo}
+- Composicion: ${instrumentMixSummary || "No disponible"}
 
 Asignacion de activos:
 ${allocSummary}
@@ -78,11 +138,20 @@ ${allocSummary}
 Observaciones clave:
 ${obsSummary}
 
-${sectorSummary ? `Desglose sectorial (desviaciones relevantes):\n${sectorSummary}` : ""}
+${topPositionsSummary ? `Principales posiciones (top 10 por peso):\n${topPositionsSummary}` : ""}
+
+${sectorDiversificationSummary ? `Diversificacion sectorial (acciones directas):\n${sectorDiversificationSummary}` : ""}
+
+${sectorSummary ? `Desviaciones sectoriales vs sleeve del comite:\n${sectorSummary}` : ""}
 
 ${notaComite ? `Contexto del ultimo comite de inversiones:\n${notaComite}` : ""}
 
-Redacta un diagnostico profesional de 2-3 parrafos cortos. Tono: directo, profesional, sin ser alarmista. Menciona riesgos concretos y oportunidades. No uses bullet points ni listas — escribe en prosa. No uses acentos. Tutea al cliente.`;
+Redacta un diagnostico profesional de 3-4 parrafos. Tono: directo, profesional, sin ser alarmista. El analisis debe cubrir:
+1. Situacion general del portafolio vs el modelo (allocation macro)
+2. Diversificacion sectorial y concentracion en posiciones individuales — identifica riesgos especificos
+3. Oportunidades concretas de mejora y recomendaciones accionables
+
+No uses bullet points ni listas — escribe en prosa. No uses acentos. Tutea al cliente.`;
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
