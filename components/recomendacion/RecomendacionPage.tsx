@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Loader, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader, RefreshCw, AlertTriangle, Mail } from "lucide-react";
 import MacroAllocationV2 from "./MacroAllocationV2";
 import StocksTreemap from "./StocksTreemap";
 import FundsBreakdown from "./FundsBreakdown";
@@ -10,6 +10,7 @@ import BondsBreakdown from "./BondsBreakdown";
 import ObservacionesPanel from "./ObservacionesPanel";
 import NarrativeAnalysis from "./NarrativeAnalysis";
 import TradeSuggestions from "./TradeSuggestions";
+import SendReportModal from "./SendReportModal";
 
 // ── Types matching API response ──────────────────────────────────────
 
@@ -131,6 +132,9 @@ export default function RecomendacionPage({ clientId }: Props) {
   const [data, setData] = useState<RadiografiaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [narrativeText, setNarrativeText] = useState<string | null>(null);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [clientEmail, setClientEmail] = useState<string>("");
 
   const fetchRadiografia = useCallback(async () => {
     setLoading(true);
@@ -153,6 +157,19 @@ export default function RecomendacionPage({ clientId }: Props) {
       setLoading(false);
     }
   }, [clientId]);
+
+  const openSendModal = useCallback(async () => {
+    if (!clientEmail) {
+      try {
+        const res = await fetch(`/api/clients/${clientId}`);
+        const d = await res.json();
+        if (d.success && d.data?.email) {
+          setClientEmail(d.data.email);
+        }
+      } catch { /* ignore */ }
+    }
+    setShowSendModal(true);
+  }, [clientId, clientEmail]);
 
   useEffect(() => {
     fetchRadiografia();
@@ -208,14 +225,23 @@ export default function RecomendacionPage({ clientId }: Props) {
             </span>
           </div>
         </div>
-        <button
-          onClick={fetchRadiografia}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gb-border rounded-md hover:bg-slate-50 transition-colors"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openSendModal}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Enviar por Email
+          </button>
+          <button
+            onClick={fetchRadiografia}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gb-border rounded-md hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Flags */}
@@ -287,7 +313,19 @@ export default function RecomendacionPage({ clientId }: Props) {
         perfilCliente={data.perfilCliente}
         perfilModelo={data.perfilModelo}
         notaComite={data.notaComite}
+        onNarrativeGenerated={setNarrativeText}
       />
+
+      {/* Send Report Modal */}
+      {data && (
+        <SendReportModal
+          isOpen={showSendModal}
+          onClose={() => setShowSendModal(false)}
+          data={data}
+          clientEmail={clientEmail}
+          narrative={narrativeText}
+        />
+      )}
     </div>
   );
 }
