@@ -57,11 +57,11 @@ describe("getClientIp", () => {
 });
 
 describe("applyRateLimit", () => {
-  it("returns null when under limit", () => {
+  it("returns null when under limit", async () => {
     const request = new Request("http://localhost", {
       headers: { "x-forwarded-for": "10.0.0.1" },
     });
-    const result = applyRateLimit(request, "test-apply-" + Date.now(), { limit: 5 });
+    const result = await applyRateLimit(request, "test-apply-" + Date.now(), { limit: 5 });
     expect(result).toBeNull();
   });
 
@@ -74,10 +74,10 @@ describe("applyRateLimit", () => {
 
     // Exhaust the limit
     for (let i = 0; i < 2; i++) {
-      applyRateLimit(request, key, { limit: 2, windowSeconds: 60 });
+      await applyRateLimit(request, key, { limit: 2, windowSeconds: 60 });
     }
 
-    const result = applyRateLimit(request, key, { limit: 2, windowSeconds: 60 });
+    const result = await applyRateLimit(request, key, { limit: 2, windowSeconds: 60 });
     expect(result).not.toBeNull();
     expect(result!.status).toBe(429);
 
@@ -92,8 +92,8 @@ describe("applyRateLimit", () => {
       headers: { "x-forwarded-for": "10.0.0.3" },
     });
 
-    applyRateLimit(request, key, { limit: 1, windowSeconds: 60 });
-    const result = applyRateLimit(request, key, { limit: 1, windowSeconds: 60 });
+    await applyRateLimit(request, key, { limit: 1, windowSeconds: 60 });
+    const result = await applyRateLimit(request, key, { limit: 1, windowSeconds: 60 });
 
     expect(result).not.toBeNull();
     expect(result!.headers.get("Retry-After")).toBeTruthy();
