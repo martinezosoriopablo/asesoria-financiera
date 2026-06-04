@@ -768,31 +768,19 @@ export default function SeguimientoPage({ clientId }: Props) {
 
     if (!narrativeText && !loadingNarrative) {
       setLoadingNarrative(true);
+      // Try current month first, then previous month (ClientMonthlyClosing uses prev month)
       const now = new Date();
-      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      let found = false;
-      try {
-        // Try fetching existing closing first
-        const res = await fetch(`/api/client-closings?clientId=${clientId}&month=${month}`);
-        const d = await res.json();
-        if (d.success && d.closing?.content) {
-          setNarrativeText(d.closing.content);
-          found = true;
-        }
-      } catch { /* ignore */ }
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonth = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
 
-      if (!found) {
+      for (const month of [prevMonth, currentMonth]) {
         try {
-          // Try generating a closing via AI (requires monthly report)
-          const genRes = await fetch("/api/client-closings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clientId, month }),
-          });
-          const genD = await genRes.json();
-          if (genD.success && genD.closing?.content) {
-            setNarrativeText(genD.closing.content);
-            found = true;
+          const res = await fetch(`/api/client-closings?clientId=${clientId}&month=${month}`);
+          const d = await res.json();
+          if (d.success && d.closing?.content) {
+            setNarrativeText(d.closing.content);
+            break;
           }
         } catch { /* ignore */ }
       }
