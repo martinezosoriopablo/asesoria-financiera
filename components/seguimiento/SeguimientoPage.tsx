@@ -745,14 +745,20 @@ export default function SeguimientoPage({ clientId }: Props) {
       setLoadingNarrative(true);
       const now = new Date();
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      let found = false;
       try {
         // Try fetching existing closing first
         const res = await fetch(`/api/client-closings?clientId=${clientId}&month=${month}`);
         const d = await res.json();
         if (d.success && d.closing?.content) {
           setNarrativeText(d.closing.content);
-        } else {
-          // No existing closing — try generating one on demand
+          found = true;
+        }
+      } catch { /* ignore */ }
+
+      if (!found) {
+        try {
+          // Try generating a closing via AI (requires monthly report)
           const genRes = await fetch("/api/client-closings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -761,9 +767,40 @@ export default function SeguimientoPage({ clientId }: Props) {
           const genD = await genRes.json();
           if (genD.success && genD.closing?.content) {
             setNarrativeText(genD.closing.content);
+            found = true;
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Fallback: build a simple programmatic narrative from portfolio data
+      if (!found) {
+        const emailData = assembleSeguimientoData();
+        if (emailData) {
+          const parts: string[] = [];
+          const totalRet = emailData.periodReturns?.["YTD"]?.nominal ?? emailData.periodReturns?.["1M"]?.nominal;
+          const clientFirst = emailData.clientName.split(" ")[0];
+          if (totalRet !== null && totalRet !== undefined) {
+            const sign = totalRet >= 0 ? "positivo" : "negativo";
+            parts.push(`El portafolio de ${clientFirst} ha tenido un desempeno ${sign} con una rentabilidad ${totalRet >= 0 ? "de" : "de"} ${totalRet >= 0 ? "+" : ""}${totalRet.toFixed(1)}% en el periodo.`);
+          }
+          const eq = emailData.composition.equity;
+          const fi = emailData.composition.fixedIncome;
+          if (eq.returnPct !== 0 || fi.returnPct !== 0) {
+            const eqDir = eq.returnPct >= 0 ? "subio" : "bajo";
+            const fiDir = fi.returnPct >= 0 ? "subio" : "bajo";
+            parts.push(`La renta variable ${eqDir} ${eq.returnPct >= 0 ? "+" : ""}${eq.returnPct.toFixed(1)}% y la renta fija ${fiDir} ${fi.returnPct >= 0 ? "+" : ""}${fi.returnPct.toFixed(1)}%.`);
+          }
+          if (emailData.holdingReturns.length > 0) {
+            const best = emailData.holdingReturns[0];
+            const worst = emailData.holdingReturns[emailData.holdingReturns.length - 1];
+            parts.push(`La mejor posicion fue ${best.name} (${best.returnPct >= 0 ? "+" : ""}${best.returnPct.toFixed(1)}%) y la de menor rendimiento fue ${worst.name} (${worst.returnPct >= 0 ? "+" : ""}${worst.returnPct.toFixed(1)}%).`);
+          }
+          if (parts.length > 0) {
+            setNarrativeText(parts.join("\n\n"));
           }
         }
-      } catch { /* ignore — email will send without narrative */ }
+      }
+
       setLoadingNarrative(false);
     }
 
