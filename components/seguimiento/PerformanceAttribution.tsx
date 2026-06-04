@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -9,6 +9,9 @@ import {
   GitCompare,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Loader,
 } from "lucide-react";
 import { formatNumber, formatCurrency, formatPercent, formatDate } from "@/lib/format";
 import { inferInstrumentType } from "@/lib/instrument-type";
@@ -18,12 +21,21 @@ import type { HoldingReturnsData } from "./HoldingReturnsPanel";
 interface Holding {
   fundName: string;
   securityId?: string;
+  serie?: string;
   marketValue: number;
   marketValueCLP?: number;
   costBasis?: number;
   unrealizedGainLoss?: number;
+  quantity?: number;
   assetClass?: string;
   currency?: string;
+  market?: string;
+}
+
+interface MonthOption {
+  key: string; // "2026-05" or "_acumulado"
+  label: string;
+  isAccumulated: boolean;
 }
 
 /** Normalize assetClass from various formats to canonical keys */
@@ -122,6 +134,162 @@ export default function PerformanceAttribution({
   holdingReturnsData,
 }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>("assetClass");
+
+  // ---------- Month selector ----------
+  const cartolas = useMemo(
+    () => snapshots
+      .filter(s => Array.isArray(s.holdings) && (s.holdings as unknown[]).length > 0)
+      .filter(s => s.source === "statement" || s.source === "manual" || s.source === "excel")
+      .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date)),
+    [snapshots]
+  );
+
+  const monthOptions = useMemo((): MonthOption[] => {
+    if (cartolas.length === 0) return [{ key: "_acumulado", label: "Acumulado", isAccumulated: true }];
+
+    const firstDate = new Date(cartolas[0].snapshot_date);
+    const firstYM = `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, "0")}`;
+    const now = new Date();
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    const options: MonthOption[] = [];
+    let [y, m] = firstYM.split("-").map(Number);
+    const [endY, endM] = currentYM.split("-").map(Number);
+
+    while (y < endY || (y === endY && m <= endM)) {
+      const ym = `${y}-${String(m).padStart(2, "0")}`;
+      const d = new Date(y, m - 1, 1);
+      const label = d.toLocaleDateString("es-CL", { month: "long", year: "numeric" });
+      options.push({ key: ym, label: label.charAt(0).toUpperCase() + label.slice(1), isAccumulated: false });
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+
+    const firstLabel = firstDate.toLocaleDateString("es-CL", { month: "short", year: "2-digit" });
+    options.push({ key: "_acumulado", label: `Acumulado (desde ${firstLabel})`, isAccumulated: true });
+    return options;
+  }, [cartolas]);
+
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(() => Math.max(0, monthOptions.length - 1));
+  const selectedMonth = monthOptions[Math.min(selectedMonthIdx, monthOptions.length - 1)];
+
+  type PositionAttr = { name: string; initialValue: number; finalValue: number; return: number; contribution: number; weight: number; assetClass?: string };
+  const [pastMonthAttribution, setPastMonthAttribution] = useState<PositionAttr[] | null>(null);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
+  const findCartolaNearest = (dateStr: string) => {
+    let bestBefore: typeof cartolas[0] | null = null;
+    let bestAfter: typeof cartolas[0] | null = null;
+    for (const s of cartolas) {
+      if (s.snapshot_date <= dateStr) bestBefore = s;
+      else if (!bestAfter) bestAfter = s;
+    }
+    return bestBefore ?? bestAfter;
+  };
+
+  // Fetch per-month attribution from API
+  useEffect(() => {
+    if (selectedMonth.isAccumulated || !holdingReturnsData) {
+      setPastMonthAttribution(null);
+      return;
+    }
+
+    const [y, m] = selectedMonth.key.split("-").map(Number);
+    const monthEnd = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
+    const snap = findCartolaNearest(monthEnd);
+    if (!snap?.holdings) {
+      setPastMonthAttribution([]);
+      return;
+    }
+
+    const holdings = snap.holdings as Holding[];
+    const startDate = `${y}-${String(m).padStart(2, "0")}-01`;
+    const now = new Date();
+    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
+    const endDate = isCurrentMonth ? now.toISOString().split("T")[0] : monthEnd;
+
+    setLoadingMonth(true);
+    setPastMonthAttribution(null);
+
+    fetch("/api/portfolio/prices-at-date", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        holdings: holdings.map(h => ({
+          fundName: h.fundName,
+          securityId: h.securityId || null,
+          serie: h.serie || null,
+          assetClass: h.assetClass,
+          currency: h.currency || null,
+          market: h.market || null,
+        })),
+        startDate,
+        endDate,
+      }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success || !data.results) {
+          setPastMonthAttribution([]);
+          return;
+        }
+
+        let totalStartCLP = 0;
+        const positionsRaw: Array<{ name: string; startCLP: number; endCLP: number; assetClass?: string }> = [];
+
+        for (const r of data.results as Array<{
+          fundName: string;
+          assetClass?: string;
+          startPrice: number | null;
+          endPrice: number | null;
+          returnPct: number | null;
+        }>) {
+          if (r.startPrice === null || r.endPrice === null) continue;
+          const h = holdings.find(hh => hh.fundName === r.fundName);
+          const qty = h?.quantity || 1;
+          const startCLP = r.startPrice * qty;
+          const endCLP = r.endPrice * qty;
+          totalStartCLP += startCLP;
+          positionsRaw.push({ name: r.fundName, startCLP, endCLP, assetClass: r.assetClass });
+        }
+
+        if (totalStartCLP <= 0) {
+          setPastMonthAttribution([]);
+          return;
+        }
+
+        const positions: PositionAttr[] = positionsRaw.map(p => {
+          const ret = p.startCLP > 0 ? ((p.endCLP - p.startCLP) / p.startCLP) * 100 : 0;
+          const contribution = ((p.endCLP - p.startCLP) / totalStartCLP) * 100;
+          const weight = (p.startCLP / totalStartCLP) * 100;
+          return {
+            name: p.name,
+            initialValue: p.startCLP,
+            finalValue: p.endCLP,
+            return: ret,
+            contribution,
+            weight,
+            assetClass: p.assetClass,
+          };
+        });
+
+        positions.sort((a, b) => b.contribution - a.contribution);
+        setPastMonthAttribution(positions);
+      })
+      .catch(err => {
+        console.warn("[PerformanceAttribution] month API error:", err);
+        setPastMonthAttribution([]);
+      })
+      .finally(() => setLoadingMonth(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, holdingReturnsData, cartolas]);
+
+  const canPrevMonth = selectedMonthIdx > 0;
+  const canNextMonth = selectedMonthIdx < monthOptions.length - 1;
+
+  // Use pastMonthAttribution when a specific month is selected, otherwise use accumulated positionAttribution
+  const activePositionData = selectedMonth.isAccumulated ? null : pastMonthAttribution;
+  const isMonthLoading = loadingMonth && !selectedMonth.isAccumulated && !pastMonthAttribution;
 
   // Use only snapshots that have asset class values (cartola snapshots, not fill-prices intermediates)
   const snapshotsWithAssetData = useMemo(() =>
@@ -748,13 +916,38 @@ export default function PerformanceAttribution({
   return (
     <div className="bg-white rounded-lg border border-gb-border shadow-sm">
       <div className="px-6 py-4 border-b border-gb-border">
-        <h2 className="text-base font-semibold text-gb-black flex items-center gap-2">
-          <PieChart className="w-5 h-5 text-blue-500" />
-          Atribución de Rendimiento
-        </h2>
-        <p className="text-xs text-gb-gray mt-1">
-          Análisis de contribución al rendimiento del portafolio
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gb-black flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-blue-500" />
+              Atribución de Rendimiento
+            </h2>
+            <p className="text-xs text-gb-gray mt-1">
+              Análisis de contribución al rendimiento del portafolio
+            </p>
+          </div>
+          {monthOptions.length > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedMonthIdx((i) => Math.max(0, i - 1))}
+                disabled={!canPrevMonth}
+                className="p-1 rounded hover:bg-gb-light disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-medium text-gb-black min-w-[200px] text-center">
+                {selectedMonth.label}
+              </span>
+              <button
+                onClick={() => setSelectedMonthIdx((i) => Math.min(monthOptions.length - 1, i + 1))}
+                disabled={!canNextMonth}
+                className="p-1 rounded hover:bg-gb-light disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 1. Attribution by Asset Class — prefer instrumentBreakdown, fallback only when no holdingReturnsData */}
@@ -972,7 +1165,12 @@ export default function PerformanceAttribution({
       )}
 
       {/* 2. Attribution by Position */}
-      {positionAttribution && positionAttribution.length > 0 && (
+      {(() => {
+        const displayPositions = selectedMonth.isAccumulated ? positionAttribution : activePositionData;
+        const showSection = isMonthLoading || (displayPositions && displayPositions.length > 0);
+        if (!showSection) return null;
+
+        return (
         <div className="border-b border-gb-border">
           <button
             onClick={() => toggleSection("positions")}
@@ -981,15 +1179,15 @@ export default function PerformanceAttribution({
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-green-500" />
               <span className="font-medium text-sm text-gb-black">Por Posición Individual</span>
-              {firstSnapshot && (
+              {selectedMonth.isAccumulated && firstSnapshot && (
                 <span className="text-xs text-gb-gray ml-1">
                   (desde {formatDate(firstSnapshot.snapshot_date)})
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3">
-              {(() => {
-                const totalContrib = positionAttribution.reduce((s, p) => s + p.contribution, 0);
+              {displayPositions && displayPositions.length > 0 && (() => {
+                const totalContrib = displayPositions.reduce((s, p) => s + p.contribution, 0);
                 return (
                   <span className={`text-sm font-semibold ${totalContrib >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {formatPercent(totalContrib)}
@@ -1006,15 +1204,20 @@ export default function PerformanceAttribution({
 
           {expandedSection === "positions" && (
             <div className="px-6 pb-6">
-              {(() => {
-                const maxAbs = Math.max(...positionAttribution.map(p => Math.abs(p.contribution)), 0.01);
-                const hasNegative = positionAttribution.some(p => p.contribution < 0);
+              {isMonthLoading ? (
+                <div className="flex items-center justify-center py-8 gap-2">
+                  <Loader className="w-4 h-4 animate-spin text-gb-gray" />
+                  <span className="text-sm text-gb-gray">Cargando precios...</span>
+                </div>
+              ) : displayPositions && displayPositions.length > 0 ? (() => {
+                const maxAbs = Math.max(...displayPositions.map(p => Math.abs(p.contribution)), 0.01);
+                const hasNegative = displayPositions.some(p => p.contribution < 0);
                 const scale = (val: number) => Math.max((Math.abs(val) / maxAbs) * (hasNegative ? 45 : 85), 3);
                 const zeroOffset = hasNegative ? 50 : 0;
 
                 return (
                   <div className="space-y-3">
-                    {positionAttribution.map((pos) => {
+                    {displayPositions.map((pos) => {
                       const barWidth = scale(pos.contribution);
                       const isNeg = pos.contribution < 0;
 
@@ -1064,20 +1267,25 @@ export default function PerformanceAttribution({
 
                     <div className="border-t-2 border-gb-black pt-2 mt-2 flex justify-between">
                       <span className="text-sm font-bold text-gb-black">Contribución Total</span>
-                      <span className={`text-sm font-bold ${positionAttribution.reduce((s, p) => s + p.contribution, 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {formatPercent(positionAttribution.reduce((s, p) => s + p.contribution, 0))}
+                      <span className={`text-sm font-bold ${displayPositions.reduce((s, p) => s + p.contribution, 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {formatPercent(displayPositions.reduce((s, p) => s + p.contribution, 0))}
                       </span>
                     </div>
                   </div>
                 );
-              })()}
+              })() : (
+                <p className="text-sm text-gb-gray text-center py-8">
+                  No hay datos suficientes para este período
+                </p>
+              )}
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
-      {/* 3. Benchmark Comparison */}
-      {benchmarkAttribution && (
+      {/* 3. Benchmark Comparison — hidden when viewing a specific month */}
+      {selectedMonth.isAccumulated && benchmarkAttribution && (
         <div className="border-b border-gb-border">
           <button
             onClick={() => toggleSection("benchmark")}
@@ -1152,8 +1360,8 @@ export default function PerformanceAttribution({
         </div>
       )}
 
-      {/* 4. Previous Portfolio Comparison */}
-      {portfolioComparison && (
+      {/* 4. Previous Portfolio Comparison — hidden when viewing a specific month */}
+      {selectedMonth.isAccumulated && portfolioComparison && (
         <div>
           <button
             onClick={() => toggleSection("comparison")}
