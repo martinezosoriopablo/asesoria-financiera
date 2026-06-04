@@ -523,7 +523,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     });
     // Weights will be recalculated after totalValue is known (includes bonds)
     return mapped;
-  }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate]);
+  }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate, ufRate]);
 
   // Price date notification (doesn't depend on totalValue)
   useEffect(() => {

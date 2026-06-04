@@ -487,11 +487,24 @@ export async function POST(req: NextRequest) {
   const sortedDates = [...allDates].sort();
   const fundKeys = [...fundInfo.keys()];
 
-  // Track last known price per fund for forward-fill.
-  // Always forward-fill with last known price — if a fund stops publishing,
-  // its value stays flat rather than dropping to 0 (which distorts the total).
-  // Stale funds are flagged separately in the response for UI warnings.
+  // Back-fill: seed each fund with its earliest known price so that ALL funds
+  // contribute from the very first date in the series. Without this, when a fund's
+  // first price appears mid-series, the total jumps by the fund's full value,
+  // creating artificial >100% returns in monthly calculations.
   const lastKnownPrice = new Map<string, number>();
+  for (const key of fundKeys) {
+    const fechaMap = normalizedPrices.get(key);
+    if (!fechaMap || fechaMap.size === 0) continue;
+    // Find the earliest date with a price for this fund
+    let earliestPrice: number | undefined;
+    for (const fecha of sortedDates) {
+      const p = fechaMap.get(fecha);
+      if (p !== undefined) { earliestPrice = p; break; }
+    }
+    if (earliestPrice !== undefined) {
+      lastKnownPrice.set(key, earliestPrice);
+    }
+  }
 
   const series = sortedDates.map((fecha) => {
     let total = 0;
