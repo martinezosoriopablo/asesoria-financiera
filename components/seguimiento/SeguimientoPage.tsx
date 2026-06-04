@@ -712,6 +712,31 @@ export default function SeguimientoPage({ clientId }: Props) {
       attrList.sort((a, b) => b.contributionPp - a.contributionPp);
     }
 
+    // Build narrative: use saved narrativeText, or generate programmatic fallback
+    let narrative = narrativeText;
+    if (!narrative) {
+      const parts: string[] = [];
+      const clientFirst = data.client.nombre;
+      const ytdRet = pr["YTD"]?.nominal;
+      const oneMRet = pr["1M"]?.nominal;
+      const totalRet = ytdRet ?? oneMRet ?? metrics.totalReturn;
+      if (totalRet !== null && totalRet !== undefined) {
+        const sign = totalRet >= 0 ? "positivo" : "negativo";
+        parts.push(`El portafolio de ${clientFirst} ha tenido un desempeno ${sign} con una rentabilidad de ${totalRet >= 0 ? "+" : ""}${totalRet.toFixed(1)}% en el periodo.`);
+      }
+      if (comp.equity.returnPct !== 0 || comp.fixedIncome.returnPct !== 0) {
+        const eqDir = comp.equity.returnPct >= 0 ? "subio" : "bajo";
+        const fiDir = comp.fixedIncome.returnPct >= 0 ? "subio" : "bajo";
+        parts.push(`La renta variable ${eqDir} ${comp.equity.returnPct >= 0 ? "+" : ""}${comp.equity.returnPct.toFixed(1)}% y la renta fija ${fiDir} ${comp.fixedIncome.returnPct >= 0 ? "+" : ""}${comp.fixedIncome.returnPct.toFixed(1)}%.`);
+      }
+      if (holdingRetList.length > 0) {
+        const best = holdingRetList[0];
+        const worst = holdingRetList[holdingRetList.length - 1];
+        parts.push(`La posicion de mayor rendimiento fue ${best.name} (${best.returnPct >= 0 ? "+" : ""}${best.returnPct.toFixed(1)}%) y la de menor rendimiento fue ${worst.name} (${worst.returnPct >= 0 ? "+" : ""}${worst.returnPct.toFixed(1)}%).`);
+      }
+      narrative = parts.length > 0 ? parts.join("\n\n") : `Reporte de seguimiento del portafolio de ${clientFirst} generado el ${new Date().toLocaleDateString("es-CL")}.`;
+    }
+
     return {
       clientName: `${data.client.nombre} ${data.client.apellido}`,
       reportDate: new Date().toLocaleDateString("es-CL"),
@@ -725,7 +750,7 @@ export default function SeguimientoPage({ clientId }: Props) {
       benchmarkComparison: bmComp,
       holdingReturns: holdingRetList,
       attribution: attrList.slice(0, 15),
-      narrative: narrativeText,
+      narrative,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
     };
   }, [data, holdingReturnsData, periodReturns, benchmarkReturns, benchmarkLabel, currentExchangeRates, exchangeRates, livePortfolioValue, displayCurrency, narrativeText, clientId]);
@@ -770,56 +795,6 @@ export default function SeguimientoPage({ clientId }: Props) {
             found = true;
           }
         } catch { /* ignore */ }
-      }
-
-      // Fallback: build a programmatic narrative from current component state
-      if (!found && data) {
-        const parts: string[] = [];
-        const clientFirst = data.client.nombre;
-        const m = data.metrics;
-
-        // Period return from periodReturns memo
-        const ytd = periodReturns?.["YTD"] as { nominal: number } | undefined;
-        const oneM = periodReturns?.["1M"] as { nominal: number } | undefined;
-        const totalRet = ytd?.nominal ?? oneM?.nominal ?? (m ? m.totalReturn : null);
-        if (totalRet !== null && totalRet !== undefined) {
-          const sign = totalRet >= 0 ? "positivo" : "negativo";
-          parts.push(`El portafolio de ${clientFirst} ha tenido un desempeno ${sign} con una rentabilidad de ${totalRet >= 0 ? "+" : ""}${totalRet.toFixed(1)}% en el periodo.`);
-        }
-
-        // Composition from holdingReturnsData or metrics
-        if (holdingReturnsData) {
-          const allH = [
-            ...(holdingReturnsData.equityHoldings || []),
-            ...(holdingReturnsData.fixedIncomeFundHoldings || []),
-            ...(holdingReturnsData.bondHoldings || []),
-            ...(holdingReturnsData.alternativesHoldings || []),
-          ];
-          if (allH.length > 0) {
-            const sorted = [...allH].sort((a, b) => (b.totalReturn ?? 0) - (a.totalReturn ?? 0));
-            const best = sorted[0];
-            const worst = sorted[sorted.length - 1];
-            parts.push(`La posicion de mayor rendimiento fue ${best.fundName} (${(best.totalReturn ?? 0) >= 0 ? "+" : ""}${(best.totalReturn ?? 0).toFixed(1)}%) y la de menor rendimiento fue ${worst.fundName} (${(worst.totalReturn ?? 0) >= 0 ? "+" : ""}${(worst.totalReturn ?? 0).toFixed(1)}%).`);
-          }
-        }
-
-        if (m && m.currentValue > 0) {
-          const rates = currentExchangeRates || exchangeRates;
-          if (rates && displayCurrency === "USD") {
-            parts.push(`El valor actual del portafolio es USD ${Math.round(m.currentValue / rates.usd).toLocaleString("es-CL")}.`);
-          } else if (rates && displayCurrency === "UF") {
-            parts.push(`El valor actual del portafolio es UF ${(m.currentValue / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })}.`);
-          } else {
-            parts.push(`El valor actual del portafolio es $${Math.round(m.currentValue).toLocaleString("es-CL")} CLP.`);
-          }
-        }
-
-        if (parts.length > 0) {
-          setNarrativeText(parts.join("\n\n"));
-        } else {
-          // Absolute fallback so narrative section always shows
-          setNarrativeText(`Reporte de seguimiento del portafolio de ${clientFirst} generado el ${new Date().toLocaleDateString("es-CL")}.`);
-        }
       }
 
       setLoadingNarrative(false);
