@@ -709,7 +709,13 @@ export default function SeguimientoPage({ clientId }: Props) {
           contributionPp: h.contribution ?? 0,
         });
       }
+      // Keep top positive + top negative contributions (not just first 15 by desc)
       attrList.sort((a, b) => b.contributionPp - a.contributionPp);
+      const positives = attrList.filter(a => a.contributionPp >= 0);
+      const negatives = attrList.filter(a => a.contributionPp < 0);
+      const maxPerSide = 10;
+      attrList.length = 0;
+      attrList.push(...positives.slice(0, maxPerSide), ...negatives.slice(0, maxPerSide));
     }
 
     // Build narrative: use saved narrativeText, or generate programmatic fallback
@@ -749,7 +755,7 @@ export default function SeguimientoPage({ clientId }: Props) {
       distribution: { byAssetType: distByType, byCurrency: distByCurrency },
       benchmarkComparison: bmComp,
       holdingReturns: holdingRetList,
-      attribution: attrList.slice(0, 15),
+      attribution: attrList,
       narrative,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
     };

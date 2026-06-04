@@ -293,8 +293,8 @@ function buildHoldingReturnsSection(holdings: SeguimientoEmailData["holdingRetur
 }
 
 function buildAttributionSection(attribution: SeguimientoEmailData["attribution"]): string {
-  const sorted = [...attribution].sort((a, b) => b.contributionPp - a.contributionPp);
-  const top = sorted.slice(0, 15);
+  // Already sorted and trimmed by caller — show all
+  const top = [...attribution];
   const maxAbs = Math.max(...top.map((a) => Math.abs(a.contributionPp)), 0.1);
   const total = top.reduce((sum, a) => sum + a.contributionPp, 0);
 
