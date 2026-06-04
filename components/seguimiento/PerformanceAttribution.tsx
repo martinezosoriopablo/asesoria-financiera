@@ -244,12 +244,16 @@ export default function PerformanceAttribution({
           startPrice: number | null;
           endPrice: number | null;
           returnPct: number | null;
+          currency?: string;
         }>) {
           if (r.startPrice === null || r.endPrice === null) continue;
           const h = holdings.find(hh => hh.fundName === r.fundName);
           const qty = h?.quantity || 1;
-          const startCLP = r.startPrice * qty;
-          const endCLP = r.endPrice * qty;
+          // Use snapshot marketValue (always CLP) as initial value for correct weighting
+          // Then derive end value from return % to keep currency-consistent
+          const holdingReturnPct = r.startPrice > 0 ? ((r.endPrice / r.startPrice) - 1) : 0;
+          const startCLP = h?.marketValue || r.startPrice * qty;
+          const endCLP = startCLP * (1 + holdingReturnPct);
           totalStartCLP += startCLP;
           positionsRaw.push({ name: r.fundName, startCLP, endCLP, assetClass: r.assetClass });
         }

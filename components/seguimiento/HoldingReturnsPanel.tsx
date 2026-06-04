@@ -491,13 +491,17 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           ? ((mp.price / h.purchasePrice) - 1) * 100
           : 0;
         const priceIsCLP = mp.currency === "CLP";
-        const newMarketValue = h.quantity > 0
-          ? priceIsCLP
-            ? h.quantity * mp.price
-            : usdRate
-              ? h.quantity * mp.price * usdRate
-              : h.marketValue
-          : h.marketValue;
+        const priceIsUF = mp.currency === "UF";
+        let newMarketValue = h.marketValue;
+        if (h.quantity > 0) {
+          if (priceIsCLP) {
+            newMarketValue = h.quantity * mp.price;
+          } else if (priceIsUF && ufRate) {
+            newMarketValue = h.quantity * mp.price * ufRate;
+          } else if (usdRate) {
+            newMarketValue = h.quantity * mp.price * usdRate;
+          }
+        }
 
         return {
           ...enriched,
@@ -508,12 +512,12 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         };
       }
 
-      // No market price update — but if currency is USD, convert marketValue to CLP
+      // No market price update — convert non-CLP marketValue to CLP
       if (enriched.currency === "USD" && usdRate && enriched.marketValue > 0) {
-        return {
-          ...enriched,
-          marketValue: enriched.marketValue * usdRate,
-        };
+        return { ...enriched, marketValue: enriched.marketValue * usdRate };
+      }
+      if (enriched.currency === "UF" && ufRate && enriched.marketValue > 0) {
+        return { ...enriched, marketValue: enriched.marketValue * ufRate };
       }
       return enriched;
     });
@@ -617,7 +621,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
         const finraPrice = bondPrices.get(h.fundName);
         const isChileanBond = !hasValidCusip && !finraPrice;
 
-        const faceValue = h.quantity || (h.marketValue / (cartolaMarketPricePct / 100));
+        const faceValue = h.quantity || (cartolaMarketPricePct > 0 ? h.marketValue / (cartolaMarketPricePct / 100) : 0);
         const freq = 2; // semi-annual default
 
         // All bond calculations require purchaseDate — without it, show raw data only

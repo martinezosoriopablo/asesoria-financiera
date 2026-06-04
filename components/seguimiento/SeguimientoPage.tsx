@@ -491,7 +491,7 @@ export default function SeguimientoPage({ clientId }: Props) {
       (s: { source: string }) => s.source === "statement" || s.source === "manual" || s.source === "excel"
     );
     if (!cartolaSnaps.length) return null;
-    const cartolaDate = cartolaSnaps[0].snapshot_date;
+    const cartolaDate = cartolaSnaps[cartolaSnaps.length - 1].snapshot_date;
     const ufVal = findDeflatorValue(deflatorData.uf, cartolaDate);
     // USD: observado from next calendar day (corredora convention)
     const nextDay = new Date(cartolaDate + "T12:00:00");

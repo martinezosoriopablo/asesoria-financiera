@@ -301,12 +301,17 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
         }>) {
           if (r.returnPct === null) continue;
 
-          // Find matching holding for quantity
+          // Find matching holding for quantity and CLP value
           const h = holdings.find(hh => hh.fundName === r.fundName);
-          const qty = h?.quantity || 1;
 
-          if (r.startPrice) totalStartValue += r.startPrice * qty;
-          if (r.endPrice) totalEndValue += r.endPrice * qty;
+          // Use snapshot marketValue (CLP) for portfolio total weighting
+          // to avoid mixing USD and CLP when summing across holdings
+          if (r.startPrice && r.endPrice && r.startPrice > 0) {
+            const holdingReturn = (r.endPrice / r.startPrice) - 1;
+            const startCLP = h?.marketValue || r.startPrice * (h?.quantity || 1);
+            totalStartValue += startCLP;
+            totalEndValue += startCLP * (1 + holdingReturn);
+          }
 
           items.push({
             name: r.fundName.length > 30 ? r.fundName.slice(0, 28) + "…" : r.fundName,
