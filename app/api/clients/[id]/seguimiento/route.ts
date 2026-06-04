@@ -165,6 +165,15 @@ export async function GET(
     // Preparar recomendación
     const recommendation = client.cartera_recomendada || null;
 
+    // Fetch display_currency safely (column may not exist yet)
+    let displayCurrency = "CLP";
+    const { data: currRow, error: currErr } = await supabase
+      .from("clients")
+      .select("display_currency")
+      .eq("id", clientId)
+      .single();
+    if (!currErr && currRow?.display_currency) displayCurrency = currRow.display_currency;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -174,6 +183,9 @@ export async function GET(
           apellido: client.apellido,
           email: client.email,
           cartera_recomendada: client.cartera_recomendada,
+          display_currency: displayCurrency,
+          puntaje_riesgo: client.puntaje_riesgo,
+          perfil_riesgo: client.perfil_riesgo,
         },
         snapshots: snapshots || [],
         metrics,
