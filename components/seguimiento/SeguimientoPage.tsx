@@ -21,6 +21,8 @@ import RecommendationHistory from "./RecommendationHistory";
 import ClientMonthlyClosing from "./ClientMonthlyClosing";
 import PortfolioBreakdownPies from "./PortfolioBreakdownPies";
 import MonthlyReportSection from "./MonthlyReportSection";
+import SendSeguimientoModal from "./SendSeguimientoModal";
+import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import {
   ArrowLeft,
@@ -36,6 +38,7 @@ import {
   Trash2,
   CheckCircle2,
   Scale,
+  Mail,
 } from "lucide-react";
 
 interface Client {
@@ -45,6 +48,7 @@ interface Client {
   email: string;
   puntaje_riesgo?: number;
   perfil_riesgo?: string;
+  display_currency?: string;
   cartera_recomendada?: {
     equity_percent?: number;
     fixed_income_percent?: number;
@@ -153,6 +157,11 @@ export default function SeguimientoPage({ clientId }: Props) {
   const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
   const [baselineSeries, setBaselineSeries] = useState<Array<{ fecha: string; total: number }> | null>(null);
   const [loadingBaseline, setLoadingBaseline] = useState(false);
+  const [displayCurrency, setDisplayCurrency] = useState<string>("CLP");
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [clientEmail, setClientEmail] = useState("");
+  const [narrativeText, setNarrativeText] = useState<string | null>(null);
+  const [loadingNarrative, setLoadingNarrative] = useState(false);
 
   const fetchExecutions = useCallback(async () => {
     try {
@@ -175,6 +184,9 @@ export default function SeguimientoPage({ clientId }: Props) {
 
       if (result.success) {
         setData(result.data);
+        if (result.data?.client?.display_currency) {
+          setDisplayCurrency(result.data.client.display_currency);
+        }
       } else {
         setError(result.error || "Error al cargar datos");
       }
@@ -503,6 +515,14 @@ export default function SeguimientoPage({ clientId }: Props) {
     return { uf: ufVal, usd: usdVal };
   }, [deflatorData, livePriceDate, findDeflatorValue, findDeflatorValueNext]);
 
+  // Convert CLP value to display currency
+  const convertFromCLP = useCallback((clpValue: number, rates: { uf: number; usd: number } | null): string => {
+    if (!rates || displayCurrency === "CLP") return formatCurrency(clpValue);
+    if (displayCurrency === "USD") return `USD ${formatNumber(clpValue / rates.usd, 0)}`;
+    if (displayCurrency === "UF") return `UF ${formatNumber(clpValue / rates.uf, 1)}`;
+    return formatCurrency(clpValue);
+  }, [displayCurrency]);
+
   // Calculate period returns from historical series (nominal + real + USD)
   type PeriodReturn = { nominal: number; real: number | null; usd: number | null };
   const periodReturns = useMemo(() => {
@@ -572,6 +592,171 @@ export default function SeguimientoPage({ clientId }: Props) {
       "YTD": getReturnForPeriod(`${latestDate.getFullYear()}-01-01`),
     };
   }, [historicalSeries, deflatorData, findDeflatorValue]);
+
+  const assembleSeguimientoData = useCallback((): SeguimientoEmailData | null => {
+    const metrics = data?.metrics;
+    if (!data || !metrics) return null;
+    const rates = (currentExchangeRates || exchangeRates);
+    if (!rates) return null;
+
+    const latestValue = livePortfolioValue ?? metrics.currentValue;
+    const initialValue = metrics.initialValue;
+
+    let comp: SeguimientoEmailData["composition"];
+    if (holdingReturnsData) {
+      const hr = holdingReturnsData;
+      const eqFinal = hr.equityHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0;
+      const fiFinal = (hr.fixedIncomeFundHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0) +
+                      (hr.bondHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0);
+      const altFinal = hr.alternativesHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0;
+      const cashFinal = hr.cashValue || 0;
+
+      const eqInitial = initialValue * (metrics.composition.equity / 100);
+      const fiInitial = initialValue * (metrics.composition.fixedIncome / 100);
+      const altInitial = initialValue * (metrics.composition.alternatives / 100);
+      const cashInitial = initialValue * (metrics.composition.cash / 100);
+
+      comp = {
+        equity: { initial: eqInitial, final: eqFinal, returnPct: eqInitial > 0 ? ((eqFinal / eqInitial) - 1) * 100 : 0 },
+        fixedIncome: { initial: fiInitial, final: fiFinal, returnPct: fiInitial > 0 ? ((fiFinal / fiInitial) - 1) * 100 : 0 },
+        alternatives: { initial: altInitial, final: altFinal, returnPct: altInitial > 0 ? ((altFinal / altInitial) - 1) * 100 : 0 },
+        cash: { initial: cashInitial, final: cashFinal, returnPct: 0 },
+      };
+    } else {
+      comp = {
+        equity: { initial: initialValue * metrics.composition.equity / 100, final: latestValue * metrics.composition.equity / 100, returnPct: 0 },
+        fixedIncome: { initial: initialValue * metrics.composition.fixedIncome / 100, final: latestValue * metrics.composition.fixedIncome / 100, returnPct: 0 },
+        alternatives: { initial: initialValue * metrics.composition.alternatives / 100, final: latestValue * metrics.composition.alternatives / 100, returnPct: 0 },
+        cash: { initial: initialValue * metrics.composition.cash / 100, final: latestValue * metrics.composition.cash / 100, returnPct: 0 },
+      };
+    }
+
+    const pr: SeguimientoEmailData["periodReturns"] = {};
+    for (const p of ["1M", "3M", "6M", "1Y", "YTD"]) {
+      const ret = periodReturns?.[p as keyof typeof periodReturns] as { nominal: number; real: number | null; usd: number | null } | null;
+      pr[p] = ret ? { nominal: ret.nominal, real: ret.real ?? null, usd: ret.usd ?? null } : { nominal: null, real: null, usd: null };
+    }
+
+    const distByType: Array<{ label: string; pct: number }> = [];
+    const distByCurrency: Array<{ label: string; pct: number }> = [];
+    if (holdingReturnsData) {
+      const typeMap = new Map<string, number>();
+      const currMap = new Map<string, number>();
+      const allH = [
+        ...(holdingReturnsData.equityHoldings || []),
+        ...(holdingReturnsData.fixedIncomeFundHoldings || []),
+        ...(holdingReturnsData.bondHoldings || []),
+        ...(holdingReturnsData.alternativesHoldings || []),
+      ];
+      for (const h of allH) {
+        const type = (h as { assetType?: string }).assetType || "Otro";
+        typeMap.set(type, (typeMap.get(type) || 0) + (h.weight || 0));
+        const curr = (h as { currency?: string }).currency || "CLP";
+        currMap.set(curr, (currMap.get(curr) || 0) + (h.weight || 0));
+      }
+      if (holdingReturnsData.cashValue && holdingReturnsData.totalValue) {
+        const cashPct = (holdingReturnsData.cashValue / holdingReturnsData.totalValue) * 100;
+        typeMap.set("Caja", (typeMap.get("Caja") || 0) + cashPct);
+        currMap.set("CLP", (currMap.get("CLP") || 0) + cashPct);
+      }
+      for (const [label, pct] of [...typeMap.entries()].sort((a, b) => b[1] - a[1])) distByType.push({ label, pct });
+      for (const [label, pct] of [...currMap.entries()].sort((a, b) => b[1] - a[1])) distByCurrency.push({ label, pct });
+    }
+
+    let bmComp: SeguimientoEmailData["benchmarkComparison"] = null;
+    if (benchmarkReturns && periodReturns) {
+      const periods: Record<string, { portfolio: number | null; benchmark: number | null; diff: number | null }> = {};
+      for (const p of ["1M", "3M", "6M", "1Y", "YTD"]) {
+        const pRet = (periodReturns as Record<string, { nominal: number } | null>)?.[p]?.nominal ?? null;
+        const bRet = (benchmarkReturns as Record<string, number>)?.[p] ?? null;
+        if (pRet !== null || bRet !== null) {
+          periods[p] = {
+            portfolio: pRet,
+            benchmark: bRet,
+            diff: pRet !== null && bRet !== null ? pRet - bRet : null,
+          };
+        }
+      }
+      if (Object.keys(periods).length > 0) {
+        bmComp = { label: benchmarkLabel, periods };
+      }
+    }
+
+    const holdingRetList: SeguimientoEmailData["holdingReturns"] = [];
+    if (holdingReturnsData) {
+      const allHoldings = [
+        ...(holdingReturnsData.equityHoldings || []).map((h: { fundName: string; totalReturn?: number; assetType?: string }) => ({ name: h.fundName, assetType: h.assetType || "Accion", returnPct: h.totalReturn ?? 0 })),
+        ...(holdingReturnsData.fixedIncomeFundHoldings || []).map((h: { fundName: string; totalReturn?: number; assetType?: string }) => ({ name: h.fundName, assetType: h.assetType || "Fondo", returnPct: h.totalReturn ?? 0 })),
+        ...(holdingReturnsData.bondHoldings || []).map((h: { fundName: string; totalReturn?: number }) => ({ name: h.fundName, assetType: "Bono", returnPct: h.totalReturn ?? 0 })),
+        ...(holdingReturnsData.alternativesHoldings || []).map((h: { fundName: string; totalReturn?: number; assetType?: string }) => ({ name: h.fundName, assetType: h.assetType || "Alternativo", returnPct: h.totalReturn ?? 0 })),
+      ];
+      allHoldings.sort((a, b) => b.returnPct - a.returnPct);
+      holdingRetList.push(...allHoldings.slice(0, 20));
+    }
+
+    const attrList: SeguimientoEmailData["attribution"] = [];
+    if (holdingReturnsData) {
+      const allH = [
+        ...(holdingReturnsData.equityHoldings || []),
+        ...(holdingReturnsData.fixedIncomeFundHoldings || []),
+        ...(holdingReturnsData.bondHoldings || []),
+        ...(holdingReturnsData.alternativesHoldings || []),
+      ];
+      for (const h of allH) {
+        attrList.push({
+          name: h.fundName,
+          instrumentType: (h as { assetType?: string }).assetType || "Otro",
+          contributionPp: h.contribution ?? 0,
+        });
+      }
+      attrList.sort((a, b) => b.contributionPp - a.contributionPp);
+    }
+
+    return {
+      clientName: `${data.client.nombre} ${data.client.apellido}`,
+      reportDate: new Date().toLocaleDateString("es-CL"),
+      perfilCliente: data.client.perfil_riesgo || "moderado",
+      totalValueCLP: latestValue,
+      displayCurrency: displayCurrency,
+      exchangeRates: rates,
+      composition: comp,
+      periodReturns: pr,
+      distribution: { byAssetType: distByType, byCurrency: distByCurrency },
+      benchmarkComparison: bmComp,
+      holdingReturns: holdingRetList,
+      attribution: attrList.slice(0, 15),
+      narrative: narrativeText,
+      platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
+    };
+  }, [data, holdingReturnsData, periodReturns, benchmarkReturns, benchmarkLabel, currentExchangeRates, exchangeRates, livePortfolioValue, displayCurrency, narrativeText, clientId]);
+
+  const openSendModal = useCallback(async () => {
+    if (!clientEmail) {
+      try {
+        const res = await fetch(`/api/clients/${clientId}`);
+        const d = await res.json();
+        if (d.success && d.data?.client?.email) {
+          setClientEmail(d.data.client.email);
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (!narrativeText && !loadingNarrative) {
+      setLoadingNarrative(true);
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      try {
+        const res = await fetch(`/api/client-closings?clientId=${clientId}&month=${month}`);
+        const d = await res.json();
+        if (d.success && d.closing?.content) {
+          setNarrativeText(d.closing.content);
+        }
+      } catch { /* ignore */ }
+      setLoadingNarrative(false);
+    }
+
+    setShowSendModal(true);
+  }, [clientId, clientEmail, narrativeText, loadingNarrative]);
 
   // Calculate monthly returns from baseline series for RetornosComparados
   const baselineMonthlyReturns = useMemo(() => {
@@ -903,6 +1088,13 @@ export default function SeguimientoPage({ clientId }: Props) {
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               Actualizar
             </button>
+            <button
+              onClick={openSendModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Enviar Reporte
+            </button>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleFillPrices(false)}
@@ -977,20 +1169,41 @@ export default function SeguimientoPage({ clientId }: Props) {
         {/* Summary cards */}
         {metrics && (
           <div className="mb-6 space-y-3">
+            {/* Currency toggle */}
+            <div className="flex justify-end">
+              <div className="inline-flex rounded-md border border-gb-border bg-white text-xs">
+                {(["CLP", "USD", "UF"] as const).map((cur) => (
+                  <button
+                    key={cur}
+                    onClick={() => setDisplayCurrency(cur)}
+                    className={`px-2.5 py-1 font-medium transition-colors ${
+                      displayCurrency === cur
+                        ? "bg-gb-primary text-white"
+                        : "text-gb-gray hover:text-gb-black"
+                    } ${cur === "CLP" ? "rounded-l-md" : cur === "UF" ? "rounded-r-md" : ""}`}
+                  >
+                    {cur}
+                  </button>
+                ))}
+              </div>
+            </div>
             {/* Row 1: Valor Inicial + Valor Actual (big cards) + TAC */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {/* Valor Inicial (cartola) */}
               <div className="bg-white rounded-lg border border-gb-border p-5 shadow-sm">
                 <p className="text-xs text-gb-gray font-medium uppercase mb-1">Valor Cartola</p>
                 <p className="text-2xl font-bold text-gb-black">
-                  {formatCurrency(metrics.initialValue)}
+                  {convertFromCLP(metrics.initialValue, cartolaExchangeRates || exchangeRates)}
                 </p>
                 <p className="text-xs text-gb-gray mt-1">
                   {(() => {
                     const rates = cartolaExchangeRates || exchangeRates;
-                    return rates ? (
-                      <span>UF {(metrics.initialValue / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {(metrics.initialValue / rates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
-                    ) : null;
+                    if (!rates || displayCurrency === "CLP") {
+                      return rates ? (
+                        <span>UF {(metrics.initialValue / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {(metrics.initialValue / rates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
+                      ) : null;
+                    }
+                    return <span>{formatCurrency(metrics.initialValue)}</span>;
                   })()}
                   {snapshots.length > 0 && (
                     <span>{(cartolaExchangeRates || exchangeRates) ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel")?.snapshot_date || snapshots[0].snapshot_date)}</span>
@@ -1010,14 +1223,17 @@ export default function SeguimientoPage({ clientId }: Props) {
               <div className="bg-white rounded-lg border-2 border-blue-200 p-5 shadow-sm">
                 <p className="text-xs text-blue-600 font-medium uppercase mb-1">Valor Actual</p>
                 <p className="text-2xl font-bold text-gb-black">
-                  {formatCurrency(livePortfolioValue ?? metrics.currentValue)}
+                  {convertFromCLP(livePortfolioValue ?? metrics.currentValue, currentExchangeRates || exchangeRates)}
                 </p>
                 <p className="text-xs text-gb-gray mt-1">
                   {(() => {
                     const rates = currentExchangeRates || exchangeRates;
-                    return rates ? (
-                      <span>UF {((livePortfolioValue ?? metrics.currentValue) / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {((livePortfolioValue ?? metrics.currentValue) / rates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
-                    ) : null;
+                    if (!rates || displayCurrency === "CLP") {
+                      return rates ? (
+                        <span>UF {((livePortfolioValue ?? metrics.currentValue) / rates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })} · USD {((livePortfolioValue ?? metrics.currentValue) / rates.usd).toLocaleString("es-CL", { maximumFractionDigits: 0 })}</span>
+                      ) : null;
+                    }
+                    return <span>{formatCurrency(livePortfolioValue ?? metrics.currentValue)}</span>;
                   })()}
                   {(livePriceDate || historicalSeries.length > 0 || snapshots.length > 0) && (
                     <span>{(currentExchangeRates || exchangeRates) ? " · " : ""}<Calendar className="w-3 h-3 inline mr-1" />{formatDate(
@@ -1051,7 +1267,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                       {formatNumber(weightedTAC.weighted, 2)}%
                     </p>
                     <p className="text-xs text-gb-gray mt-1">
-                      ${formatNumber(weightedTAC.annualCost, 0)}/año{exchangeRates ? ` (UF ${(weightedTAC.annualCost / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}
+                      {convertFromCLP(weightedTAC.annualCost, exchangeRates)}/año{displayCurrency === "CLP" && exchangeRates ? ` (UF ${(weightedTAC.annualCost / exchangeRates.uf).toLocaleString("es-CL", { maximumFractionDigits: 1 })})` : ""}
                     </p>
                   </>
                 ) : (
@@ -1219,11 +1435,11 @@ export default function SeguimientoPage({ clientId }: Props) {
                       <div className="flex items-baseline justify-between mb-1">
                         <div>
                           <p className="text-[10px] text-gb-gray leading-tight">{baseLabel}</p>
-                          <p className={`text-sm font-semibold ${b.textBold}`}>{formatCurrency(b.initial)}</p>
+                          <p className={`text-sm font-semibold ${b.textBold}`}>{convertFromCLP(b.initial, cartolaExchangeRates || exchangeRates)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] text-gb-gray leading-tight">Actual</p>
-                          <p className={`text-sm font-semibold ${b.textBold}`}>{formatCurrency(b.final)}</p>
+                          <p className={`text-sm font-semibold ${b.textBold}`}>{convertFromCLP(b.final, currentExchangeRates || exchangeRates)}</p>
                         </div>
                       </div>
                       {b.initial > 0 && b.label !== "Caja" && (
@@ -1239,7 +1455,7 @@ export default function SeguimientoPage({ clientId }: Props) {
                               <div key={sub.label} className="flex items-center justify-between text-[10px]">
                                 <span className="text-gb-gray">{sub.label}</span>
                                 <span className="flex items-center gap-1.5">
-                                  <span className="text-gb-gray">{formatCurrency(sub.final)}</span>
+                                  <span className="text-gb-gray">{convertFromCLP(sub.final, currentExchangeRates || exchangeRates)}</span>
                                   {sub.initial > 0 && (
                                     <span className={`font-medium ${subRet >= 0 ? "text-green-600" : "text-red-600"}`}>
                                       {subRet >= 0 ? "+" : ""}{formatNumber(subRet, 1)}%
@@ -1791,6 +2007,19 @@ export default function SeguimientoPage({ clientId }: Props) {
           onSuccess={handleSnapshotUpdated}
         />
       )}
+      {showSendModal && (() => {
+        const emailData = assembleSeguimientoData();
+        if (!emailData) return null;
+        return (
+          <SendSeguimientoModal
+            isOpen={showSendModal}
+            onClose={() => setShowSendModal(false)}
+            clientId={clientId}
+            clientEmail={clientEmail}
+            seguimientoData={emailData}
+          />
+        );
+      })()}
     </div>
   );
 }
