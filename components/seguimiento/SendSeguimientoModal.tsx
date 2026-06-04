@@ -31,7 +31,8 @@ export default function SendSeguimientoModal({ isOpen, onClose, clientId, client
         body: JSON.stringify({
           clientId,
           recipientEmail: email.trim(),
-          seguimientoData,
+          html: previewHtml,
+          subject: `Reporte de Seguimiento — ${seguimientoData.clientName} — ${seguimientoData.reportDate}`,
         }),
       });
       const result = await res.json();

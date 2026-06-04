@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
-import { buildSeguimientoHTML, type SeguimientoEmailData } from "@/lib/seguimiento-email";
 import { Resend } from "resend";
 
 export async function POST(request: NextRequest) {
@@ -14,14 +13,15 @@ export async function POST(request: NextRequest) {
 
   return handleApiError("seguimiento-send-email", async () => {
     const body = await request.json();
-    const { clientId, recipientEmail, seguimientoData } = body as {
+    const { clientId, recipientEmail, html, subject } = body as {
       clientId: string;
       recipientEmail: string;
-      seguimientoData: SeguimientoEmailData;
+      html: string;
+      subject: string;
     };
 
-    if (!clientId || !recipientEmail || !seguimientoData) {
-      return errorResponse("Datos requeridos: clientId, recipientEmail, seguimientoData", 400);
+    if (!clientId || !recipientEmail || !html) {
+      return errorResponse("Datos requeridos: clientId, recipientEmail, html", 400);
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
@@ -40,8 +40,6 @@ export async function POST(request: NextRequest) {
       return errorResponse("Cliente no encontrado", 404);
     }
 
-    const html = buildSeguimientoHTML(seguimientoData);
-
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) {
       return errorResponse("Email service no configurado", 500);
@@ -53,7 +51,7 @@ export async function POST(request: NextRequest) {
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: `Greybark Advisors <${senderEmail}>`,
       to: recipientEmail,
-      subject: `Reporte de Seguimiento — ${seguimientoData.clientName} — ${seguimientoData.reportDate}`,
+      subject: subject || "Reporte de Seguimiento",
       html,
     });
 
