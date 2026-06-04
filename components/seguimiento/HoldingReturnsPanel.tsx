@@ -362,6 +362,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
               assetClass: h.assetClass,
               currency: h.currency || null,
               market: h.market || null,
+              cartolaPrice: h.currentPrice || null,
             })),
             startDate: yesterday,
             endDate: today,

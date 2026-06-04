@@ -457,11 +457,35 @@ export async function POST(request: NextRequest) {
           fondoQuery = fondoQuery.eq("fm_serie", holding.serie);
         }
 
-        const { data: fondos } = await fondoQuery.limit(5);
+        const { data: fondos } = await fondoQuery.limit(20);
 
         if (fondos && fondos.length > 0) {
-          // If no exact serie match, pick the first one
-          const fondo = fondos[0];
+          // When multiple series and no explicit serie, resolve by price or name
+          let fondo = fondos[0];
+          if (fondos.length > 1 && !holding.serie) {
+            if (holding.cartolaPrice && holding.cartolaPrice > 0) {
+              let bestDiff = Infinity;
+              for (const f of fondos) {
+                const { data: latest } = await supabase
+                  .from("fondos_rentabilidades_diarias")
+                  .select("valor_cuota")
+                  .eq("fondo_id", f.id)
+                  .order("fecha", { ascending: false })
+                  .limit(1)
+                  .single();
+                if (latest) {
+                  const diff = Math.abs(latest.valor_cuota - holding.cartolaPrice!);
+                  if (diff < bestDiff) { bestDiff = diff; fondo = f; }
+                }
+              }
+            } else {
+              const nameDetected = detectSerieCode(holding.fundName || "");
+              const nameMatch = nameDetected
+                ? fondos.find((f) => f.fm_serie === nameDetected)
+                : null;
+              if (nameMatch) fondo = nameMatch;
+            }
+          }
 
           const { data: priceData } = await supabase
             .from("fondos_rentabilidades_diarias")

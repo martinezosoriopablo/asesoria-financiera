@@ -275,6 +275,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
           assetClass: h.assetClass,
           currency: h.currency || null,
           market: h.market || null,
+          cartolaPrice: (h.quantity && h.quantity > 0 ? h.marketValue / h.quantity : null) || h.marketPrice || null,
         })),
         startDate,
         endDate,

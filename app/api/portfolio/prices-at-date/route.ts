@@ -18,6 +18,7 @@ interface HoldingInput {
   assetClass?: string;
   currency?: string;
   market?: string;
+  cartolaPrice?: number | null;
 }
 
 interface PriceAtDateResult {
@@ -37,7 +38,9 @@ async function getChileanFundPrice(
   run: number,
   serie: string | null,
   targetDate: string,
-  supabase: ReturnType<typeof createAdminClient>
+  supabase: ReturnType<typeof createAdminClient>,
+  cartolaPrice?: number | null,
+  fundName?: string | null,
 ): Promise<{ price: number; date: string } | null> {
   // Find fondo_id
   let query = supabase
@@ -49,10 +52,38 @@ async function getChileanFundPrice(
     query = query.eq("fm_serie", serie);
   }
 
-  const { data: fondos } = await query.limit(5);
+  const { data: fondos } = await query.limit(20);
   if (!fondos || fondos.length === 0) return null;
 
-  const fondo = fondos[0];
+  let fondo = fondos[0];
+
+  // When multiple series and no explicit serie, resolve the correct one
+  if (fondos.length > 1 && !serie) {
+    // 1. Try price matching (most reliable)
+    if (cartolaPrice && cartolaPrice > 0) {
+      let bestDiff = Infinity;
+      for (const f of fondos) {
+        const { data: latest } = await supabase
+          .from("fondos_rentabilidades_diarias")
+          .select("valor_cuota")
+          .eq("fondo_id", f.id)
+          .order("fecha", { ascending: false })
+          .limit(1)
+          .single();
+        if (latest) {
+          const diff = Math.abs(latest.valor_cuota - cartolaPrice);
+          if (diff < bestDiff) { bestDiff = diff; fondo = f; }
+        }
+      }
+    } else if (fundName) {
+      // 2. Fall back to name detection
+      const nameDetected = detectSerieCode(fundName);
+      const nameMatch = nameDetected
+        ? fondos.find((f) => f.fm_serie === nameDetected)
+        : null;
+      if (nameMatch) fondo = nameMatch;
+    }
+  }
 
   // Get price at or before targetDate (within 7-day window)
   const minDate = new Date(targetDate);
@@ -299,7 +330,7 @@ async function getPriceForHolding(
   // 1. Chilean fund by RUN
   if (/^\d{3,6}$/.test(secId)) {
     const run = parseInt(secId, 10);
-    const result = await getChileanFundPrice(run, h.serie || null, targetDate, supabase);
+    const result = await getChileanFundPrice(run, h.serie || null, targetDate, supabase, h.cartolaPrice, h.fundName);
     // Some Chilean funds have USD-denominated quota values (e.g. INDEX FUND US)
     // Respect the currency from the cartola when available
     if (result) return { ...result, currency: h.currency || "CLP" };
@@ -346,7 +377,7 @@ async function getPriceForHolding(
       if (result) return { ...result, currency: resolution.currency };
 
       // Fallback: fetch on-demand from Yahoo/AlphaVantage/Bolsa de Santiago
-      if (resolution.source === "yahoo" || resolution.source === "alphavantage" || resolution.source === "bolsa-santiago") {
+      if (resolution.source === "yahoo" || resolution.source === "alphavantage" || resolution.source === "bolsa-santiago" || resolution.source === "eodhd") {
         const minDate = new Date(targetDate);
         minDate.setDate(minDate.getDate() - 7);
         const minDateStr = minDate.toISOString().split("T")[0];

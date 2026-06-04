@@ -222,6 +222,7 @@ export default function PerformanceAttribution({
           assetClass: h.assetClass,
           currency: h.currency || null,
           market: h.market || null,
+          cartolaPrice: (h.quantity && h.quantity > 0 ? h.marketValue / h.quantity : null) || null,
         })),
         startDate,
         endDate,
