@@ -95,35 +95,31 @@ export async function POST(req: NextRequest) {
       if (!allSeries || allSeries.length === 0) continue;
       if (allSeries.length === 1) {
         fondo = allSeries[0];
+      } else if (h.cartolaPrice && h.cartolaPrice > 0) {
+        // Pick serie whose latest price is closest to cartolaPrice (most reliable)
+        let best = allSeries[0];
+        let bestDiff = Infinity;
+        for (const s of allSeries) {
+          const { data: latest } = await supabase
+            .from("fondos_rentabilidades_diarias")
+            .select("valor_cuota")
+            .eq("fondo_id", s.id)
+            .order("fecha", { ascending: false })
+            .limit(1)
+            .single();
+          if (latest) {
+            const diff = Math.abs(latest.valor_cuota - h.cartolaPrice);
+            if (diff < bestDiff) { bestDiff = diff; best = s; }
+          }
+        }
+        fondo = best;
       } else {
-        // Try matching fundName against serie codes using SERIE_KEYWORDS
+        // No price available — fall back to name detection
         const nameDetected = detectSerieCode(h.fundName || "");
         const nameMatch = nameDetected
           ? allSeries.find((s) => s.fm_serie === nameDetected)
           : null;
-        if (nameMatch) {
-          fondo = nameMatch;
-        } else if (h.cartolaPrice && h.cartolaPrice > 0) {
-          // Pick serie whose latest price is closest to cartolaPrice
-          let best = allSeries[0];
-          let bestDiff = Infinity;
-          for (const s of allSeries) {
-            const { data: latest } = await supabase
-              .from("fondos_rentabilidades_diarias")
-              .select("valor_cuota")
-              .eq("fondo_id", s.id)
-              .order("fecha", { ascending: false })
-              .limit(1)
-              .single();
-            if (latest) {
-              const diff = Math.abs(latest.valor_cuota - h.cartolaPrice);
-              if (diff < bestDiff) { bestDiff = diff; best = s; }
-            }
-          }
-          fondo = best;
-        } else {
-          fondo = allSeries[0];
-        }
+        fondo = nameMatch || allSeries[0];
       }
     }
 
