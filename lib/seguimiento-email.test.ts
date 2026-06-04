@@ -179,7 +179,10 @@ describe("buildSeguimientoHTML", () => {
 
   it("converts values to display currency when USD", () => {
     const html = buildSeguimientoHTML(makeData({ displayCurrency: "USD" }));
-    // totalValueCLP = 150M CLP / 950 = ~157,894 USD → "USD $158K"
+    // Header value should be in USD
     expect(html).toContain("USD $");
+    // Composition values should also be in USD (not CLP $M format)
+    // equity initial = 60M CLP / 950 = ~63K USD → "USD $63K"
+    expect(html).toContain("USD $63K");
   });
 });

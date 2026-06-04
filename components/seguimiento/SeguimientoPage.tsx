@@ -746,12 +746,24 @@ export default function SeguimientoPage({ clientId }: Props) {
       const now = new Date();
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       try {
+        // Try fetching existing closing first
         const res = await fetch(`/api/client-closings?clientId=${clientId}&month=${month}`);
         const d = await res.json();
         if (d.success && d.closing?.content) {
           setNarrativeText(d.closing.content);
+        } else {
+          // No existing closing — try generating one on demand
+          const genRes = await fetch("/api/client-closings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId, month }),
+          });
+          const genD = await genRes.json();
+          if (genD.success && genD.closing?.content) {
+            setNarrativeText(genD.closing.content);
+          }
         }
-      } catch { /* ignore */ }
+      } catch { /* ignore — email will send without narrative */ }
       setLoadingNarrative(false);
     }
 

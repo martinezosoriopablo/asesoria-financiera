@@ -110,7 +110,7 @@ function buildHeader(data: SeguimientoEmailData): string {
     </div>`;
 }
 
-function buildCompositionSection(composition: SeguimientoEmailData["composition"]): string {
+function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, rates: { usd: number; uf: number }): string {
   const classes = ["equity", "fixedIncome", "alternatives", "cash"] as const;
 
   const rows = classes
@@ -124,8 +124,8 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
       return `
         <tr style="border-bottom:1px solid #f1f5f9;">
           <td style="padding:10px 12px; border-left:4px solid ${color}; font-weight:500; font-size:13px; color:#1e293b; font-family:${FONT};">${label}</td>
-          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; color:#475569;">${formatCLP(c.initial)}</td>
-          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:#1e293b;">${formatCLP(c.final)}</td>
+          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; color:#475569;">${formatValue(c.initial, currency, rates)}</td>
+          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:#1e293b;">${formatValue(c.final, currency, rates)}</td>
           <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:${retColor}; background:${retBg};">${sign}${c.returnPct.toFixed(1)}%</td>
         </tr>`;
     })
@@ -370,7 +370,7 @@ function buildFooter(data: SeguimientoEmailData): string {
 
 export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
   const header = buildHeader(data);
-  const composition = buildCompositionSection(data.composition);
+  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates);
   const periodReturns = buildPeriodReturnsSection(data.periodReturns);
   const distribution = buildDistributionSection(data.distribution);
   const benchmark = data.benchmarkComparison ? buildBenchmarkSection(data.benchmarkComparison) : "";
