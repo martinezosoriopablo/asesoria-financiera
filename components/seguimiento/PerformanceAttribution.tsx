@@ -357,8 +357,8 @@ export default function PerformanceAttribution({
       const classReturn = cls.initialValue > 0
         ? ((cls.finalValue - cls.initialValue) / cls.initialValue) * 100
         : 0;
-      const avgWeight = ((cls.initialPercent || 0) + (cls.finalPercent || 0)) / 2 / 100;
-      const contribution = classReturn * avgWeight;
+      const weight = (cls.initialPercent || 0) / 100;
+      const contribution = classReturn * weight;
 
       return {
         ...cls,

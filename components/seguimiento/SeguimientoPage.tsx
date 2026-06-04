@@ -24,6 +24,7 @@ import MonthlyReportSection from "./MonthlyReportSection";
 import SendSeguimientoModal from "./SendSeguimientoModal";
 import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
+import { detectSerieCode } from "@/lib/fund-utils";
 import {
   ArrowLeft,
   Loader,
@@ -288,12 +289,12 @@ export default function SeguimientoPage({ clientId }: Props) {
     const holdingsWithRun = holdings
       .filter((h) => {
         const id = h.securityId || "";
-        return /^\d{3,6}$/.test(id.trim()) && h.serie && (h.quantity || 0) > 0;
+        return /^\d{3,6}$/.test(id.trim()) && (h.quantity || 0) > 0;
       })
       .map((h) => ({
         fundName: h.fundName || "",
         run: parseInt((h.securityId || "").trim(), 10),
-        serie: h.serie || "",
+        serie: h.serie || detectSerieCode(h.fundName || "") || "",
         quantity: h.quantity || 0,
         currency: h.currency || "CLP",
         cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
@@ -310,7 +311,8 @@ export default function SeguimientoPage({ clientId }: Props) {
         if (/^[A-Z]{3,10}CL$/.test(id)) return true; // Chilean ADR (GOOGLCL, NVDACL)
         if (id.includes(".SN")) return true; // Explicit Santiago suffix
         if (/^[A-Z]{1,5}$/.test(id)) return true; // US ETF/stock ticker (ACWI, SPY, etc.)
-        // Exclude: ISIN-like (starts with letter + digits mix), CUSIP-like with letters
+        // CUSIP-style IDs for mapped international UCITS funds (e.g. L2R330245)
+        if (/^[A-Z0-9]{9}$/i.test(id)) return true;
         return false;
       })
       .map((h) => ({

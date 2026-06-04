@@ -69,28 +69,26 @@ export async function POST(req: NextRequest) {
   }>();
 
   for (const h of holdings) {
-    if (!h.run || !h.serie) continue;
-    const key = `${h.run}-${h.serie}`;
+    if (!h.run) continue;
+    const key = `${h.run}-${h.serie || ""}`;
 
     // fondo_id + moneda from fondos_mutuos
-    const { data: fondo } = await supabase
+    let fundQuery = supabase
       .from("fondos_mutuos")
       .select("id, moneda_funcional")
-      .eq("fo_run", h.run)
-      .eq("fm_serie", h.serie)
-      .limit(1)
-      .single();
+      .eq("fo_run", h.run);
+    if (h.serie) fundQuery = fundQuery.eq("fm_serie", h.serie);
+    const { data: fondo } = await fundQuery.limit(1).single();
 
     if (!fondo) continue;
 
     // TAC from vw_fondos_completo
-    const { data: vw } = await supabase
+    let tacQuery = supabase
       .from("vw_fondos_completo")
       .select("tac_sintetica")
-      .eq("fo_run", h.run)
-      .eq("fm_serie", h.serie)
-      .limit(1)
-      .single();
+      .eq("fo_run", h.run);
+    if (h.serie) tacQuery = tacQuery.eq("fm_serie", h.serie);
+    const { data: vw } = await tacQuery.limit(1).single();
 
     fundInfo.set(key, {
       id: fondo.id,
@@ -380,7 +378,7 @@ export async function POST(req: NextRequest) {
           }
 
           // If DB has < 30 days of data, backfill from Yahoo/AV
-          if (intPriceMap.size < 30 && (resolution.source === "yahoo" || resolution.source === "alphavantage")) {
+          if (intPriceMap.size < 30 && (resolution.source === "yahoo" || resolution.source === "alphavantage" || resolution.source === "eodhd")) {
             try {
               const fetched = await fetchPriceRange(resolution, intFromDate, toDate);
               if (fetched.length > 0) {
