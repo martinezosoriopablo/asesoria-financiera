@@ -70,15 +70,53 @@ export async function POST(req: NextRequest) {
 
   for (const h of holdings) {
     if (!h.run) continue;
-    const key = `${h.run}-${h.serie || ""}`;
+    // Try to resolve serie: explicit > detectSerieCode > best-match by price
+    const resolvedSerie = h.serie || detectSerieCode(h.fundName || "") || "";
+    const key = `${h.run}-${resolvedSerie}`;
 
     // fondo_id + moneda from fondos_mutuos
-    let fundQuery = supabase
-      .from("fondos_mutuos")
-      .select("id, moneda_funcional")
-      .eq("fo_run", h.run);
-    if (h.serie) fundQuery = fundQuery.eq("fm_serie", h.serie);
-    const { data: fondo } = await fundQuery.limit(1).single();
+    let fondo: { id: string; moneda_funcional: string | null } | null = null;
+    if (resolvedSerie) {
+      const { data } = await supabase
+        .from("fondos_mutuos")
+        .select("id, moneda_funcional")
+        .eq("fo_run", h.run)
+        .eq("fm_serie", resolvedSerie)
+        .limit(1)
+        .single();
+      fondo = data;
+    }
+    if (!fondo) {
+      // No serie or serie didn't match — fetch all series and pick closest by price
+      const { data: allSeries } = await supabase
+        .from("fondos_mutuos")
+        .select("id, moneda_funcional, fm_serie")
+        .eq("fo_run", h.run);
+      if (!allSeries || allSeries.length === 0) continue;
+      if (allSeries.length === 1) {
+        fondo = allSeries[0];
+      } else if (h.cartolaPrice && h.cartolaPrice > 0) {
+        // Pick serie whose latest price is closest to cartolaPrice
+        let best = allSeries[0];
+        let bestDiff = Infinity;
+        for (const s of allSeries) {
+          const { data: latest } = await supabase
+            .from("fondos_rentabilidades_diarias")
+            .select("valor_cuota")
+            .eq("fondo_id", s.id)
+            .order("fecha", { ascending: false })
+            .limit(1)
+            .single();
+          if (latest) {
+            const diff = Math.abs(latest.valor_cuota - h.cartolaPrice);
+            if (diff < bestDiff) { bestDiff = diff; best = s; }
+          }
+        }
+        fondo = best;
+      } else {
+        fondo = allSeries[0]; // fallback to first
+      }
+    }
 
     if (!fondo) continue;
 
@@ -87,7 +125,7 @@ export async function POST(req: NextRequest) {
       .from("vw_fondos_completo")
       .select("tac_sintetica")
       .eq("fo_run", h.run);
-    if (h.serie) tacQuery = tacQuery.eq("fm_serie", h.serie);
+    if (resolvedSerie) tacQuery = tacQuery.eq("fm_serie", resolvedSerie);
     const { data: vw } = await tacQuery.limit(1).single();
 
     fundInfo.set(key, {
