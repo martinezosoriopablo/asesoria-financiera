@@ -13,7 +13,7 @@ export interface DailyPrice {
 }
 
 /** Instrument classification for price routing */
-export type PriceSource = 'cmf' | 'alphavantage' | 'yahoo' | 'fintual' | 'finra' | 'bcch';
+export type PriceSource = 'cmf' | 'alphavantage' | 'yahoo' | 'fintual' | 'finra' | 'bcch' | 'bolsa-santiago' | 'eodhd' | 'cl-adr';
 
 /** Holding as seen in cartola snapshots */
 export interface HoldingForPricing {

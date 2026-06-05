@@ -400,6 +400,11 @@ export async function POST(req: NextRequest) {
 
           if (resolution.source === "cmf" || resolution.source === "bcch") return null;
 
+          // For cl-adr, DB ticker is the original secId + .SN (e.g. GOOGLCL.SN)
+          const dbTicker = resolution.source === "cl-adr"
+            ? `${ih.securityId!.toUpperCase()}.SN`
+            : resolution.symbol;
+
           // Check international_prices DB first
           let offset2 = 0;
           const intPriceMap = new Map<string, number>();
@@ -407,7 +412,7 @@ export async function POST(req: NextRequest) {
             const { data: rows } = await supabase
               .from("international_prices")
               .select("price_date, close_price")
-              .eq("ticker", resolution.symbol)
+              .eq("ticker", dbTicker)
               .gte("price_date", intFromDate)
               .lte("price_date", toDate)
               .order("price_date", { ascending: true })
@@ -420,13 +425,14 @@ export async function POST(req: NextRequest) {
             offset2 += 1000;
           }
 
-          // If DB has < 30 days of data, backfill from Yahoo/AV
-          if (intPriceMap.size < 30 && (resolution.source === "yahoo" || resolution.source === "alphavantage" || resolution.source === "eodhd")) {
+          // If DB has < 30 days of data, backfill from source
+          const backfillSources = ["yahoo", "alphavantage", "eodhd", "cl-adr"];
+          if (intPriceMap.size < 30 && backfillSources.includes(resolution.source)) {
             try {
               const fetched = await fetchPriceRange(resolution, intFromDate, toDate);
               if (fetched.length > 0) {
                 for (const p of fetched) intPriceMap.set(p.date, p.price);
-                storeInternationalPrices(resolution.symbol, fetched, resolution.currency, resolution.source)
+                storeInternationalPrices(dbTicker, fetched, resolution.currency, resolution.source)
                   .catch(() => {});
               }
             } catch {

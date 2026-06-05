@@ -29,15 +29,15 @@ describe("resolveSource", () => {
     expect(res.currency).toBe("CLP");
   });
 
-  it("routes Chilean FI (CFICAPITAL) to yahoo with .SN", () => {
+  it("routes Chilean FI (CFICAPITAL) to cmf", () => {
     const h: HoldingForPricing = {
       fundName: "FI Capital Chile",
       securityId: "CFICAPITAL",
       marketValue: 2_000_000,
     };
     const res = resolveSource(h);
-    expect(res.source).toBe("yahoo");
-    expect(res.symbol).toBe("CFICAPITAL.SN");
+    expect(res.source).toBe("cmf");
+    expect(res.symbol).toBe("CFICAPITAL");
     expect(res.currency).toBe("CLP");
   });
 
@@ -118,15 +118,15 @@ describe("resolveSource", () => {
     expect(res.currency).toBe("CLP");
   });
 
-  it("routes Chilean ADR stock (GOOGLCL) to yahoo with .SN", () => {
+  it("routes Chilean ADR stock (GOOGLCL) to cl-adr with US underlying", () => {
     const h: HoldingForPricing = {
       fundName: "Alphabet Inc. A",
       securityId: "GOOGLCL",
       marketValue: 5_000_000,
     };
     const res = resolveSource(h);
-    expect(res.source).toBe("yahoo");
-    expect(res.symbol).toBe("GOOGLCL.SN");
+    expect(res.source).toBe("cl-adr");
+    expect(res.symbol).toBe("GOOGL");
     expect(res.currency).toBe("CLP");
   });
 

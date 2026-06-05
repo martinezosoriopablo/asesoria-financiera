@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { inferInstrumentType } from "@/lib/instrument-type";
 import { fetchDailyPricesRange, fetchQuote } from "./alphavantage";
 import { fetchYahooHistorical, fetchYahooQuote } from "./yahoo";
+import { fetchEodhdHistorical, fetchEodhdQuote } from "./eodhd";
 import { getHistoricalPrices as getBolsaHistorical, getResumenAccion } from "@/lib/bolsa-santiago/client";
 import type { DailyPrice, HoldingForPricing, PriceSource } from "./types";
 
@@ -22,6 +23,29 @@ export interface SourceResolution {
 // ---------------------------------------------------------------------------
 
 const FX_TICKERS = new Set(["UF", "USD", "EUR"]);
+
+// ---------------------------------------------------------------------------
+// CUSIP → ticker mapping for international UCITS funds (Raymond James)
+// Each entry has primary + fallback source to handle EODHD rate limits (20/day)
+// ---------------------------------------------------------------------------
+
+interface IntlFundMapping {
+  eodhd?: string;   // ISIN.EUFUND format
+  yahoo?: string;   // Morningstar-style 0P000... format
+  currency: string;
+}
+
+const INTL_FUND_MAP: Record<string, IntlFundMapping> = {
+  // DWS Invest Latin American Equities A2 USD (cartola CUSIP: L2R330245)
+  L2R330245: { eodhd: "LU0813337184.EUFUND", currency: "USD" },
+  // BNY Mellon Global Short-Dated High Yield Bond — W class CUSIP not in Yahoo
+  // Using C Acc class on Yahoo as proxy (same fund, different fee class)
+  G1R06N212: { eodhd: "IE00BD5CTV53.EUFUND", yahoo: "0P00019BP0", currency: "USD" },
+  // Jupiter Merian World Equity L USD Acc
+  G6016L337: { yahoo: "0P00000ICR", currency: "USD" },
+  // UBAM Dynamic Dollar Bond AC USD
+  L9381G101: { eodhd: "LU0029761532.EUFUND", yahoo: "0P00000AZP", currency: "USD" },
+};
 
 // ---------------------------------------------------------------------------
 // resolveSource — pure function, no I/O
@@ -57,9 +81,22 @@ export function resolveSource(h: HoldingForPricing): SourceResolution {
     return { source: "cmf", symbol: secId.toUpperCase(), currency: "CLP" };
   }
 
-  // 5. Chilean ADR stocks (GOOGLCL, NVDACL) → yahoo with .SN suffix
+  // 5. Chilean ADR stocks (GOOGLCL, NVDACL) → synthetic CLP via US underlying × FX
+  // Santiago ADRs are illiquid; use NYSE price × USD/CLP for accurate CLP valuation
   if (/^[A-Z]{3,10}CL$/.test(secId.toUpperCase()) && !/^CFI/.test(secId.toUpperCase())) {
-    return { source: "yahoo", symbol: `${secId.toUpperCase()}.SN`, currency: "CLP" };
+    const underlying = secId.toUpperCase().replace(/CL$/, "");
+    return { source: "cl-adr", symbol: underlying, currency: "CLP" };
+  }
+
+  // 5b. CUSIP mapped to international UCITS fund → eodhd or yahoo
+  if (secId && INTL_FUND_MAP[secId.toUpperCase()]) {
+    const mapping = INTL_FUND_MAP[secId.toUpperCase()];
+    if (mapping.eodhd) {
+      return { source: "eodhd", symbol: mapping.eodhd, currency: mapping.currency };
+    }
+    if (mapping.yahoo) {
+      return { source: "yahoo", symbol: mapping.yahoo, currency: mapping.currency };
+    }
   }
 
   // 6. Bond with CUSIP → finra
@@ -121,6 +158,88 @@ function adminClient() {
 }
 
 // ---------------------------------------------------------------------------
+// CL ADR synthetic prices — US underlying × USD/CLP exchange rate
+// ---------------------------------------------------------------------------
+
+async function fetchUsdClpRates(
+  fromDate: string,
+  toDate: string
+): Promise<Map<string, number>> {
+  const rates = new Map<string, number>();
+  const from = Math.floor(new Date(fromDate).getTime() / 1000);
+  const to = Math.floor(new Date(toDate).getTime() / 1000) + 86400;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/CLP%3DX?period1=${from}&period2=${to}&interval=1d`;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return rates;
+    const data = await res.json();
+    const result = data.chart?.result?.[0];
+    if (!result) return rates;
+    const timestamps: number[] = result.timestamp || [];
+    const closes: (number | null)[] = result.indicators?.quote?.[0]?.close || [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (closes[i] != null) {
+        const date = new Date(timestamps[i] * 1000).toISOString().split("T")[0];
+        rates.set(date, closes[i]!);
+      }
+    }
+  } catch {
+    // Non-fatal
+  }
+  return rates;
+}
+
+async function fetchClAdrHistorical(
+  usUnderlying: string,
+  fromDate: string,
+  toDate: string
+): Promise<DailyPrice[]> {
+  const [usPrices, fxRates] = await Promise.all([
+    fetchYahooHistorical(usUnderlying, fromDate, toDate),
+    fetchUsdClpRates(fromDate, toDate),
+  ]);
+  if (usPrices.length === 0 || fxRates.size === 0) return [];
+
+  // Forward-fill FX rate for dates where we have a US price but no exact FX match
+  const sortedFxDates = [...fxRates.keys()].sort();
+  const getFx = (date: string): number | null => {
+    if (fxRates.has(date)) return fxRates.get(date)!;
+    // Find closest previous FX rate
+    let last: number | null = null;
+    for (const d of sortedFxDates) {
+      if (d > date) break;
+      last = fxRates.get(d)!;
+    }
+    return last;
+  };
+
+  const result: DailyPrice[] = [];
+  for (const p of usPrices) {
+    const fx = getFx(p.date);
+    if (fx) {
+      result.push({ date: p.date, price: Math.round(p.price * fx) });
+    }
+  }
+  return result;
+}
+
+async function fetchClAdrLatest(
+  usUnderlying: string
+): Promise<{ price: number; date: string } | null> {
+  const quote = await fetchYahooQuote(usUnderlying);
+  if (!quote) return null;
+
+  // Fetch current FX rate
+  const fxQuote = await fetchYahooQuote("CLP=X");
+  if (!fxQuote) return null;
+
+  return { price: Math.round(quote.price * fxQuote.price), date: quote.date };
+}
+
+// ---------------------------------------------------------------------------
 // fetchPriceRange — delegates to AV / Yahoo depending on source
 // ---------------------------------------------------------------------------
 
@@ -138,6 +257,18 @@ export async function fetchPriceRange(
     );
     if (avPrices.length > 0) return avPrices;
     return fetchYahooHistorical(resolution.symbol, fromDate, toDate);
+  }
+
+  if (resolution.source === "eodhd") {
+    // Try EODHD first, fall back to Yahoo if mapping exists
+    const prices = await fetchEodhdHistorical(resolution.symbol, fromDate, toDate);
+    if (prices.length > 0) return prices;
+    // Find Yahoo fallback from mapping
+    const mapping = Object.values(INTL_FUND_MAP).find(m => m.eodhd === resolution.symbol);
+    if (mapping?.yahoo) {
+      return fetchYahooHistorical(mapping.yahoo, fromDate, toDate);
+    }
+    return [];
   }
 
   if (resolution.source === "yahoo") {
@@ -161,6 +292,10 @@ export async function fetchPriceRange(
     return fetchYahooHistorical(yahooSymbol, fromDate, toDate);
   }
 
+  if (resolution.source === "cl-adr") {
+    return fetchClAdrHistorical(resolution.symbol, fromDate, toDate);
+  }
+
   // cmf, fintual, finra, bcch → handled by existing code elsewhere
   return [];
 }
@@ -178,8 +313,22 @@ export async function fetchLatestPrice(
     return fetchYahooQuote(resolution.symbol);
   }
 
+  if (resolution.source === "eodhd") {
+    const quote = await fetchEodhdQuote(resolution.symbol);
+    if (quote) return quote;
+    const mapping = Object.values(INTL_FUND_MAP).find(m => m.eodhd === resolution.symbol);
+    if (mapping?.yahoo) {
+      return fetchYahooQuote(mapping.yahoo);
+    }
+    return null;
+  }
+
   if (resolution.source === "yahoo") {
     return fetchYahooQuote(resolution.symbol);
+  }
+
+  if (resolution.source === "cl-adr") {
+    return fetchClAdrLatest(resolution.symbol);
   }
 
   if (resolution.source === "bolsa-santiago") {

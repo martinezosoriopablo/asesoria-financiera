@@ -372,22 +372,28 @@ async function getPriceForHolding(
       currency: h.currency,
     });
     if (resolution.source !== "cmf") {
+      // For cl-adr, the DB ticker is the original secId + .SN (e.g. GOOGLCL.SN)
+      // while resolution.symbol is the US underlying (e.g. GOOGL)
+      const dbTicker = resolution.source === "cl-adr"
+        ? `${secId.toUpperCase()}.SN`
+        : resolution.symbol;
+
       // Try DB first
-      const result = await getInternationalPrice(resolution.symbol, targetDate, supabase);
+      const result = await getInternationalPrice(dbTicker, targetDate, supabase);
       if (result) return { ...result, currency: resolution.currency };
 
-      // Fallback: fetch on-demand from Yahoo/AlphaVantage/Bolsa de Santiago
-      if (resolution.source === "yahoo" || resolution.source === "alphavantage" || resolution.source === "bolsa-santiago" || resolution.source === "eodhd") {
+      // Fallback: fetch on-demand
+      const fetchSources = ["yahoo", "alphavantage", "bolsa-santiago", "eodhd", "cl-adr"];
+      if (fetchSources.includes(resolution.source)) {
         const minDate = new Date(targetDate);
         minDate.setDate(minDate.getDate() - 7);
         const minDateStr = minDate.toISOString().split("T")[0];
         try {
-          // bolsa-santiago: try Bolsa API first, then Yahoo .SN fallback
           let prices = await fetchPriceRange(resolution, minDateStr, targetDate);
 
           if (prices.length > 0) {
-            // Store fetched prices for future lookups
-            storeInternationalPrices(resolution.symbol, prices, resolution.currency, resolution.source)
+            // Store fetched synthetic CLP prices under the original ticker
+            storeInternationalPrices(dbTicker, prices, resolution.currency, resolution.source)
               .catch(() => {}); // fire-and-forget
             // Find closest price on or before targetDate
             const sorted = prices.sort((a, b) => b.date.localeCompare(a.date));
