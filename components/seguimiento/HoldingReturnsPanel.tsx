@@ -145,6 +145,7 @@ interface Props {
   usdRate?: number;
   ufRate?: number;
   ufRateInitial?: number;
+  pricesAtDateEndpoint?: string;
 }
 
 interface BondLookup {
@@ -154,7 +155,7 @@ interface BondLookup {
   maturityDate: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, ufRateInitial }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, ufRateInitial, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
   const [marketPrices, setMarketPrices] = useState<Map<string, { price: number; currency: string }>>(new Map());
   const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
   const [bondPrices, setBondPrices] = useState<Map<string, { price: number; ytm: number | null; date: string }>>(new Map());
@@ -350,7 +351,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     const fetchPrices = async () => {
       setLoadingPrices(true);
       try {
-        const res = await fetch("/api/portfolio/prices-at-date", {
+        const res = await fetch(pricesAtDateEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

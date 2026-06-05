@@ -32,6 +32,7 @@ interface Holding {
 interface Props {
   holdingReturnsData: HoldingReturnsData | null;
   snapshots: Snapshot[];
+  pricesAtDateEndpoint?: string;
 }
 
 interface ChartItem {
@@ -62,7 +63,7 @@ interface MonthOption {
   isAccumulated: boolean;
 }
 
-export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }: Props) {
+export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
   // Cartola snapshots with holdings, sorted by date
   const cartolas = useMemo(() =>
     snapshots
@@ -265,7 +266,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
     setLoadingPast(true);
     setPastMonthData(null);
 
-    fetch("/api/portfolio/prices-at-date", {
+    fetch(pricesAtDateEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

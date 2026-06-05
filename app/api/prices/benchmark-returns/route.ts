@@ -1,7 +1,7 @@
 // app/api/prices/benchmark-returns/route.ts
 
 import { NextRequest } from "next/server";
-import { requireAdvisor } from "@/lib/auth/api-auth";
+import { requireAuth } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
 import {
@@ -64,7 +64,7 @@ function findClosestPrice(prices: DailyPrice[], targetDate: string): number | nu
  */
 export async function POST(request: NextRequest) {
   return handleApiError("benchmark-returns", async () => {
-    const { error } = await requireAdvisor();
+    const { error } = await requireAuth();
     if (error) return error;
 
     const { benchmark, fromDate, toDate } = (await request.json()) as {

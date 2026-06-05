@@ -3,7 +3,7 @@
 // Uses fondos_rentabilidades_diarias (Chilean funds) and international_prices
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
 import { getHistoricalPrices as getBolsaHistorical } from "@/lib/bolsa-santiago/client";
@@ -420,7 +420,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "prices-at-date", { limit: 20, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   const supabase = createAdminClient();

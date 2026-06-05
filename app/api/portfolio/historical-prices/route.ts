@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { preloadYear, getDolarObservado } from "@/lib/bcch";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const blocked = await applyRateLimit(req, "historical-prices", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   return handleApiError("historical-prices-post", async () => {
