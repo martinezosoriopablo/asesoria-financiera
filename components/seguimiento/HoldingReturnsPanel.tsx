@@ -740,7 +740,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
           marketValue: marketValueCalc,
-          currency: "CLP", // all bonds converted to CLP (UF or USD × rate)
+          currency: isChileanBond ? "UF" : "USD", // original denomination (value is CLP-converted)
         };
       });
   }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate, ufRateInitial, usdRate]);

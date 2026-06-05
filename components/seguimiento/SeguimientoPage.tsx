@@ -1860,11 +1860,31 @@ export default function SeguimientoPage({ clientId }: Props) {
         )}
 
         {/* Portfolio Breakdown — asset class & currency pie charts */}
-        {snapshots.length > 0 && snapshots[snapshots.length - 1].holdings && (
-          <PortfolioBreakdownPies
-            holdings={snapshots[snapshots.length - 1].holdings as Array<{ fundName: string; marketValue: number; assetClass?: string; currency?: string }>}
-          />
-        )}
+        {snapshots.length > 0 && (() => {
+          // Prefer holdingReturnsData (CLP-converted marketValues) for correct proportions.
+          // Fall back to snapshot holdings using marketValueCLP when available.
+          if (holdingReturnsData) {
+            const all: Array<{ fundName: string; marketValue: number; assetClass?: string; currency?: string }> = [
+              ...holdingReturnsData.equityHoldings.map(h => ({ fundName: h.fundName, marketValue: h.marketValue, assetClass: h.assetClass || "equity", currency: h.currency })),
+              ...holdingReturnsData.fixedIncomeFundHoldings.map(h => ({ fundName: h.fundName, marketValue: h.marketValue, assetClass: h.assetClass || "fixedIncome", currency: h.currency })),
+              ...holdingReturnsData.alternativesHoldings.map(h => ({ fundName: h.fundName, marketValue: h.marketValue, assetClass: h.assetClass || "alternatives", currency: h.currency })),
+              ...holdingReturnsData.bondHoldings.map(h => ({ fundName: h.fundName, marketValue: h.marketValue, assetClass: "fixedIncome", currency: h.currency || "USD" })),
+            ];
+            if (holdingReturnsData.cashValue > 0) {
+              all.push({ fundName: "Caja", marketValue: holdingReturnsData.cashValue, assetClass: "cash", currency: "CLP" });
+            }
+            return <PortfolioBreakdownPies holdings={all} />;
+          }
+          const latest = snapshots[snapshots.length - 1];
+          if (!latest.holdings) return null;
+          const fallback = (latest.holdings as Array<{ fundName: string; marketValue: number; marketValueCLP?: number; assetClass?: string; currency?: string }>).map(h => ({
+            fundName: h.fundName,
+            marketValue: h.marketValueCLP || h.marketValue,
+            assetClass: h.assetClass,
+            currency: h.currency,
+          }));
+          return <PortfolioBreakdownPies holdings={fallback} />;
+        })()}
 
         {/* Rentabilidad por Activo — returns per holding with month selector */}
         {holdingReturnsData && (
