@@ -90,6 +90,8 @@ interface SeguimientoData {
   benchmarkConfig?: BenchmarkComponent[] | null;
 }
 
+const periods = ["1M", "3M", "6M", "1Y", "ALL"];
+
 // ---------- Component ----------
 
 export default function PortalSeguimientoPage() {
@@ -285,32 +287,6 @@ export default function PortalSeguimientoPage() {
       .finally(() => setLoadingHistorical(false));
   }, [latestSnapshot]);
 
-  // ---------- Render ----------
-
-  const periods = ["1M", "3M", "6M", "1Y", "ALL"];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader className="w-6 h-6 text-gb-gray animate-spin" />
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-red-500" />
-          <p className="text-sm text-red-700">{error || "Error al cargar datos"}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const { metrics, client } = data;
-  const clientName = `${client.nombre} ${client.apellido}`.trim();
-
   // Extract holdings from latest snapshot for RadiografiaCartola
   const latestHoldings = useMemo(() => {
     if (!latestSnapshot?.holdings) return [];
@@ -370,6 +346,31 @@ export default function PortalSeguimientoPage() {
       currency: (h.currency || h.moneda || "CLP") as string,
     }));
   }, [holdingReturnsData, latestSnapshot]);
+
+  // Derived from data (safe to use after loading/error guards below)
+  const metrics = data?.metrics ?? null;
+  const client = data?.client ?? null;
+  const clientName = client ? `${client.nombre} ${client.apellido}` : "";
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader className="w-6 h-6 animate-spin text-gb-gray" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <AlertTriangle className="w-8 h-8 text-gb-danger" />
+        <p className="text-sm text-gb-gray">{error || "No se encontraron datos"}</p>
+        <button onClick={fetchData} className="text-sm text-gb-primary hover:underline">Reintentar</button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -450,7 +451,7 @@ export default function PortalSeguimientoPage() {
         {snapshots.length > 0 && (
           <HoldingReturnsPanel
             snapshots={snapshots}
-            clientId={client.id}
+            clientId={client!.id}
             onHoldingReturnsReady={setHoldingReturnsData}
             fundsMeta={fundsMeta}
             usdRate={exchangeRates?.usd}
@@ -493,10 +494,10 @@ export default function PortalSeguimientoPage() {
           <RadiografiaCartola
             holdings={latestHoldings}
             clientName={clientName}
-            clientId={client.id}
+            clientId={client!.id}
             fundsMeta={fundsMeta}
             cartolaDate={latestSnapshot?.snapshot_date}
-            perfilRiesgo={client.perfil_riesgo}
+            perfilRiesgo={client!.perfil_riesgo}
             readOnly
             radiografiaEndpoint="/api/portal/radiografia"
           />
