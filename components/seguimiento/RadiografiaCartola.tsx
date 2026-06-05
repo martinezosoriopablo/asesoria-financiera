@@ -178,9 +178,11 @@ interface Props {
   currentValueDate?: string; // fecha del último precio
   perfilRiesgo?: string;
   custodianType?: string;
+  readOnly?: boolean;
+  radiografiaEndpoint?: string;
 }
 
-export default function RadiografiaCartola({ holdings, clientName, clientId, fundsMeta, cartolaDate, currentValue, currentValueDate, perfilRiesgo, custodianType }: Props) {
+export default function RadiografiaCartola({ holdings, clientName, clientId, fundsMeta, cartolaDate, currentValue, currentValueDate, perfilRiesgo, custodianType, readOnly, radiografiaEndpoint }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<XrayData | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,7 +264,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
         securityId: h.securityId || meta?.run || null,
       };
     });
-    const res = await fetch("/api/portfolio/xray", {
+    const res = await fetch(radiografiaEndpoint || "/api/portfolio/xray", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1211,7 +1213,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                     </div>
                   </th>
                   <th className="text-right px-3 py-2 font-semibold text-gb-gray">Ahorro</th>
-                  <th className="text-center px-3 py-2 font-semibold text-gb-gray w-8"></th>
+                  {!readOnly && <th className="text-center px-3 py-2 font-semibold text-gb-gray w-8"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gb-border">
@@ -1255,7 +1257,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                                   </span>
                                   <span className="text-[10px] text-gb-gray">{ph.proposedAgf}{ph.proposedSerie && ` — ${ph.proposedSerie}`}</span>
                                 </div>
-                                {hasOverride && (
+                                {!readOnly && hasOverride && (
                                   <button
                                     onClick={() => removeProposalOverride(ph.originalFund)}
                                     className="text-gb-gray hover:text-red-500 shrink-0"
@@ -1347,6 +1349,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                               <span className="text-green-700 font-semibold">-{ph.tacSavingBps} bps</span>
                             ) : <span className="text-gb-gray">-</span>}
                           </td>
+                          {!readOnly && (
                           <td className="px-3 py-2 text-center">
                             <button
                               onClick={() => {
@@ -1366,9 +1369,10 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
                               <Search className="w-3.5 h-3.5" />
                             </button>
                           </td>
+                          )}
                         </tr>
                         {/* Inline search row */}
-                        {isSearching && (
+                        {!readOnly && isSearching && (
                           <tr>
                             <td colSpan={9} className="px-3 py-2 bg-blue-50/50">
                               <div className="flex items-center gap-2 mb-2">
@@ -1560,7 +1564,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
             </div>
 
             {/* Mail al Corredor button */}
-            {clientId && mergedProposal.holdings.some(h => h.changed) && (
+            {!readOnly && clientId && mergedProposal.holdings.some(h => h.changed) && (
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={() => setShowCartaCorredor(true)}
@@ -1576,7 +1580,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
       )}
 
       {/* Carta Corredor Modal */}
-      {showCartaCorredor && clientId && mergedProposal && (
+      {!readOnly && showCartaCorredor && clientId && mergedProposal && (
         <CartaCorredorModal
           clientId={clientId}
           operaciones={mergedProposal.holdings
@@ -1629,36 +1633,39 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-3 border-t border-gb-border">
-            <button
-              onClick={() => {
-                // Save enriched xray data to sessionStorage for faster load
-                try {
-                  sessionStorage.setItem("tax-simulator-holdings", JSON.stringify({
-                    rawHoldings: holdings,
-                    xrayHoldings: data?.holdings || [],
-                    ufValue: ufValue || 38000,
-                    usdRate: usdValue || 0,
-                    clientName,
-                    clientId,
-                    proposal: mergedProposal ? Object.fromEntries(
-                      mergedProposal.holdings.filter(h => h.changed).map(h => [h.originalFund, { proposedTac: h.proposedTac }])
-                    ) : undefined,
-                  }));
-                } catch { /* sessionStorage may be full */ }
-                // Navigate with clientId as fallback
-                window.location.href = `/tax-optimizer${clientId ? `?clientId=${clientId}` : ""}`;
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-gb-primary hover:text-gb-primary/80"
-            >
-              Ver simulador completo
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {!readOnly && (
+            <div className="px-4 py-3 border-t border-gb-border">
+              <button
+                onClick={() => {
+                  // Save enriched xray data to sessionStorage for faster load
+                  try {
+                    sessionStorage.setItem("tax-simulator-holdings", JSON.stringify({
+                      rawHoldings: holdings,
+                      xrayHoldings: data?.holdings || [],
+                      ufValue: ufValue || 38000,
+                      usdRate: usdValue || 0,
+                      clientName,
+                      clientId,
+                      proposal: mergedProposal ? Object.fromEntries(
+                        mergedProposal.holdings.filter(h => h.changed).map(h => [h.originalFund, { proposedTac: h.proposedTac }])
+                      ) : undefined,
+                    }));
+                  } catch { /* sessionStorage may be full */ }
+                  // Navigate with clientId as fallback
+                  window.location.href = `/tax-optimizer${clientId ? `?clientId=${clientId}` : ""}`;
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gb-primary hover:text-gb-primary/80"
+              >
+                Ver simulador completo
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Report Section */}
+      {/* Report Section — advisor only */}
+      {!readOnly && (
       <div className="bg-white rounded-lg border border-gb-border shadow-sm">
         <div className="px-4 py-3 border-b border-gb-border flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1774,6 +1781,7 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
           )}
         </div>
       </div>
+      )}
 
       {/* Disclaimer */}
       <p className="text-[10px] text-gb-gray text-center">
