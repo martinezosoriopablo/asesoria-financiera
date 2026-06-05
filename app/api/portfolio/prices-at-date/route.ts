@@ -30,6 +30,7 @@ interface PriceAtDateResult {
   endDate: string | null;
   returnPct: number | null;
   currency: string;
+  synthetic?: boolean; // true when price is computed from US underlying × FX
 }
 
 // Lookup price for a Chilean fund (by RUN + serie) at a specific date
@@ -458,6 +459,10 @@ export async function POST(request: NextRequest) {
           // Currency from price lookup (both dates should agree); fallback to CLP
           const currency = endP?.currency || startP?.currency || "CLP";
 
+          // Flag synthetic prices (CL ADR = US underlying × FX)
+          const secId = (h.securityId || "").trim().toUpperCase();
+          const isSynthetic = /^[A-Z]{3,10}CL$/.test(secId) && !/^CFI/.test(secId);
+
           return {
             fundName: h.fundName,
             assetClass: h.assetClass,
@@ -467,6 +472,7 @@ export async function POST(request: NextRequest) {
             endDate: endP?.date ?? null,
             returnPct,
             currency,
+            ...(isSynthetic ? { synthetic: true } : {}),
           };
         })
       );

@@ -40,6 +40,7 @@ interface ChartItem {
   returnPct: number;
   assetClass?: string;
   color: string;
+  synthetic?: boolean;
 }
 
 const ASSET_COLORS: Record<string, string> = {
@@ -298,6 +299,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
           startPrice: number | null;
           endPrice: number | null;
           returnPct: number | null;
+          synthetic?: boolean;
         }>) {
           if (r.returnPct === null) continue;
 
@@ -319,6 +321,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
             returnPct: r.returnPct,
             assetClass: r.assetClass,
             color: getColor(r.assetClass),
+            synthetic: r.synthetic,
           });
         }
 
@@ -417,6 +420,12 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots }:
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          {chartData.some(d => d.synthetic) && (
+            <p className="text-[11px] text-gb-gray mt-2 italic">
+              * Precio estimado (NYSE × tipo de cambio) para:{" "}
+              {chartData.filter(d => d.synthetic).map(d => d.fullName).join(", ")}
+            </p>
+          )}
         </div>
       )}
     </div>
