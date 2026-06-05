@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import { Loader, Send, MessageSquare } from "lucide-react";
 
 interface Message {
@@ -166,12 +165,7 @@ export default function MensajesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gb-light flex flex-col">
-      <PortalTopbar
-        clientName={`${clientInfo.nombre} ${clientInfo.apellido}`}
-        clientEmail={clientInfo.email}
-      />
-
+    <div className="flex flex-col min-h-[calc(100vh-0px)]">
       <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-6 py-6">
         <h1 className="text-lg font-semibold text-gb-black mb-1">
           Mensajes

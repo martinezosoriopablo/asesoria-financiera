@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import {
   Loader,
   TrendingUp,
@@ -122,12 +121,7 @@ export default function PortalDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      <PortalTopbar
-        clientName={`${clientInfo.nombre} ${clientInfo.apellido}`}
-        clientEmail={clientInfo.email}
-      />
-
+    <div>
       <main className="max-w-3xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold text-gb-black mb-6">Mi Portafolio</h1>
 

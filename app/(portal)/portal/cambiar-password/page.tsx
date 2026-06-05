@@ -1,35 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import { Lock, Loader, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function CambiarPasswordPage() {
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    const fetchMe = async () => {
-      try {
-        const res = await fetch("/api/portal/me");
-        if (res.ok) {
-          const data = await res.json();
-          setClientName(`${data.client.nombre} ${data.client.apellido}`);
-          setClientEmail(data.client.email);
-        }
-      } catch {}
-      setPageLoading(false);
-    };
-    fetchMe();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,9 +30,17 @@ export default function CambiarPasswordPage() {
     try {
       const supabase = createSupabaseBrowserClient();
 
+      // Get current user email for re-auth
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        setError("No se pudo obtener el email del usuario");
+        setLoading(false);
+        return;
+      }
+
       // Verify current password
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: clientEmail,
+        email: user.email,
         password: currentPassword,
       });
       if (signInError) {
@@ -79,18 +68,8 @@ export default function CambiarPasswordPage() {
     }
   };
 
-  if (pageLoading) {
-    return (
-      <div className="min-h-screen bg-gb-light flex items-center justify-center">
-        <Loader className="w-6 h-6 text-gb-gray animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gb-light">
-      <PortalTopbar clientName={clientName} clientEmail={clientEmail} />
-
+    <div>
       <main className="max-w-md mx-auto px-6 py-8">
         <h1 className="text-xl font-semibold text-gb-black mb-6">Cambiar Contraseña</h1>
 

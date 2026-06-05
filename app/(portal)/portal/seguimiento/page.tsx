@@ -9,7 +9,6 @@ import RetornosComparados from "@/components/seguimiento/RetornosComparados";
 import HoldingReturnsPanel, { type HoldingReturnsData } from "@/components/seguimiento/HoldingReturnsPanel";
 import PortfolioBreakdownPies from "@/components/seguimiento/PortfolioBreakdownPies";
 import RadiografiaCartola from "@/components/seguimiento/RadiografiaCartola";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import type { BenchmarkComponent } from "@/lib/prices/types";
 import { detectSerieCode } from "@/lib/fund-utils";
 import {
@@ -98,8 +97,6 @@ export default function PortalSeguimientoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState("ALL");
-  const [clientInfo, setClientInfo] = useState<{ nombre: string; email: string } | null>(null);
-
   // Historical price series
   const [historicalSeries, setHistoricalSeries] = useState<Array<{ fecha: string; total: number; [key: string]: string | number }>>([]);
   const [fundsMeta, setFundsMeta] = useState<Array<{ fundName: string; run: string; serie: string; tac: number | null; moneda: string; quantity: number }>>([]);
@@ -109,20 +106,6 @@ export default function PortalSeguimientoPage() {
   const [benchmarkConfig, setBenchmarkConfig] = useState<BenchmarkComponent[] | null>(null);
   const [benchmarkReturns, setBenchmarkReturns] = useState<Record<string, number> | null>(null);
   const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
-
-  // Fetch portal /me for topbar
-  useEffect(() => {
-    fetch("/api/portal/me")
-      .then((res) => res.json())
-      .then((d) => {
-        if (d.client)
-          setClientInfo({
-            nombre: `${d.client.nombre} ${d.client.apellido}`,
-            email: d.client.email,
-          });
-      })
-      .catch(() => {});
-  }, []);
 
   // Fetch seguimiento data
   const fetchData = useCallback(async () => {
@@ -308,24 +291,18 @@ export default function PortalSeguimientoPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gb-light">
-        {clientInfo && <PortalTopbar clientName={clientInfo.nombre} clientEmail={clientInfo.email} />}
-        <div className="flex items-center justify-center py-20">
-          <Loader className="w-6 h-6 text-gb-gray animate-spin" />
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <Loader className="w-6 h-6 text-gb-gray animate-spin" />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-gb-light">
-        {clientInfo && <PortalTopbar clientName={clientInfo.nombre} clientEmail={clientInfo.email} />}
-        <div className="max-w-5xl mx-auto px-6 py-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-500" />
-            <p className="text-sm text-red-700">{error || "Error al cargar datos"}</p>
-          </div>
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-500" />
+          <p className="text-sm text-red-700">{error || "Error al cargar datos"}</p>
         </div>
       </div>
     );
@@ -395,12 +372,7 @@ export default function PortalSeguimientoPage() {
   }, [holdingReturnsData, latestSnapshot]);
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      <PortalTopbar
-        clientName={clientInfo?.nombre || clientName}
-        clientEmail={clientInfo?.email || client.email}
-      />
-
+    <div>
       <main className="max-w-5xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="mb-6">

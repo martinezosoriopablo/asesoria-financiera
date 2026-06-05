@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import Link from "next/link";
 import {
   Loader,
@@ -31,19 +30,11 @@ const STATUS_MAP: Record<string, { label: string; icon: typeof Clock; color: str
 export default function MisCartolasPage() {
   const [cartolas, setCartolas] = useState<Cartola[]>([]);
   const [loading, setLoading] = useState(true);
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/portal/me").then(r => r.json()),
-      fetch("/api/portal/cartolas").then(r => r.json()),
-    ])
-      .then(([meData, cartolaData]) => {
-        if (meData.client) {
-          setClientName(`${meData.client.nombre} ${meData.client.apellido}`);
-          setClientEmail(meData.client.email);
-        }
+    fetch("/api/portal/cartolas")
+      .then((r) => r.json())
+      .then((cartolaData) => {
         if (cartolaData.cartolas) setCartolas(cartolaData.cartolas);
       })
       .catch(() => {})
@@ -59,9 +50,7 @@ export default function MisCartolasPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      <PortalTopbar clientName={clientName} clientEmail={clientEmail} />
-
+    <div>
       <main className="max-w-3xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>

@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     // Obtener datos del cliente
     const { data: clientData, error: clientError } = await supabase
       .from("clients")
-      .select("id, nombre, apellido, email, cartera_recomendada, asesor_id, puntaje_riesgo, perfil_riesgo, display_currency, benchmark_config")
+      .select("id, nombre, apellido, email, cartera_recomendada, asesor_id, puntaje_riesgo, perfil_riesgo, display_currency")
       .eq("id", clientId)
       .single();
 
@@ -92,6 +92,15 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // benchmark_config may not exist as column yet — fetch safely
+    let benchmarkConfigValue = null;
+    const { data: bcRow } = await supabase
+      .from("clients")
+      .select("benchmark_config")
+      .eq("id", clientId)
+      .single();
+    if (bcRow?.benchmark_config) benchmarkConfigValue = bcRow.benchmark_config;
 
     // Calcular fecha de inicio según periodo
     const endDate = new Date();
@@ -147,7 +156,7 @@ export async function GET(request: NextRequest) {
     const displayCurrency = clientData.display_currency || "CLP";
 
     // Benchmark config
-    const benchmarkConfig = clientData.benchmark_config || null;
+    const benchmarkConfig = benchmarkConfigValue;
 
     return NextResponse.json({
       success: true,

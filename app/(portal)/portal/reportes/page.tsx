@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import {
   Loader,
   FileText,
@@ -88,22 +87,8 @@ export default function PortalReportes() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
 
   useEffect(() => {
-    // Fetch client info
-    fetch("/api/portal/me")
-      .then(r => r.json())
-      .then(data => {
-        if (data.client) {
-          setClientName(`${data.client.nombre} ${data.client.apellido}`);
-          setClientEmail(data.client.email);
-        }
-      })
-      .catch(() => {});
-
-    // Fetch reports
     fetch("/api/portal/reports")
       .then(r => r.json())
       .then(data => {
@@ -118,19 +103,14 @@ export default function PortalReportes() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <PortalTopbar clientName={clientName} clientEmail={clientEmail} />
-        <div className="flex items-center justify-center py-32">
-          <Loader className="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
+      <div className="flex items-center justify-center py-32">
+        <Loader className="w-8 h-8 text-slate-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <PortalTopbar clientName={clientName} clientEmail={clientEmail} />
-
+    <div>
       <div className="max-w-3xl mx-auto px-5 py-8">
         <h1 className="text-2xl font-semibold text-slate-900 mb-1">Reportes</h1>
         <p className="text-sm text-slate-500 mb-6">

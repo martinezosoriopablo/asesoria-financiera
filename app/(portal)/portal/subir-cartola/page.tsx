@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import PortalTopbar from "@/components/portal/PortalTopbar";
+import { useState, useRef } from "react";
 import {
   Loader,
   Upload,
@@ -32,28 +31,12 @@ const CUSTODIAN_OPTIONS = [
 ];
 
 export default function SubirCartolaPage() {
-  const [clientName, setClientName] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [loading, setLoading] = useState(true);
   const [source, setSource] = useState("");
   const [customSource, setCustomSource] = useState("");
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const [uploadCount, setUploadCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    fetch("/api/portal/me")
-      .then(r => r.json())
-      .then(data => {
-        if (data.client) {
-          setClientName(`${data.client.nombre} ${data.client.apellido}`);
-          setClientEmail(data.client.email);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   const handleUpload = async (file: File) => {
     const sourceName = source === "Otro" ? customSource : source;
@@ -93,23 +76,11 @@ export default function SubirCartolaPage() {
     fileInputRef.current?.click();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <PortalTopbar clientName={clientName} clientEmail={clientEmail} />
-        <div className="flex items-center justify-center py-32">
-          <Loader className="w-8 h-8 text-slate-400 animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
   const sourceName = source === "Otro" ? customSource : source;
   const canUpload = !!sourceName && !uploading;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <PortalTopbar clientName={clientName} clientEmail={clientEmail} />
+    <div>
 
       <div className="max-w-2xl mx-auto px-5 py-8">
         <Link

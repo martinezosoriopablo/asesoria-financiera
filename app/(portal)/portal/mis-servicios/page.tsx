@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import {
   Loader,
   TrendingUp,
@@ -90,23 +89,14 @@ export default function MisServiciosPage() {
   const [loading, setLoading] = useState(true);
   const [servicios, setServicios] = useState<Servicios | null>(null);
   const [advisor, setAdvisor] = useState<Advisor | null>(null);
-  const [clientInfo, setClientInfo] = useState<{ nombre: string; email: string } | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/portal/servicios").then((r) => r.json()),
-      fetch("/api/portal/me").then((r) => r.json()),
-    ])
-      .then(([servData, meData]) => {
+    fetch("/api/portal/servicios")
+      .then((r) => r.json())
+      .then((servData) => {
         if (servData.success) {
           setServicios(servData.servicios);
           setAdvisor(servData.advisor);
-        }
-        if (meData.client) {
-          setClientInfo({
-            nombre: `${meData.client.nombre} ${meData.client.apellido}`,
-            email: meData.client.email,
-          });
         }
       })
       .catch(() => {})
@@ -115,19 +105,14 @@ export default function MisServiciosPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gb-light">
-        {clientInfo && <PortalTopbar clientName={clientInfo.nombre} clientEmail={clientInfo.email} />}
-        <div className="flex items-center justify-center py-20">
-          <Loader className="w-6 h-6 text-gb-gray animate-spin" />
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <Loader className="w-6 h-6 text-gb-gray animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      {clientInfo && <PortalTopbar clientName={clientInfo.nombre} clientEmail={clientInfo.email} />}
-
+    <div>
       <main className="max-w-3xl mx-auto px-6 py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gb-black">Mis Servicios</h1>

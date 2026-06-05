@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PortalTopbar from "@/components/portal/PortalTopbar";
 import { ProfileGauge } from "@/components/risk/ProfileGauge";
 import {
   Loader,
@@ -109,13 +108,7 @@ export default function BienvenidaPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gb-light">
-      <PortalTopbar
-        clientName={`${clientInfo.nombre} ${clientInfo.apellido}`}
-        clientEmail={clientInfo.email}
-        unreadReports={unreadReports}
-      />
-
+    <div>
       <main className="max-w-3xl mx-auto px-6 py-8">
         {/* Welcome header */}
         <div className="mb-8">
