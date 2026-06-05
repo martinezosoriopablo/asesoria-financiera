@@ -119,10 +119,12 @@ interface SeguimientoData {
 
 interface Props {
   clientId: string;
+  portalMode?: boolean;
 }
 
-export default function SeguimientoPage({ clientId }: Props) {
-  const { advisor: _advisor, loading: authLoading } = useAdvisor();
+export default function SeguimientoPage({ clientId, portalMode = false }: Props) {
+  const advisorHook = useAdvisor();
+  const authLoading = portalMode ? false : advisorHook.loading;
   const [data, setData] = useState<SeguimientoData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -180,13 +182,19 @@ export default function SeguimientoPage({ clientId }: Props) {
 
     try {
       // Always fetch ALL data — period filtering is done client-side for the chart
-      const res = await fetch(`/api/clients/${clientId}/seguimiento?period=ALL`);
+      const url = portalMode
+        ? "/api/portal/seguimiento?period=ALL"
+        : `/api/clients/${clientId}/seguimiento?period=ALL`;
+      const res = await fetch(url);
       const result = await res.json();
 
       if (result.success) {
         setData(result.data);
         if (result.data?.client?.display_currency) {
           setDisplayCurrency(result.data.client.display_currency);
+        }
+        if (result.data?.benchmarkConfig) {
+          setBenchmarkConfig(result.data.benchmarkConfig);
         }
       } else {
         setError(result.error || "Error al cargar datos");
@@ -197,11 +205,11 @@ export default function SeguimientoPage({ clientId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [clientId]);
+  }, [clientId, portalMode]);
 
   useEffect(() => {
     fetchData();
-    fetchExecutions();
+    if (!portalMode) fetchExecutions();
     // Fetch current exchange rates for UF/USD display
     fetch("/api/exchange-rates")
       .then(r => r.json())
@@ -1085,9 +1093,11 @@ export default function SeguimientoPage({ clientId }: Props) {
           <div className="text-center py-12">
             <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
             <p className="text-gb-gray">{error || "No se encontraron datos"}</p>
-            <Link href={`/clients/${clientId}`} className="text-sm text-gb-accent hover:underline mt-2 inline-block">
-              Volver al cliente
-            </Link>
+            {!portalMode && (
+              <Link href={`/clients/${clientId}`} className="text-sm text-gb-accent hover:underline mt-2 inline-block">
+                Volver al cliente
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -1102,63 +1112,67 @@ export default function SeguimientoPage({ clientId }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <Link
-              href={`/clients/${clientId}`}
-              className="inline-flex items-center gap-1 text-sm text-gb-gray hover:text-gb-black mb-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {client.nombre} {client.apellido}
-            </Link>
+            {!portalMode && (
+              <Link
+                href={`/clients/${clientId}`}
+                className="inline-flex items-center gap-1 text-sm text-gb-gray hover:text-gb-black mb-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                {client.nombre} {client.apellido}
+              </Link>
+            )}
             <h1 className="text-2xl font-semibold text-gb-black">
-              Seguimiento de Cartolas
+              Seguimiento{portalMode ? "" : " de Cartolas"}
             </h1>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href={`/recomendacion/${clientId}`}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              <Scale className="w-4 h-4" />
-              Ver Radiografia
-            </Link>
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              Actualizar
-            </button>
-            <button
-              onClick={openSendModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
-            >
-              <Mail className="w-3.5 h-3.5" />
-              Enviar Reporte
-            </button>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleFillPrices(false)}
-                disabled={fillingPrices || snapshots.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
-                title="Fuentes: CMF > Fintual API > Yahoo > Manual. Interpola precios entre cartolas."
+          {!portalMode && (
+            <div className="flex gap-2">
+              <Link
+                href={`/recomendacion/${clientId}`}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
               >
-                <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
-                {fillingPrices ? "Llenando..." : "Llenar Precios"}
+                <Scale className="w-4 h-4" />
+                Ver Radiografia
+              </Link>
+              <button
+                onClick={fetchData}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                Actualizar
+              </button>
+              <button
+                onClick={openSendModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Enviar Reporte
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleFillPrices(false)}
+                  disabled={fillingPrices || snapshots.length === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
+                  title="Fuentes: CMF > Fintual API > Yahoo > Manual. Interpola precios entre cartolas."
+                >
+                  <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
+                  {fillingPrices ? "Llenando..." : "Llenar Precios"}
+                </button>
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar Cartola
               </button>
             </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Agregar Cartola
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Fill prices result banner */}
-        {fillResult && (
+        {!portalMode && fillResult && (
           <div
             className={`mb-4 px-4 py-3 rounded-lg text-sm flex items-center justify-between ${
               fillResult.startsWith("Error")
@@ -1177,7 +1191,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         )}
 
         {/* Fill prices holding match details */}
-        {fillDetails && fillDetails.length > 0 && (
+        {!portalMode && fillDetails && fillDetails.length > 0 && (
           <div className="mb-4 bg-white border border-gb-border rounded-lg p-4 text-xs">
             <p className="font-semibold text-gb-black mb-2">Detalle de matching de holdings:</p>
             <div className="grid gap-1">
@@ -1583,7 +1597,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         )}
 
         {/* Per-holding rebalancing table */}
-        {(() => {
+        {!portalMode && (() => {
           const rec = recommendation as { cartera?: Array<{ ticker: string; nombre: string; clase: string; porcentaje: number }> } | null;
           const latestSnap = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
           const cartera = rec?.cartera;
@@ -1774,7 +1788,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         })()}
 
         {/* Execution history */}
-        {executions.length > 0 && (
+        {!portalMode && executions.length > 0 && (
           <div className="mb-6">
             <div className="bg-white rounded-lg border border-gb-border shadow-sm">
               <button
@@ -1829,7 +1843,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         )}
 
         {/* Baseline vs Current comparison */}
-        {(() => {
+        {!portalMode && (() => {
           const baseline = snapshots.find(s => s.is_baseline);
           const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
           if (baseline && latest && baseline.id !== latest.id) {
@@ -1843,12 +1857,14 @@ export default function SeguimientoPage({ clientId }: Props) {
         })()}
 
         {/* Recommendation version history */}
-        <div className="mb-6">
-          <RecommendationHistory clientId={clientId} />
-        </div>
+        {!portalMode && (
+          <div className="mb-6">
+            <RecommendationHistory clientId={clientId} />
+          </div>
+        )}
 
 {/* Explicación de Resultados — AI-generated monthly closing */}
-        {snapshots.length > 0 && (
+        {!portalMode && snapshots.length > 0 && (
           <ClientMonthlyClosing
             clientId={clientId}
             month={(() => {
@@ -1897,9 +1913,11 @@ export default function SeguimientoPage({ clientId }: Props) {
         {/* Retornos Comparados — monthly portfolio vs benchmark */}
         {(snapshots.length >= 2 || historicalSeries.length > 1) && (
           <>
-            <div className="flex items-center justify-between mb-2">
-              <BenchmarkConfig clientId={clientId} onBenchmarkChange={setBenchmarkConfig} />
-            </div>
+            {!portalMode && (
+              <div className="flex items-center justify-between mb-2">
+                <BenchmarkConfig clientId={clientId} onBenchmarkChange={setBenchmarkConfig} />
+              </div>
+            )}
             <RetornosComparados
               snapshots={data.snapshots.filter((s) => s.source !== "api-prices")}
               historicalSeries={historicalSeries}
@@ -1924,19 +1942,21 @@ export default function SeguimientoPage({ clientId }: Props) {
         )}
 
         {/* Reporte Mensual de Mercados */}
-        <MonthlyReportSection
-          currentMonth={(() => {
-            const latestCartola = snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel");
-            if (latestCartola) {
-              return latestCartola.snapshot_date.slice(0, 7);
-            }
-            const now = new Date();
-            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-          })()}
-        />
+        {!portalMode && (
+          <MonthlyReportSection
+            currentMonth={(() => {
+              const latestCartola = snapshots.find(s => s.source === "statement" || s.source === "manual" || s.source === "excel");
+              if (latestCartola) {
+                return latestCartola.snapshot_date.slice(0, 7);
+              }
+              const now = new Date();
+              return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+            })()}
+          />
+        )}
 
-        {/* Cartolas ingresadas (always visible) */}
-        {(() => {
+        {/* Cartolas ingresadas */}
+        {!portalMode && (() => {
           const cartolas = snapshots.filter(
             (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
           );
@@ -2009,7 +2029,7 @@ export default function SeguimientoPage({ clientId }: Props) {
         })()}
 
         {/* Empty state */}
-        {snapshots.length === 0 && (
+        {!portalMode && snapshots.length === 0 && (
           <div className="text-center py-12 bg-white rounded-lg border border-gb-border">
             <TrendingUp className="w-12 h-12 text-gb-gray mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gb-black mb-2">Sin historial de cartolas</h3>
@@ -2028,7 +2048,7 @@ export default function SeguimientoPage({ clientId }: Props) {
       </div>
 
       {/* Add snapshot modal */}
-      {showAddModal && (
+      {!portalMode && showAddModal && (
         <AddSnapshotModal
           clientId={clientId}
           onClose={() => setShowAddModal(false)}
@@ -2037,7 +2057,7 @@ export default function SeguimientoPage({ clientId }: Props) {
       )}
 
       {/* Edit snapshot modal */}
-      {editingSnapshot && (
+      {!portalMode && editingSnapshot && (
         <ReviewSnapshotModal
           clientId={clientId}
           parsedData={{
@@ -2068,7 +2088,7 @@ export default function SeguimientoPage({ clientId }: Props) {
           onSuccess={handleSnapshotUpdated}
         />
       )}
-      {showSendModal && (() => {
+      {!portalMode && showSendModal && (() => {
         const emailData = assembleSeguimientoData();
         if (!emailData) return null;
         return (
