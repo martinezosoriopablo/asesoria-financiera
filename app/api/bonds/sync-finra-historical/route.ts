@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { fetchHistoricalPrices } from "@/lib/finra/historical";
+import { handleApiError } from "@/lib/api-response";
 
 // CUSIP format: 9 alphanumeric chars (letters + digits)
 const CUSIP_RE = /^[A-Z0-9]{9}$/i;
@@ -20,9 +21,9 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("bonds-sync-finra-historical-post", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const body = await request.json();
     let cusips: string[] = body.cusips || [];
     const days: number = body.days || 90;
@@ -149,12 +150,5 @@ export async function POST(request: NextRequest) {
       errors: totalErrors,
       summary,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error en sync histórico FINRA";
-    console.error("[FINRA historical] Error:", err);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

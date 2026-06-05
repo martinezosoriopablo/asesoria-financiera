@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Listar portafolios directos
 export async function GET(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-get", async () => {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("client_id");
     const status = searchParams.get("status");
@@ -75,14 +76,8 @@ export async function GET(request: NextRequest) {
       portfolios: portfolios || [],
       total: portfolios?.length || 0,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener portafolios";
-    console.error("Error fetching portfolios:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // POST - Crear nuevo portafolio directo
@@ -95,7 +90,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-post", async () => {
     const body = await request.json();
 
     // Validar campos requeridos
@@ -212,12 +207,6 @@ export async function POST(request: NextRequest) {
       success: true,
       portfolio: fullPortfolio || portfolio,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al crear portafolio";
-    console.error("Error creating portfolio:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

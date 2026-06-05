@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { requireClient } from "@/lib/auth/require-client";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET() {
   const { client, error } = await requireClient();
@@ -12,6 +13,7 @@ export async function GET() {
 
   const admin = createAdminClient();
 
+  return handleApiError("portal-cartolas-get", async () => {
   // 1. Client-uploaded cartolas (from interactions)
   const { data: clientCartolas } = await admin
     .from("client_interactions")
@@ -56,4 +58,5 @@ export async function GET() {
   ].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
   return NextResponse.json({ cartolas });
+  });
 }

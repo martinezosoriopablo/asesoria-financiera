@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-recommendations-get", async () => {
     const { id: clientId } = await context.params;
 
     // Verify client ownership
@@ -58,8 +59,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
       versions: versions || [],
       total: versions?.length || 0,
     });
-  } catch (error) {
-    console.error("Error in recommendations GET:", error);
-    return NextResponse.json({ success: false, error: "Error interno del servidor" }, { status: 500 });
-  }
+  
+  });
 }

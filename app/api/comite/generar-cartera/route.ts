@@ -6,6 +6,9 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { trackAIUsage } from "@/lib/ai-usage";
+import { handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -86,16 +89,17 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "generar-cartera", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
-    if (!ANTHROPIC_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: "API key de Anthropic no configurada" },
-        { status: 500 }
-      );
-    }
+  if (!ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { success: false, error: "API key de Anthropic no configurada" },
+      { status: 500 }
+    );
+  }
 
-    const { user: _user, advisor, error: authError } = await requireAdvisor();
-    if (authError) return authError;
+  const { user: _user, advisor, error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  return handleApiError("generar-cartera-post", async () => {
 
     const supabase = createAdminClient();
 
@@ -270,14 +274,7 @@ export async function POST(request: NextRequest) {
         holdingsCount: client.portfolio_data?.statement?.holdings?.length || 0,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in generar-cartera:", error);
-    const message = error instanceof Error ? error.message : "Error interno";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 function buildPrompt(

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 import { createNotification } from "@/lib/notifications";
+import { handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -45,9 +46,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
+  return handleApiError("cron-send-reports-get", async () => {
+    const supabase = createAdminClient();
 
-  // Get all configs where frequency != 'none'
+    // Get all configs where frequency != 'none'
   const { data: configs, error: configError } = await supabase
     .from("client_report_config")
     .select("client_id, frequency, last_sent_at, send_portfolio_report, send_macro, send_rv, send_rf, send_asset_allocation, send_day_of_week, send_day_of_month")
@@ -265,9 +267,10 @@ export async function GET(request: NextRequest) {
   const sent = results.filter(r => r.status === "sent").length;
   const skipped = results.filter(r => r.status === "skipped").length;
 
-  return NextResponse.json({
-    success: true,
-    summary: { total: results.length, sent, skipped, errors: results.length - sent - skipped },
-    results,
+    return NextResponse.json({
+      success: true,
+      summary: { total: results.length, sent, skipped, errors: results.length - sent - skipped },
+      results,
+    });
   });
 }

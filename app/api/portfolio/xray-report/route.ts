@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { trackAIUsage } from "@/lib/ai-usage";
+import { handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -61,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
 
-  try {
+  return handleApiError("xray-report-post", async () => {
     const { xrayData, clientName, advisoryFee, customContext, ufValue, usdValue, cartolaDate, currentValue, currentValueDate, modelData } = await request.json() as {
       xrayData: XrayData;
       clientName?: string;
@@ -298,11 +301,5 @@ REGLAS:
     const report = data.content.find((c: { type: string; text?: string }) => c.type === "text")?.text || "";
 
     return NextResponse.json({ success: true, report });
-  } catch (error) {
-    console.error("Error generating xray report:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error al generar informe" },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface YahooChartResult {
   chart: {
@@ -145,7 +146,7 @@ export async function GET(
     );
   }
 
-  try {
+  return handleApiError("securities-historical-get", async () => {
     const historical = await fetchYahooHistorical(ticker, range);
 
     if (historical.length === 0) {
@@ -184,12 +185,5 @@ export async function GET(
         endDate: historical[historical.length - 1].date,
       },
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error obteniendo datos históricos";
-    console.error("Historical error:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

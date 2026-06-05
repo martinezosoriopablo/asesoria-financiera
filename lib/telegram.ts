@@ -25,6 +25,7 @@ export async function sendTelegram(
         parse_mode: options?.parseMode || 'HTML',
         disable_web_page_preview: true,
       }),
+      signal: AbortSignal.timeout(15000),
     })
 
     if (!res.ok) {

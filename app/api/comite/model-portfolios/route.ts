@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface PositionInput {
   categoria: string;
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("comite-model-portfolios-post", async () => {
     const body: ModelPortfolioUpload = await request.json();
 
     // Validate
@@ -129,13 +130,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, inserted: data });
-  } catch (error) {
-    console.error("Error in model-portfolios POST:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // GET — returns active models (latest report_date per profile)

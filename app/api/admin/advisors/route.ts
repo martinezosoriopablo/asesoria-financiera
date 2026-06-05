@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { logAuditEvent } from "@/lib/audit";
+import { handleApiError } from "@/lib/api-response";
 
 function getAppUrl(): string {
   const raw = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("admin-advisors-get", async () => {
     let query = supabase
       .from("advisors")
       .select("id, email, nombre, apellido, foto_url, logo_url, company_name, linkedin_url, rol, parent_advisor_id, activo, created_at")
@@ -47,13 +48,7 @@ export async function GET(request: NextRequest) {
       total: advisors?.length || 0,
       isAdmin: advisor!.rol === 'admin',
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener asesores";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // POST - Crear nuevo asesor (solo admins)
@@ -66,7 +61,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("admin-advisors-post", async () => {
     const body = await request.json();
 
     // Validar campos requeridos
@@ -151,13 +146,7 @@ export async function POST(request: NextRequest) {
       advisor: newAdvisor,
       message: `Invitación enviada a ${body.email}. El asesor recibirá un email para crear su contraseña.`,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al crear asesor";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // PUT - Actualizar asesor (solo admins pueden actualizar subordinados)
@@ -170,7 +159,7 @@ export async function PUT(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("admin-advisors-put", async () => {
     const body = await request.json();
 
     if (!body.id) {
@@ -252,13 +241,7 @@ export async function PUT(request: NextRequest) {
       success: true,
       advisor: updatedAdvisor,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al actualizar asesor";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // PATCH - Reenviar invitación por email (solo admins)
@@ -271,7 +254,7 @@ export async function PATCH(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("admin-advisors-patch", async () => {
     const { id } = await request.json();
 
     if (!id) {
@@ -378,13 +361,7 @@ export async function PATCH(request: NextRequest) {
       success: true,
       message: `Invitación reenviada a ${targetAdvisor.email}`,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al reenviar invitación";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // DELETE - Desactivar asesor (solo admins)
@@ -415,7 +392,7 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("admin-advisors-delete", async () => {
     // Verificar que sea subordinado
     const { data: targetAdvisor } = await supabase
       .from("advisors")
@@ -450,11 +427,5 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: "Asesor desactivado correctamente",
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al desactivar asesor";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

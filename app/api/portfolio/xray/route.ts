@@ -6,6 +6,9 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { stripAccents } from "@/lib/text";
 import { mapClientProfile } from "@/lib/comite-categories";
+import { handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 
 interface HoldingInput {
   fundName: string;
@@ -187,7 +190,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("portfolio-xray-post", async () => {
     const { holdings, perfilRiesgo, custodianType } = (await request.json()) as {
       holdings: HoldingInput[];
       perfilRiesgo?: string;
@@ -822,11 +825,5 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data: result, modelData });
-  } catch (error) {
-    console.error("Error in portfolio xray:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error en radiografía" },
-      { status: 500 }
-    );
-  }
+  });
 }

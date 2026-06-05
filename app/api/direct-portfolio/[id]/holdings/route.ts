@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // Helper para verificar permisos sobre el portafolio
 async function verifyPortfolioAccess(
@@ -62,7 +63,7 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-holdings-get", async () => {
     const { data: holdings, error } = await supabase
       .from("direct_portfolio_holdings")
       .select("*")
@@ -75,13 +76,8 @@ export async function GET(
       success: true,
       holdings: holdings || [],
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener holdings";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // POST - Agregar holding al portafolio
@@ -112,7 +108,7 @@ export async function POST(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-holdings-post", async () => {
     const body = await request.json();
 
     // Validar campos requeridos
@@ -169,14 +165,8 @@ export async function POST(
       success: true,
       holding,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al agregar holding";
-    console.error("Error adding holding:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // PUT - Actualizar holding (usando query param holding_id)
@@ -216,7 +206,7 @@ export async function PUT(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-holdings-put", async () => {
     const body = await request.json();
 
     // Verificar que el holding pertenece al portafolio
@@ -257,13 +247,8 @@ export async function PUT(
       success: true,
       holding,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al actualizar holding";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // DELETE - Eliminar holding
@@ -303,7 +288,7 @@ export async function DELETE(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-holdings-delete", async () => {
     // Verificar que el holding pertenece al portafolio
     const { data: existing } = await supabase
       .from("direct_portfolio_holdings")
@@ -331,11 +316,6 @@ export async function DELETE(
       success: true,
       message: "Holding eliminado correctamente",
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al eliminar holding";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

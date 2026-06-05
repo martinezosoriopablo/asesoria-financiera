@@ -3,10 +3,15 @@
 // Returns same format as PDF parser for consistency
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import * as XLSX from "xlsx";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { normalizeText } from "@/lib/text";
+import { validateUpload } from "@/lib/upload-validation";
+import { errorResponse, handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 30;
+import { normalizeText, stripAccents } from "@/lib/text";
+import { detectSerieCode } from "@/lib/fund-utils";
 
 interface Holding {
   fundName: string;
@@ -23,23 +28,6 @@ interface Holding {
 // Excel serial date range: 30000 = ~1982, 50000 = ~2036 — covers plausible financial statement dates
 const EXCEL_SERIAL_DATE_MIN = 30000;
 const EXCEL_SERIAL_DATE_MAX = 50000;
-
-// Same response format as PDF parser
-interface ParsedResponse {
-  clientName?: string;
-  accountNumber?: string;
-  period?: string;
-  beginningValue?: number;
-  endingValue?: number;
-  totalValue?: number;
-  cashBalance?: number;
-  holdings: Holding[];
-  detectedCurrency: "USD" | "CLP";
-  currencyConfidence: "high" | "medium" | "low";
-  currencyReason: string;
-  source?: string;
-  error?: string;
-}
 
 // Column name mappings for different Chilean institutions
 const COLUMN_MAPPINGS = {
@@ -363,14 +351,132 @@ function extractMetadata(data: unknown[][], headerRowIndex: number): {
   return metadata;
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse<ParsedResponse>> {
-  const blocked = await applyRateLimit(request, "parse-excel", { limit: 10, windowSeconds: 60 });
-  if (blocked) return blocked as NextResponse<ParsedResponse>;
-
-  const { error: authError } = await requireAdvisor();
-  if (authError) return authError as NextResponse<ParsedResponse>;
+/**
+ * Post-parse enrichment: resolve non-numeric securityId to fo_run
+ * when the fund name matches a fondo mutuo in the DB.
+ * e.g. "DISPONIBLE-L" with fundName "Disponible Serie L" → securityId "8052"
+ */
+async function enrichSecurityIds(holdings: Holding[]): Promise<void> {
+  const toEnrich = holdings.filter(h => {
+    const secId = (h.securityId || "").trim();
+    // Already a numeric RUN → done
+    if (/^\d{3,6}$/.test(secId)) return false;
+    // Already a CFI/CFIETF → done
+    if (/^CFI/i.test(secId)) return false;
+    // Bonds don't need enrichment
+    if (h.assetClass === "fixedIncome" || h.assetClass === "bond") return false;
+    // Has a non-empty securityId that needs resolving → yes
+    if (secId) return true;
+    // No securityId but fundName starts with "FM " → likely a fondo mutuo, try to match
+    if (/^FM\s/i.test(h.fundName)) return true;
+    return false;
+  });
+  if (toEnrich.length === 0) return;
 
   try {
+    const supabase = createAdminClient();
+
+    for (const h of toEnrich) {
+      const serie = detectSerieCode(h.fundName) || detectSerieCode(h.securityId || "");
+      // Clean fund name: strip serie suffix
+      let cleanName = h.fundName;
+      const serieIdx = cleanName.search(/\bSERIE?\b/i);
+      if (serieIdx > 0) cleanName = cleanName.slice(0, serieIdx).trim();
+
+      const nameNorm = stripAccents(cleanName.toLowerCase());
+      const words = nameNorm.split(/\s+/).filter(
+        w => w.length > 2 && !/^(fondo|mutuo|de|del|la|los|las|el|en|con|por|serie?|tipo|inv)$/i.test(w)
+      );
+      if (words.length === 0) continue;
+
+      // Detect AGF name from fundName (e.g. "FM BCI ..." → agf = "BCI")
+      const agfMatch = cleanName.match(/^FM\s+(\w+)\s/i);
+      const agfName = agfMatch?.[1]?.toUpperCase() || null;
+
+      // Search each token individually, collect all candidates, then score.
+      // Use word prefixes (first 4 chars) to handle CMF name truncations (e.g. BALANCEADA→BALAN, ESTRATEGICA→ESTR).
+      // When AGF is known, scope all queries by AGF to avoid noise.
+      const searchWords = agfName ? words.filter(w => w.toUpperCase() !== agfName) : words;
+
+      // Build search tokens: prefix (4 chars) + abbreviation expansions
+      // CMF uses multi-word abbreviations like "DC" for "Deuda Corporativa", "CD" for "Cartera Dólar"
+      const CMF_ABBREVS: Record<string, string> = {
+        "cartera dolar": "cd", "cartera dolares": "cd",
+        "deuda corporativa": "dc", "cartera patrimonial": "cp",
+      };
+      const extraTokens: string[] = [];
+      const joinedWords = searchWords.join(" ");
+      for (const [phrase, abbrev] of Object.entries(CMF_ABBREVS)) {
+        if (joinedWords.includes(phrase)) extraTokens.push(abbrev);
+      }
+
+      const candidates = new Map<string, { fo_run: number; fm_serie: string; nombre_fondo: string; nombre_agf?: string; hits: number }>();
+      const allTokens = [...searchWords.map(w => w.length > 4 ? w.slice(0, 4) : w), ...extraTokens];
+      for (const token of allTokens) {
+        let query = supabase.from("fondos_mutuos")
+          .select("fo_run, fm_serie, nombre_fondo, nombre_agf")
+          .ilike("nombre_fondo", `%${token}%`);
+        if (agfName) query = query.ilike("nombre_agf", `%${agfName}%`);
+        const { data } = await query.limit(50);
+        for (const f of (data || [])) {
+          const key = `${f.fo_run}|${f.fm_serie}`;
+          if (!candidates.has(key)) {
+            candidates.set(key, { ...f, hits: 0 });
+          }
+          candidates.get(key)!.hits++;
+        }
+      }
+
+      // Fallback: if AGF-scoped search returned nothing, try without AGF filter
+      if (candidates.size === 0 && agfName) {
+        for (const token of allTokens) {
+          const { data } = await supabase.from("fondos_mutuos")
+            .select("fo_run, fm_serie, nombre_fondo, nombre_agf")
+            .ilike("nombre_fondo", `%${token}%`)
+            .limit(50);
+          for (const f of (data || [])) {
+            const key = `${f.fo_run}|${f.fm_serie}`;
+            if (!candidates.has(key)) {
+              candidates.set(key, { ...f, hits: 0 });
+            }
+            candidates.get(key)!.hits++;
+          }
+        }
+      }
+
+      if (candidates.size === 0) continue;
+
+      // Score: token hits + serie bonus + AGF bonus
+      let bestMatch: { fo_run: number; fm_serie: string; nombre_fondo: string } | null = null;
+      let bestScore = 0;
+      for (const [, c] of candidates) {
+        let score = c.hits;
+        if (serie && c.fm_serie.toUpperCase() === serie) score += 3;
+        // Bonus if AGF matches
+        if (agfName && (c as { nombre_agf?: string }).nombre_agf?.toUpperCase() === agfName) score += 2;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = c;
+        }
+      }
+      if (!bestMatch || bestScore < 1) continue;
+
+      // Replace securityId with the numeric RUN
+      h.securityId = String(bestMatch.fo_run);
+    }
+  } catch {
+    // Non-fatal: if enrichment fails, holdings keep original securityId
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const blocked = await applyRateLimit(request, "parse-excel", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
+  return handleApiError("parse-excel-post", async () => {
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
@@ -384,7 +490,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
       }, { status: 400 });
     }
 
-    // Verify extension
+    const uploadErr = validateUpload(file, {
+      maxSizeMB: 10,
+      allowedTypes: [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+        "text/csv",
+      ],
+      allowedExtensions: [".xlsx", ".xls", ".csv"],
+    });
+    if (uploadErr) return errorResponse(uploadErr, 400);
+
+    // Verify extension (legacy check kept for specific error message)
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".csv")) {
       return NextResponse.json({
@@ -578,6 +695,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
       }
     }
 
+    // Enrich holdings: resolve non-numeric securityId to RUN when possible
+    await enrichSecurityIds(holdings);
+
     // Detect currency
     const currencyInfo = detectCurrency(holdings, totalValue);
 
@@ -598,14 +718,5 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParsedRes
       currencyReason: currencyInfo.reason,
       source,
     });
-  } catch (error) {
-    console.error("Error parsing Excel file:", error);
-    return NextResponse.json({
-      holdings: [],
-      detectedCurrency: "CLP",
-      currencyConfidence: "low",
-      currencyReason: "Parse error",
-      error: error instanceof Error ? error.message : "Error al procesar el archivo Excel",
-    }, { status: 500 });
-  }
+  });
 }

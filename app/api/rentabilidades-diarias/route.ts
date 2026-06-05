@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdvisor, requireAdmin, createAdminClient } from '@/lib/auth/api-auth';
 import * as XLSX from 'xlsx';
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // Interfaces for Excel data processing
 interface ExcelRow {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("rentabilidades-diarias-get", async () => {
     // Leer headers
     const fo_run = request.headers.get('x-fo-run');
     const fm_serie = request.headers.get('x-fm-serie');
@@ -75,14 +76,7 @@ export async function GET(request: NextRequest) {
       datos: datos,
       total: datos.length
     });
-
-  } catch (error: unknown) {
-    console.error('❌ Error en API rentabilidades-diarias GET:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -94,7 +88,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("rentabilidades-diarias-post", async () => {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fo_run = formData.get('fo_run') as string;
@@ -314,14 +308,7 @@ export async function POST(request: NextRequest) {
       modo: modo,
       primerosErrores: erroresDetalle.slice(0, 5)
     });
-
-  } catch (error: unknown) {
-    console.error('❌ Error en API rentabilidades-diarias POST:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function DELETE(request: NextRequest) {
@@ -333,7 +320,7 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("rentabilidades-diarias-delete", async () => {
     const body = await request.json();
     const { fo_run, fm_serie } = body;
 
@@ -374,12 +361,5 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-
-  } catch (error: unknown) {
-    console.error('❌ Error en DELETE:', error);
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    );
-  }
+  });
 }

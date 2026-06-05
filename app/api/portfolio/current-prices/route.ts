@@ -7,6 +7,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { getLatestPrice } from "@/lib/fintual-api";
 import { stripAccents } from "@/lib/text";
 import { detectSerieCode } from "@/lib/fund-utils";
+import { handleApiError } from "@/lib/api-response";
 
 // Cache for dólar observado by date
 const dolarCache = new Map<string, number>();
@@ -420,7 +421,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("current-prices-post", async () => {
     const { holdings, clientId } = await request.json() as { holdings: HoldingInput[]; clientId?: string };
 
     if (!holdings || !Array.isArray(holdings)) {
@@ -719,13 +720,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, prices: results });
-  } catch (error) {
-    console.error("Error in current-prices:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error obteniendo precios" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 function pickBestSerie(

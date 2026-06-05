@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - List advisor's preferred funds, enriched with ficha data
 export async function GET(request: NextRequest) {
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
+  return handleApiError("preferred-funds-get", async () => {
   const { data, error } = await supabase
     .from("advisor_preferred_funds")
     .select("*")
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
     .eq("active", true)
     .order("category", { ascending: true });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) throw error;
   if (!data || data.length === 0) return NextResponse.json({ success: true, funds: [] });
 
   // Enrich with fichas data (TAC, beneficios tributarios, objetivo)
@@ -98,6 +100,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ success: true, funds: enrichedFunds });
+  });
 }
 
 function formatBeneficio(ficha: {
@@ -123,36 +126,39 @@ export async function POST(request: NextRequest) {
   if (authError) return authError;
 
   const supabase = createAdminClient();
-  const body = await request.json();
-  const { fund_run, fund_name, category, notes, ticker, instrument_type, expense_ratio, description, custodian_type } = body;
 
-  if (!fund_run && !ticker) {
-    return NextResponse.json({ error: "fund_run o ticker requerido" }, { status: 400 });
-  }
+  return handleApiError("preferred-funds-post", async () => {
+    const body = await request.json();
+    const { fund_run, fund_name, category, notes, ticker, instrument_type, expense_ratio, description, custodian_type } = body;
 
-  // For ETFs/stocks/bonds, generate a placeholder fund_run from ticker
-  const effectiveFundRun = fund_run || `ETF-${ticker}`;
+    if (!fund_run && !ticker) {
+      return NextResponse.json({ error: "fund_run o ticker requerido" }, { status: 400 });
+    }
 
-  const { data, error } = await supabase
-    .from("advisor_preferred_funds")
-    .upsert({
-      advisor_id: advisor!.id,
-      fund_run: effectiveFundRun,
-      fund_name: fund_name || null,
-      category: category || null,
-      notes: notes || null,
-      ticker: ticker || null,
-      instrument_type: instrument_type || "fund",
-      expense_ratio: expense_ratio ?? null,
-      description: description || null,
-      custodian_type: custodian_type || "agf",
-      active: true,
-    }, { onConflict: "advisor_id,fund_run" })
-    .select()
-    .single();
+    // For ETFs/stocks/bonds, generate a placeholder fund_run from ticker
+    const effectiveFundRun = fund_run || `ETF-${ticker}`;
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, fund: data });
+    const { data, error } = await supabase
+      .from("advisor_preferred_funds")
+      .upsert({
+        advisor_id: advisor!.id,
+        fund_run: effectiveFundRun,
+        fund_name: fund_name || null,
+        category: category || null,
+        notes: notes || null,
+        ticker: ticker || null,
+        instrument_type: instrument_type || "fund",
+        expense_ratio: expense_ratio ?? null,
+        description: description || null,
+        custodian_type: custodian_type || "agf",
+        active: true,
+      }, { onConflict: "advisor_id,fund_run" })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ success: true, fund: data });
+  });
 }
 
 // PATCH - Update category/notes on a preferred fund
@@ -164,29 +170,32 @@ export async function PATCH(request: NextRequest) {
   if (authError) return authError;
 
   const supabase = createAdminClient();
-  const { id, category, notes, ticker, instrument_type, expense_ratio, description, custodian_type } = await request.json();
 
-  if (!id) {
-    return NextResponse.json({ error: "id requerido" }, { status: 400 });
-  }
+  return handleApiError("preferred-funds-patch", async () => {
+    const { id, category, notes, ticker, instrument_type, expense_ratio, description, custodian_type } = await request.json();
 
-  const updates: Record<string, unknown> = {};
-  if (category !== undefined) updates.category = category || null;
-  if (notes !== undefined) updates.notes = notes || null;
-  if (ticker !== undefined) updates.ticker = ticker || null;
-  if (instrument_type !== undefined) updates.instrument_type = instrument_type;
-  if (expense_ratio !== undefined) updates.expense_ratio = expense_ratio;
-  if (description !== undefined) updates.description = description || null;
-  if (custodian_type !== undefined) updates.custodian_type = custodian_type;
+    if (!id) {
+      return NextResponse.json({ error: "id requerido" }, { status: 400 });
+    }
 
-  const { error } = await supabase
-    .from("advisor_preferred_funds")
-    .update(updates)
-    .eq("id", id)
-    .eq("advisor_id", advisor!.id);
+    const updates: Record<string, unknown> = {};
+    if (category !== undefined) updates.category = category || null;
+    if (notes !== undefined) updates.notes = notes || null;
+    if (ticker !== undefined) updates.ticker = ticker || null;
+    if (instrument_type !== undefined) updates.instrument_type = instrument_type;
+    if (expense_ratio !== undefined) updates.expense_ratio = expense_ratio;
+    if (description !== undefined) updates.description = description || null;
+    if (custodian_type !== undefined) updates.custodian_type = custodian_type;
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+    const { error } = await supabase
+      .from("advisor_preferred_funds")
+      .update(updates)
+      .eq("id", id)
+      .eq("advisor_id", advisor!.id);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  });
 }
 
 // DELETE - Remove a fund from preferred list (soft delete)
@@ -198,19 +207,22 @@ export async function DELETE(request: NextRequest) {
   if (authError) return authError;
 
   const supabase = createAdminClient();
-  const { searchParams } = new URL(request.url);
-  const fundId = searchParams.get("id");
 
-  if (!fundId) {
-    return NextResponse.json({ error: "id requerido" }, { status: 400 });
-  }
+  return handleApiError("preferred-funds-delete", async () => {
+    const { searchParams } = new URL(request.url);
+    const fundId = searchParams.get("id");
 
-  const { error } = await supabase
-    .from("advisor_preferred_funds")
-    .update({ active: false })
-    .eq("id", fundId)
-    .eq("advisor_id", advisor!.id);
+    if (!fundId) {
+      return NextResponse.json({ error: "id requerido" }, { status: 400 });
+    }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+    const { error } = await supabase
+      .from("advisor_preferred_funds")
+      .update({ active: false })
+      .eq("id", fundId)
+      .eq("advisor_id", advisor!.id);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  });
 }

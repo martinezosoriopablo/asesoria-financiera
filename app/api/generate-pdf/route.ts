@@ -6,6 +6,9 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { PortfolioComparisonPDF } from "@/components/pdf/PortfolioComparisonPDF";
 import React from "react";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "generate-pdf", { limit: 10, windowSeconds: 60 });
@@ -14,12 +17,11 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  try {
+  return handleApiError("generate-pdf-post", async () => {
     const data = await request.json();
 
     // Validar datos mínimos
     if (!data.assetClasses || data.assetClasses.length === 0) {
-      console.error("❌ No hay asset classes en los datos");
       return NextResponse.json(
         { success: false, error: "No hay datos para generar el PDF" },
         { status: 400 }
@@ -38,18 +40,5 @@ export async function POST(request: NextRequest) {
         "Content-Disposition": `attachment; filename="comparacion-portafolio-${Date.now()}.pdf"`,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error generando PDF:", error);
-    if (error instanceof Error) {
-      console.error("Stack trace:", error.stack);
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error al generar PDF",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

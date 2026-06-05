@@ -4,8 +4,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { exchangeCodeForTokens } from "@/lib/google/calendar-client";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
+  return handleApiError("google-callback-get", async () => {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
@@ -118,4 +120,5 @@ export async function GET(request: NextRequest) {
     response.cookies.delete("google_oauth_state");
     return response;
   }
+  });
 }

@@ -13,6 +13,7 @@ import {
   calculateBondMetrics,
 } from "@/lib/finnhub/bond-client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 type RangeType = "1mo" | "3mo" | "6mo" | "1y" | "2y" | "5y";
 
@@ -71,7 +72,7 @@ export async function GET(
     );
   }
 
-  try {
+  return handleApiError("bonds-historical-get", async () => {
     const days = RANGE_TO_DAYS[range];
 
     // Obtener datos históricos
@@ -114,12 +115,5 @@ export async function GET(
       } : null,
       profile,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error obteniendo datos históricos del bono";
-    console.error("Bond historical error:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

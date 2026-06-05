@@ -77,6 +77,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       },
       redirect: "manual", // Don't follow redirects — we need the Set-Cookie from first response
+      signal: AbortSignal.timeout(30000),
     });
 
     // Extract cookies — try multiple methods for compatibility
@@ -101,6 +102,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
         const redirectRes = await fetch(redirectUrl, {
           method: "GET",
           headers: { ...browserHeaders, Cookie: cookies },
+          signal: AbortSignal.timeout(30000),
         });
         let moreCookies: string[] = [];
         if (typeof redirectRes.headers.getSetCookie === "function") {
@@ -132,6 +134,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
     method: "POST",
     headers: exportHeaders,
     body: body.toString(),
+    signal: AbortSignal.timeout(30000),
   });
 
   // Retry once on 403: re-establish session and try again
@@ -141,6 +144,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
       const retryPage = await fetch(`${AAFM_BASE}/Rentabilities`, {
         method: "GET",
         headers: { ...browserHeaders, "Accept": "text/html" },
+        signal: AbortSignal.timeout(30000),
       });
       let retryCookies: string[] = [];
       if (typeof retryPage.headers.getSetCookie === "function") {
@@ -156,6 +160,7 @@ export async function fetchAAFMData(date?: Date): Promise<Buffer | AAFMFundRow[]
           method: "POST",
           headers: exportHeaders,
           body: body.toString(),
+          signal: AbortSignal.timeout(30000),
         });
       }
     } catch {

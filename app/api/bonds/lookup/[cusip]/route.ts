@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { lookupSymbol, makeHeaders } from "@/lib/finra/historical";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(
   _request: NextRequest,
@@ -14,7 +15,7 @@ export async function GET(
     return NextResponse.json({ success: false, error: "Invalid CUSIP" }, { status: 400 });
   }
 
-  try {
+  return handleApiError("bonds-lookup-get", async () => {
     const headers = makeHeaders();
     const bond = await lookupSymbol(cusip, headers);
 
@@ -31,8 +32,5 @@ export async function GET(
         maturityDate: bond.maturityDate,
       },
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "FINRA lookup error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  });
 }

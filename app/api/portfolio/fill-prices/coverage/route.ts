@@ -6,12 +6,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fill-coverage", { limit: 20, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("fill-prices-coverage-get", async () => {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -113,11 +114,5 @@ export async function GET(request: NextRequest) {
         snapshotDate: latestCartola.snapshot_date,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in coverage:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -3,10 +3,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
 export async function GET(request: NextRequest) {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   const blocked = await applyRateLimit(request, "funds-etf-profile", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
@@ -17,7 +22,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
+  return handleApiError("etf-profile-get", async () => {
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get("symbol");
 
@@ -92,14 +97,5 @@ export async function GET(request: NextRequest) {
       rawProfile: profileData,
       rawOverview: overviewData,
     });
-  } catch (error: unknown) {
-    console.error("Error obteniendo perfil de ETF:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error al obtener perfil",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

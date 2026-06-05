@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireClient } from "@/lib/auth/require-client";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET() {
   const { client, error } = await requireClient();
@@ -8,6 +9,7 @@ export async function GET() {
 
   const admin = createAdminClient();
 
+  return handleApiError("portal-me-get", async () => {
   // Obtener perfil de riesgo
   const { data: riskProfile } = await admin
     .from("risk_profiles")
@@ -67,5 +69,6 @@ export async function GET() {
     hasSnapshots: (snapshotCount || 0) > 0,
     questionnaireLink,
     unreadReports: unreadReports || 0,
+  });
   });
 }

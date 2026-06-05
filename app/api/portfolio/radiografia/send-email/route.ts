@@ -5,6 +5,8 @@ import { successResponse, errorResponse, handleApiError } from "@/lib/api-respon
 import { buildRadiografiaHTML, type RadiografiaEmailData } from "@/lib/radiografia-email";
 import { Resend } from "resend";
 
+export const maxDuration = 30;
+
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "radiografia-send-email", { limit: 5 });
   if (blocked) return blocked;

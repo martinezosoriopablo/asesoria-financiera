@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener un portafolio específico
 export async function GET(
@@ -19,7 +20,7 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-get", async () => {
     // Obtener el portafolio
     const { data: portfolio, error } = await supabase
       .from("direct_portfolios")
@@ -76,14 +77,8 @@ export async function GET(
       success: true,
       portfolio,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener portafolio";
-    console.error("Error fetching portfolio:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // PUT - Actualizar un portafolio
@@ -100,7 +95,7 @@ export async function PUT(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-put", async () => {
     // Verificar que el portafolio existe y el usuario tiene permisos
     const { data: existing } = await supabase
       .from("direct_portfolios")
@@ -166,14 +161,8 @@ export async function PUT(
       success: true,
       portfolio,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al actualizar portafolio";
-    console.error("Error updating portfolio:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // DELETE - Eliminar portafolio (soft delete)
@@ -190,7 +179,7 @@ export async function DELETE(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("direct-portfolio-id-delete", async () => {
     // Verificar permisos
     const { data: existing } = await supabase
       .from("direct_portfolios")
@@ -229,12 +218,6 @@ export async function DELETE(
       success: true,
       message: "Portafolio eliminado correctamente",
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al eliminar portafolio";
-    console.error("Error deleting portfolio:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

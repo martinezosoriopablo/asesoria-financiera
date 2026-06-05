@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +22,12 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-  const params = request.nextUrl.searchParams;
-  const id = params.get("id");
-  const q = params.get("q");
-  const dias = parseInt(params.get("dias") || "15", 10);
-
-  try {
+  return handleApiError("fondos-inversion-lookup-get", async () => {
+    const supabase = createAdminClient();
+    const params = request.nextUrl.searchParams;
+    const id = params.get("id");
+    const q = params.get("q");
+    const dias = parseInt(params.get("dias") || "15", 10);
     // Mode 1: Single FI detail
     if (id) {
       const { data: fondo, error } = await supabase
@@ -162,11 +162,5 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, results });
-  } catch (error) {
-    console.error("FI lookup error:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error en consulta" },
-      { status: 500 }
-    );
-  }
+  });
 }

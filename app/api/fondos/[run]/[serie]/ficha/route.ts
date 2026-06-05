@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractText } from "unpdf";
+import { handleApiError } from "@/lib/api-response";
 
 interface ExtractedFichaData {
   beneficio_107lir: boolean;
@@ -122,73 +123,75 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-  const { run, serie } = await context.params;
-  const foRun = parseInt(run);
+  return handleApiError("ficha-get", async () => {
+    const supabase = createAdminClient();
+    const { run, serie } = await context.params;
+    const foRun = parseInt(run);
 
-  if (isNaN(foRun)) {
-    return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
-  }
+    if (isNaN(foRun)) {
+      return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
+    }
 
-  // Try exact match first (fo_run + serie), fallback to fo_run only
-  // Sync from CMF saves with the CMF serie (e.g. "A") which may differ from the DB serie (e.g. "ADC")
-  let { data: ficha } = await supabase
-    .from("fund_fichas")
-    .select("*")
-    .eq("fo_run", foRun)
-    .eq("fm_serie", serie)
-    .single();
-
-  if (!ficha) {
-    // Fallback: get any ficha for this fo_run (CMF serie may differ)
-    ({ data: ficha } = await supabase
+    // Try exact match first (fo_run + serie), fallback to fo_run only
+    // Sync from CMF saves with the CMF serie (e.g. "A") which may differ from the DB serie (e.g. "ADC")
+    let { data: ficha } = await supabase
       .from("fund_fichas")
       .select("*")
       .eq("fo_run", foRun)
-      .limit(1)
-      .single());
-  }
+      .eq("fm_serie", serie)
+      .single();
 
-  let pdfUrl: string | null = null;
-  if (ficha?.ficha_pdf_path) {
-    const { data: signedUrl } = await supabase.storage
-      .from("fund-fichas")
-      .createSignedUrl(ficha.ficha_pdf_path, 3600);
-    pdfUrl = signedUrl?.signedUrl || null;
-  }
+    if (!ficha) {
+      // Fallback: get any ficha for this fo_run (CMF serie may differ)
+      ({ data: ficha } = await supabase
+        .from("fund_fichas")
+        .select("*")
+        .eq("fo_run", foRun)
+        .limit(1)
+        .single());
+    }
 
-  // Build extracted data from DB columns (persisted from PDF upload)
-  const extractedFromDb = ficha?.tac_serie != null ? {
-    tac_serie: ficha.tac_serie ? Number(ficha.tac_serie) : null,
-    nombre_fondo: ficha.nombre_fondo_pdf,
-    serie_detectada: ficha.serie_detectada,
-    rentabilidades: {
-      rent_1m: ficha.rent_1m ? Number(ficha.rent_1m) : null,
-      rent_3m: ficha.rent_3m ? Number(ficha.rent_3m) : null,
-      rent_6m: ficha.rent_6m ? Number(ficha.rent_6m) : null,
-      rent_12m: ficha.rent_12m ? Number(ficha.rent_12m) : null,
-    },
-    rescatable: ficha.rescatable,
-    plazo_rescate: ficha.plazo_rescate,
-    horizonte_inversion: ficha.horizonte_inversion,
-    tolerancia_riesgo: ficha.tolerancia_riesgo,
-    objetivo: ficha.objetivo,
-  } : null;
+    let pdfUrl: string | null = null;
+    if (ficha?.ficha_pdf_path) {
+      const { data: signedUrl } = await supabase.storage
+        .from("fund-fichas")
+        .createSignedUrl(ficha.ficha_pdf_path, 3600);
+      pdfUrl = signedUrl?.signedUrl || null;
+    }
 
-  return NextResponse.json({
-    success: true,
-    ficha: ficha || {
-      fo_run: foRun,
-      fm_serie: serie,
-      beneficio_107lir: false,
-      beneficio_108lir: false,
-      beneficio_apv: false,
-      beneficio_57bis: false,
-      notas_tributarias: null,
-      ficha_pdf_path: null,
-    },
-    pdfUrl,
-    extracted: extractedFromDb,
+    // Build extracted data from DB columns (persisted from PDF upload)
+    const extractedFromDb = ficha?.tac_serie != null ? {
+      tac_serie: ficha.tac_serie ? Number(ficha.tac_serie) : null,
+      nombre_fondo: ficha.nombre_fondo_pdf,
+      serie_detectada: ficha.serie_detectada,
+      rentabilidades: {
+        rent_1m: ficha.rent_1m ? Number(ficha.rent_1m) : null,
+        rent_3m: ficha.rent_3m ? Number(ficha.rent_3m) : null,
+        rent_6m: ficha.rent_6m ? Number(ficha.rent_6m) : null,
+        rent_12m: ficha.rent_12m ? Number(ficha.rent_12m) : null,
+      },
+      rescatable: ficha.rescatable,
+      plazo_rescate: ficha.plazo_rescate,
+      horizonte_inversion: ficha.horizonte_inversion,
+      tolerancia_riesgo: ficha.tolerancia_riesgo,
+      objetivo: ficha.objetivo,
+    } : null;
+
+    return NextResponse.json({
+      success: true,
+      ficha: ficha || {
+        fo_run: foRun,
+        fm_serie: serie,
+        beneficio_107lir: false,
+        beneficio_108lir: false,
+        beneficio_apv: false,
+        beneficio_57bis: false,
+        notas_tributarias: null,
+        ficha_pdf_path: null,
+      },
+      pdfUrl,
+      extracted: extractedFromDb,
+    });
   });
 }
 
@@ -200,57 +203,59 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   const { user, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-  const { run, serie } = await context.params;
-  const foRun = parseInt(run);
+  return handleApiError("ficha-put", async () => {
+    const supabase = createAdminClient();
+    const { run, serie } = await context.params;
+    const foRun = parseInt(run);
 
-  if (isNaN(foRun)) {
-    return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
-  }
+    if (isNaN(foRun)) {
+      return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
+    }
 
-  const body = await request.json();
-  const updates = {
-    beneficio_107lir: !!body.beneficio_107lir,
-    beneficio_108lir: !!body.beneficio_108lir,
-    beneficio_apv: !!body.beneficio_apv,
-    beneficio_57bis: !!body.beneficio_57bis,
-    notas_tributarias: body.notas_tributarias || null,
-    updated_at: new Date().toISOString(),
-    updated_by: user!.id,
-  };
+    const body = await request.json();
+    const updates = {
+      beneficio_107lir: !!body.beneficio_107lir,
+      beneficio_108lir: !!body.beneficio_108lir,
+      beneficio_apv: !!body.beneficio_apv,
+      beneficio_57bis: !!body.beneficio_57bis,
+      notas_tributarias: body.notas_tributarias || null,
+      updated_at: new Date().toISOString(),
+      updated_by: user!.id,
+    };
 
-  // Check if row exists
-  const { data: existing } = await supabase
-    .from("fund_fichas")
-    .select("id")
-    .eq("fo_run", foRun)
-    .eq("fm_serie", serie)
-    .single();
-
-  let data, error;
-  if (existing) {
-    // UPDATE only benefit fields (preserve ficha_pdf_path etc)
-    ({ data, error } = await supabase
+    // Check if row exists
+    const { data: existing } = await supabase
       .from("fund_fichas")
-      .update(updates)
+      .select("id")
       .eq("fo_run", foRun)
       .eq("fm_serie", serie)
-      .select()
-      .single());
-  } else {
-    // INSERT new row
-    ({ data, error } = await supabase
-      .from("fund_fichas")
-      .insert({ fo_run: foRun, fm_serie: serie, ...updates })
-      .select()
-      .single());
-  }
+      .single();
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
+    let data, error;
+    if (existing) {
+      // UPDATE only benefit fields (preserve ficha_pdf_path etc)
+      ({ data, error } = await supabase
+        .from("fund_fichas")
+        .update(updates)
+        .eq("fo_run", foRun)
+        .eq("fm_serie", serie)
+        .select()
+        .single());
+    } else {
+      // INSERT new row
+      ({ data, error } = await supabase
+        .from("fund_fichas")
+        .insert({ fo_run: foRun, fm_serie: serie, ...updates })
+        .select()
+        .single());
+    }
 
-  return NextResponse.json({ success: true, ficha: data });
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, ficha: data });
+  });
 }
 
 // POST - Upload PDF ficha
@@ -261,15 +266,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const { user, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-  const { run, serie } = await context.params;
-  const foRun = parseInt(run);
+  return handleApiError("ficha-upload-post", async () => {
+    const supabase = createAdminClient();
+    const { run, serie } = await context.params;
+    const foRun = parseInt(run);
 
-  if (isNaN(foRun)) {
-    return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
-  }
+    if (isNaN(foRun)) {
+      return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
+    }
 
-  try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -379,10 +384,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       ficha_pdf_path: filePath,
       extracted,
     });
-  } catch (error) {
-    console.error("Error uploading ficha PDF:", error);
-    return NextResponse.json({ success: false, error: "Error al subir ficha" }, { status: 500 });
-  }
+  });
 }
 
 // DELETE - Remove PDF ficha
@@ -393,37 +395,39 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   const { user, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-  const { run, serie } = await context.params;
-  const foRun = parseInt(run);
+  return handleApiError("ficha-delete", async () => {
+    const supabase = createAdminClient();
+    const { run, serie } = await context.params;
+    const foRun = parseInt(run);
 
-  if (isNaN(foRun)) {
-    return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
-  }
+    if (isNaN(foRun)) {
+      return NextResponse.json({ success: false, error: "run inválido" }, { status: 400 });
+    }
 
-  const { data: ficha } = await supabase
-    .from("fund_fichas")
-    .select("ficha_pdf_path")
-    .eq("fo_run", foRun)
-    .eq("fm_serie", serie)
-    .single();
+    const { data: ficha } = await supabase
+      .from("fund_fichas")
+      .select("ficha_pdf_path")
+      .eq("fo_run", foRun)
+      .eq("fm_serie", serie)
+      .single();
 
-  if (!ficha?.ficha_pdf_path) {
-    return NextResponse.json({ success: false, error: "No hay ficha PDF" }, { status: 404 });
-  }
+    if (!ficha?.ficha_pdf_path) {
+      return NextResponse.json({ success: false, error: "No hay ficha PDF" }, { status: 404 });
+    }
 
-  await supabase.storage.from("fund-fichas").remove([ficha.ficha_pdf_path]);
+    await supabase.storage.from("fund-fichas").remove([ficha.ficha_pdf_path]);
 
-  await supabase
-    .from("fund_fichas")
-    .update({
-      ficha_pdf_path: null,
-      ficha_pdf_uploaded_at: null,
-      updated_at: new Date().toISOString(),
-      updated_by: user!.id,
-    })
-    .eq("fo_run", foRun)
-    .eq("fm_serie", serie);
+    await supabase
+      .from("fund_fichas")
+      .update({
+        ficha_pdf_path: null,
+        ficha_pdf_uploaded_at: null,
+        updated_at: new Date().toISOString(),
+        updated_by: user!.id,
+      })
+      .eq("fo_run", foRun)
+      .eq("fm_serie", serie);
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  });
 }

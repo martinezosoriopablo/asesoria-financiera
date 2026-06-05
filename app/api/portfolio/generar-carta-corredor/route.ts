@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { trackAIUsage } from "@/lib/ai-usage";
+import { handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 
 interface Operacion {
   tipo: "comprar" | "vender";
@@ -22,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("generar-carta-corredor-post", async () => {
     const body = await request.json();
     const { clientId, operaciones } = body as { clientId: string; operaciones: Operacion[] };
 
@@ -113,11 +116,5 @@ Responde SOLO en formato JSON valido, sin texto adicional:
     }
 
     return NextResponse.json({ success: true, carta });
-  } catch (error) {
-    console.error("Error generating carta corredor:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error al generar carta" },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -70,6 +70,7 @@ export async function getProviders(): Promise<FintualProvider[]> {
   const response = await fetch(`${FINTUAL_API_BASE}/asset_providers`, {
     headers: { Accept: "application/json" },
     next: { revalidate: 86400 }, // Cache 24 horas
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {
@@ -87,6 +88,7 @@ export async function getProviderFunds(providerId: string): Promise<FintualConce
     {
       headers: { Accept: "application/json" },
       next: { revalidate: 3600 }, // Cache 1 hora
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -107,6 +109,7 @@ export async function getFundSeries(conceptualAssetId: string): Promise<FintualR
     {
       headers: { Accept: "application/json" },
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -136,6 +139,7 @@ export async function getSeriesPrices(
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
     next: { revalidate: 300 }, // Cache 5 minutos
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {

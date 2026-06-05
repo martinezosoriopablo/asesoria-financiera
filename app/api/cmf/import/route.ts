@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { importCMFRows, parseCMFContent } from "@/lib/cmf-import";
+import { handleApiError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "cmf-import", { limit: 5, windowSeconds: 300 });
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
-  try {
+  return handleApiError("cmf-import-post", async () => {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -83,13 +84,7 @@ export async function POST(request: NextRequest) {
       },
       result,
     });
-  } catch (error) {
-    console.error("Error in CMF import:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error importando cartola CMF" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -99,9 +94,9 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("cmf-import-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     // Get latest CMF import date and counts
     const { data: latest } = await supabase
       .from("fund_cuota_history")
@@ -134,13 +129,7 @@ export async function GET(request: NextRequest) {
       totalFondos: totalFondos || 0,
       todayPrices: todayPrices || 0,
     });
-  } catch (error) {
-    console.error("Error checking CMF status:", error);
-    return NextResponse.json(
-      { success: false, error: "Error consultando estado CMF" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // parseCMFContent is now imported from @/lib/cmf-import

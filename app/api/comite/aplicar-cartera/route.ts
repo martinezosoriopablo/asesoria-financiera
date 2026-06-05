@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface CarteraPosition {
   clase: string;
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "aplicar-cartera", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("comite-aplicar-cartera-post", async () => {
     const { user, error: authError } = await requireAdvisor();
     if (authError) return authError;
 
@@ -229,12 +230,6 @@ export async function POST(request: NextRequest) {
         })),
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in aplicar-cartera:", error);
-    const message = error instanceof Error ? error.message : "Error interno";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

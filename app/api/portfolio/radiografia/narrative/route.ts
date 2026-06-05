@@ -4,6 +4,8 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { trackAIUsage } from "@/lib/ai-usage";
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "radiografia-narrative", { limit: 5 });
   if (blocked) return blocked;

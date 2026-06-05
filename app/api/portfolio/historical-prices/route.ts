@@ -5,6 +5,7 @@ import { preloadYear, getDolarObservado } from "@/lib/bcch";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
 import { detectSerieCode } from "@/lib/fund-utils";
 import { stripAccents } from "@/lib/text";
+import { handleApiError } from "@/lib/api-response";
 
 // POST /api/portfolio/historical-prices
 // Producto punto: vector de cuotas × vector de precios por fecha
@@ -36,12 +37,13 @@ interface InternationalHoldingInput {
 }
 
 export async function POST(req: NextRequest) {
-  try {
   const blocked = await applyRateLimit(req, "historical-prices", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
+
+  return handleApiError("historical-prices-post", async () => {
   const { holdings, holdingsByName, internationalHoldings, fromDate } = await req.json() as {
     holdings: HoldingInput[];
     holdingsByName?: HoldingByNameInput[];
@@ -591,14 +593,7 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ success: true, funds, series: filteredSeries });
-
-  } catch (err) {
-    console.error("historical-prices error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // Dólar observado functions now centralized in lib/bcch.ts

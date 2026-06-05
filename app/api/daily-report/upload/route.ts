@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { distributeDailyReport } from "@/lib/daily-report-distribution";
+import { validateUpload } from "@/lib/upload-validation";
+import { errorResponse, handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 120;
 
@@ -20,7 +22,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
+  return handleApiError("daily-report-upload-post", async () => {
     const formData = await request.formData();
     const html = formData.get("html") as string | null;
     const subject = formData.get("subject") as string | null;
@@ -48,13 +50,12 @@ export async function POST(request: NextRequest) {
     // Upload podcast to Supabase Storage if provided
     let podcastUrl: string | null = null;
     if (podcastFile) {
-      const maxSize = 50 * 1024 * 1024; // 50MB
-      if (podcastFile.size > maxSize) {
-        return NextResponse.json(
-          { error: "Podcast file too large (max 50MB)" },
-          { status: 400 }
-        );
-      }
+      const podcastErr = validateUpload(podcastFile, {
+        maxSizeMB: 50,
+        allowedTypes: ["audio/mpeg", "audio/mp3"],
+        allowedExtensions: [".mp3"],
+      });
+      if (podcastErr) return errorResponse(podcastErr, 400);
 
       const filePath = `${reportDate}/${period}.mp3`;
       const buffer = Buffer.from(await podcastFile.arrayBuffer());
@@ -148,9 +149,5 @@ export async function POST(request: NextRequest) {
       distributed: shouldDistribute,
       distribution,
     });
-  } catch (err) {
-    console.error("Error uploading daily report:", err);
-    const msg = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  });
 }

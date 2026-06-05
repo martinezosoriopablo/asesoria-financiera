@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -49,7 +50,7 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-cartolas-get", async () => {
     const { id: clientId } = await context.params;
 
     const access = await checkClientAccess(supabase, clientId, advisor!);
@@ -98,10 +99,8 @@ export async function GET(
         porcentajes: porcentajesConsolidados,
       },
     });
-  } catch (error) {
-    console.error("Error fetching cartolas:", error);
-    return NextResponse.json({ success: false, error: "Error al obtener cartolas" }, { status: 500 });
-  }
+  
+  });
 }
 
 // POST - Agregar nueva cartola
@@ -117,7 +116,7 @@ export async function POST(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-cartolas-post", async () => {
     const { id: clientId } = await context.params;
     const body = await request.json();
 
@@ -153,10 +152,8 @@ export async function POST(
     if (error) throw error;
 
     return NextResponse.json({ success: true, cartola });
-  } catch (error) {
-    console.error("Error creating cartola:", error);
-    return NextResponse.json({ success: false, error: "Error al crear cartola" }, { status: 500 });
-  }
+  
+  });
 }
 
 // DELETE - Eliminar cartola específica
@@ -172,7 +169,7 @@ export async function DELETE(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-cartolas-delete", async () => {
     const { id: clientId } = await context.params;
     const { searchParams } = new URL(request.url);
     const cartolaId = searchParams.get("cartola_id");
@@ -196,8 +193,6 @@ export async function DELETE(
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting cartola:", error);
-    return NextResponse.json({ success: false, error: "Error al eliminar cartola" }, { status: 500 });
-  }
+  
+  });
 }

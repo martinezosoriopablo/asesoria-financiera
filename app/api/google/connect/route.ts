@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { isGoogleCalendarConfigured, getGoogleAuthUrl } from "@/lib/google/calendar-client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "google-connect", { limit: 30, windowSeconds: 60 });
@@ -14,6 +15,7 @@ export async function GET(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
+  return handleApiError("google-connect-get", async () => {
   // Verificar si Google Calendar está configurado
   if (!isGoogleCalendarConfigured()) {
     return NextResponse.json(
@@ -48,4 +50,5 @@ export async function GET(request: NextRequest) {
   });
 
   return response;
+  });
 }

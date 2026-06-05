@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { getSeriesPrices, calculateReturns, DividendAdjustment } from "@/lib/fintual-api";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET: Obtener precios de un fondo
 export async function GET(request: NextRequest) {
@@ -14,9 +15,9 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("fintual-prices-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const { searchParams } = new URL(request.url);
     const fintualId = searchParams.get("fintual_id");
     const fundId = searchParams.get("fund_id");
@@ -105,16 +106,7 @@ export async function GET(request: NextRequest) {
         dividendAdjustment: dividendAdjustment || null,
       },
     });
-  } catch (error) {
-    console.error("Error fetching prices:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // POST: Sincronizar precios de uno o varios fondos
@@ -125,9 +117,9 @@ export async function POST(request: NextRequest) {
   const { error: authError2 } = await requireAdvisor();
   if (authError2) return authError2;
 
-  const supabase = createAdminClient();
+  return handleApiError("fintual-prices-sync-post", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const body = await request.json();
     const { fintual_ids, days = 365 } = body;
 
@@ -221,14 +213,5 @@ export async function POST(request: NextRequest) {
       message: `Sincronizados ${results.synced} fondos`,
       results,
     });
-  } catch (error) {
-    console.error("Error in price sync:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
   const q = params.get("q");
   const dias = parseInt(params.get("dias") || "10", 10);
 
-  try {
+  return handleApiError("fondos-lookup-get", async () => {
     // Mode 1: Get single fondo detail
     if (id) {
       const { data: fondo, error } = await supabase
@@ -139,13 +140,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, results });
-  } catch (error) {
-    console.error("Fondos lookup error:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error en consulta" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 function daysSince(dateStr: string): number {

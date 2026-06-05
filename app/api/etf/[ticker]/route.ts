@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ETF_DATABASE } from "@/lib/ETF_DATABASE";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 // API key se lee dentro de la función para asegurar que se obtiene en runtime
 
@@ -11,10 +13,13 @@ interface RouteParams {
 }
 
 export async function GET(request: NextRequest, context: RouteParams) {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   const blocked = await applyRateLimit(request, "etf-data", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("etf-ticker-get", async () => {
     const resolvedParams = await context.params;
     const ticker = resolvedParams.ticker.toUpperCase();
     const period = request.nextUrl.searchParams.get("period") || "5y";
@@ -169,16 +174,5 @@ export async function GET(request: NextRequest, context: RouteParams) {
     };
 
     return NextResponse.json(response);
-
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Error al obtener datos";
-    console.error("❌ ERROR:", errorMessage);
-    return NextResponse.json(
-      {
-        error: errorMessage,
-        ticker: (await context.params).ticker,
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

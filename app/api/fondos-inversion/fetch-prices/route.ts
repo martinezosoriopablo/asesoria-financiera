@@ -7,6 +7,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { scrapeFIPrices } from "@/lib/cmf-fi-auto";
 import { importFIRows } from "@/lib/cmf-fi-import";
+import { handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 120; // Allow up to 2 minutes for captcha solving
 
@@ -17,9 +18,9 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("fi-fetch-prices-post", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const { rut, desde, hasta } = await request.json();
 
     if (!rut) {
@@ -47,9 +48,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Default date range: last 30 days
+    // Default date range: full history (desde 2005-01-01 covers all FI in CMF)
     const hastaDate = hasta ? new Date(hasta + "T12:00:00") : new Date();
-    const desdeDate = desde ? new Date(desde + "T12:00:00") : new Date(hastaDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const desdeDate = desde ? new Date(desde + "T12:00:00") : new Date("2005-01-01T12:00:00");
 
     console.log(`[FI fetch-prices] Scraping ${fondo.nombre} (RUT ${rut}), ${desdeDate.toISOString().slice(0, 10)} → ${hastaDate.toISOString().slice(0, 10)}`);
 
@@ -102,11 +103,5 @@ export async function POST(request: NextRequest) {
       },
       latestPrices: latestPrice || [],
     });
-  } catch (error) {
-    console.error("FI fetch-prices error:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error fetching FI prices" },
-      { status: 500 }
-    );
-  }
+  });
 }

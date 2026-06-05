@@ -7,6 +7,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractFromPdf, type ExtractedFichaData } from "@/lib/ficha-extract";
 import { discoverFromCmfPage, getPdfUrl, downloadPdf } from "@/lib/cmf-fichas";
+import { handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 300;
 
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest) {
   if (authError) return authError;
 
   const supabase = createAdminClient();
+
+  return handleApiError("sync-fichas-post", async () => {
   const body = await request.json();
 
   // Options: sync by AGF name, by specific fo_runs, or discover all
@@ -213,6 +216,7 @@ export async function POST(request: NextRequest) {
     gemini_exhausted: geminiExhausted,
     results: results.filter(r => r.status !== "already_synced"),
   });
+  });
 }
 
 // GET - Check sync status / list available AGFs
@@ -225,6 +229,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
+  return handleApiError("sync-fichas-get", async () => {
   // Use raw SQL via rpc to get accurate counts with JOIN
   const { data: sqlResult, error: sqlError } = await supabase.rpc("get_fichas_sync_status");
 
@@ -275,5 +280,6 @@ export async function GET(request: NextRequest) {
     fichas_synced: totalSynced,
     agf_list: agfList,
     agf_rut_map: AGF_RUT_MAP,
+  });
   });
 }

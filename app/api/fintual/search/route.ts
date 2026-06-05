@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fintual-search", { limit: 30, windowSeconds: 60 });
@@ -13,9 +14,8 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-
-  try {
+  return handleApiError("fintual-search-get", async () => {
+    const supabase = createAdminClient();
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
     const provider = searchParams.get("provider");
@@ -56,14 +56,5 @@ export async function GET(request: NextRequest) {
       data: funds || [],
       count: funds?.length || 0,
     });
-  } catch (error) {
-    console.error("Error in fund search:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

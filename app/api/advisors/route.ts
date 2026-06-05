@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "advisors-list", { limit: 30, windowSeconds: 60 });
@@ -12,9 +13,9 @@ export async function GET(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("advisors-list-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     // Admin ve todos los subordinados + sí mismo
     // Advisor normal ve a su admin + compañeros (mismo parent)
     let query = supabase
@@ -44,8 +45,5 @@ export async function GET(request: NextRequest) {
       success: true,
       advisors: advisors || [],
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Error al obtener asesores";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  });
 }

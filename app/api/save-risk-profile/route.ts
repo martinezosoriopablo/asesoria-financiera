@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { createNotification } from "@/lib/notifications";
+import { handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
   const blocked = await applyRateLimit(req, "save-risk-profile", { limit: 3, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("save-risk-profile-post", async () => {
     // --- Origin validation ---
     const allowedOrigin = (process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app").replace(/\/$/, "");
     const origin = req.headers.get("origin");
@@ -328,8 +329,5 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, clientId });
-  } catch (error) {
-    console.error("Save risk profile error:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
-  }
+  });
 }

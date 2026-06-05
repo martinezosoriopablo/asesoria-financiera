@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { trackAIUsage } from "@/lib/ai-usage";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
   }
 
-  try {
+  return handleApiError("clients-id-reports-post", async () => {
     // 1. Get client info
     const { data: client } = await supabase
       .from("clients")
@@ -256,9 +257,6 @@ INSTRUCCIONES:
     }
 
     return NextResponse.json({ success: true, report });
-  } catch (error) {
-    console.error("Error generating report:", error);
-    const msg = error instanceof Error ? error.message : "Error interno";
-    return NextResponse.json({ success: false, error: msg }, { status: 500 });
-  }
+  
+  });
 }

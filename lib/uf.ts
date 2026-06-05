@@ -1,4 +1,7 @@
-// lib/uf.ts — Fetch current UF value from mindicador.cl
+// lib/uf.ts — Fetch current UF value
+// Primary: Banco Central de Chile (BCCH). Fallback: mindicador.cl
+
+import { getUF as getBcchUF } from "@/lib/bcch";
 
 let cachedUF: { value: number; timestamp: number } | null = null;
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
@@ -8,8 +11,19 @@ export async function getUFValue(): Promise<number> {
     return cachedUF.value;
   }
 
+  // Primary: Banco Central de Chile
   try {
-    const res = await fetch("https://mindicador.cl/api/uf", { next: { revalidate: 3600 } });
+    const today = new Date().toISOString().split("T")[0];
+    const valor = await getBcchUF(today);
+    cachedUF = { value: Math.round(valor * 100) / 100, timestamp: Date.now() };
+    return cachedUF.value;
+  } catch {
+    // BCCH failed, try mindicador.cl
+  }
+
+  // Fallback: mindicador.cl
+  try {
+    const res = await fetch("https://mindicador.cl/api/uf", { next: { revalidate: 3600 }, signal: AbortSignal.timeout(15000) });
     const data = await res.json();
     const valor = data?.serie?.[0]?.valor;
     if (typeof valor === "number" && valor > 0) {
@@ -17,10 +31,10 @@ export async function getUFValue(): Promise<number> {
       return cachedUF.value;
     }
   } catch {
-    // fallback
+    // both failed
   }
 
-  return 38000; // default fallback
+  return 38000; // static fallback — last resort
 }
 
 export function clpToUF(clp: number, ufValue: number): number {

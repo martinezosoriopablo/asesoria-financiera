@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // Strict date format: YYYY-MM-DD
 const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "manual-prices", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("portfolio-manual-prices-post", async () => {
     const supabase = await createSupabaseServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -237,13 +238,8 @@ export async function POST(request: NextRequest) {
         dateRange,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in manual-prices:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // GET: Obtener precios manuales (opcionalmente filtrar por security_id)
@@ -251,7 +247,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "manual-prices-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("portfolio-manual-prices-get", async () => {
     const supabase = await createSupabaseServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -280,11 +276,6 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data });
-  } catch (error: unknown) {
-    console.error("Error in manual-prices GET:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

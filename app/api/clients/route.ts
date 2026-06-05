@@ -5,6 +5,7 @@ import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedC
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { logAuditEvent } from "@/lib/audit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener lista de clientes
 // - Advisor normal: ve sus clientes + huérfanos
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-get", async () => {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const perfilRiesgo = searchParams.get("perfil_riesgo");
@@ -84,13 +85,8 @@ export async function GET(request: NextRequest) {
       isAdmin: advisor!.rol === 'admin',
       allowedAdvisorIds,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener clientes";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // POST - Crear nuevo cliente (asignado al advisor autenticado)
@@ -104,7 +100,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-post", async () => {
     const body = await request.json();
 
     // Validar campos requeridos
@@ -181,11 +177,6 @@ export async function POST(request: NextRequest) {
       success: true,
       client: newClient,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al crear cliente";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

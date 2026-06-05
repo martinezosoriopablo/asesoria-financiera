@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { requireClient } from "@/lib/auth/require-client";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET() {
   const { client, error } = await requireClient();
@@ -11,6 +12,7 @@ export async function GET() {
 
   const admin = createAdminClient();
 
+  return handleApiError("portal-reports-get", async () => {
   const { data: reports, error: dbError } = await admin
     .from("client_reports")
     .select("id, report_date, report_type, snapshot_summary, market_commentary, comite_reports_included, read_at, created_at")
@@ -44,6 +46,7 @@ export async function GET() {
   return NextResponse.json({
     reports: reports || [],
     unreadCount: unreadCount || 0,
+  });
   });
 }
 

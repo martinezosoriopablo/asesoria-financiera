@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireClient } from "@/lib/auth/require-client";
 import { createAdminClient } from "@/lib/auth/api-auth";
 import { createNotification } from "@/lib/notifications";
+import { validateUpload } from "@/lib/upload-validation";
+import { errorResponse, handleApiError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   const { client, error } = await requireClient();
@@ -12,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  try {
+  return handleApiError("portal-upload-cartola-post", async () => {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const source = (formData.get("source") as string) || "desconocido";
@@ -21,19 +23,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
     }
 
-    const allowedTypes = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/vnd.ms-excel",
-      "text/csv",
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: "Formato no soportado. Usa PDF, Excel o CSV." }, { status: 400 });
-    }
-
-    if (file.size > 15 * 1024 * 1024) {
-      return NextResponse.json({ error: "Archivo muy grande (máx 15MB)" }, { status: 400 });
-    }
+    const uploadErr = validateUpload(file, {
+      maxSizeMB: 10,
+      allowedTypes: [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+        "text/csv",
+      ],
+      allowedExtensions: [".pdf", ".xlsx", ".xls", ".csv"],
+    });
+    if (uploadErr) return errorResponse(uploadErr, 400);
 
     // Store raw file in Supabase Storage
     const filePath = `client-uploads/${client!.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -94,8 +94,5 @@ export async function POST(request: NextRequest) {
       message: "Cartola subida exitosamente. Tu asesor la revisará pronto.",
       filePath,
     });
-  } catch (err) {
-    console.error("Error in upload-cartola:", err);
-    return NextResponse.json({ error: "Error al procesar archivo" }, { status: 500 });
-  }
+  });
 }

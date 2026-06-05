@@ -6,6 +6,7 @@ import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { downloadCMFCartola } from "@/lib/cmf-auto";
 import { importCMFRows, parseCMFContent } from "@/lib/cmf-import";
+import { handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 300; // 5 min — captcha solving + download + import
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
+  return handleApiError("cmf-auto-sync-post", async () => {
     // Parse request body for date range
     let inicio: string;
     let termino: string;
@@ -94,13 +95,7 @@ export async function POST(request: NextRequest) {
       attempt: downloadResult.attempt,
       import: importResult,
     });
-  } catch (error) {
-    console.error("CMF auto-sync error:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error en auto-sync CMF" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -118,9 +113,9 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("cmf-auto-sync-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     // Latest CMF import date
     const { data: latest } = await supabase
       .from("fund_cuota_history")
@@ -160,13 +155,7 @@ export async function GET(request: NextRequest) {
       yesterdayPrices: yesterdayPrices || 0,
       autoSyncAvailable: has2captcha,
     });
-  } catch (error) {
-    console.error("CMF auto-sync status error:", error);
-    return NextResponse.json(
-      { success: false, error: "Error consultando estado" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // parseCMFContent is now imported from @/lib/cmf-import

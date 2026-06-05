@@ -7,6 +7,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractFromPdf } from "@/lib/ficha-extract";
 import { discoverFromCmfPage, getPdfUrl, downloadPdf } from "@/lib/cmf-fichas";
+import { handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 300;
 
@@ -18,8 +19,9 @@ export async function POST(request: NextRequest) {
   const { user, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-  const body = await request.json();
+  return handleApiError("sync-fichas-fi-post", async () => {
+    const supabase = createAdminClient();
+    const body = await request.json();
 
   const { administradora, fi_ruts, limit: batchLimit = 20, force = false } = body;
 
@@ -135,7 +137,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, synced, errors, skipped, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
+    return NextResponse.json({ success: true, synced, errors, skipped, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
+  });
 }
 
 // GET - Check sync status / list administradoras
@@ -146,9 +149,10 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("sync-fichas-fi-get", async () => {
+    const supabase = createAdminClient();
 
-  // Use SQL RPC for accurate counts with JOIN
+    // Use SQL RPC for accurate counts with JOIN
   const { data: sqlResult, error: sqlError } = await supabase.rpc("get_fi_fichas_sync_status");
 
   if (sqlError || !sqlResult) {
@@ -189,9 +193,10 @@ export async function GET(request: NextRequest) {
 
   const totalSynced = adminList.reduce((sum, a) => sum + a.synced, 0);
 
-  return NextResponse.json({
-    success: true,
-    fichas_synced: totalSynced,
-    admin_list: adminList,
+    return NextResponse.json({
+      success: true,
+      fichas_synced: totalSynced,
+      admin_list: adminList,
+    });
   });
 }

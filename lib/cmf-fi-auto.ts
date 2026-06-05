@@ -171,7 +171,7 @@ async function attemptScrape(apiKey: string, opts: FIScrapeOptions): Promise<FIS
   const pageUrl = buildEntityUrl(opts.rut, opts.cmfRow, opts.tipo)
 
   // 1. GET entity page
-  const getRes = await fetch(pageUrl, { headers: { 'User-Agent': UA } })
+  const getRes = await fetch(pageUrl, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) })
   if (!getRes.ok) {
     return { success: false, error: `GET entity ${getRes.status}` }
   }
@@ -210,6 +210,7 @@ async function attemptScrape(apiKey: string, opts: FIScrapeOptions): Promise<FIS
       'Referer': pageUrl,
     },
     body: body.toString(),
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!postRes.ok) {

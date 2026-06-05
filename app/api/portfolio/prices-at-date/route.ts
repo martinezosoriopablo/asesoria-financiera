@@ -9,6 +9,7 @@ import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/
 import { getHistoricalPrices as getBolsaHistorical } from "@/lib/bolsa-santiago/client";
 import { detectSerieCode } from "@/lib/fund-utils";
 import { stripAccents } from "@/lib/text";
+import { handleApiError } from "@/lib/api-response";
 
 interface HoldingInput {
   fundName: string;
@@ -424,7 +425,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("prices-at-date-post", async () => {
     const { holdings, startDate, endDate } = await request.json() as {
       holdings: HoldingInput[];
       startDate: string;
@@ -480,11 +481,5 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, results });
-  } catch (error) {
-    console.error("Error in prices-at-date:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error obteniendo precios" },
-      { status: 500 }
-    );
-  }
+  });
 }

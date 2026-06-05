@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { sanitizeSearchInput } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "funds-search", { limit: 30, windowSeconds: 60 });
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("funds-search-get", async () => {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
 
@@ -54,14 +55,5 @@ export async function GET(request: NextRequest) {
         currency: f.currency,
       })),
     });
-  } catch (error: unknown) {
-    console.error("Error buscando fondos:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error al buscar fondos",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

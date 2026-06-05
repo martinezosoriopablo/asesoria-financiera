@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface AuditRow {
   fondoId: string;
@@ -48,9 +49,9 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("audit-prices-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const url = new URL(request.url);
     const fechaParam = url.searchParams.get("fecha");
     const limitParam = parseInt(url.searchParams.get("limit") || "500", 10);
@@ -242,13 +243,7 @@ export async function GET(request: NextRequest) {
     };
 
     return NextResponse.json({ success: true, audit: summary });
-  } catch (error) {
-    console.error("Error in audit/prices:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error en auditoría" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 function buildRecommendation(

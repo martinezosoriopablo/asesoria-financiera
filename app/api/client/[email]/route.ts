@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +13,7 @@ export async function GET(
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  try {
+  return handleApiError("client-email-get", async () => {
     const { email } = await params;
 
     if (!email || email.trim() === "") {
@@ -62,11 +63,6 @@ export async function GET(
 
     return NextResponse.json({ profile }, { status: 200 });
 
-  } catch (error) {
-    console.error("API error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

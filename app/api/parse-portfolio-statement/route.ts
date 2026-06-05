@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractText, getDocumentProxy } from "unpdf";
+import { validateUpload } from "@/lib/upload-validation";
+import { errorResponse, handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -254,7 +258,7 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  try {
+  return handleApiError("parse-statement-post", async () => {
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const password = formData.get("password") as string | null;
@@ -265,6 +269,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const uploadError = validateUpload(file, {
+      maxSizeMB: 10,
+      allowedTypes: ["application/pdf"],
+      allowedExtensions: [".pdf"],
+    });
+    if (uploadError) return errorResponse(uploadError, 400);
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
@@ -553,13 +564,5 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
       currencyConfidence: currencyDetection.confidence,
       currencyReason: currencyDetection.reason,
     });
-  } catch (error: unknown) {
-    console.error("Error in parse-portfolio-statement API:", error);
-    return NextResponse.json(
-      {
-        error: "Error al procesar la solicitud",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

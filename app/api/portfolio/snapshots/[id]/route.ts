@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -63,7 +64,7 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("portfolio-snapshots-id-get", async () => {
     const { id: snapshotId } = await context.params;
 
     const { data: snapshot, error } = await supabase
@@ -89,13 +90,8 @@ export async function GET(
       success: true,
       data: snapshot,
     });
-  } catch (error) {
-    console.error("Error in GET snapshot:", error);
-    return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // PUT - Actualizar un snapshot
@@ -111,7 +107,7 @@ export async function PUT(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("portfolio-snapshots-id-put", async () => {
     const { id: snapshotId } = await context.params;
     const body: UpdateData = await request.json();
 
@@ -229,13 +225,8 @@ export async function PUT(
       success: true,
       data: snapshot,
     });
-  } catch (error) {
-    console.error("Error in PUT snapshot:", error);
-    return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // PATCH - Set/unset baseline
@@ -251,7 +242,7 @@ export async function PATCH(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("portfolio-snapshots-id-patch", async () => {
     const { id: snapshotId } = await context.params;
     const body = await request.json();
 
@@ -294,10 +285,8 @@ export async function PATCH(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error in PATCH snapshot:", error);
-    return NextResponse.json({ success: false, error: "Error interno del servidor" }, { status: 500 });
-  }
+  
+  });
 }
 
 // DELETE - Eliminar un snapshot
@@ -313,7 +302,7 @@ export async function DELETE(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("portfolio-snapshots-id-delete", async () => {
     const { id: snapshotId } = await context.params;
 
     // Verificar que el snapshot existe
@@ -390,11 +379,6 @@ export async function DELETE(
       success: true,
       deletedRelated: isCartola,
     });
-  } catch (error) {
-    console.error("Error in DELETE snapshot:", error);
-    return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

@@ -8,6 +8,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { downloadCMFCartola } from "@/lib/cmf-auto";
 import { importCMFRows, parseCMFContent } from "@/lib/cmf-import";
+import { handleApiError } from "@/lib/api-response";
 
 export const maxDuration = 300; // 5 min — captcha + download puede tomar tiempo
 
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
+  return handleApiError("backfill-cmf-post", async () => {
   if (!process.env.TWOCAPTCHA_API_KEY) {
     return NextResponse.json(
       { success: false, error: "TWOCAPTCHA_API_KEY no configurada" },
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
     ranges: rangeResults,
     fondosRequested: runs.length,
     oldestExisting,
+  });
   });
 }
 

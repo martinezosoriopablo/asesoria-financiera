@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 const ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query";
@@ -303,9 +305,13 @@ function calculateReturnsFromMonthly(historicalData: { date: string; close: numb
 // MAIN API HANDLER
 // ============================================================
 export async function GET(request: NextRequest) {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   const blocked = await applyRateLimit(request, "funds-unified-profile", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
+  return handleApiError("funds-unified-profile-get", async () => {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
   const name = searchParams.get("name");
@@ -353,5 +359,6 @@ export async function GET(request: NextRequest) {
     success: true,
     profile,
     attempts,
+  });
   });
 }

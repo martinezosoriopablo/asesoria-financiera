@@ -100,6 +100,7 @@ async function makeRequest<T>(endpoint: string, params: Record<string, string> =
         "Content-Type": "application/json",
       },
       next: { revalidate: 3600 }, // Cache 1 hora
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {

@@ -6,6 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 import {
   COMITE_CATEGORIES,
   classifyHolding,

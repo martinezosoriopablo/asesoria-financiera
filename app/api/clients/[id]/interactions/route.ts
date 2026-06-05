@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -46,7 +47,7 @@ export async function GET(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-interactions-get", async () => {
     // Verificar acceso al cliente
     const canAccess = await verifyClientAccess(supabase, id, advisor!);
     if (!canAccess) {
@@ -69,13 +70,8 @@ export async function GET(
       interactions,
       total: interactions.length,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener interacciones";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // POST - Crear nueva interacción (si el cliente pertenece al advisor o no tiene asesor)
@@ -99,7 +95,7 @@ export async function POST(
   const { id } = await params;
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-interactions-post", async () => {
     // Verificar acceso al cliente
     const canAccess = await verifyClientAccess(supabase, id, advisor!);
     if (!canAccess) {
@@ -143,11 +139,6 @@ export async function POST(
       success: true,
       interaction: newInteraction,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al crear interacción";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

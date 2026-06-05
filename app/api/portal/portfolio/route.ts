@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireClient } from "@/lib/auth/require-client";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET() {
   const { client, error } = await requireClient();
@@ -8,6 +9,7 @@ export async function GET() {
 
   const admin = createAdminClient();
 
+  return handleApiError("portal-portfolio-get", async () => {
   // All snapshots for evolution chart (last 24 months max)
   const { data: allSnapshots } = await admin
     .from("portfolio_snapshots")
@@ -75,5 +77,6 @@ export async function GET() {
     })),
     benchmark: riskProfile?.benchmark_allocation || null,
     carteraRecomendada: clientData?.cartera_recomendada || null,
+  });
   });
 }

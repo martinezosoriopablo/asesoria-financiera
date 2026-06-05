@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { smartBondSearch, type BondSearchResult } from "@/lib/openfigi/client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "bonds-search", { limit: 10, windowSeconds: 60 });
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  try {
+  return handleApiError("bonds-search-get", async () => {
     const results: BondSearchResult[] = await smartBondSearch(query);
 
     return NextResponse.json({
@@ -33,12 +34,5 @@ export async function GET(request: NextRequest) {
       results,
       total: results.length,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error en búsqueda de bonos";
-    console.error("Bond search error:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

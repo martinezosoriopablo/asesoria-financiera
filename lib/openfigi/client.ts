@@ -68,6 +68,7 @@ export async function mapIdentifiers(
         // "X-OPENFIGI-APIKEY": process.env.OPENFIGI_API_KEY || "",
       },
       body: JSON.stringify(requests),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
@@ -98,6 +99,7 @@ export async function searchBonds(query: string): Promise<BondSearchResult[]> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(searchRequest),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {

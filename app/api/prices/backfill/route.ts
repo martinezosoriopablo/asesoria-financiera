@@ -6,6 +6,8 @@ import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolveSource, backfillSymbol } from "@/lib/prices/price-service";
+
+export const maxDuration = 60;
 import type { HoldingForPricing } from "@/lib/prices/types";
 
 export async function POST(request: NextRequest) {

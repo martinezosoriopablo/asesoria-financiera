@@ -7,6 +7,7 @@ import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { isChileanTicker } from "@/lib/constants/chilean-finance";
+import { handleApiError } from "@/lib/api-response";
 
 // Detect if query looks like a stock ticker
 function looksLikeTicker(q: string): boolean {
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("fondos-search-price-get", async () => {
     const searchParams = request.nextUrl.searchParams;
     const q = searchParams.get("q");
     const type = searchParams.get("type"); // "fund", "stock", or null for both
@@ -312,14 +313,5 @@ export async function GET(request: NextRequest) {
       success: true,
       results,
     });
-  } catch (error) {
-    console.error("Error in search-price:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error searching",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   // Verify cron secret
@@ -14,9 +15,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
+  return handleApiError("cron-check-drift-get", async () => {
+    const admin = createAdminClient();
 
-  // Get all clients with recommendations
+    // Get all clients with recommendations
   const { data: clients } = await admin
     .from("clients")
     .select("id, nombre, apellido, asesor_id, cartera_recomendada")
@@ -99,9 +101,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({
-    checked: clients.length,
-    alerts: alertsCreated,
-    timestamp: new Date().toISOString(),
+    return NextResponse.json({
+      checked: clients.length,
+      alerts: alertsCreated,
+      timestamp: new Date().toISOString(),
+    });
   });
 }

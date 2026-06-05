@@ -6,6 +6,7 @@ import { requireAdvisor } from "@/lib/auth/api-auth";
 import { searchChileanStocks } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { CHILEAN_TICKERS } from "@/lib/constants/chilean-finance";
+import { handleApiError } from "@/lib/api-response";
 
 interface YahooQuote {
   symbol: string;
@@ -165,7 +166,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  try {
+  return handleApiError("securities-search-get", async () => {
     let results: SecuritySearchResult[] = [];
 
     if (market === "cl") {
@@ -213,12 +214,5 @@ export async function GET(request: NextRequest) {
       results: results.slice(0, 20),
       total: results.length,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error en búsqueda";
-    console.error("Search error:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

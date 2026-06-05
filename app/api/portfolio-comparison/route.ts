@@ -6,6 +6,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { PortfolioComparisonPDF } from "@/components/pdf/PortfolioComparisonPDF";
 import React from "react";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "portfolio-comparison", { limit: 5, windowSeconds: 60 });
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  try {
+  return handleApiError("portfolio-comparison-post", async () => {
     const data = await request.json();
 
     // Generar PDF
@@ -29,14 +30,5 @@ export async function POST(request: NextRequest) {
         "Content-Disposition": `attachment; filename="comparacion-portafolio-${Date.now()}.pdf"`,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error generando PDF:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error al generar PDF",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

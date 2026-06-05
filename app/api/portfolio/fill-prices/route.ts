@@ -8,6 +8,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { getSeriesPrices } from "@/lib/fintual-api";
 import { getHistoricalPrices as getBolsaSantiagoHistorical } from "@/lib/bolsa-santiago/client";
 import { detectSerieCode } from "@/lib/fund-utils";
+import { handleApiError } from "@/lib/api-response";
 
 // --- Named constants (avoid magic numbers) ---
 /** Minimum ratio of API price to cartola price to accept (reject if below, likely wrong match) */
@@ -513,7 +514,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("fill-prices-post", async () => {
     const { clientId } = await request.json();
 
     if (!clientId) {
@@ -1321,14 +1322,5 @@ export async function POST(request: NextRequest) {
         },
       },
     });
-  } catch (error) {
-    console.error("Error in fill-prices:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error interno del servidor",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

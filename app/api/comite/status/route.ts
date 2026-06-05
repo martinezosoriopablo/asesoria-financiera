@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface ComiteReportStatus {
   id: string;
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "comite-status", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("comite-status-get", async () => {
     const { error: authError } = await requireAdvisor();
     if (authError) return authError;
 
@@ -60,12 +61,6 @@ export async function GET(request: NextRequest) {
       reports: latestReports,
       lastUpdate,
     });
-  } catch (error: unknown) {
-    console.error("Error in comite status:", error);
-    const message = error instanceof Error ? error.message : "Error interno";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

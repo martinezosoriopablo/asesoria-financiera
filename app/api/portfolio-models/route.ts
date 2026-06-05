@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener modelos de portafolio de un cliente
 export async function GET(request: NextRequest) {
@@ -13,19 +14,19 @@ export async function GET(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const { searchParams } = new URL(request.url);
-  const clientId = searchParams.get("client_id");
+  return handleApiError("portfolio-models-get", async () => {
+    const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get("client_id");
 
-  if (!clientId) {
-    return NextResponse.json(
-      { success: false, error: "client_id es requerido" },
-      { status: 400 }
-    );
-  }
+    if (!clientId) {
+      return NextResponse.json(
+        { success: false, error: "client_id es requerido" },
+        { status: 400 }
+      );
+    }
 
-  const supabase = createAdminClient();
+    const supabase = createAdminClient();
 
-  try {
     // Verificar que el cliente pertenezca al advisor
     const { data: client, error: clientError } = await supabase
       .from("clients")
@@ -70,13 +71,7 @@ export async function GET(request: NextRequest) {
       success: true,
       models: models || [],
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener modelos";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // POST - Guardar nuevo modelo de portafolio
@@ -88,9 +83,8 @@ export async function POST(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
-
-  try {
+  return handleApiError("portfolio-models-post", async () => {
+    const supabase = createAdminClient();
     const body = await request.json();
 
     // Validar campos requeridos
@@ -155,13 +149,7 @@ export async function POST(request: NextRequest) {
       success: true,
       model: newModel,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al guardar modelo";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // DELETE - Eliminar modelo de portafolio
@@ -173,19 +161,19 @@ export async function DELETE(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const { searchParams } = new URL(request.url);
-  const modelId = searchParams.get("id");
+  return handleApiError("portfolio-models-delete", async () => {
+    const { searchParams } = new URL(request.url);
+    const modelId = searchParams.get("id");
 
-  if (!modelId) {
-    return NextResponse.json(
-      { success: false, error: "id es requerido" },
-      { status: 400 }
-    );
-  }
+    if (!modelId) {
+      return NextResponse.json(
+        { success: false, error: "id es requerido" },
+        { status: 400 }
+      );
+    }
 
-  const supabase = createAdminClient();
+    const supabase = createAdminClient();
 
-  try {
     // Obtener el modelo para verificar permisos
     const { data: model, error: modelError } = await supabase
       .from("portfolio_models")
@@ -242,11 +230,5 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: "Modelo eliminado correctamente",
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al eliminar modelo";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdvisor, createAdminClient } from '@/lib/auth/api-auth';
 import { sanitizeSearchInput } from '@/lib/sanitize';
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // Interface for rentabilidades agregadas record
 interface RentabilidadesRecord {
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("fondos-post", async () => {
     const body = await request.json();
     const { action, familia, clase, busqueda, ordenar, direccion, pagina, solo_con_datos_diarios, incluir_fi } = body;
     
@@ -557,16 +558,5 @@ export async function POST(request: NextRequest) {
       success: false,
       error: 'Acción no válida'
     }, { status: 400 });
-    
-  } catch (error: unknown) {
-    console.error('Error en API fondos:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Error interno del servidor',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

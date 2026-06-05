@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedClientIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -73,7 +74,7 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-seguimiento-get", async () => {
     const { id: clientId } = await context.params;
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "ALL";
@@ -200,13 +201,8 @@ export async function GET(
         },
       },
     });
-  } catch (error) {
-    console.error("Error in seguimiento GET:", error);
-    return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 // Función para calcular métricas de rendimiento

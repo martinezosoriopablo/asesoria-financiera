@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener perfil del asesor autenticado
 export async function GET(request: NextRequest) {
@@ -30,7 +31,7 @@ export async function PUT(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("advisor-profile-put", async () => {
     const body = await request.json();
 
     // Campos permitidos para actualización (whitelist)
@@ -57,11 +58,5 @@ export async function PUT(request: NextRequest) {
       success: true,
       advisor: updatedAdvisor,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al actualizar perfil";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

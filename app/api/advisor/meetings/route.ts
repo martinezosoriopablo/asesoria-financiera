@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { syncMeetingToGoogle, deleteMeetingFromGoogle, type Meeting } from "@/lib/google/calendar-client";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener reuniones del asesor autenticado
 export async function GET(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("advisor-meetings-get", async () => {
     const { searchParams } = new URL(request.url);
     const timeframe = searchParams.get("timeframe") || "upcoming";
 
@@ -80,13 +81,7 @@ export async function GET(request: NextRequest) {
       meetings: meetings || [],
       total: meetings?.length || 0,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener reuniones";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // POST - Crear nueva reunión (solo para clientes del asesor)
@@ -106,29 +101,37 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("advisor-meetings-post", async () => {
     const body = await request.json();
 
     // Validar campos requeridos
-    if (!body.client_id || !body.titulo || !body.fecha) {
+    if (!body.titulo || !body.fecha) {
       return NextResponse.json(
-        { success: false, error: "client_id, titulo y fecha son requeridos" },
+        { success: false, error: "titulo y fecha son requeridos" },
         { status: 400 }
       );
     }
 
-    // Verificar que el cliente pertenece al asesor autenticado
-    const { data: client } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("id", body.client_id)
-      .eq("asesor_id", advisor!.id)
-      .single();
+    // Si tiene client_id, verificar que el cliente pertenece al asesor
+    if (body.client_id) {
+      const { data: client } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("id", body.client_id)
+        .eq("asesor_id", advisor!.id)
+        .single();
 
-    if (!client) {
+      if (!client) {
+        return NextResponse.json(
+          { success: false, error: "Cliente no encontrado o no tiene permiso" },
+          { status: 404 }
+        );
+      }
+    } else if (body.tipo !== "recordatorio") {
+      // client_id obligatorio para reuniones que no son recordatorios
       return NextResponse.json(
-        { success: false, error: "Cliente no encontrado o no tiene permiso" },
-        { status: 404 }
+        { success: false, error: "client_id es requerido para reuniones" },
+        { status: 400 }
       );
     }
 
@@ -137,8 +140,8 @@ export async function POST(request: NextRequest) {
       .from("meetings")
       .insert([
         {
-          client_id: body.client_id,
-          asesor_id: advisor!.id, // Siempre el asesor autenticado
+          client_id: body.client_id || null,
+          asesor_id: advisor!.id,
           titulo: body.titulo,
           descripcion: body.descripcion || null,
           fecha: body.fecha,
@@ -151,47 +154,64 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Meeting insert error:", error.message, error.details, error.code);
+      throw error;
+    }
 
-    // Crear interacción en el cliente
-    await supabase.from("client_interactions").insert([
-      {
-        client_id: body.client_id,
-        tipo: "reunion",
-        titulo: `Reunión agendada: ${body.titulo}`,
-        descripcion: `Reunión programada para ${new Date(body.fecha).toLocaleDateString("es-CL")}`,
-        resultado: "pendiente",
-        created_by: advisor!.email,
-      },
-    ]);
+    // Crear interacción en el cliente (solo si hay cliente asociado)
+    if (body.client_id) {
+      await supabase.from("client_interactions").insert([
+        {
+          client_id: body.client_id,
+          tipo: "reunion",
+          titulo: `Reunión agendada: ${body.titulo}`,
+          descripcion: `Reunión programada para ${new Date(body.fecha).toLocaleDateString("es-CL")}`,
+          resultado: "pendiente",
+          created_by: advisor!.email,
+        },
+      ]);
+    }
 
     // Sincronizar con Google Calendar si está conectado
     try {
-      // Obtener datos del cliente para el evento
-      const { data: clientData } = await supabase
-        .from("clients")
-        .select("nombre, apellido, email")
-        .eq("id", body.client_id)
-        .single();
+      if (body.client_id) {
+        const { data: clientData } = await supabase
+          .from("clients")
+          .select("nombre, apellido, email")
+          .eq("id", body.client_id)
+          .single();
 
-      const meetingForSync: Meeting = {
-        ...newMeeting,
-        clients: clientData || undefined,
-      };
+        const meetingForSync: Meeting = {
+          ...newMeeting,
+          clients: clientData || undefined,
+        };
 
-      const googleEventId = await syncMeetingToGoogle(advisor!.id, meetingForSync);
+        const googleEventId = await syncMeetingToGoogle(advisor!.id, meetingForSync);
 
-      // Si se creó el evento en Google, guardar el ID
-      if (googleEventId && googleEventId !== newMeeting.google_event_id) {
-        await supabase
-          .from("meetings")
-          .update({ google_event_id: googleEventId })
-          .eq("id", newMeeting.id);
+        if (googleEventId && googleEventId !== newMeeting.google_event_id) {
+          await supabase
+            .from("meetings")
+            .update({ google_event_id: googleEventId })
+            .eq("id", newMeeting.id);
 
-        newMeeting.google_event_id = googleEventId;
+          newMeeting.google_event_id = googleEventId;
+        }
+      } else {
+        // Recordatorio sin cliente — igual sincronizar a Google
+        const meetingForSync: Meeting = { ...newMeeting };
+        const googleEventId = await syncMeetingToGoogle(advisor!.id, meetingForSync);
+
+        if (googleEventId && googleEventId !== newMeeting.google_event_id) {
+          await supabase
+            .from("meetings")
+            .update({ google_event_id: googleEventId })
+            .eq("id", newMeeting.id);
+
+          newMeeting.google_event_id = googleEventId;
+        }
       }
     } catch (syncError) {
-      // No fallar si la sincronización falla, solo loggear
       console.error("Error sincronizando con Google Calendar:", syncError);
     }
 
@@ -201,13 +221,7 @@ export async function POST(request: NextRequest) {
       googleSynced: !!newMeeting.google_event_id,
       googleError: !newMeeting.google_event_id ? "No se pudo sincronizar con Google Calendar" : null,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al crear reunión";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // PATCH - Editar reunión existente
@@ -222,7 +236,7 @@ export async function PATCH(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("advisor-meetings-patch", async () => {
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -272,10 +286,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, meeting: updated, googleSynced });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al actualizar reunión";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  });
 }
 
 // DELETE - Eliminar/cancelar reunión
@@ -290,7 +301,7 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("advisor-meetings-delete", async () => {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -322,8 +333,5 @@ export async function DELETE(request: NextRequest) {
       .eq("id", id);
 
     return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al eliminar reunión";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
-  }
+  });
 }

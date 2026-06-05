@@ -88,6 +88,7 @@ export async function lookupSymbol(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) return null;
@@ -161,6 +162,7 @@ async function fetchTrades(
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) break;

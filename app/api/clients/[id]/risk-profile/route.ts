@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener perfil de riesgo del cliente
 export async function GET(
@@ -19,7 +20,7 @@ export async function GET(
   const { id: clientId } = await params;
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-risk-profile-get", async () => {
     // Verificar que el cliente pertenezca al advisor
     const { data: client, error: clientError } = await supabase
       .from("clients")
@@ -76,11 +77,6 @@ export async function GET(
         created_at: profile.created_at,
       },
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener perfil de riesgo";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, createAdminClient } from '@/lib/auth/api-auth';
 import * as XLSX from 'xlsx';
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface TacExcelRow {
   fo_run?: string | number;
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("tac-post", async () => {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fecha_actualizacion = formData.get('fecha_actualizacion') as string || new Date().toISOString().split('T')[0];
@@ -198,13 +199,5 @@ export async function POST(request: NextRequest) {
       fondosNoEncontrados: fondosNoEncontrados,
       tiempo_segundos: parseFloat(totalTime)
     });
-
-  } catch (error: unknown) {
-    console.error('❌ Error en API tac POST:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: errorMessage },
-      { status: 500 }
-    );
-  }
+  });
 }

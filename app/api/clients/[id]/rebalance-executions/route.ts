@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(
   request: NextRequest,
@@ -13,19 +14,22 @@ export async function GET(
 
   const { id: clientId } = await params;
   const admin = createAdminClient();
+  return handleApiError("clients-id-rebalance-executions-get", async () => {
 
-  const { data, error: dbError } = await admin
-    .from("rebalance_executions")
-    .select("*")
-    .eq("client_id", clientId)
-    .order("executed_at", { ascending: false })
-    .limit(100);
+    const { data, error: dbError } = await admin
+      .from("rebalance_executions")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("executed_at", { ascending: false })
+      .limit(100);
 
-  if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
-  }
+    if (dbError) {
+      return NextResponse.json({ error: dbError.message }, { status: 500 });
+    }
 
-  return NextResponse.json({ executions: data || [] });
+    return NextResponse.json({ executions: data || [] });
+
+  });
 }
 
 export async function POST(
@@ -38,59 +42,62 @@ export async function POST(
   const { id: clientId } = await params;
   const body = await request.json();
   const admin = createAdminClient();
+  return handleApiError("clients-id-rebalance-executions-post", async () => {
 
-  // Validate client belongs to advisor
-  const { data: client } = await admin
-    .from("clients")
-    .select("id, asesor_id")
-    .eq("id", clientId)
-    .maybeSingle();
+    // Validate client belongs to advisor
+    const { data: client } = await admin
+      .from("clients")
+      .select("id, asesor_id")
+      .eq("id", clientId)
+      .maybeSingle();
 
-  if (!client || client.asesor_id !== advisor!.id) {
-    return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
-  }
+    if (!client || client.asesor_id !== advisor!.id) {
+      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    }
 
-  // Accept single execution or batch
-  interface ExecutionInput {
-    recommendation_version_id?: string | null;
-    ticker: string;
-    nombre: string;
-    asset_class?: string;
-    clase?: string;
-    action: string;
-    target_percent?: number | null;
-    actual_percent?: number | null;
-    amount?: number | null;
-    units?: number | null;
-    notes?: string | null;
-    executed_at?: string;
-  }
-  const executions: ExecutionInput[] = Array.isArray(body.executions) ? body.executions : [body];
+    // Accept single execution or batch
+    interface ExecutionInput {
+      recommendation_version_id?: string | null;
+      ticker: string;
+      nombre: string;
+      asset_class?: string;
+      clase?: string;
+      action: string;
+      target_percent?: number | null;
+      actual_percent?: number | null;
+      amount?: number | null;
+      units?: number | null;
+      notes?: string | null;
+      executed_at?: string;
+    }
+    const executions: ExecutionInput[] = Array.isArray(body.executions) ? body.executions : [body];
 
-  const records = executions.map(exec => ({
-    client_id: clientId,
-    advisor_id: advisor!.id,
-    recommendation_version_id: exec.recommendation_version_id || null,
-    ticker: exec.ticker,
-    nombre: exec.nombre,
-    asset_class: exec.asset_class || exec.clase,
-    action: exec.action,
-    target_percent: exec.target_percent ?? null,
-    actual_percent: exec.actual_percent ?? null,
-    amount: exec.amount ?? null,
-    units: exec.units ?? null,
-    notes: exec.notes || null,
-    executed_at: exec.executed_at || new Date().toISOString().split("T")[0],
-  }));
+    const records = executions.map(exec => ({
+      client_id: clientId,
+      advisor_id: advisor!.id,
+      recommendation_version_id: exec.recommendation_version_id || null,
+      ticker: exec.ticker,
+      nombre: exec.nombre,
+      asset_class: exec.asset_class || exec.clase,
+      action: exec.action,
+      target_percent: exec.target_percent ?? null,
+      actual_percent: exec.actual_percent ?? null,
+      amount: exec.amount ?? null,
+      units: exec.units ?? null,
+      notes: exec.notes || null,
+      executed_at: exec.executed_at || new Date().toISOString().split("T")[0],
+    }));
 
-  const { data, error: insertError } = await admin
-    .from("rebalance_executions")
-    .insert(records)
-    .select();
+    const { data, error: insertError } = await admin
+      .from("rebalance_executions")
+      .insert(records)
+      .select();
 
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
-  }
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
 
-  return NextResponse.json({ success: true, executions: data });
+    return NextResponse.json({ success: true, executions: data });
+
+  });
 }

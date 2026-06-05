@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 interface YahooChartResult {
   chart?: {
@@ -35,6 +37,9 @@ interface YahooChartResult {
 }
 
 export async function GET(request: NextRequest) {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   const blocked = await applyRateLimit(request, "funds-yahoo-historical", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
@@ -59,7 +64,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
+  return handleApiError("yahoo-historical-get", async () => {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
 
     const response = await fetch(url, {
@@ -155,11 +160,5 @@ export async function GET(request: NextRequest) {
       returns,
       dataPoints: historicalData.length
     });
-  } catch (error) {
-    console.error("Yahoo Finance API error:", error);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch data from Yahoo Finance" },
-      { status: 500 }
-    );
-  }
+  });
 }

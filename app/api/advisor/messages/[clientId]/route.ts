@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(
   _req: Request,
@@ -9,37 +10,40 @@ export async function GET(
   if (error) return error;
 
   const { clientId } = await params;
-  const admin = createAdminClient();
 
-  // Verify client belongs to this advisor
-  const { data: client } = await admin
-    .from("clients")
-    .select("id, asesor_id")
-    .eq("id", clientId)
-    .single();
+  return handleApiError("advisor-messages-get", async () => {
+    const admin = createAdminClient();
 
-  if (!client) {
-    return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
-  }
+    // Verify client belongs to this advisor
+    const { data: client } = await admin
+      .from("clients")
+      .select("id, asesor_id")
+      .eq("id", clientId)
+      .single();
 
-  if (client.asesor_id && client.asesor_id !== advisor!.id) {
-    if (advisor!.rol === "admin") {
-      const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
-      if (!allowedIds.includes(client.asesor_id)) {
+    if (!client) {
+      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    }
+
+    if (client.asesor_id && client.asesor_id !== advisor!.id) {
+      if (advisor!.rol === "admin") {
+        const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+        if (!allowedIds.includes(client.asesor_id)) {
+          return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+      } else {
         return NextResponse.json({ error: "No autorizado" }, { status: 403 });
       }
-    } else {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
-  }
 
-  const { data: messages } = await admin
-    .from("messages")
-    .select("*")
-    .eq("client_id", clientId)
-    .order("sent_at", { ascending: true });
+    const { data: messages } = await admin
+      .from("messages")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("sent_at", { ascending: true });
 
-  return NextResponse.json({ messages: messages || [] });
+    return NextResponse.json({ messages: messages || [] });
+  });
 }
 
 export async function POST(
@@ -50,55 +54,55 @@ export async function POST(
   if (error) return error;
 
   const { clientId } = await params;
-  const { content } = await req.json();
 
-  if (!content || typeof content !== "string" || content.trim().length === 0) {
-    return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
-  }
+  return handleApiError("advisor-messages-post", async () => {
+    const { content } = await req.json();
 
-  if (content.length > 5000) {
-    return NextResponse.json({ error: "Mensaje muy largo" }, { status: 400 });
-  }
+    if (!content || typeof content !== "string" || content.trim().length === 0) {
+      return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
+    }
 
-  const admin = createAdminClient();
+    if (content.length > 5000) {
+      return NextResponse.json({ error: "Mensaje muy largo" }, { status: 400 });
+    }
 
-  // Verify client belongs to this advisor
-  const { data: client } = await admin
-    .from("clients")
-    .select("id, asesor_id")
-    .eq("id", clientId)
-    .single();
+    const admin = createAdminClient();
 
-  if (!client) {
-    return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
-  }
+    // Verify client belongs to this advisor
+    const { data: client } = await admin
+      .from("clients")
+      .select("id, asesor_id")
+      .eq("id", clientId)
+      .single();
 
-  if (client.asesor_id && client.asesor_id !== advisor!.id) {
-    if (advisor!.rol === "admin") {
-      const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
-      if (!allowedIds.includes(client.asesor_id)) {
+    if (!client) {
+      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    }
+
+    if (client.asesor_id && client.asesor_id !== advisor!.id) {
+      if (advisor!.rol === "admin") {
+        const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+        if (!allowedIds.includes(client.asesor_id)) {
+          return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+        }
+      } else {
         return NextResponse.json({ error: "No autorizado" }, { status: 403 });
       }
-    } else {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
-  }
 
-  const { data: message, error: insertError } = await admin
-    .from("messages")
-    .insert({
-      client_id: clientId,
-      advisor_id: advisor!.id,
-      sender_role: "advisor",
-      content: content.trim(),
-    })
-    .select()
-    .single();
+    const { data: message, error: insertError } = await admin
+      .from("messages")
+      .insert({
+        client_id: clientId,
+        advisor_id: advisor!.id,
+        sender_role: "advisor",
+        content: content.trim(),
+      })
+      .select()
+      .single();
 
-  if (insertError) {
-    console.error("Error inserting message:", insertError);
-    return NextResponse.json({ error: "Error enviando mensaje" }, { status: 500 });
-  }
+    if (insertError) throw insertError;
 
-  return NextResponse.json({ message });
+    return NextResponse.json({ message });
+  });
 }

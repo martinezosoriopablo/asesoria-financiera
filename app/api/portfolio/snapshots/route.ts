@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
+import { handleApiError } from "@/lib/api-response";
 
 interface HoldingData {
   fundName: string;
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "portfolio-snapshots", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("portfolio-snapshots-get", async () => {
     const supabase = await createSupabaseServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -109,10 +110,8 @@ export async function GET(request: NextRequest) {
         endDate: endDate.toISOString().split("T")[0],
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in GET snapshots:", error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Error in GET snapshots" }, { status: 500 });
-  }
+  
+  });
 }
 
 // POST: Crear un nuevo snapshot
@@ -120,7 +119,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "snapshots-post", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("portfolio-snapshots-post", async () => {
     const supabase = await createSupabaseServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -322,10 +321,8 @@ export async function POST(request: NextRequest) {
       // Signal to frontend that fill-prices should be triggered
       shouldFillPrices: !!(holdings && holdings.length > 0 && (source === "statement" || source === "manual" || source === "excel")),
     });
-  } catch (error: unknown) {
-    console.error("Error in POST snapshot:", error);
-    return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Error in POST snapshot" }, { status: 500 });
-  }
+  
+  });
 }
 
 // Función para calcular métricas de rendimiento

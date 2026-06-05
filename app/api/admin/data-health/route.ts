@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "data-health", { limit: 5, windowSeconds: 60 });
@@ -13,6 +14,8 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const admin = createAdminClient();
+
+  return handleApiError("data-health-get", async () => {
   const today = new Date().toISOString().split("T")[0];
   const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
 
@@ -203,5 +206,6 @@ export async function GET(request: NextRequest) {
       neverSynced: fiNeverSynced,
     },
     exchangeRates: exchangeRateStatus,
+  });
   });
 }

@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 import {
   getProviders,
   getProviderFunds,
@@ -36,8 +37,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
-  const startTime = Date.now();
+  return handleApiError("cron-sync-fintual-get", async () => {
+    const supabase = createAdminClient();
+    const startTime = Date.now();
 
   const result = {
     phase: "catalog",
@@ -50,7 +52,6 @@ export async function GET(request: NextRequest) {
     durationMs: 0,
   };
 
-  try {
     // =============================================
     // FASE 1: Sincronizar catálogo (proveedores + fondos + series)
     // Collect all rows first, then batch upsert per table
@@ -252,16 +253,5 @@ export async function GET(request: NextRequest) {
       message: `Sync completado: ${result.providers} proveedores, ${result.fundsProcessed} fondos, ${result.seriesUpserted} series, ${result.pricesFetched} precios consultados`,
       result,
     });
-  } catch (error) {
-    result.durationMs = Date.now() - startTime;
-    console.error("Cron sync-fintual error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-        result,
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

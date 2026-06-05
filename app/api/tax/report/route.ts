@@ -6,6 +6,8 @@ import { successResponse, errorResponse, handleApiError } from "@/lib/api-respon
 import { trackAIUsage } from "@/lib/ai-usage";
 import type { ScenarioResult } from "@/lib/tax/types";
 
+export const maxDuration = 60;
+
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 export async function POST(request: NextRequest) {

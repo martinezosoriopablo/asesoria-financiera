@@ -1,11 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 import { escapeHtml } from "@/lib/sanitize";
+import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const blocked = await applyRateLimit(req, "client-invite", { limit: 5, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { advisor, error } = await requireAdvisor();
   if (error) return error;
 
@@ -43,137 +48,137 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "El cliente no tiene email" }, { status: 400 });
   }
 
-  let authUserId = client.auth_user_id;
-  let isExistingUser = false;
-  let hasPassword = false;
+  return handleApiError("client-invite-post", async () => {
+    let authUserId = client.auth_user_id;
+    let isExistingUser = false;
+    let hasPassword = false;
 
-  // 2. Crear o vincular usuario en Supabase Auth
-  if (!authUserId) {
-    // Try to create a new auth user
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email: client.email,
-      user_metadata: { role: "client", roles: ["client"], active_role: "client", client_id: clientId },
-      email_confirm: true,
-    });
+    // 2. Crear o vincular usuario en Supabase Auth
+    if (!authUserId) {
+      // Try to create a new auth user
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: client.email,
+        user_metadata: { role: "client", roles: ["client"], active_role: "client", client_id: clientId },
+        email_confirm: true,
+      });
 
-    if (createError) {
-      // User already exists in auth (e.g., they're an advisor) — link them
-      if (createError.message?.includes("already been registered")) {
-        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-        const existing = users?.find((u) => u.email === client.email);
-        if (existing) {
-          authUserId = existing.id;
-          isExistingUser = true;
-          hasPassword = true; // Existing users already have a password
+      if (createError) {
+        // User already exists in auth (e.g., they're an advisor) — link them
+        if (createError.message?.includes("already been registered")) {
+          const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+          const existing = users?.find((u) => u.email === client.email);
+          if (existing) {
+            authUserId = existing.id;
+            isExistingUser = true;
+            hasPassword = true; // Existing users already have a password
 
-          // Add "client" to roles array without removing existing roles
-          const currentRoles = (existing.user_metadata?.roles as string[]) || [];
-          const currentRole = existing.user_metadata?.role as string;
-          const roles = [...new Set([...currentRoles, ...(currentRole ? [currentRole] : []), "client"])];
+            // Add "client" to roles array without removing existing roles
+            const currentRoles = (existing.user_metadata?.roles as string[]) || [];
+            const currentRole = existing.user_metadata?.role as string;
+            const roles = [...new Set([...currentRoles, ...(currentRole ? [currentRole] : []), "client"])];
 
-          await supabaseAdmin.auth.admin.updateUserById(existing.id, {
-            user_metadata: {
-              ...existing.user_metadata,
-              roles,
-              client_id: clientId,
-              // Don't change active_role — let user switch manually
-            },
-          });
+            await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+              user_metadata: {
+                ...existing.user_metadata,
+                roles,
+                client_id: clientId,
+                // Don't change active_role — let user switch manually
+              },
+            });
+          } else {
+            throw new Error("Error creando usuario: " + createError.message);
+          }
         } else {
-          return NextResponse.json({ error: "Error creando usuario: " + createError.message }, { status: 500 });
+          throw new Error("Error creando usuario: " + createError.message);
         }
       } else {
-        return NextResponse.json({ error: "Error creando usuario: " + createError.message }, { status: 500 });
+        authUserId = newUser.user.id;
       }
+
+      // 3. Vincular auth_user_id en tabla clients
+      await supabaseAdmin.from("clients").update({
+        auth_user_id: authUserId,
+        portal_enabled: true,
+        portal_invited_at: new Date().toISOString(),
+      }).eq("id", clientId);
     } else {
-      authUserId = newUser.user.id;
+      isExistingUser = true;
+      // Ya tiene auth user, agregar rol client si no lo tiene
+      const { data: { user: existingAuth } } = await supabaseAdmin.auth.admin.getUserById(authUserId);
+      if (existingAuth) {
+        const currentRoles = (existingAuth.user_metadata?.roles as string[]) || [];
+        const currentRole = existingAuth.user_metadata?.role as string;
+        const roles = [...new Set([...currentRoles, ...(currentRole ? [currentRole] : []), "client"])];
+        hasPassword = true;
+
+        await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+          user_metadata: {
+            ...existingAuth.user_metadata,
+            roles,
+            client_id: clientId,
+          },
+        });
+      }
+      await supabaseAdmin.from("clients").update({
+        portal_enabled: true,
+        portal_invited_at: new Date().toISOString(),
+      }).eq("id", clientId);
     }
 
-    // 3. Vincular auth_user_id en tabla clients
-    await supabaseAdmin.from("clients").update({
-      auth_user_id: authUserId,
-      portal_enabled: true,
-      portal_invited_at: new Date().toISOString(),
-    }).eq("id", clientId);
-  } else {
-    isExistingUser = true;
-    // Ya tiene auth user, agregar rol client si no lo tiene
-    const { data: { user: existingAuth } } = await supabaseAdmin.auth.admin.getUserById(authUserId);
-    if (existingAuth) {
-      const currentRoles = (existingAuth.user_metadata?.roles as string[]) || [];
-      const currentRole = existingAuth.user_metadata?.role as string;
-      const roles = [...new Set([...currentRoles, ...(currentRole ? [currentRole] : []), "client"])];
-      hasPassword = true;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
+    let portalLink: string;
+    let emailSubject: string;
+    let emailBody: string;
 
-      await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-        user_metadata: {
-          ...existingAuth.user_metadata,
-          roles,
-          client_id: clientId,
-        },
-      });
-    }
-    await supabaseAdmin.from("clients").update({
-      portal_enabled: true,
-      portal_invited_at: new Date().toISOString(),
-    }).eq("id", clientId);
-  }
+    if (isExistingUser && hasPassword) {
+      // User already has a password (e.g., they're also an advisor)
+      // No need for recovery link — just send them to portal login
+      portalLink = `${appUrl}/portal/login`;
+      emailSubject = "Tu portal de inversiones está listo";
+      emailBody = `
+        <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
+          Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
+        </p>
+        <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
+          Puedes acceder con tu email y contraseña actual. Si no recuerdas tu contraseña, usa la opción "Olvidé mi contraseña" en la página de inicio de sesión.
+        </p>
+        <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+          Acceder al portal
+        </a>
+      `;
+    } else {
+      // New user — generate recovery link so they can set their password
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin
+        .generateLink({ type: "recovery", email: client.email });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://asesoria-financiera.vercel.app";
-  let portalLink: string;
-  let emailSubject: string;
-  let emailBody: string;
+      if (linkError || !linkData) {
+        console.error("Error generando link:", linkError);
+        throw new Error("Error generando link de acceso: " + (linkError?.message || "desconocido"));
+      }
 
-  if (isExistingUser && hasPassword) {
-    // User already has a password (e.g., they're also an advisor)
-    // No need for recovery link — just send them to portal login
-    portalLink = `${appUrl}/portal/login`;
-    emailSubject = "Tu portal de inversiones está listo";
-    emailBody = `
-      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
-        Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
-      </p>
-      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
-        Puedes acceder con tu email y contraseña actual. Si no recuerdas tu contraseña, usa la opción "Olvidé mi contraseña" en la página de inicio de sesión.
-      </p>
-      <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
-        Acceder al portal
-      </a>
-    `;
-  } else {
-    // New user — generate recovery link so they can set their password
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin
-      .generateLink({ type: "recovery", email: client.email });
-
-    if (linkError || !linkData) {
-      console.error("Error generando link:", linkError);
-      return NextResponse.json({ error: "Error generando link de acceso: " + (linkError?.message || "desconocido") }, { status: 500 });
+      portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/portal/setup-password`;
+      emailSubject = "Tu portal de inversiones está listo — define tu contraseña";
+      emailBody = `
+        <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
+          Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
+        </p>
+        <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
+          Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
+        </p>
+        <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+          Crear contraseña y acceder
+        </a>
+        <p style="font-size: 12px; color: #9ca3af; margin-top: 32px;">
+          Este link expira en 24 horas. Si necesitas uno nuevo, contacta a tu asesor.
+        </p>
+      `;
     }
 
-    portalLink = `${appUrl}/auth/callback?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/portal/setup-password`;
-    emailSubject = "Tu portal de inversiones está listo — define tu contraseña";
-    emailBody = `
-      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
-        Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
-      </p>
-      <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
-        Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
-      </p>
-      <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
-        Crear contraseña y acceder
-      </a>
-      <p style="font-size: 12px; color: #9ca3af; margin-top: 32px;">
-        Este link expira en 24 horas. Si necesitas uno nuevo, contacta a tu asesor.
-      </p>
-    `;
-  }
+    // 5. Enviar email via Resend
+    const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
+    let emailSent = false;
+    let emailError: string | null = null;
 
-  // 5. Enviar email via Resend
-  const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
-  let emailSent = false;
-  let emailError: string | null = null;
-
-  try {
     const { data: emailData, error: resendError } = await resend.emails.send({
       from: `Greybark Advisors <${senderEmail}>`,
       to: client.email,
@@ -196,18 +201,15 @@ export async function POST(req: Request) {
       emailSent = true;
       console.log("Email enviado:", emailData?.id);
     }
-  } catch (err) {
-    console.error("Error enviando email:", err);
-    emailError = err instanceof Error ? err.message : "Error desconocido";
-  }
 
-  if (!emailSent) {
-    return NextResponse.json({
-      success: true,
-      warning: `Email no enviado: ${emailError}. Comparte el link manualmente.`,
-      portalLink,
-    });
-  }
+    if (!emailSent) {
+      return NextResponse.json({
+        success: true,
+        warning: `Email no enviado: ${emailError}. Comparte el link manualmente.`,
+        portalLink,
+      });
+    }
 
-  return NextResponse.json({ success: true, portalLink });
+    return NextResponse.json({ success: true, portalLink });
+  });
 }

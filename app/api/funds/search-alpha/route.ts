@@ -3,6 +3,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { requireAdvisor } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
@@ -25,6 +27,9 @@ interface AlphaVantageSearchResponse {
 }
 
 export async function GET(request: NextRequest) {
+  const { error: authError } = await requireAdvisor();
+  if (authError) return authError;
+
   const blocked = await applyRateLimit(request, "funds-search-alpha", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
@@ -35,7 +40,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
+  return handleApiError("funds-search-alpha-get", async () => {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
     const assetType = searchParams.get("type") || "all"; // etf, mutual_fund, all
@@ -104,14 +109,5 @@ export async function GET(request: NextRequest) {
       funds,
       count: funds.length,
     });
-  } catch (error: unknown) {
-    console.error("Error buscando en Alpha Vantage:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error al buscar fondos",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

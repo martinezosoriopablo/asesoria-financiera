@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { escapeHtml } from "@/lib/sanitize";
+import { handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("send-questionnaire-post", async () => {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { email, clientName, advisorEmail } = await req.json();
 
@@ -97,8 +98,6 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Send questionnaire error:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
-  }
+  
+  });
 }

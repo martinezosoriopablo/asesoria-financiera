@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface YahooChartResult {
   chart: {
@@ -184,7 +185,7 @@ export async function GET(
     );
   }
 
-  try {
+  return handleApiError("securities-quote-get", async () => {
     // Buscar primero en cache
     const supabase = createAdminClient();
     const { data: cached } = await supabase
@@ -253,12 +254,5 @@ export async function GET(
       success: true,
       quote,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error obteniendo cotización";
-    console.error("Quote error:", error);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/auth/api-auth";
+import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const blocked = await applyRateLimit(req, "check-risk-profile", { limit: 20, windowSeconds: 60 });
+  if (blocked) return blocked;
+
   const { searchParams } = new URL(req.url);
   const email = searchParams.get("email");
   const advisor = searchParams.get("advisor");
@@ -32,24 +37,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ exists: false });
   }
 
-  const supabase = createAdminClient();
+  return handleApiError("check-risk-profile-get", async () => {
+    const supabase = createAdminClient();
 
-  // Find client
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("email", email.toLowerCase())
-    .maybeSingle();
+    // Find client
+    const { data: client } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("email", email.toLowerCase())
+      .maybeSingle();
 
-  if (!client) {
-    return NextResponse.json({ exists: false });
-  }
+    if (!client) {
+      return NextResponse.json({ exists: false });
+    }
 
-  // Check if risk profile exists
-  const { count } = await supabase
-    .from("risk_profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("client_id", client.id);
+    // Check if risk profile exists
+    const { count } = await supabase
+      .from("risk_profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", client.id);
 
-  return NextResponse.json({ exists: (count || 0) > 0 });
+    return NextResponse.json({ exists: (count || 0) > 0 });
+  });
 }

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { fetchDividendHistory } from "@/lib/alphavantage-dividends";
+import { handleApiError } from "@/lib/api-response";
 
 const AV_KEY = process.env.ALPHA_VANTAGE_API_KEY || "";
 const DELAY_MS = 800; // 75 rpm safe
@@ -18,9 +19,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = createAdminClient();
+  return handleApiError("dividends-sync-post", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const body = await request.json();
     const tickers: string[] = body.tickers || [];
 
@@ -80,12 +81,5 @@ export async function POST(request: NextRequest) {
       totalEventsInserted: totalInserted,
       summary,
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error en sync dividendos";
-    console.error("[dividends/sync] Error:", err);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

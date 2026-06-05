@@ -16,6 +16,7 @@ import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { detectSerieCode } from "@/lib/fund-utils";
+import { handleApiError } from "@/lib/api-response";
 
 interface HoldingInput {
   fundName: string;
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("match-holdings-post", async () => {
     const { holdings, cartolaSource, cartolaDate } = await request.json() as {
       holdings: HoldingInput[];
       cartolaSource?: string | string[];
@@ -658,11 +659,5 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, matches: results });
-  } catch (error) {
-    console.error("Error in match-holdings:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error matching holdings" },
-      { status: 500 }
-    );
-  }
+  });
 }

@@ -4,8 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
-
-const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(
   request: NextRequest,
@@ -14,10 +13,10 @@ export async function GET(
   const blocked = await applyRateLimit(request, "comite-report", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("comite-type-get", async () => {
     const { type } = await params;
 
-    if (!VALID_TYPES.includes(type)) {
+    if (!type || type.length > 100) {
       return NextResponse.json(
         { success: false, error: "Tipo de reporte inválido" },
         { status: 400 }
@@ -64,12 +63,47 @@ export async function GET(
         uploadedAt: report.uploaded_at,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in comite get report:", error);
-    const message = error instanceof Error ? error.message : "Error interno";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
+}
+
+// DELETE - Eliminar un reporte del comité
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ type: string }> }
+) {
+  const blocked = await applyRateLimit(request, "comite-delete", { limit: 10, windowSeconds: 60 });
+  if (blocked) return blocked;
+
+  return handleApiError("comite-type-delete", async () => {
+    const { type } = await params;
+
+    if (!type || type.length > 100) {
+      return NextResponse.json(
+        { success: false, error: "Tipo de reporte inválido" },
+        { status: 400 }
+      );
+    }
+
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
+
+    const supabase = createAdminClient();
+
+    const { error } = await supabase
+      .from("comite_reports")
+      .delete()
+      .eq("type", type);
+
+    if (error) {
+      console.error("Error deleting comite report:", error);
+      return NextResponse.json(
+        { success: false, error: "Error al eliminar reporte" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  
+  });
 }

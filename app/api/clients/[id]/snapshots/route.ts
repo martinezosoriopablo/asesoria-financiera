@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -21,7 +22,7 @@ export async function DELETE(
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("clients-id-snapshots-delete", async () => {
     const { id: clientId } = await context.params;
 
     // Verify client belongs to advisor
@@ -67,11 +68,6 @@ export async function DELETE(
       success: true,
       deleted: count,
     });
-  } catch (error) {
-    console.error("Error in DELETE all snapshots:", error);
-    return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

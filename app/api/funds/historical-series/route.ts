@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fund-history", { limit: 30, windowSeconds: 60 });
@@ -9,6 +10,7 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
+  return handleApiError("fund-history-get", async () => {
   const { searchParams } = new URL(request.url);
   const run = searchParams.get("run");
   const serie = searchParams.get("serie");
@@ -84,4 +86,5 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ success: true, data: results });
+  });
 }

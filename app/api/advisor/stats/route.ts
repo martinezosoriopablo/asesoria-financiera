@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // GET - Obtener estadísticas del asesor autenticado
 export async function GET(request: NextRequest) {
@@ -19,9 +20,9 @@ export async function GET(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("advisor-stats-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     // Intentar usar la función SQL
     const { data: stats, error: statsError } = await supabase
       .rpc("get_advisor_stats", { advisor_email: advisor!.email });
@@ -71,11 +72,5 @@ export async function GET(request: NextRequest) {
       success: true,
       stats: stats[0],
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error al obtener estadísticas";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

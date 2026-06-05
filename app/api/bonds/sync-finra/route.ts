@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   // Localhost-only guard (same pattern as AAFM sync)
@@ -24,9 +25,9 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("bonds-sync-finra-post", async () => {
+    const supabase = createAdminClient();
 
-  try {
     // Dynamic import to avoid loading Playwright in Vercel
     const { scrapeBondPrices } = await import("@/lib/finra/scraper");
     const result = await scrapeBondPrices();
@@ -91,15 +92,7 @@ export async function POST(request: NextRequest) {
         date: b.lastTradeDate,
       })),
     });
-
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error en sync FINRA";
-    console.error("[FINRA sync] Error:", err);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // GET: return current bond price status
@@ -107,25 +100,27 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const host = request.headers.get("host") || "";
-  const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  return handleApiError("bonds-sync-finra-get", async () => {
+    const host = request.headers.get("host") || "";
+    const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
 
-  const supabase = createAdminClient();
+    const supabase = createAdminClient();
 
-  const { data: latest } = await supabase
-    .from("bond_prices")
-    .select("cusip, issuer, price_date, last_price, yield_to_maturity")
-    .order("price_date", { ascending: false })
-    .limit(50);
+    const { data: latest } = await supabase
+      .from("bond_prices")
+      .select("cusip, issuer, price_date, last_price, yield_to_maturity")
+      .order("price_date", { ascending: false })
+      .limit(50);
 
-  const uniqueCusips = new Set((latest || []).map(r => r.cusip));
+    const uniqueCusips = new Set((latest || []).map(r => r.cusip));
 
-  return NextResponse.json({
-    success: true,
-    configured: !!process.env.FINRA_USER && !!process.env.FINRA_PASSWORD,
-    isLocal,
-    totalBonds: uniqueCusips.size,
-    latestDate: latest?.[0]?.price_date || null,
-    prices: latest || [],
+    return NextResponse.json({
+      success: true,
+      configured: !!process.env.FINRA_USER && !!process.env.FINRA_PASSWORD,
+      isLocal,
+      totalBonds: uniqueCusips.size,
+      latestDate: latest?.[0]?.price_date || null,
+      prices: latest || [],
+    });
   });
 }

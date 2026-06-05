@@ -93,6 +93,7 @@ async function attemptDownload(
   const pageRes = await fetch(CMF_PAGE, {
     headers: browserHeaders(),
     redirect: 'follow',
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!pageRes.ok) {
@@ -114,6 +115,7 @@ async function attemptDownload(
   const captchaUrl = `${CAPTCHA_IMAGE}?rand=${Math.floor(Math.random() * 32768)}`
   const captchaRes = await fetch(captchaUrl, {
     headers: { ...browserHeaders(), Cookie: cookieHeader, Referer: CMF_PAGE },
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!captchaRes.ok) {
@@ -162,6 +164,7 @@ async function attemptDownload(
       Referer: CMF_PAGE,
     },
     body: `accion=valida&valor=${encodeURIComponent(captchaText)}`,
+    signal: AbortSignal.timeout(30000),
   })
 
   const validateResult = (await validateRes.text()).trim()
@@ -196,6 +199,7 @@ async function attemptDownload(
     },
     body: formBody.toString(),
     redirect: 'follow',
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!downloadRes.ok) {

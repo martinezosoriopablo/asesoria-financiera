@@ -6,13 +6,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 // POST: Registrar un dividendo
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "dividends", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("dividends-post", async () => {
     const supabase = await createSupabaseServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -56,8 +57,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Ajustar el snapshot del día del dividendo (si existe)
-    // El dividendo se suma al total_value pero NO cambia total_cuotas
-    // Esto hace que el valor cuota suba, reflejando el retorno del dividendo
     const { data: snapshot } = await supabase
       .from("portfolio_snapshots")
       .select("id, total_value, total_cuotas, net_cash_flow, deposits")
@@ -66,9 +65,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (snapshot) {
-      // Sumar dividendo al valor total (valor cuota sube)
-      // Dividendo NO es cash flow (es retorno), así que NO lo sumamos a net_cash_flow
-      // Solo sumamos al valor total para que el valor cuota suba
       await supabase
         .from("portfolio_snapshots")
         .update({
@@ -82,13 +78,7 @@ export async function POST(request: NextRequest) {
       message: `Dividendo de $${amount.toFixed(2)} registrado para ${date}`,
       snapshotAdjusted: !!snapshot,
     });
-  } catch (error: unknown) {
-    console.error("Error in dividends:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // GET: Listar dividendos de un cliente
@@ -96,7 +86,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "dividends-get", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("dividends-get", async () => {
     const supabase = await createSupabaseServerClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -122,11 +112,5 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data: dividends });
-  } catch (error: unknown) {
-    console.error("Error in dividends GET:", error);
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
-  }
+  });
 }

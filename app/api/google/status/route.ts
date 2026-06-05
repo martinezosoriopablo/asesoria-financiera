@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { isGoogleCalendarConfigured } from "@/lib/google/calendar-client";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "google-status", { limit: 30, windowSeconds: 60 });
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("google-status-get", async () => {
     // Verificar si Google Calendar está configurado globalmente
     const configured = isGoogleCalendarConfigured();
 
@@ -53,11 +54,5 @@ export async function GET(request: NextRequest) {
       connectedAt: tokenData.created_at,
       lastUpdated: tokenData.updated_at,
     });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Error verificando estado";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  });
 }

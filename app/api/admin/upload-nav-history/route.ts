@@ -6,6 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { parse } from "csv-parse/sync";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { validateUpload } from "@/lib/upload-validation";
+import { errorResponse, handleApiError } from "@/lib/api-response";
 
 interface NavRecord {
   date: string;
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("upload-nav-history-post", async () => {
     const formData = await request.formData();
 
     const file = formData.get("file") as File;
@@ -46,6 +48,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const uploadErr = validateUpload(file, {
+      maxSizeMB: 10,
+      allowedExtensions: [".xlsx", ".xls", ".csv"],
+    });
+    if (uploadErr) return errorResponse(uploadErr, 400);
 
     // Extraer identificador del fondo desde el nombre del archivo
     const fundIdentifier = extractFundIdentifier(file.name);
@@ -173,14 +181,7 @@ export async function POST(request: NextRequest) {
       },
       returns: lastCalculatedReturns,
     });
-  } catch (error: unknown) {
-    console.error("Error en importación:", error);
-    const errorMessage = error instanceof Error ? error.message : "Error en la importación";
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // Extraer identificador del fondo desde el nombre del archivo

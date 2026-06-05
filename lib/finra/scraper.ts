@@ -188,7 +188,7 @@ async function fetchWatchlistPrices(session: {
   };
 
   // Read the watchlist
-  const wlRes = await fetch(`${BASE}/reporting/v1/watchlist/`, { headers });
+  const wlRes = await fetch(`${BASE}/reporting/v1/watchlist/`, { headers, signal: AbortSignal.timeout(15000) });
   if (!wlRes.ok) {
     throw new Error(`Watchlist fetch failed: ${wlRes.status}`);
   }

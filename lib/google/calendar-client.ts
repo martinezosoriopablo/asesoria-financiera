@@ -98,6 +98,7 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleTokens>
       grant_type: "authorization_code",
       redirect_uri: GOOGLE_REDIRECT_URI,
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {
@@ -132,6 +133,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {
@@ -212,6 +214,7 @@ export async function createCalendarEvent(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(event),
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -242,6 +245,7 @@ export async function updateCalendarEvent(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(event),
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -266,6 +270,7 @@ export async function deleteCalendarEvent(
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -404,6 +409,7 @@ export async function getCalendarEvents(
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -436,6 +442,7 @@ export async function revokeGoogleAccess(advisorId: string): Promise<boolean> {
     // Revocar token en Google
     await fetch(`https://oauth2.googleapis.com/revoke?token=${tokenData.access_token}`, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
     });
   }
 

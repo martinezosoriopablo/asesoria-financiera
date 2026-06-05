@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { errorResponse, handleApiError } from "@/lib/api-response";
 
 // Map JSON profile keys → DB perfil values
 const PROFILE_MAP: Record<string, string> = {
@@ -179,7 +180,18 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("comite-upload-report-post", async () => {
+    // Validate JSON body size (max 5 MB)
+    const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
+    if (contentLength > 5 * 1024 * 1024) {
+      return errorResponse("Archivo demasiado grande (máx 5 MB)", 400);
+    }
+
+    const contentType = request.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      return errorResponse("Tipo de archivo no permitido", 400);
+    }
+
     const report: ComiteReport = await request.json();
 
     // Validate basic structure
@@ -278,14 +290,6 @@ export async function POST(request: NextRequest) {
         warnings: [`Perfiles ignorados (no mapeados): ${unknownProfiles.join(", ")}`],
       }),
     });
-  } catch (err) {
-    console.error("Error in upload-report:", err);
-    return NextResponse.json(
-      {
-        success: false,
-        error: err instanceof Error ? err.message : "Error interno",
-      },
-      { status: 500 }
-    );
-  }
+  
+  });
 }

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { fetchAAFMData, parseAAFMExcel, syncAAFMToSupabase } from "@/lib/aafm-sync";
+import { handleApiError } from "@/lib/api-response";
 
 async function fetchAndParse(date: Date) {
   console.log(`[AAFM Sync] Downloading report for ${date.toISOString().split("T")[0]}...`);
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("aafm-sync-post", async () => {
     const body = await request.json().catch(() => ({}));
     const date = body.date ? new Date(body.date) : new Date();
 
@@ -67,17 +68,7 @@ export async function POST(request: NextRequest) {
       fundsInReport: funds.length,
       ...syncResult,
     });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("[AAFM Sync] Error:", msg, error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Sync error: ${msg}`,
-      },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // GET: Check last sync status
@@ -90,7 +81,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("aafm-status-get", async () => {
     // Get stats about price freshness
     const { data: stats } = await supabase
       .from("fintual_funds")
@@ -121,11 +112,5 @@ export async function GET(request: NextRequest) {
       todayPrices: todayPrices || 0,
       latestPriceDate: stats?.[0]?.last_price_date || null,
     });
-  } catch (error) {
-    console.error("[AAFM Status] Error:", error);
-    return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 }
-    );
-  }
+  });
 }

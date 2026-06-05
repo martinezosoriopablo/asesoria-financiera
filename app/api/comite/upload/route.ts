@@ -5,14 +5,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { sanitizeHtml } from "@/lib/sanitize";
-
-const VALID_TYPES = ["macro", "rv", "rf", "asset_allocation"];
+import { validateUpload } from "@/lib/upload-validation";
+import { errorResponse, handleApiError } from "@/lib/api-response";
 
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "comite-upload", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  try {
+  return handleApiError("comite-upload-post", async () => {
     const { user, error: authError } = await requireAdvisor();
     if (authError) return authError;
 
@@ -31,14 +31,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!type || !VALID_TYPES.includes(type)) {
+    if (!type || type.length > 100) {
       return NextResponse.json(
         { success: false, error: "Tipo de reporte inválido" },
         { status: 400 }
       );
     }
 
-    // Validar que sea HTML
+    // Validar tipo y tamaño
+    const uploadErr = validateUpload(file, {
+      maxSizeMB: 5,
+      allowedExtensions: [".html", ".htm"],
+    });
+    if (uploadErr) return errorResponse(uploadErr, 400);
+
+    // Validar que sea HTML (legacy check kept)
     if (!file.name.endsWith(".html") && !file.type.includes("html")) {
       return NextResponse.json(
         { success: false, error: "El archivo debe ser HTML" },
@@ -110,14 +117,8 @@ export async function POST(request: NextRequest) {
         uploadedAt: data.uploaded_at,
       },
     });
-  } catch (error: unknown) {
-    console.error("Error in comite upload:", error);
-    const message = error instanceof Error ? error.message : "Error interno";
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
-  }
+  
+  });
 }
 
 function getMonthNumber(month: string): string {

@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin, requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { handleApiError } from "@/lib/api-response";
 import {
   getProviders,
   getProviderFunds,
@@ -25,9 +26,9 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("fintual-sync-post", async () => {
+    const supabase = createAdminClient();
 
-  try {
     const { searchParams } = new URL(request.url);
     const providerId = searchParams.get("provider_id");
     const fullSync = searchParams.get("full") === "true";
@@ -148,16 +149,7 @@ export async function POST(request: NextRequest) {
       message: "Sincronización completada",
       result,
     });
-  } catch (error) {
-    console.error("Error in Fintual sync:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error interno del servidor",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 // GET: Obtener estado de la sincronización
@@ -168,9 +160,9 @@ export async function GET(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  const supabase = createAdminClient();
+  return handleApiError("fintual-sync-get", async () => {
+    const supabase = createAdminClient();
 
-  try {
     // Contar registros
     const { count: providersCount } = await supabase
       .from("fintual_providers")
@@ -196,14 +188,5 @@ export async function GET(request: NextRequest) {
         lastUpdate: lastUpdate?.updated_at || null,
       },
     });
-  } catch (error) {
-    console.error("Error getting sync status:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error interno del servidor",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

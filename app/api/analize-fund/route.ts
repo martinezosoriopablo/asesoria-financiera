@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
+
+export const maxDuration = 60;
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -16,7 +19,7 @@ export async function POST(request: NextRequest) {
   const { error: authError } = await requireAdvisor();
   if (authError) return authError;
 
-  try {
+  return handleApiError("analize-fund-post", async () => {
     const formData = await request.formData();
     const file = formData.get("pdf") as File;
 
@@ -143,7 +146,7 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     try {
       // Claude might return text content
       const textContent = data.content.find((c: ClaudeContentBlock) => c.type === "text")?.text || "";
-      
+
       // Remove markdown code blocks if present
       let jsonText = textContent.trim();
       if (jsonText.startsWith("```json")) {
@@ -164,13 +167,5 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
     }
 
     return NextResponse.json(fundData);
-  } catch (error: unknown) {
-    console.error("Error in analyze-fund API:", error);
-    return NextResponse.json(
-      {
-        error: "Error al procesar la solicitud",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }

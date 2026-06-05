@@ -182,7 +182,8 @@ export async function PUT(
       'patrimonio_estimado', 'ingreso_mensual', 'objetivo_inversion',
       'horizonte_temporal', 'perfil_riesgo', 'puntaje_riesgo', 'parent_client_id',
       'tolerancia_perdida', 'tiene_portfolio', 'portfolio_data',
-      'status', 'notas', 'questionnaire_frequency', 'fund_selection_mode'
+      'status', 'notas', 'questionnaire_frequency', 'fund_selection_mode',
+      'servicios_adicionales'
     ];
 
     // Campos que Postgres espera como null (no string vacío)
@@ -378,6 +379,15 @@ export async function PATCH(
         return errorResponse("Perfil de riesgo no valido", 400);
       }
       updateData.perfil_riesgo = body.perfil_riesgo || null;
+    }
+
+    // Handle display_currency
+    if (body.display_currency !== undefined) {
+      const validCurrencies = ["CLP", "USD", "UF", "EUR"];
+      if (!validCurrencies.includes(body.display_currency)) {
+        return errorResponse("Moneda no valida", 400);
+      }
+      updateData.display_currency = body.display_currency;
     }
 
     // Handle fund_selection_mode

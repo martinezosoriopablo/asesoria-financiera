@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdvisor, requireAdmin, createAdminClient } from '@/lib/auth/api-auth';
 import * as XLSX from 'xlsx';
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface ExcelRow {
   fo_run?: string | number;
@@ -95,15 +96,14 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("rentabilidades-agregadas-get", async () => {
     // Obtener rentabilidades agregadas más recientes de cada fondo
     const { data, error } = await supabase
       .from('fondos_rentabilidades_latest')
       .select('*')
       .order('nombre_fondo', { ascending: true });
-    
+
     if (error) {
-      console.error('Error obteniendo rentabilidades agregadas:', error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
@@ -115,15 +115,7 @@ export async function GET(request: NextRequest) {
       data: data || [],
       total: data?.length || 0
     });
-    
-  } catch (error: unknown) {
-    console.error('Error en API rentabilidades-agregadas GET:', error);
-    const message = error instanceof Error ? error.message : 'Error desconocido';
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: message },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -135,7 +127,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  try {
+  return handleApiError("rentabilidades-agregadas-post", async () => {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fecha_calculo = formData.get('fecha_calculo') as string || new Date().toISOString().split('T')[0];
@@ -331,13 +323,5 @@ export async function POST(request: NextRequest) {
       fondosNoEncontrados: fondosNoEncontrados,
       tiempo_segundos: parseFloat(totalTime)
     });
-
-  } catch (error: unknown) {
-    console.error('❌ Error en API rentabilidades-agregadas POST:', error);
-    const message = error instanceof Error ? error.message : 'Error desconocido';
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor', details: message },
-      { status: 500 }
-    );
-  }
+  });
 }

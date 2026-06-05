@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-response";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ success: false, error: access.error }, { status: 403 });
   }
 
-  try {
+  return handleApiError("clients-id-contract-post", async () => {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -136,10 +137,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({ success: true, contract_url: filePath });
-  } catch (error) {
-    console.error("Error uploading contract:", error);
-    return NextResponse.json({ success: false, error: "Error al subir contrato" }, { status: 500 });
-  }
+  
+  });
 }
 
 // DELETE - Remove contract
