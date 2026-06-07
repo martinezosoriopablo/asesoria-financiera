@@ -39,6 +39,14 @@ function getCredentials(): { user: string; pass: string } | null {
   return { user, pass };
 }
 
+// Validate BCCH credentials at module load — warn if missing
+if (typeof window === "undefined") {
+  const _creds = getCredentials();
+  if (!_creds) {
+    console.warn("[bcch] WARNING: BCCH_API_USER or BCCH_API_PASSWORD not configured — exchange rates will use fallback sources");
+  }
+}
+
 /** Convert DD-MM-YYYY → YYYY-MM-DD */
 function parseDate(ddmmyyyy: string): string {
   const [d, m, y] = ddmmyyyy.split("-");
