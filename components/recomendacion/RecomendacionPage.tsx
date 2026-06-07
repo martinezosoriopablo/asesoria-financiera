@@ -112,6 +112,7 @@ interface RadiografiaData {
 
 interface Props {
   clientId: string;
+  portalMode?: boolean;
 }
 
 const PROFILE_LABELS: Record<string, string> = {
@@ -128,7 +129,7 @@ function formatCLP(value: number): string {
   return `$${(value / 1e3).toFixed(0)}K`;
 }
 
-export default function RecomendacionPage({ clientId }: Props) {
+export default function RecomendacionPage({ clientId, portalMode = false }: Props) {
   const [data, setData] = useState<RadiografiaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +141,8 @@ export default function RecomendacionPage({ clientId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/portfolio/radiografia", {
+      const endpoint = portalMode ? "/api/portal/radiografia" : "/api/portfolio/radiografia";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clientId }),
@@ -156,7 +158,7 @@ export default function RecomendacionPage({ clientId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [clientId]);
+  }, [clientId, portalMode]);
 
   const openSendModal = useCallback(async () => {
     if (!clientEmail) {
@@ -225,23 +227,25 @@ export default function RecomendacionPage({ clientId }: Props) {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={openSendModal}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            Enviar por Email
-          </button>
-          <button
-            onClick={fetchRadiografia}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gb-border rounded-md hover:bg-slate-50 transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Actualizar
-          </button>
-        </div>
+        {!portalMode && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openSendModal}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Enviar por Email
+            </button>
+            <button
+              onClick={fetchRadiografia}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gb-border rounded-md hover:bg-slate-50 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Actualizar
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Flags */}
@@ -297,28 +301,30 @@ export default function RecomendacionPage({ clientId }: Props) {
       {/* ── Section 4: Observations ──────────────────────────────────── */}
       <ObservacionesPanel observations={data.observations} />
 
-      {/* Trade Suggestions (keep existing component) */}
-      {data.tradeSuggestions.length > 0 && (
+      {/* Trade Suggestions */}
+      {!portalMode && data.tradeSuggestions.length > 0 && (
         <TradeSuggestions suggestions={data.tradeSuggestions} />
       )}
 
       {/* ── Section 5: Narrative Analysis ────────────────────────────── */}
-      <NarrativeAnalysis
-        clientId={data.clientId}
-        clientName={data.clientName}
-        allocation={data.allocation}
-        observations={data.observations}
-        sectorBreakdown={data.sectorBreakdown}
-        instrumentBreakdown={data.instrumentBreakdown}
-        totalValueCLP={data.totalValueCLP}
-        perfilCliente={data.perfilCliente}
-        perfilModelo={data.perfilModelo}
-        notaComite={data.notaComite}
-        onNarrativeGenerated={setNarrativeText}
-      />
+      {!portalMode && (
+        <NarrativeAnalysis
+          clientId={data.clientId}
+          clientName={data.clientName}
+          allocation={data.allocation}
+          observations={data.observations}
+          sectorBreakdown={data.sectorBreakdown}
+          instrumentBreakdown={data.instrumentBreakdown}
+          totalValueCLP={data.totalValueCLP}
+          perfilCliente={data.perfilCliente}
+          perfilModelo={data.perfilModelo}
+          notaComite={data.notaComite}
+          onNarrativeGenerated={setNarrativeText}
+        />
+      )}
 
       {/* Send Report Modal */}
-      {data && (
+      {!portalMode && data && (
         <SendReportModal
           isOpen={showSendModal}
           onClose={() => setShowSendModal(false)}

@@ -3,7 +3,7 @@
 // al sistema de 14 categorías del comité, compara vs modelo, genera deviaciones.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "radiografia", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { advisor, error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   return handleApiError("radiografia", async () => {
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     // ── 2. Load client ───────────────────────────────────────────────────
     const { data: client, error: clientError } = await supabase
       .from("clients")
-      .select("id, nombre, apellido, perfil_riesgo")
+      .select("id, nombre, apellido, perfil_riesgo, asesor_id")
       .eq("id", clientId)
       .single();
 
@@ -406,7 +406,7 @@ export async function POST(request: NextRequest) {
           categoria, custodian_type,
           advisor_preferred_funds!inner (fund_name, ticker)
         `)
-        .eq("advisor_id", advisor!.id)
+        .eq("advisor_id", client.asesor_id)
         .in("custodian_type", custodianTypes);
 
       if (mappings) {
