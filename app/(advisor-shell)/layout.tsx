@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import AdvisorSidebar from "@/components/shared/AdvisorSidebar";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
 import { Loader } from "lucide-react";
 
 export default function AdvisorShellLayout({ children }: { children: React.ReactNode }) {
@@ -44,7 +45,7 @@ export default function AdvisorShellLayout({ children }: { children: React.React
 
       <div className={`${sidebarCollapsed ? "pl-16" : "pl-60"} min-h-screen flex flex-col transition-all duration-200`}>
         <main className="flex-1">
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
     </div>
