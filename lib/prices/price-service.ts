@@ -256,6 +256,7 @@ export async function fetchPriceRange(
       toDate
     );
     if (avPrices.length > 0) return avPrices;
+    console.warn(`[price-service] alphavantage returned no data for ${resolution.symbol}, falling back to yahoo`);
     return fetchYahooHistorical(resolution.symbol, fromDate, toDate);
   }
 
@@ -266,8 +267,10 @@ export async function fetchPriceRange(
     // Find Yahoo fallback from mapping
     const mapping = Object.values(INTL_FUND_MAP).find(m => m.eodhd === resolution.symbol);
     if (mapping?.yahoo) {
+      console.warn(`[price-service] eodhd returned no data for ${resolution.symbol}, falling back to yahoo (${mapping.yahoo})`);
       return fetchYahooHistorical(mapping.yahoo, fromDate, toDate);
     }
+    console.warn(`[price-service] eodhd returned no data for ${resolution.symbol}, no yahoo mapping found`);
     return [];
   }
 
@@ -284,6 +287,7 @@ export async function fetchPriceRange(
       }
     } catch {
       // Bolsa API may be unavailable outside market hours
+      console.warn(`[price-service] bolsa-santiago threw error for ${resolution.symbol}, falling back to yahoo .SN`);
     }
     // Fallback: Yahoo with .SN suffix
     const yahooSymbol = resolution.symbol.toUpperCase().endsWith(".SN")
@@ -297,6 +301,7 @@ export async function fetchPriceRange(
   }
 
   // cmf, fintual, finra, bcch → handled by existing code elsewhere
+  console.warn(`[price-service] fetchPriceRange: no handler matched for source=${resolution.source}, symbol=${resolution.symbol}`);
   return [];
 }
 
@@ -310,6 +315,7 @@ export async function fetchLatestPrice(
   if (resolution.source === "alphavantage") {
     const avQuote = await fetchQuote(resolution.symbol);
     if (avQuote) return avQuote;
+    console.warn(`[price-service] alphavantage returned no quote for ${resolution.symbol}, falling back to yahoo`);
     return fetchYahooQuote(resolution.symbol);
   }
 
@@ -318,8 +324,10 @@ export async function fetchLatestPrice(
     if (quote) return quote;
     const mapping = Object.values(INTL_FUND_MAP).find(m => m.eodhd === resolution.symbol);
     if (mapping?.yahoo) {
+      console.warn(`[price-service] eodhd returned no quote for ${resolution.symbol}, falling back to yahoo (${mapping.yahoo})`);
       return fetchYahooQuote(mapping.yahoo);
     }
+    console.warn(`[price-service] eodhd returned no quote for ${resolution.symbol}, no yahoo mapping found`);
     return null;
   }
 
@@ -340,6 +348,7 @@ export async function fetchLatestPrice(
       }
     } catch {
       // Bolsa API unavailable
+      console.warn(`[price-service] bolsa-santiago threw error for ${resolution.symbol}, falling back to yahoo .SN`);
     }
     // Fallback: Yahoo .SN
     const yahooSymbol = resolution.symbol.toUpperCase().endsWith(".SN")
@@ -348,6 +357,7 @@ export async function fetchLatestPrice(
     return fetchYahooQuote(yahooSymbol);
   }
 
+  console.warn(`[price-service] fetchLatestPrice: no handler matched for source=${resolution.source}, symbol=${resolution.symbol}`);
   return null;
 }
 
