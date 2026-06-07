@@ -70,38 +70,48 @@ export async function POST(req: NextRequest) {
     moneda: string; // CLP, USD, etc. from fondos_mutuos.moneda_funcional
   }>();
 
+  // Pre-fetch all fondos_mutuos for all RUNs in one query (batch N+1 fix)
+  const allRuns = [...new Set(holdings.filter(h => h.run).map(h => h.run!))];
+  const { data: allFondos } = allRuns.length > 0
+    ? await supabase
+        .from("fondos_mutuos")
+        .select("id, fo_run, fm_serie, moneda_funcional")
+        .in("fo_run", allRuns)
+    : { data: [] as { id: string; fo_run: number; fm_serie: string; moneda_funcional: string | null }[] };
+
+  // Group by RUN for fast lookup
+  const fondosByRun = new Map<number, typeof allFondos>();
+  for (const f of (allFondos || [])) {
+    const list = fondosByRun.get(f.fo_run) || [];
+    list.push(f);
+    fondosByRun.set(f.fo_run, list);
+  }
+
   for (const h of holdings) {
     if (!h.run) continue;
     // Try to resolve serie: explicit > detectSerieCode > best-match by price
     const resolvedSerie = h.serie || detectSerieCode(h.fundName || "") || "";
     const key = `${h.run}-${resolvedSerie}`;
 
-    // fondo_id + moneda from fondos_mutuos
+    // fondo_id + moneda from pre-fetched fondos_mutuos
+    const runFondos = fondosByRun.get(h.run) || [];
     let fondo: { id: string; moneda_funcional: string | null } | null = null;
+
     if (resolvedSerie) {
-      const { data } = await supabase
-        .from("fondos_mutuos")
-        .select("id, moneda_funcional")
-        .eq("fo_run", h.run)
-        .eq("fm_serie", resolvedSerie)
-        .limit(1)
-        .single();
-      fondo = data;
+      const match = runFondos.find(f => f.fm_serie === resolvedSerie);
+      fondo = match || null;
     }
     if (!fondo) {
-      // No serie or serie didn't match — fetch all series and match by fund name
-      const { data: allSeries } = await supabase
-        .from("fondos_mutuos")
-        .select("id, moneda_funcional, fm_serie")
-        .eq("fo_run", h.run);
-      if (!allSeries || allSeries.length === 0) continue;
-      if (allSeries.length === 1) {
-        fondo = allSeries[0];
+      // No serie or serie didn't match — use all series from pre-fetched data
+      if (runFondos.length === 0) continue;
+      if (runFondos.length === 1) {
+        fondo = runFondos[0];
       } else if (h.cartolaPrice && h.cartolaPrice > 0) {
         // Pick serie whose latest price is closest to cartolaPrice (most reliable)
-        let best = allSeries[0];
+        // This still needs individual queries for latest valor_cuota per serie
+        let best = runFondos[0];
         let bestDiff = Infinity;
-        for (const s of allSeries) {
+        for (const s of runFondos) {
           const { data: latest } = await supabase
             .from("fondos_rentabilidades_diarias")
             .select("valor_cuota")
@@ -119,9 +129,9 @@ export async function POST(req: NextRequest) {
         // No price available — fall back to name detection
         const nameDetected = detectSerieCode(h.fundName || "");
         const nameMatch = nameDetected
-          ? allSeries.find((s) => s.fm_serie === nameDetected)
+          ? runFondos.find((s) => s.fm_serie === nameDetected)
           : null;
-        fondo = nameMatch || allSeries[0];
+        fondo = nameMatch || runFondos[0];
       }
     }
 
