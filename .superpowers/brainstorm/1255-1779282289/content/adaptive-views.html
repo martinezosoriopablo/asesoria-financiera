@@ -1,0 +1,118 @@
+<h2>Vistas adaptativas segun composicion de cartera</h2>
+<p class="subtitle">La pantalla se adapta segun que tipos de activos tenga el cliente</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
+
+  <!-- CASO 1: SOLO FONDOS -->
+  <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e2e8f0;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+      <span style="background: #f0e6ff; color: #805ad5; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">CASO 1</span>
+      <h3 style="margin: 0;">Solo Fondos Mutuos</h3>
+    </div>
+    <div style="font-size: 12px; color: #666; line-height: 1.8;">
+      <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+        <strong>Secciones visibles:</strong>
+        <div style="margin-top: 4px;">
+          <span style="background: #4a7dff; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 4px;">Renta Variable</span>
+          <span style="background: #a0aec0; color: white; padding: 2px 8px; border-radius: 3px;">Cash</span>
+        </div>
+      </div>
+      <div>Columnas RV: Nombre, Tipo, Peso, P.Compra, P.Actual, Valor, Retorno, Contrib.</div>
+      <div style="color: #38a169; margin-top: 4px;">Sin columna Dividendos (fondos no pagan)</div>
+      <div style="color: #38a169;">Sin seccion RF</div>
+    </div>
+  </div>
+
+  <!-- CASO 2: FONDOS + ACCIONES/ETFs -->
+  <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e2e8f0;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+      <span style="background: #e6ffed; color: #38a169; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">CASO 2</span>
+      <h3 style="margin: 0;">Fondos + Acciones/ETFs</h3>
+    </div>
+    <div style="font-size: 12px; color: #666; line-height: 1.8;">
+      <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+        <strong>Secciones visibles:</strong>
+        <div style="margin-top: 4px;">
+          <span style="background: #4a7dff; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 4px;">Renta Variable</span>
+          <span style="background: #a0aec0; color: white; padding: 2px 8px; border-radius: 3px;">Cash</span>
+        </div>
+      </div>
+      <div>Columnas RV: Nombre, Tipo, Peso, P.Compra, P.Actual, Valor, Retorno, <strong style="color: #dd6b20;">Dividendos</strong>, Ret.Total, Contrib.</div>
+      <div style="color: #dd6b20; margin-top: 4px;">Columna Dividendos aparece (Alpha Vantage)</div>
+      <div>Fondos muestran "-" en dividendos</div>
+    </div>
+  </div>
+
+  <!-- CASO 3: SOLO RENTA FIJA -->
+  <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #e2e8f0;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+      <span style="background: #fff3e0; color: #dd6b20; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">CASO 3</span>
+      <h3 style="margin: 0;">Solo Renta Fija</h3>
+    </div>
+    <div style="font-size: 12px; color: #666; line-height: 1.8;">
+      <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+        <strong>Secciones visibles:</strong>
+        <div style="margin-top: 4px;">
+          <span style="background: #dd6b20; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 4px;">Renta Fija</span>
+          <span style="background: #a0aec0; color: white; padding: 2px 8px; border-radius: 3px;">Cash</span>
+        </div>
+      </div>
+      <div>Columnas RF: Emisor, Rating, Cupon, Venc., Peso, P.Compra, P.Mercado, YTM, Devengo, Dif.Precio, Cupones, Ret.Total, Contrib.</div>
+      <div style="color: #38a169; margin-top: 4px;">Sin seccion RV</div>
+    </div>
+  </div>
+
+  <!-- CASO 4: MIXTO COMPLETO -->
+  <div style="background: white; border-radius: 12px; padding: 20px; border: 2px solid #4a7dff;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+      <span style="background: #1a1a2e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">CASO 4</span>
+      <h3 style="margin: 0;">Mixto: Fondos + Acciones + Bonos</h3>
+    </div>
+    <div style="font-size: 12px; color: #666; line-height: 1.8;">
+      <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+        <strong>Secciones visibles:</strong>
+        <div style="margin-top: 4px;">
+          <span style="background: #4a7dff; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 4px;">Renta Variable</span>
+          <span style="background: #dd6b20; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 4px;">Renta Fija</span>
+          <span style="background: #a0aec0; color: white; padding: 2px 8px; border-radius: 3px;">Cash</span>
+        </div>
+      </div>
+      <div>RV: con columna Dividendos</div>
+      <div>RF: con Devengo, Dif.Precio, Cupones, YTM</div>
+      <div style="color: #4a7dff; margin-top: 4px; font-weight: 500;">Caso Stonex (Heraldo)</div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGICA DE DETECCION -->
+<div style="background: #1a1a2e; color: white; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+  <h3 style="color: white; margin: 0 0 12px 0;">Logica de deteccion</h3>
+  <div style="font-family: monospace; font-size: 13px; line-height: 2;">
+    <div><span style="color: #63b3ed;">const</span> hasEquity = holdings.<span style="color: #fbd38d;">some</span>(h => [<span style="color: #68d391;">'fund','etf','stock'</span>].includes(h.assetType))</div>
+    <div><span style="color: #63b3ed;">const</span> hasBonds = holdings.<span style="color: #fbd38d;">some</span>(h => h.assetType === <span style="color: #68d391;">'bond'</span>)</div>
+    <div><span style="color: #63b3ed;">const</span> hasStocksOrETFs = holdings.<span style="color: #fbd38d;">some</span>(h => [<span style="color: #68d391;">'etf','stock'</span>].includes(h.assetType))</div>
+    <div><span style="color: #63b3ed;">const</span> hasCash = holdings.<span style="color: #fbd38d;">some</span>(h => h.assetType === <span style="color: #68d391;">'cash'</span>)</div>
+    <div style="margin-top: 8px; color: #a0aec0;">// Columna dividendos solo si hasStocksOrETFs</div>
+    <div style="color: #a0aec0;">// Seccion RF solo si hasBonds</div>
+    <div style="color: #a0aec0;">// Seccion RV solo si hasEquity</div>
+  </div>
+</div>
+
+<h2>Te parece esta logica adaptativa?</h2>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Correcto, sigamos al resumen final</h3>
+      <p>Los 4 casos cubren todas las combinaciones. La deteccion por assetType es clara.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Quiero ajustar algo</h3>
+      <p>Hay un caso que falta o una columna que sobra/falta.</p>
+    </div>
+  </div>
+</div>

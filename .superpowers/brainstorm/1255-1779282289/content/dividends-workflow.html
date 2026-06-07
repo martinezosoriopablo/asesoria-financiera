@@ -1,0 +1,96 @@
+<h2>Dividendos: Como los integramos?</h2>
+<p class="subtitle">Alpha Vantage DIVIDENDS endpoint cubre historico completo para ETFs y acciones US</p>
+
+<!-- INFO BOX -->
+<div style="background: #f0f4ff; border-radius: 12px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #4a7dff;">
+  <h3 style="margin: 0 0 12px 0; color: #4a7dff;">Datos disponibles de Alpha Vantage</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px;">
+    <div>
+      <strong>DIVIDENDS endpoint</strong>
+      <ul style="margin: 4px 0; padding-left: 16px; color: #555;">
+        <li>Historico completo por ticker</li>
+        <li>ex_dividend_date, payment_date, amount</li>
+        <li>Cobertura: SPY, QQQ, SCHD, etc. (20+ anos)</li>
+      </ul>
+    </div>
+    <div>
+      <strong>OVERVIEW endpoint</strong>
+      <ul style="margin: 4px 0; padding-left: 16px; color: #555;">
+        <li>DividendPerShare, DividendYield</li>
+        <li>ExDividendDate (proxima conocida)</li>
+        <li>Solo 1 fecha futura, no calendario completo</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- FLUJO -->
+<div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 32px;">
+  <h3 style="margin: 0 0 16px 0;">Flujo propuesto para dividendos</h3>
+  <div style="display: flex; gap: 12px; align-items: stretch;">
+    <div style="flex: 1; background: white; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #e2e8f0;">
+      <div style="font-size: 24px; margin-bottom: 8px;">1</div>
+      <strong>Cartola se carga</strong>
+      <p style="font-size: 12px; color: #666; margin: 4px 0 0;">Se detectan tickers de acciones/ETFs</p>
+    </div>
+    <div style="display: flex; align-items: center; color: #ccc; font-size: 24px;">&#8594;</div>
+    <div style="flex: 1; background: white; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #e2e8f0;">
+      <div style="font-size: 24px; margin-bottom: 8px;">2</div>
+      <strong>Auto-fetch dividendos</strong>
+      <p style="font-size: 12px; color: #666; margin: 4px 0 0;">Alpha Vantage DIVIDENDS por cada ticker desde fecha de compra</p>
+    </div>
+    <div style="display: flex; align-items: center; color: #ccc; font-size: 24px;">&#8594;</div>
+    <div style="flex: 1; background: white; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #e2e8f0;">
+      <div style="font-size: 24px; margin-bottom: 8px;">3</div>
+      <strong>Mostrar en tabla</strong>
+      <p style="font-size: 12px; color: #666; margin: 4px 0 0;">Columna "Dividendos" con monto acumulado + yield</p>
+    </div>
+    <div style="display: flex; align-items: center; color: #ccc; font-size: 24px;">&#8594;</div>
+    <div style="flex: 1; background: white; border-radius: 8px; padding: 16px; text-align: center; border: 1px solid #e2e8f0;">
+      <div style="font-size: 24px; margin-bottom: 8px;">4</div>
+      <strong>Retorno Total</strong>
+      <p style="font-size: 12px; color: #666; margin: 4px 0 0;">retornoPrecio + retornoDividendos</p>
+    </div>
+  </div>
+</div>
+
+<h2>Pregunta clave: de donde sale la fecha de compra?</h2>
+<p class="subtitle">Necesitamos saber desde cuando contar dividendos para cada posicion</p>
+
+<div class="options">
+  <div class="option" data-choice="first-cartola" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Fecha de la primera cartola</h3>
+      <p>Usamos la fecha del primer snapshot donde aparece el holding como proxy de "fecha de compra". Simple, automatico, sin input manual.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>100% automatico</li><li>Ya tenemos este dato en snapshots</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Puede ser posterior a la compra real</li><li>Pierde dividendos entre compra y primera cartola</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="manual-date" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Fecha manual editable (como bond_overrides)</h3>
+      <p>Igual que purchaseDate para bonos: el asesor puede ingresar la fecha real de compra por posicion. Fallback a primera cartola si no se ingresa.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Preciso si se ingresa</li><li>Modelo ya existe (bond_overrides)</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Requiere input manual por posicion</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="cartola-period" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Periodo entre cartolas</h3>
+      <p>Solo contar dividendos que cayeron ENTRE la cartola anterior y la actual. No necesitamos fecha de compra — medimos incremento periodo a periodo.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>No necesita fecha de compra</li><li>Consistente con como medimos retorno de precio</li><li>Dividendos del periodo, no acumulado total</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No muestra dividendo acumulado desde inception</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

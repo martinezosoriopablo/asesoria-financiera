@@ -65,6 +65,11 @@ interface Client {
   last_questionnaire_date?: string;
   next_questionnaire_date?: string;
   fund_selection_mode?: string;
+  servicios_adicionales?: {
+    seguros?: { activo: boolean; poliza?: string; cobertura?: string; beneficiarios?: string; notas?: string };
+    asesoria_tributaria?: { activo: boolean; descripcion?: string };
+    asesoria_inmobiliaria?: { activo: boolean; descripcion?: string };
+  } | null;
 }
 
 interface AssociatedClient {
@@ -117,6 +122,13 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [showAddInteraction, setShowAddInteraction] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editingServicios, setEditingServicios] = useState(false);
+  const [savingServicios, setSavingServicios] = useState(false);
+  const [serviciosForm, setServiciosForm] = useState({
+    seguros: { activo: false, poliza: "", cobertura: "", beneficiarios: "", notas: "" },
+    asesoria_tributaria: { activo: false, descripcion: "" },
+    asesoria_inmobiliaria: { activo: false, descripcion: "" },
+  });
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newInteraction, setNewInteraction] = useState({
@@ -314,6 +326,49 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       alert("Error al guardar cliente");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditServicios = () => {
+    if (!client) return;
+    const s = client.servicios_adicionales;
+    setServiciosForm({
+      seguros: {
+        activo: s?.seguros?.activo || false,
+        poliza: s?.seguros?.poliza || "",
+        cobertura: s?.seguros?.cobertura || "",
+        beneficiarios: s?.seguros?.beneficiarios || "",
+        notas: s?.seguros?.notas || "",
+      },
+      asesoria_tributaria: {
+        activo: s?.asesoria_tributaria?.activo || false,
+        descripcion: s?.asesoria_tributaria?.descripcion || "",
+      },
+      asesoria_inmobiliaria: {
+        activo: s?.asesoria_inmobiliaria?.activo || false,
+        descripcion: s?.asesoria_inmobiliaria?.descripcion || "",
+      },
+    });
+    setEditingServicios(true);
+  };
+
+  const handleSaveServicios = async () => {
+    setSavingServicios(true);
+    try {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ servicios_adicionales: serviciosForm }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setEditingServicios(false);
+        fetchClient();
+      }
+    } catch {
+      alert("Error al guardar servicios");
+    } finally {
+      setSavingServicios(false);
     }
   };
 
@@ -1233,6 +1288,203 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
                 <p className="text-sm text-gb-gray whitespace-pre-wrap">{client.notas}</p>
               </div>
             )}
+
+            {/* Servicios Adicionales */}
+            <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-400 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-gb-black flex items-center gap-1.5">
+                  <Briefcase className="w-4 h-4 text-blue-500" />
+                  Servicios Adicionales
+                </h2>
+                {!editingServicios ? (
+                  <button
+                    onClick={handleEditServicios}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Editar
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditingServicios(false)}
+                      className="text-xs text-gb-gray hover:text-gb-black"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveServicios}
+                      disabled={savingServicios}
+                      className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {savingServicios ? "Guardando..." : "Guardar"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {editingServicios ? (
+                <div className="space-y-4">
+                  {/* Seguros */}
+                  <div className="border border-gb-border rounded-lg p-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gb-black mb-2">
+                      <input
+                        type="checkbox"
+                        checked={serviciosForm.seguros.activo}
+                        onChange={(e) => setServiciosForm({
+                          ...serviciosForm,
+                          seguros: { ...serviciosForm.seguros, activo: e.target.checked },
+                        })}
+                        className="rounded border-gb-border"
+                      />
+                      <Shield className="w-3.5 h-3.5 text-blue-500" />
+                      Seguros
+                    </label>
+                    {serviciosForm.seguros.activo && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <input
+                          placeholder="N° Póliza"
+                          value={serviciosForm.seguros.poliza}
+                          onChange={(e) => setServiciosForm({
+                            ...serviciosForm,
+                            seguros: { ...serviciosForm.seguros, poliza: e.target.value },
+                          })}
+                          className="text-sm border border-gb-border rounded px-2 py-1.5"
+                        />
+                        <input
+                          placeholder="Beneficiarios"
+                          value={serviciosForm.seguros.beneficiarios}
+                          onChange={(e) => setServiciosForm({
+                            ...serviciosForm,
+                            seguros: { ...serviciosForm.seguros, beneficiarios: e.target.value },
+                          })}
+                          className="text-sm border border-gb-border rounded px-2 py-1.5"
+                        />
+                        <textarea
+                          placeholder="Cobertura"
+                          value={serviciosForm.seguros.cobertura}
+                          onChange={(e) => setServiciosForm({
+                            ...serviciosForm,
+                            seguros: { ...serviciosForm.seguros, cobertura: e.target.value },
+                          })}
+                          rows={2}
+                          className="text-sm border border-gb-border rounded px-2 py-1.5 col-span-2"
+                        />
+                        <textarea
+                          placeholder="Notas"
+                          value={serviciosForm.seguros.notas}
+                          onChange={(e) => setServiciosForm({
+                            ...serviciosForm,
+                            seguros: { ...serviciosForm.seguros, notas: e.target.value },
+                          })}
+                          rows={1}
+                          className="text-sm border border-gb-border rounded px-2 py-1.5 col-span-2"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Asesoría Tributaria */}
+                  <div className="border border-gb-border rounded-lg p-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gb-black mb-2">
+                      <input
+                        type="checkbox"
+                        checked={serviciosForm.asesoria_tributaria.activo}
+                        onChange={(e) => setServiciosForm({
+                          ...serviciosForm,
+                          asesoria_tributaria: { ...serviciosForm.asesoria_tributaria, activo: e.target.checked },
+                        })}
+                        className="rounded border-gb-border"
+                      />
+                      <FileText className="w-3.5 h-3.5 text-amber-500" />
+                      Asesoría Tributaria
+                    </label>
+                    {serviciosForm.asesoria_tributaria.activo && (
+                      <textarea
+                        placeholder="Descripción del servicio tributario..."
+                        value={serviciosForm.asesoria_tributaria.descripcion}
+                        onChange={(e) => setServiciosForm({
+                          ...serviciosForm,
+                          asesoria_tributaria: { ...serviciosForm.asesoria_tributaria, descripcion: e.target.value },
+                        })}
+                        rows={2}
+                        className="text-sm border border-gb-border rounded px-2 py-1.5 w-full mt-1"
+                      />
+                    )}
+                  </div>
+
+                  {/* Asesoría Inmobiliaria */}
+                  <div className="border border-gb-border rounded-lg p-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gb-black mb-2">
+                      <input
+                        type="checkbox"
+                        checked={serviciosForm.asesoria_inmobiliaria.activo}
+                        onChange={(e) => setServiciosForm({
+                          ...serviciosForm,
+                          asesoria_inmobiliaria: { ...serviciosForm.asesoria_inmobiliaria, activo: e.target.checked },
+                        })}
+                        className="rounded border-gb-border"
+                      />
+                      <Target className="w-3.5 h-3.5 text-green-600" />
+                      Asesoría Inmobiliaria
+                    </label>
+                    {serviciosForm.asesoria_inmobiliaria.activo && (
+                      <textarea
+                        placeholder="Descripción del servicio inmobiliario..."
+                        value={serviciosForm.asesoria_inmobiliaria.descripcion}
+                        onChange={(e) => setServiciosForm({
+                          ...serviciosForm,
+                          asesoria_inmobiliaria: { ...serviciosForm.asesoria_inmobiliaria, descripcion: e.target.value },
+                        })}
+                        rows={2}
+                        className="text-sm border border-gb-border rounded px-2 py-1.5 w-full mt-1"
+                      />
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(() => {
+                    const s = client.servicios_adicionales;
+                    const hasAny = s?.seguros?.activo || s?.asesoria_tributaria?.activo || s?.asesoria_inmobiliaria?.activo;
+                    if (!hasAny) return <p className="text-sm text-gb-gray italic">Sin servicios adicionales registrados</p>;
+                    return (
+                      <>
+                        {s?.seguros?.activo && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <Shield className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="font-medium text-gb-black">Seguros</span>
+                              {s.seguros.poliza && <span className="text-gb-gray ml-1">— Póliza: {s.seguros.poliza}</span>}
+                              {s.seguros.beneficiarios && <p className="text-gb-gray">Beneficiarios: {s.seguros.beneficiarios}</p>}
+                              {s.seguros.cobertura && <p className="text-gb-gray">{s.seguros.cobertura}</p>}
+                              {s.seguros.notas && <p className="text-gb-gray italic text-xs">{s.seguros.notas}</p>}
+                            </div>
+                          </div>
+                        )}
+                        {s?.asesoria_tributaria?.activo && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <FileText className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="font-medium text-gb-black">Asesoría Tributaria</span>
+                              {s.asesoria_tributaria.descripcion && <p className="text-gb-gray">{s.asesoria_tributaria.descripcion}</p>}
+                            </div>
+                          </div>
+                        )}
+                        {s?.asesoria_inmobiliaria?.activo && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <Target className="w-3.5 h-3.5 text-green-600 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="font-medium text-gb-black">Asesoría Inmobiliaria</span>
+                              {s.asesoria_inmobiliaria.descripcion && <p className="text-gb-gray">{s.asesoria_inmobiliaria.descripcion}</p>}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
 
             {/* Portal invite */}
             <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-emerald-500 p-5 shadow-sm">

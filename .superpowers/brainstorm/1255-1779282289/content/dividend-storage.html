@@ -1,0 +1,67 @@
+<h2>Dividendos entre cartolas: donde los guardamos?</h2>
+<p class="subtitle">Alpha Vantage nos da ex_dividend_date + amount por ticker. Filtramos entre fechas de snapshots.</p>
+
+<!-- DIAGRAMA DE FLUJO -->
+<div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+  <h3 style="margin: 0 0 16px 0;">Flujo concreto</h3>
+  <div style="font-size: 13px; font-family: monospace; background: white; border-radius: 8px; padding: 16px; line-height: 2;">
+    <div>Snapshot A (31-Mar) ──── <span style="color: #dd6b20;">ex-div QQQ 12-Abr $0.65</span> ──── Snapshot B (30-Abr)</div>
+    <div style="margin-top: 8px; color: #666;">
+      &rarr; QQQ tiene 180 units &rarr; dividendo periodo = 180 x $0.65 = <strong style="color: #38a169;">$117</strong>
+    </div>
+    <div style="margin-top: 4px; color: #666;">
+      &rarr; retornoDividendos = $117 / $85,320 (marketValue inicio) = <strong style="color: #38a169;">+0.14%</strong>
+    </div>
+  </div>
+</div>
+
+<!-- PREGUNTA -->
+<h2>Donde almacenamos los dividendos fetcheados?</h2>
+<p class="subtitle">Necesitamos persistir el historico de Alpha Vantage para no re-fetchar cada vez</p>
+
+<div class="options">
+  <div class="option" data-choice="snapshot-inline" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Inline en el snapshot (JSONB)</h3>
+      <p>Al calcular retornos, fetchear dividendos y guardarlos dentro de cada holding en el snapshot. Campo <code>dividends: [{date, amount}]</code> en el JSONB de holdings.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Todo junto, sin tabla nueva</li><li>Snapshot es auto-contenido</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Datos duplicados entre snapshots</li><li>Dificil consultar dividendos globalmente</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="new-table" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tabla dedicada: dividend_history</h3>
+      <p>Tabla normalizada con ticker, ex_date, payment_date, amount, source. Se fetchea una vez, se reutiliza para cualquier cliente que tenga ese ticker.</p>
+      <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; margin: 8px 0; font-size: 12px; font-family: monospace;">
+        dividend_history<br>
+        ├─ ticker (PK)<br>
+        ├─ ex_dividend_date (PK)<br>
+        ├─ payment_date<br>
+        ├─ amount<br>
+        ├─ source ('alphavantage')<br>
+        └─ fetched_at
+      </div>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Un fetch sirve para todos los clientes</li><li>Consultable: "que dividendos pago QQQ en 2025?"</li><li>Patron igual a bond_prices</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Tabla nueva + migracion</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hibrido: tabla + campo resumen en snapshot</h3>
+      <p>Tabla <code>dividend_history</code> como cache global. Al guardar snapshot, se calcula y guarda <code>dividendPeriod: $117</code> y <code>dividendYield: 0.14%</code> inline en cada holding.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Lo mejor de ambos mundos</li><li>Snapshot tiene el dato precalculado para display rapido</li><li>Tabla global evita re-fetch</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Mas complejidad</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

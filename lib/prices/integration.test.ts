@@ -76,13 +76,13 @@ describe("resolveSource", () => {
   });
 
   // ------------------------------------------------------------------
-  // 4. CFI* (non-ETF) → yahoo .SN
+  // 4. CFI* (non-ETF) → cmf
   // ------------------------------------------------------------------
-  describe("CFI* → yahoo .SN", () => {
-    it("routes CFI fund to yahoo", () => {
+  describe("CFI* (non-ETF) → cmf", () => {
+    it("routes CFI fund to cmf", () => {
       const r = resolveSource(holding({ securityId: "CFICONSOL-A" }));
-      expect(r.source).toBe("yahoo");
-      expect(r.symbol).toBe("CFICONSOL-A.SN");
+      expect(r.source).toBe("cmf");
+      expect(r.symbol).toBe("CFICONSOL-A");
     });
   });
 

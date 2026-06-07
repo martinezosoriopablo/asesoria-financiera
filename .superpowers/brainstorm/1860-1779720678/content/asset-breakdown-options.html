@@ -1,0 +1,74 @@
+<h2>Performance Attribution: Sub-categorias por Clase de Activo</h2>
+<p class="subtitle">Actualmente solo muestra 4 clases amplias (RV, RF, Alternativos, Cash). La idea es mostrar el desglose interno.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Barras Apiladas (Stacked Bars)</h3>
+      <p>Cada barra horizontal = una clase de activo. Los segmentos de color muestran ETFs, Acciones, Fondos Mutuos, FI, Bonos dentro de cada clase.</p>
+      <div style="margin-top:12px; font-family: monospace; font-size: 13px; line-height: 1.8;">
+        <div style="margin-bottom:4px;font-weight:bold;color:#555;">Renta Variable (45%)</div>
+        <div style="display:flex;height:28px;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+          <div style="width:55%;background:#3b82f6;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">ETFs 55%</div>
+          <div style="width:30%;background:#10b981;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">Acciones 30%</div>
+          <div style="width:15%;background:#f59e0b;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">FM 15%</div>
+        </div>
+        <div style="margin-bottom:4px;font-weight:bold;color:#555;">Renta Fija (35%)</div>
+        <div style="display:flex;height:28px;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+          <div style="width:40%;background:#3b82f6;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">ETFs 40%</div>
+          <div style="width:35%;background:#8b5cf6;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">Bonos 35%</div>
+          <div style="width:25%;background:#f59e0b;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">FM 25%</div>
+        </div>
+        <div style="margin-bottom:4px;font-weight:bold;color:#555;">Alternativos (15%)</div>
+        <div style="display:flex;height:28px;border-radius:4px;overflow:hidden;margin-bottom:12px;">
+          <div style="width:70%;background:#3b82f6;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">ETFs 70%</div>
+          <div style="width:30%;background:#f59e0b;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">FM 30%</div>
+        </div>
+      </div>
+      <p style="color:#666;font-size:13px;">Pro: Muestra composicion interna de cada clase. Contra: Puede ser dificil leer segmentos chicos.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Barras Apiladas + Tooltip/Expansion</h3>
+      <p>Igual que A, pero la barra apilada es un resumen. Al hacer hover o click se expande un panel debajo con el detalle de cada sub-tipo.</p>
+      <div style="margin-top:12px; font-family: monospace; font-size: 13px; line-height: 1.8;">
+        <div style="margin-bottom:4px;font-weight:bold;color:#555;">Renta Variable (45%)</div>
+        <div style="display:flex;height:28px;border-radius:4px;overflow:hidden;">
+          <div style="width:55%;background:#3b82f6;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">ETFs</div>
+          <div style="width:30%;background:#10b981;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">Acc</div>
+          <div style="width:15%;background:#f59e0b;color:white;display:flex;align-items:center;padding:0 6px;font-size:11px;">FM</div>
+        </div>
+        <div style="margin:8px 0 16px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>ETFs (VTI, VXUS, EEM)</span><span style="font-weight:bold;">55% &mdash; $12,500</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Acciones (AAPL, MSFT)</span><span style="font-weight:bold;">30% &mdash; $6,800</span></div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;"><span>Fondos Mutuos (Banchile RV)</span><span style="font-weight:bold;">15% &mdash; $3,400</span></div>
+        </div>
+      </div>
+      <p style="color:#666;font-size:13px;">Pro: Limpio + detalle bajo demanda. Contra: Mas complejo de implementar.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Donut Chart Anidado (Sunburst)</h3>
+      <p>Anillo interior = clases de activo. Anillo exterior = sub-tipos (ETF, acciones, FM, bonos). Visual impactante pero puede ser difícil de leer con muchas categorías.</p>
+      <div style="margin-top:12px;text-align:center;">
+        <div style="display:inline-block;width:160px;height:160px;border-radius:50%;background:conic-gradient(#3b82f6 0% 45%, #10b981 45% 80%, #f59e0b 80% 95%, #94a3b8 95% 100%);position:relative;">
+          <div style="position:absolute;top:20px;left:20px;right:20px;bottom:20px;border-radius:50%;background:conic-gradient(#60a5fa 0% 25%, #2563eb 25% 45%, #34d399 45% 60%, #6d28d9 60% 80%, #fbbf24 80% 95%, #cbd5e1 95% 100%);">
+            <div style="position:absolute;top:20px;left:20px;right:20px;bottom:20px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;font-size:11px;color:#555;">
+              Total<br>$50k
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="color:#666;font-size:13px;margin-top:8px;">Pro: Visualmente atractivo. Contra: Dificil leer %, no escala bien.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px;">Mi recomendacion: <strong>Opcion B</strong> — barras apiladas con expansion al hacer click. Mantiene la vista limpia y permite profundizar sin saturar.</p>

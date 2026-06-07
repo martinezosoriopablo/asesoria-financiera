@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import CompareMode from '@/app/fund-center/components/CompareMode';
+import CompareMode from '@/app/(advisor-shell)/fund-center/components/CompareMode';
 
 type CompareSubTab = 'etf' | 'chileno';
 

@@ -1,0 +1,113 @@
+<h2>Retornos por Tipo de Activo - Arquitectura</h2>
+<p class="subtitle">Como se calcula y desglosa el retorno segun el tipo de activo en la cartera</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin: 32px 0;">
+
+  <!-- FONDOS / ETFs -->
+  <div style="background: #f0f4ff; border-radius: 12px; padding: 20px; border: 2px solid #4a7dff;">
+    <h3 style="color: #4a7dff; margin: 0 0 12px 0;">Fondos Mutuos / ETFs</h3>
+    <div style="font-size: 13px; line-height: 1.7;">
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Retorno Precio</strong><br>
+        <code>(precioActual / precioCompra - 1) x 100</code>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Dividendos</strong> (opcional)<br>
+        <code>+ dividendos recibidos / costoBase</code>
+      </div>
+      <div style="background: #e8f0fe; border-radius: 8px; padding: 12px;">
+        <strong>Retorno Total</strong><br>
+        <code>= retornoPrecio + retornoDividendos</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCIONES -->
+  <div style="background: #f0fff4; border-radius: 12px; padding: 20px; border: 2px solid #38a169;">
+    <h3 style="color: #38a169; margin: 0 0 12px 0;">Acciones (Stocks)</h3>
+    <div style="font-size: 13px; line-height: 1.7;">
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Retorno Precio</strong><br>
+        <code>(precioActual / precioCompra - 1) x 100</code>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Dividendos</strong> (opcional)<br>
+        <code>+ dividendos recibidos / costoBase</code>
+      </div>
+      <div style="background: #e6ffed; border-radius: 8px; padding: 12px;">
+        <strong>Retorno Total</strong><br>
+        <code>= retornoPrecio + retornoDividendos</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- RENTA FIJA -->
+  <div style="background: #fff8f0; border-radius: 12px; padding: 20px; border: 2px solid #dd6b20;">
+    <h3 style="color: #dd6b20; margin: 0 0 12px 0;">Renta Fija (Bonos)</h3>
+    <div style="font-size: 13px; line-height: 1.7;">
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Devengo (Accrued Interest)</strong><br>
+        <code>cupon x diasDesdeUltimoPago / 360</code><br>
+        <span style="color: #888; font-size: 11px;">30/360 day count convention</span>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Dif. Precio Mercado</strong><br>
+        <code>(precioMercado - precioCompra) x nominal</code>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+        <strong>Cupones Cobrados</strong> (opcional)<br>
+        <code>+ cuponesPagados</code>
+      </div>
+      <div style="background: #fff3e0; border-radius: 8px; padding: 12px;">
+        <strong>Retorno Total</strong><br>
+        <code>= devengo + difPrecio + cupones</code>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; padding: 16px; background: #f7f7f7; border-radius: 8px; border-left: 4px solid #666;">
+  <strong>Nota:</strong> Fondos y Acciones comparten la misma logica base (precio). Renta Fija tiene 3 componentes separados. La pregunta es como mostrarlo en la tabla.
+</div>
+
+<h2 style="margin-top: 40px;">Como organizamos la tabla de retornos?</h2>
+<p class="subtitle">Elige el enfoque que prefieras</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Tabla unica adaptativa</h3>
+      <p>Una sola tabla que cambia las columnas segun los tipos de activos presentes. Si hay bonos, agrega columnas de devengo y dif. precio. Si solo fondos, muestra la version simple.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Vista compacta, todo junto</li><li>Facil comparar peso relativo entre clases</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Muchas columnas si hay todos los tipos</li><li>Columnas de bonos vacias para fondos</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Secciones separadas por clase</h3>
+      <p>Dividir la tabla en secciones: "Renta Variable" (fondos, ETFs, acciones), "Renta Fija" (bonos), "Cash". Cada seccion con columnas optimizadas para su tipo.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Columnas especificas por tipo (devengo solo en RF)</li><li>Mas legible, sin columnas vacias</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Mas largo verticalmente</li><li>Subtotales por seccion necesarios</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hibrido: tabla comun + expandible</h3>
+      <p>Tabla principal con columnas comunes (nombre, peso, valor, retorno total). Click en un bono expande el desglose (devengo / dif. precio / cupones). Click en accion expande dividendos.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Limpio por defecto, detalle on-demand</li><li>No desperdicia espacio</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Desglose oculto puede pasar desapercibido</li><li>Mas complejo de implementar</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

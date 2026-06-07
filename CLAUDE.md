@@ -67,14 +67,15 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 2. **Gemini 2.5 Flash** (`lib/ficha-extract.ts`) extracts structured data from CMF fund folleto PDFs (TAC, horizonte, tolerancia riesgo, objetivo, beneficio tributario). Paid tier. Env: `GEMINI_API_KEY`.
 3. **AAFM** sync (`lib/aafm-sync.ts`) only works from localhost — AAFM blocks Vercel IPs.
 4. **Fintual API** (`lib/fintual-api.ts`) for Fintual-specific funds.
-5. **Yahoo Finance** (`yahoo-finance2`) for international ETFs/stocks.
+5. **Yahoo Finance** (raw v8 API, NOT `yahoo-finance2` library) for international ETFs/stocks.
 6. Cron jobs in `vercel.json` run weekdays: Fintual sync (10:00), report distribution (12:00), drift check (13:00), CMF auto-sync (21:00).
 
 **Unified price service** (`lib/prices/`): Single-thermometer architecture that routes any holding to its correct price source. Key files:
 - `types.ts` — `PriceSource`, `HoldingForPricing`, `BenchmarkComponent`, `DailyPrice`
 - `price-service.ts` — `resolveSource()` (pure routing: FX→bcch, RUN→cmf, CFIETF/CFI→yahoo, CUSIP-bond→finra, US/INT→alphavantage, .SN→yahoo, fallback→cmf), `fetchPriceRange()`, `fetchLatestPrice()`, DB ops for `international_prices` table, `backfillSymbol()`
 - `alphavantage.ts` — AlphaVantage client (daily prices + quotes). Env: `ALPHAVANTAGE_API_KEY`.
-- `yahoo.ts` — Yahoo Finance wrapper (historical + quotes) using `yahoo-finance2`.
+- `yahoo.ts` — Yahoo Finance wrapper (historical + quotes) using raw v8 API (NOT the `yahoo-finance2` library which switched to v3).
+- `eodhd.ts` — EODHD client for additional price data. Env: `EODHD_API_KEY`.
 
 **Price API routes:**
 - `POST /api/prices/backfill` — Backfills international prices for a client's holdings (AV/Yahoo sources only)
@@ -90,7 +91,7 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 Supabase Postgres with RLS on all sensitive tables. Migrations in `supabase/migrations/` (chronological, `YYYYMMDD_description.sql`). **Max rows per request set to 5000** in Supabase dashboard (default was 1000). For queries that may exceed this (e.g., `vw_fondos_completo` ~3000 rows), always paginate with `.range()` as a safety net.
 
-Key tables: `clients`, `advisors`, `portfolio_snapshots`, `risk_profiles`, `client_cartolas`, `messages`, `direct_portfolios`, `direct_portfolio_holdings`, `client_reports`, `client_report_config`, `client_advisors` (sharing), `advisor_ai_usage`, `tac_upload_log`, `fund_fichas` (FM folleto data), `fi_fichas` (FI folleto data), `fondos_inversion` (FI catalog), `international_prices` (ticker+price_date→close_price, for AV/Yahoo prices). **NOTE:** DB column is `ticker`, not `symbol`. Code maps `SourceResolution.symbol` → DB `ticker`.
+Key tables: `clients`, `advisors`, `portfolio_snapshots`, `risk_profiles`, `client_cartolas`, `messages`, `direct_portfolios`, `direct_portfolio_holdings`, `client_reports`, `client_report_config`, `client_advisors` (sharing), `advisor_ai_usage`, `tac_upload_log`, `fund_fichas` (FM folleto data), `fi_fichas` (FI folleto data), `fondos_inversion` (FI catalog), `international_prices` (ticker+price_date→close_price, for AV/Yahoo prices), `client_monthly_closings` (cierre mensual por cliente), `dividend_history` (historial de dividendos). **NOTE:** DB column is `ticker`, not `symbol`. Code maps `SourceResolution.symbol` → DB `ticker`. Clients table has `display_currency` column and `servicios_adicionales` JSONB.
 
 RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessible_client_ids()` (own + subordinates + shared + orphan clients).
 
@@ -98,11 +99,12 @@ RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessibl
 
 - `app/` — Next.js App Router pages and API routes
 - `app/(advisor-shell)/` — All advisor-facing pages (route group with sidebar layout). Contains: `advisor/`, `clients/`, `fund-center/`, `portfolio-designer/`, `analisis-cartola/`, `calculadora-apv/`, `educacion-financiera/`, `admin/`, `dashboard/`, `direct-portfolio/`, `modelo-cartera/`, `portfolio-comparison/`, `nav-upload/`
-- `app/api/` — ~112 API route handlers
+- `app/api/` — ~149 API route handlers
 - `app/(portal)/` — Client portal pages (route group)
 - `components/` — React components organized by domain (seguimiento, portfolio, risk, market, etc.)
-- `lib/prices/` — Unified price service (source routing, AV/Yahoo clients, DB ops, 34 tests)
+- `lib/prices/` — Unified price service (source routing, AV/Yahoo/EODHD clients, DB ops, 34 tests)
 - `lib/returns/` — Returns calculator (pure functions, replaces TWR)
+- `lib/bonds/` — Bond utilities (duration, accrued interest calculations + tests)
 - `lib/auth/` — Auth helpers (`api-auth.ts` for API routes, `require-client.ts` for portal)
 - `lib/supabase/` — Supabase client factories (browser, server, middleware)
 - `lib/risk/` — Risk scoring, benchmarks, questionnaire logic

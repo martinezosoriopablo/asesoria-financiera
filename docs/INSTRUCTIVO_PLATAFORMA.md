@@ -315,28 +315,14 @@ Pipeline de precios (prioridad):
 5. **Bolsa de Santiago** — acciones chilenas
 6. **Precios manuales** — cargados por el asesor
 
-### Métricas Calculadas
+### Metricas Calculadas
 
-- **TWR (Time-Weighted Return)**: Retorno real descontando flujos de caja, calculado con método de valor cuota (unit-value). Si un cliente deposita o retira, el TWR refleja solo el rendimiento del mercado, no los flujos.
-- **Volatilidad**: Desviación estándar anualizada, ajustada a la frecuencia real de los datos (no asume datos diarios)
-- **Max Drawdown**: Caída máxima desde peak, usando valor cuota para aislar de flujos de caja
-- **Sharpe Ratio**: Retorno ajustado por riesgo (risk-free = 4%)
+- **Retorno simple**: Si el periodo es menor a 365 dias, se muestra el retorno simple (sin anualizar).
+- **Retorno anualizado**: Si el periodo es 365 dias o mas, se anualiza el retorno.
+- **Retornos por periodo**: 1M, 3M, 6M, 12M, YTD — calculados desde los precios historicos.
+- **Max Drawdown**: Caida maxima desde el peak del portafolio.
 
-### Cálculo del TWR — Detalle Técnico
-
-El TWR se calcula en **tres lugares** que ahora usan la misma fórmula:
-
-1. **Al crear snapshot** (`POST /api/portfolio/snapshots`): Calcula `twr_period` y `twr_cumulative` usando valor cuota vs snapshot anterior
-2. **Al llenar precios** (`POST /api/portfolio/fill-prices`): Calcula TWR diario entre cartolas usando unit-value
-3. **Al mostrar métricas** (`GET /api/clients/[id]/seguimiento`): Usa `twr_cumulative` almacenado, o recalcula desde unit-values como fallback
-
-Fórmula principal (unit-value):
-```
-TWR_periodo = (valor_cuota_actual / valor_cuota_anterior) - 1
-TWR_acumulado = (1 + TWR_acum_anterior) × (1 + TWR_periodo) - 1
-```
-
-La tabla de snapshots muestra el `twr_period` almacenado como fuente de verdad (no recalcula en el frontend).
+> Nota: TWR y Sharpe Ratio fueron eliminados por complejidad y margen de error. Los retornos simples son mas faciles de explicar al cliente y mas comparables entre portafolios.
 
 ### Composición
 
@@ -668,6 +654,38 @@ Puedes usar esta sección durante reuniones para:
 
 ---
 
+## 10.5 Sincronizacion de Fichas CMF
+
+### Que son las fichas
+
+Las fichas son los folletos informativos de cada fondo (mutuo o de inversion) publicados por la CMF. Contienen datos clave como TAC, horizonte de inversion, tolerancia al riesgo, objetivo del fondo y beneficio tributario.
+
+### Sincronizar Fichas
+
+1. En el Centro de Fondos o Market Dashboard, busca el boton **"Sincronizar Fichas"**
+2. Se abre un modal con dos pestanas: **Fondos Mutuos** y **Fondos de Inversion**
+3. Cada pestana muestra las administradoras con la cantidad de fondos y fichas ya sincronizadas
+4. Haz clic en **"Sincronizar"** junto a cada administradora
+5. El sistema descarga los PDFs de CMF, los procesa con **Gemini AI** y extrae los datos automaticamente
+6. Indicadores: verde = extraido con Gemini AI, amarillo = Gemini sin cuota (extraido con regex, menor calidad)
+
+### Revisar Fichas
+
+1. Ve a `/advisor/fichas-review`
+2. La tabla muestra todas las fichas (FM + FI) con: TAC, serie, beneficio tributario, objetivo, horizonte, tolerancia
+3. Los beneficios tributarios se muestran como badges de colores (APV, 57 bis, 107 LIR, 108 LIR)
+4. Haz clic en el icono de ojo para ver el objetivo completo del fondo
+5. Puedes subir fichas individuales manualmente desde el boton "Subir Ficha PDF"
+
+### Fondos Preferidos
+
+1. Ve a `/advisor/fondos`
+2. Agrega fondos a tu lista personal de favoritos
+3. Por cada cliente, configura el modo: **Solo mi lista** / **Mi lista + fallback CMF** / **Todos los fondos**
+4. Al generar radiografia o cartera, el sistema prioriza tus fondos preferidos
+
+---
+
 ## 11. Perfil del Asesor
 
 **Ruta:** `/advisor/profile`
@@ -748,4 +766,4 @@ Si tienes problemas o preguntas:
 
 ---
 
-*Última actualización: Abril 2026*
+*Ultima actualizacion: Mayo 2026*

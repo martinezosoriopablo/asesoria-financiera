@@ -1018,6 +1018,13 @@ export default function ReviewSnapshotModal({
             .catch((err) => console.warn("[backfill-cmf] Failed:", err));
         }
 
+        // Persist display currency preference on client
+        fetch(`/api/clients/${clientId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_currency: consolidationCurrency }),
+        }).catch(() => {});
+
         onSuccess();
       } else {
         setError(result.error || "Error al guardar snapshot");

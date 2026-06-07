@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Calendar, MapPin, Video, Phone, X } from "lucide-react";
+import { Calendar, MapPin, Video, Phone, Bell, X } from "lucide-react";
 
 interface Client {
   id: string;
@@ -11,14 +11,15 @@ interface Client {
 }
 
 interface MeetingToEdit {
-  id: string;
+  id?: string;
   client_id?: string;
-  titulo: string;
+  titulo?: string;
   descripcion?: string;
-  fecha: string;
+  fecha?: string;
   duracion_minutos?: number;
-  tipo: string;
+  tipo?: string;
   ubicacion?: string;
+  prefillTipo?: string;
 }
 
 interface NewMeetingFormProps {
@@ -33,10 +34,10 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const isEditing = !!editMeeting;
+  const isEditing = !!editMeeting?.id;
 
   const getInitialFormData = () => {
-    if (editMeeting) {
+    if (editMeeting?.id && editMeeting.fecha) {
       const dt = new Date(editMeeting.fecha);
       return {
         client_id: editMeeting.client_id || "",
@@ -55,8 +56,8 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
       descripcion: "",
       fecha: "",
       hora: "",
-      duracion_minutos: "60",
-      tipo: "presencial",
+      duracion_minutos: editMeeting?.prefillTipo === "recordatorio" ? "30" : "60",
+      tipo: editMeeting?.prefillTipo || "presencial",
       ubicacion: "",
     };
   };
@@ -86,7 +87,9 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
     setSuccess(false);
 
     try {
-      const fechaHora = `${formData.fecha}T${formData.hora}:00`;
+      // Construir Date local y convertir a ISO (UTC) para que Supabase lo almacene correctamente
+      const localDate = new Date(`${formData.fecha}T${formData.hora}:00`);
+      const fechaHora = localDate.toISOString();
 
       if (isEditing) {
         // PATCH — editar reunión existente
@@ -117,7 +120,7 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            client_id: formData.client_id,
+            client_id: formData.client_id || null,
             titulo: formData.titulo,
             descripcion: formData.descripcion || null,
             fecha: fechaHora,
@@ -184,16 +187,16 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
           {!isEditing && (
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Cliente *
+                Cliente {formData.tipo !== "recordatorio" && "*"}
               </label>
               <select
-                required
+                required={formData.tipo !== "recordatorio"}
                 value={formData.client_id}
                 onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={loading}
               >
-                <option value="">Seleccionar cliente</option>
+                <option value="">{formData.tipo === "recordatorio" ? "Sin cliente (opcional)" : "Seleccionar cliente"}</option>
                 {clients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.nombre} {client.apellido} ({client.email})
@@ -275,12 +278,13 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
           {/* Tipo */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Tipo de reunion *</label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { key: "presencial", icon: MapPin, color: "purple", label: "Presencial" },
-                { key: "virtual", icon: Video, color: "blue", label: "Virtual" },
-                { key: "llamada", icon: Phone, color: "green", label: "Llamada" },
-              ].map(({ key, icon: Icon, color, label }) => (
+                { key: "presencial", icon: MapPin, label: "Presencial", active: "border-purple-500 bg-purple-50", iconColor: "text-purple-600" },
+                { key: "virtual", icon: Video, label: "Virtual", active: "border-blue-500 bg-blue-50", iconColor: "text-blue-600" },
+                { key: "llamada", icon: Phone, label: "Llamada", active: "border-green-500 bg-green-50", iconColor: "text-green-600" },
+                { key: "recordatorio", icon: Bell, label: "Recordatorio", active: "border-amber-500 bg-amber-50", iconColor: "text-amber-600" },
+              ].map(({ key, icon: Icon, label, active, iconColor }) => (
                 <button
                   key={key}
                   type="button"
@@ -288,11 +292,11 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
                   disabled={loading}
                   className={`p-4 border-2 rounded-lg flex flex-col items-center gap-2 transition-all ${
                     formData.tipo === key
-                      ? `border-${color}-500 bg-${color}-50`
+                      ? active
                       : "border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  <Icon className={`w-6 h-6 text-${color}-600`} />
+                  <Icon className={`w-6 h-6 ${iconColor}`} />
                   <span className="text-sm font-semibold">{label}</span>
                 </button>
               ))}
@@ -306,15 +310,19 @@ export default function NewMeetingForm({ onClose, onSuccess, editMeeting }: NewM
                 ? "Ubicacion"
                 : formData.tipo === "virtual"
                 ? "Link de reunion"
+                : formData.tipo === "recordatorio"
+                ? "Nota (opcional)"
                 : "Telefono"}
             </label>
             <input
               type="text"
               placeholder={
                 formData.tipo === "presencial"
-                  ? "Ej: Oficina GreyBark"
+                  ? "Ej: Oficina GLOBAL"
                   : formData.tipo === "virtual"
                   ? "Ej: https://meet.google.com/..."
+                  : formData.tipo === "recordatorio"
+                  ? "Ej: Pedir cartola actualizada"
                   : "Ej: +56 9 1234 5678"
               }
               value={formData.ubicacion}

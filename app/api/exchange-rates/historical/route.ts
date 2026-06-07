@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { fetchBcchSeries } from "@/lib/bcch";
-import { requireAdvisor } from "@/lib/auth/api-auth";
+import { requireAuth } from "@/lib/auth/api-auth";
 import { handleApiError } from "@/lib/api-response";
 
 // Cache per indicator+year (1 hour)
@@ -13,7 +13,7 @@ const cache: Record<string, { data: Array<{ fecha: string; valor: number }>; exp
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
 export async function GET(request: NextRequest) {
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   const blocked = await applyRateLimit(request, "exchange-rates-historical", { limit: 30, windowSeconds: 60 });

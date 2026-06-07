@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import {
   Users,
@@ -27,6 +26,7 @@ interface Client {
   fecha_onboarding: string;
   num_interacciones: number;
   client_interactions: unknown[];
+  last_questionnaire_date: string | null;
 }
 
 interface Stats {
@@ -53,7 +53,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function ClientsManager() {
-  const { advisor, loading: authLoading } = useAdvisor();
+  const { loading: authLoading } = useAdvisor();
   const [clients, setClients] = useState<Client[]>([]);
   const [filteredClients, setFilteredClients] = useState<Client[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -146,10 +146,6 @@ export default function ClientsManager() {
 
   return (
     <div className="min-h-screen bg-background">
-      {advisor && (
-        <AdvisorHeader advisorName={advisor.name} advisorEmail={advisor.email} advisorPhoto={advisor.photo} advisorLogo={advisor.logo} companyName={advisor.companyName} isAdmin={advisor.isAdmin} />
-      )}
-
       <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Page header */}
         <div className="flex items-center justify-between mb-6">
@@ -264,6 +260,9 @@ export default function ClientsManager() {
                                 {PERFIL_LABELS[client.perfil_riesgo] || client.perfil_riesgo}
                               </span>
                               <span className="text-xs text-gb-gray ml-1">({client.puntaje_riesgo})</span>
+                              <span className={`block text-[10px] mt-0.5 ${client.last_questionnaire_date ? "text-emerald-600" : "text-amber-600"}`}>
+                                {client.last_questionnaire_date ? "cuestionario" : "estimado"}
+                              </span>
                             </div>
                           ) : (
                             <span className="text-xs text-gb-gray">Sin perfil</span>

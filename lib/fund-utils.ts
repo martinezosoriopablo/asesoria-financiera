@@ -12,6 +12,10 @@ export const SERIE_KEYWORDS: Array<{ pattern: RegExp; serieCode: string }> = [
   { pattern: /INVERSIONIST/i, serieCode: "INVER" },
   { pattern: /COLABORADOR/i, serieCode: "COLAB" },
   { pattern: /CLASICA|CLASIC/i, serieCode: "CLASI" },
+  // Composite series: I-APV, B-APV, A-APV (must check before plain APV)
+  { pattern: /\bI[\s-]*APV\b/i, serieCode: "I-APV" },
+  { pattern: /\bB[\s-]*APV\b/i, serieCode: "B-APV" },
+  { pattern: /\bA[\s-]*APV\b/i, serieCode: "A-APV" },
   { pattern: /\bAPV\b/i, serieCode: "APV" },
   // Abbreviated series from cartola names (e.g., "PATRIMONIAL BALANCEADA - B")
   { pattern: /\s-\s*BPRIV$/i, serieCode: "BPRIV" },

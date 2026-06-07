@@ -1,0 +1,209 @@
+<h2>Mockup: Reporte Radiografia por Email</h2>
+<p class="subtitle">Que secciones deberia incluir el reporte? Selecciona las que quieres.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Vista previa del reporte HTML</div>
+  <div class="mockup-body" style="background:#ffffff; padding:0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+
+    <!-- Header -->
+    <div style="background:#1e293b; color:white; padding:24px 32px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; margin-bottom:4px;">Greybark Advisors</div>
+          <div style="font-size:20px; font-weight:600;">Radiografia de Cartera</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:14px; font-weight:500;">Juan Perez</div>
+          <div style="font-size:12px; color:#94a3b8;">2 junio 2026</div>
+        </div>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:16px;">
+        <div style="background:#334155; padding:6px 12px; border-radius:6px; font-size:12px;">
+          <span style="color:#94a3b8;">Perfil:</span> Moderado Agresivo
+        </div>
+        <div style="background:#334155; padding:6px 12px; border-radius:6px; font-size:12px;">
+          <span style="color:#94a3b8;">Valor:</span> $142M CLP
+        </div>
+        <div style="background:#334155; padding:6px 12px; border-radius:6px; font-size:12px;">
+          <span style="color:#94a3b8;">Modelo:</span> Moderado Agresivo
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Allocation bars -->
+    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:16px;">Asset Allocation vs Modelo</div>
+
+      <!-- RV -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+          <span style="color:#1e293b; font-weight:500;">Renta Variable</span>
+          <span style="color:#ef4444; font-weight:600; background:#fef2f2; padding:1px 8px; border-radius:10px; font-size:11px;">+35.2pp</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+          <span style="font-size:10px; color:#94a3b8; width:40px;">Actual</span>
+          <div style="flex:1; height:14px; background:#f1f5f9; border-radius:7px; overflow:hidden;">
+            <div style="width:95%; height:100%; background:#3b82f6; border-radius:7px;"></div>
+          </div>
+          <span style="font-size:11px; font-family:monospace; width:36px; text-align:right; font-weight:600;">95.2%</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:10px; color:#94a3b8; width:40px;">Modelo</span>
+          <div style="flex:1; height:14px; background:#f1f5f9; border-radius:7px; overflow:hidden;">
+            <div style="width:60%; height:100%; background:#3b82f6; border-radius:7px; opacity:0.3;"></div>
+          </div>
+          <span style="font-size:11px; font-family:monospace; color:#94a3b8; width:36px; text-align:right;">60.0%</span>
+        </div>
+      </div>
+
+      <!-- RF -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+          <span style="color:#1e293b; font-weight:500;">Renta Fija</span>
+          <span style="color:#ef4444; font-weight:600; background:#fef2f2; padding:1px 8px; border-radius:10px; font-size:11px;">-25.0pp</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+          <span style="font-size:10px; color:#94a3b8; width:40px;">Actual</span>
+          <div style="flex:1; height:14px; background:#f1f5f9; border-radius:7px; overflow:hidden;">
+            <div style="width:0%; height:100%; background:#10b981; border-radius:7px;"></div>
+          </div>
+          <span style="font-size:11px; font-family:monospace; width:36px; text-align:right; font-weight:600;">0.0%</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:10px; color:#94a3b8; width:40px;">Modelo</span>
+          <div style="flex:1; height:14px; background:#f1f5f9; border-radius:7px; overflow:hidden;">
+            <div style="width:25%; height:100%; background:#10b981; border-radius:7px; opacity:0.3;"></div>
+          </div>
+          <span style="font-size:11px; font-family:monospace; color:#94a3b8; width:36px; text-align:right;">25.0%</span>
+        </div>
+      </div>
+
+      <!-- Donuts side by side (SVG) -->
+      <div style="display:flex; justify-content:center; gap:40px; margin-top:20px;">
+        <div style="text-align:center;">
+          <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#94a3b8; margin-bottom:8px;">Tu Cartera</div>
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#f1f5f9" stroke-width="12"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#3b82f6" stroke-width="12"
+              stroke-dasharray="299 315" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#94a3b8" stroke-width="12"
+              stroke-dasharray="16 315" stroke-dashoffset="-299" transform="rotate(-90 60 60)"/>
+            <text x="60" y="64" text-anchor="middle" font-size="14" font-weight="bold" fill="#1e293b">95%</text>
+          </svg>
+          <div style="font-size:11px; color:#64748b; margin-top:4px;">$142M</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px; text-transform:uppercase; letter-spacing:1px; color:#94a3b8; margin-bottom:8px;">Modelo</div>
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#f1f5f9" stroke-width="12"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#3b82f6" stroke-width="12"
+              stroke-dasharray="189 315" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" stroke-width="12"
+              stroke-dasharray="79 315" stroke-dashoffset="-189" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#8b5cf6" stroke-width="12"
+              stroke-dasharray="31 315" stroke-dashoffset="-268" transform="rotate(-90 60 60)"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="#94a3b8" stroke-width="12"
+              stroke-dasharray="16 315" stroke-dashoffset="-299" transform="rotate(-90 60 60)"/>
+            <text x="60" y="64" text-anchor="middle" font-size="12" fill="#64748b">Objetivo</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Top Holdings -->
+    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px;">Principales Posiciones</div>
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <th style="text-align:left; padding:6px 0; color:#94a3b8; font-weight:500;">Instrumento</th>
+          <th style="text-align:left; padding:6px 0; color:#94a3b8; font-weight:500;">Tipo</th>
+          <th style="text-align:right; padding:6px 0; color:#94a3b8; font-weight:500;">Peso</th>
+          <th style="text-align:right; padding:6px 0; color:#94a3b8; font-weight:500;">Valor</th>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:8px 0; font-weight:600; color:#1e293b;"><span style="font-family:monospace; background:#f1f5f9; padding:2px 6px; border-radius:4px; margin-right:6px;">AAPL</span>Apple Inc</td>
+          <td style="padding:8px 0; color:#64748b;">Accion</td>
+          <td style="padding:8px 0; text-align:right; font-family:monospace; font-weight:600;">22.1%</td>
+          <td style="padding:8px 0; text-align:right; font-family:monospace;">$31.4M</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:8px 0; font-weight:600; color:#1e293b;"><span style="font-family:monospace; background:#f1f5f9; padding:2px 6px; border-radius:4px; margin-right:6px;">MSFT</span>Microsoft</td>
+          <td style="padding:8px 0; color:#64748b;">Accion</td>
+          <td style="padding:8px 0; text-align:right; font-family:monospace; font-weight:600;">18.3%</td>
+          <td style="padding:8px 0; text-align:right; font-family:monospace;">$26.0M</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f8fafc;">
+          <td style="padding:8px 0; font-weight:600; color:#1e293b;"><span style="font-family:monospace; background:#f1f5f9; padding:2px 6px; border-radius:4px; margin-right:6px;">GOOGL</span>Alphabet</td>
+          <td style="padding:8px 0; color:#64748b;">Accion</td>
+          <td style="padding:8px 0; text-align:right; font-family:monospace; font-weight:600;">12.5%</td>
+          <td style="padding:8px 0; text-align:right; font-family:monospace;">$17.8M</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Section 3: Observations -->
+    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px;">Observaciones</div>
+      <div style="padding:10px 14px; background:#fef2f2; border-left:4px solid #ef4444; border-radius:0 6px 6px 0; margin-bottom:8px;">
+        <div style="font-size:12px; color:#991b1b;">Sin exposicion a Renta Fija &mdash; modelo sugiere 25%</div>
+      </div>
+      <div style="padding:10px 14px; background:#fffbeb; border-left:4px solid #f59e0b; border-radius:0 6px 6px 0; margin-bottom:8px;">
+        <div style="font-size:12px; color:#92400e;">Las 3 mayores posiciones representan 53% del portafolio</div>
+      </div>
+      <div style="padding:10px 14px; background:#eff6ff; border-left:4px solid #3b82f6; border-radius:0 6px 6px 0;">
+        <div style="font-size:12px; color:#1e40af;">Healthcare subponderado, comite recomienda Overweight (oportunidad)</div>
+      </div>
+    </div>
+
+    <!-- Section 4: Narrative -->
+    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px;">Diagnostico</div>
+      <div style="font-size:13px; color:#475569; line-height:1.7;">
+        Tu cartera presenta una concentracion significativa en renta variable (95.2% vs 60% del modelo), con ausencia total de renta fija. Las tres principales posiciones (AAPL, MSFT, GOOGL) representan mas del 50% del portafolio, lo que genera un riesgo de concentracion elevado tanto sectorial como individual.
+      </div>
+      <div style="font-size:13px; color:#475569; line-height:1.7; margin-top:12px;">
+        Recomendamos iniciar una rotacion gradual hacia instrumentos de renta fija, aprovechando las tasas actuales en treasuries y corporativos investment grade. El comite mantiene una vision constructiva en RF de corto plazo.
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:20px 32px; background:#f8fafc;">
+      <div style="font-size:11px; color:#94a3b8; text-align:center;">
+        Greybark Advisors &mdash; Este reporte es informativo y no constituye recomendacion de inversion.
+        <br/>Para ver la radiografia completa, <a href="#" style="color:#3b82f6;">ingresa a la plataforma</a>.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:24px;">
+  <h3>Secciones incluidas</h3>
+  <p class="subtitle">Todas estas secciones estarian en el reporte. Quieres agregar o quitar alguna?</p>
+  <div class="options" data-multiselect>
+    <div class="option selected" data-choice="header" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content"><h3>Header</h3><p>Nombre cliente, fecha, perfil, valor total</p></div>
+    </div>
+    <div class="option selected" data-choice="allocation" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content"><h3>Allocation vs Modelo</h3><p>Barras comparativas CSS + donuts SVG inline</p></div>
+    </div>
+    <div class="option selected" data-choice="holdings" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content"><h3>Principales Posiciones</h3><p>Top 10 holdings con tipo, peso y valor</p></div>
+    </div>
+    <div class="option selected" data-choice="observations" onclick="toggleSelect(this)">
+      <div class="letter">4</div>
+      <div class="content"><h3>Observaciones</h3><p>Alertas automaticas con severidad (rojo/amarillo/azul)</p></div>
+    </div>
+    <div class="option selected" data-choice="narrative" onclick="toggleSelect(this)">
+      <div class="letter">5</div>
+      <div class="content"><h3>Diagnostico Narrativo</h3><p>Analisis de Claude (si se genero previamente)</p></div>
+    </div>
+    <div class="option selected" data-choice="footer" onclick="toggleSelect(this)">
+      <div class="letter">6</div>
+      <div class="content"><h3>Footer + Link</h3><p>Disclaimer + link a la plataforma</p></div>
+    </div>
+  </div>
+</div>

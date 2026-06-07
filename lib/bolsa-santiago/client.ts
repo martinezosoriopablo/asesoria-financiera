@@ -1,40 +1,69 @@
 // lib/bolsa-santiago/client.ts
-// Cliente para la API de la Bolsa de Santiago
+// Cliente para la API Brain Data de la Bolsa de Santiago
+// Docs: Manual API Free trial (Brain Data)
+// Base URL: api-private-braindata.bolsadesantiago.com
+// Auth: Ocp-Apim-Subscription-Key header
+// Hours: 7am-10pm Chile, Mon-Fri (excl. holidays)
 
-const BOLSA_SANTIAGO_BASE_URL = "https://startup.bolsadesantiago.com/api/consulta";
+const BOLSA_SANTIAGO_BASE_URL =
+  "https://api-private-braindata.bolsadesantiago.com/api-servicios-de-consulta";
 const API_TOKEN = process.env.BOLSA_SANTIAGO_API_TOKEN;
 
-interface BolsaSantiagoInstrumento {
-  Nemo: string;
-  Nombre: string;
-  UltimoPrecio?: number;
-  Variacion?: number;
-  VariacionPorcentual?: number;
-  Moneda?: string;
-  FechaHora?: string;
-  Volumen?: number;
-  MontoTransado?: number;
-  PrecioApertura?: number;
-  PrecioMaximo?: number;
-  PrecioMinimo?: number;
-  PrecioCierre?: number;
+// ---------------------------------------------------------------------------
+// Raw API response types (from manual)
+// ---------------------------------------------------------------------------
+
+interface BDInstrumento {
+  NEMO: string;
+  MERCADO: string;
+  PRE_ULT_TR: number;
+  CATEGORIA: number;
+  AUT_VT_CORTO: string;
+  MONEDA: number; // 0=CLP, 1=USD, 9=foreign
+  CODIGO_ISIN: string;
+  NON_FFLOAT: number;
+  PAIS_EMISOR: string;
+  TIPO_INSTRU: string;
 }
 
-interface BolsaSantiagoResumenAccion {
-  Nemo: string;
-  Nombre?: string;
-  Empresa?: string;
-  UltimoPrecio: number;
-  Variacion: number;
-  VariacionPorcentual: number;
-  PrecioApertura?: number;
-  PrecioMaximo?: number;
-  PrecioMinimo?: number;
-  PrecioCierreAnterior?: number;
-  Volumen?: number;
-  MontoTransado?: number;
-  FechaHora?: string;
+interface BDResumenAccion {
+  TOTAL_PAGINAS: number;
+  MERCADO: string;
+  PERIODO: string; // AN, ME, DI
+  NEMO: string;
+  CANTIDAD: number;
+  MONTO: number;
+  NUM_NEG: number;
+  PRESEN: number;
+  PRE_CIE: number;
+  PRE_MAY: number;
+  PRE_MED: number;
+  PRE_MEN: number;
+  VAR_PRE: number;
+  FEC_FIJ_CIE: string;
+  NUM_ACC_CIR: number;
+  BETA_90DIAS: number;
+  MONEDA: number;
 }
+
+interface BDTransaccion {
+  TOTAL_PAGINAS: number;
+  MERCADO: string;
+  NEMO: string;
+  HORA: string;
+  CANTIDAD: number;
+  COND_COD_002: string;
+  COND_COD_011: string;
+  FECHA: string;
+  MONTO: number;
+  PRECIO: number;
+  RUEDA: string;
+  TASA: number;
+}
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
 
 export interface ChileanStock {
   ticker: string;
@@ -51,219 +80,208 @@ export interface ChileanStock {
   lastUpdate?: string;
 }
 
-async function makeRequest<T>(endpoint: string, body: Record<string, unknown> = {}): Promise<T | null> {
+// ---------------------------------------------------------------------------
+// HTTP helper
+// ---------------------------------------------------------------------------
+
+async function makeRequest<T>(
+  path: string,
+  params: Record<string, string> = {}
+): Promise<T | null> {
   if (!API_TOKEN) {
     console.error("BOLSA_SANTIAGO_API_TOKEN not configured");
     return null;
   }
 
-  try {
-    const url = `${BOLSA_SANTIAGO_BASE_URL}${endpoint}`;
+  const qs = new URLSearchParams(params).toString();
+  const url = `${BOLSA_SANTIAGO_BASE_URL}${path}${qs ? `?${qs}` : ""}`;
 
+  try {
     const response = await fetch(url, {
-      method: "POST",
+      method: "GET",
       headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": `Bearer ${API_TOKEN}`,
+        Accept: "application/json",
+        "Ocp-Apim-Subscription-Key": API_TOKEN,
       },
-      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
-      console.error(`Bolsa Santiago API error: ${response.status}`);
+      const body = await response.text().catch(() => "");
+      console.error(`Bolsa Santiago API error: ${response.status} ${body.substring(0, 200)}`);
       return null;
     }
 
-    const data = await response.json();
-    return data;
+    return (await response.json()) as T;
   } catch (error) {
     console.error("Error calling Bolsa Santiago API:", error);
     return null;
   }
 }
 
+// ---------------------------------------------------------------------------
+// Endpoints
+// ---------------------------------------------------------------------------
+
 /**
- * Obtiene la lista de instrumentos válidos disponibles para operar
+ * GET /api/Util/Instrumentos
+ * Returns available RV instruments (Free Trial: 10 random daily, 5 top gains + 5 top losses)
  */
 export async function getInstrumentosValidos(): Promise<string[]> {
-  const data = await makeRequest<{ instrumentos?: string[] }>(
-    "/InstrumentosDisponibles/getInstrumentosValidos"
-  );
-  return data?.instrumentos || [];
+  const data = await makeRequest<BDInstrumento[]>("/api/Util/Instrumentos");
+  if (!data) return [];
+  return data.map((i) => i.NEMO);
 }
 
 /**
- * Obtiene información de todos los instrumentos de renta variable
+ * GET /api/Util/Instrumentos
+ * Returns full instrument data
  */
-export async function getInstrumentosRV(): Promise<BolsaSantiagoInstrumento[]> {
-  const data = await makeRequest<{ instrumentos?: BolsaSantiagoInstrumento[] }>(
-    "/ClienteMD/getInstrumentosRV"
-  );
-  return data?.instrumentos || [];
+export async function getInstrumentosRV(): Promise<BDInstrumento[]> {
+  const data = await makeRequest<BDInstrumento[]>("/api/Util/Instrumentos");
+  return data || [];
 }
 
 /**
- * Obtiene el resumen detallado de una acción específica
+ * GET /api/Util/ResumenAccion?NEMO=X&PERIODO=DI&numeroPagina=1
+ * Returns daily summary for an instrument (price, volume, etc.)
+ * PERIODO: AN (annual), ME (monthly), DI (daily)
  */
 export async function getResumenAccion(nemo: string): Promise<ChileanStock | null> {
-  const data = await makeRequest<BolsaSantiagoResumenAccion>(
-    "/TickerOnDemand/getResumenAccion",
-    { Nemo: nemo.toUpperCase() }
-  );
+  const data = await makeRequest<BDResumenAccion[]>("/api/Util/ResumenAccion", {
+    NEMO: nemo.toUpperCase(),
+    PERIODO: "DI",
+    numeroPagina: "1",
+  });
 
-  if (!data || !data.Nemo) {
-    return null;
-  }
+  if (!data || data.length === 0) return null;
 
+  const latest = data[0];
   return {
-    ticker: data.Nemo,
-    name: data.Nombre || data.Empresa || data.Nemo,
-    price: data.UltimoPrecio || 0,
-    change: data.Variacion || 0,
-    changePercent: data.VariacionPorcentual || 0,
-    currency: "CLP",
-    volume: data.Volumen,
-    open: data.PrecioApertura,
-    high: data.PrecioMaximo,
-    low: data.PrecioMinimo,
-    previousClose: data.PrecioCierreAnterior,
-    lastUpdate: data.FechaHora,
+    ticker: latest.NEMO,
+    name: latest.NEMO,
+    price: latest.PRE_CIE || 0,
+    change: latest.VAR_PRE || 0,
+    changePercent: latest.VAR_PRE || 0,
+    currency: latest.MONEDA === 1 ? "USD" : "CLP",
+    lastUpdate: latest.FEC_FIJ_CIE,
   };
 }
 
 /**
- * Busca instrumentos chilenos por nombre o nemotécnico
- */
-export async function searchChileanStocks(query: string): Promise<ChileanStock[]> {
-  const instrumentos = await getInstrumentosRV();
-
-  if (!instrumentos || instrumentos.length === 0) {
-    return [];
-  }
-
-  const queryUpper = query.toUpperCase();
-
-  // Filtrar por coincidencia en Nemo o Nombre
-  const matches = instrumentos.filter((inst) => {
-    const nemoMatch = inst.Nemo?.toUpperCase().includes(queryUpper);
-    const nombreMatch = inst.Nombre?.toUpperCase().includes(queryUpper);
-    return nemoMatch || nombreMatch;
-  });
-
-  return matches.slice(0, 15).map((inst) => ({
-    ticker: inst.Nemo,
-    name: inst.Nombre || inst.Nemo,
-    price: inst.UltimoPrecio || 0,
-    change: inst.Variacion || 0,
-    changePercent: inst.VariacionPorcentual || 0,
-    currency: inst.Moneda || "CLP",
-    volume: inst.Volumen,
-    open: inst.PrecioApertura,
-    high: inst.PrecioMaximo,
-    low: inst.PrecioMinimo,
-    lastUpdate: inst.FechaHora,
-  }));
-}
-
-/**
- * Obtiene precios históricos de un instrumento (Bolsa de Santiago)
- * Endpoint: getPointHistGAT — devuelve precios de cierre diarios
+ * GET /api/Util/ResumenAccion with PERIODO=DI, paginated
+ * Returns historical daily closing prices (up to 1 year for Free Trial)
  */
 export async function getHistoricalPrices(
   nemo: string,
-  fromDate: string,
-  toDate: string
-): Promise<Array<{ date: string; close: number; open?: number; high?: number; low?: number; volume?: number }>> {
-  // Formatear fechas a DD-MM-YYYY si vienen en YYYY-MM-DD
-  const formatDate = (d: string) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      const [y, m, day] = d.split("-");
-      return `${day}-${m}-${y}`;
-    }
-    return d;
-  };
+  _fromDate: string,
+  _toDate: string
+): Promise<Array<{ date: string; close: number }>> {
+  const results: Array<{ date: string; close: number }> = [];
+  let page = 1;
+  let totalPages = 1;
 
-  const data = await makeRequest<{
-    listaResult?: Array<{
-      Fecha?: string;
-      FechaString?: string;
-      PrecioCierre?: number;
-      PrecioApertura?: number;
-      PrecioMaximo?: number;
-      PrecioMinimo?: number;
-      Volumen?: number;
-      VolumenMonto?: number;
-    }>;
-  }>("/TickerOnDemand/getPointHistGAT", {
-    Nemo: nemo.toUpperCase(),
-    FechaDesde: formatDate(fromDate),
-    FechaHasta: formatDate(toDate),
-    TipoVal: "ALL",
-  });
-
-  if (!data?.listaResult) {
-    // Try alternative endpoint
-    const altData = await makeRequest<{
-      listaResult?: Array<{
-        Fecha?: string;
-        FechaString?: string;
-        PrecioCierre?: number;
-        PrecioApertura?: number;
-        PrecioMaximo?: number;
-        PrecioMinimo?: number;
-        Volumen?: number;
-      }>;
-    }>("/ClienteHistorico/getSerieHistorica", {
-      Nemo: nemo.toUpperCase(),
-      FechaDesde: formatDate(fromDate),
-      FechaHasta: formatDate(toDate),
+  while (page <= totalPages) {
+    const data = await makeRequest<BDResumenAccion[]>("/api/Util/ResumenAccion", {
+      NEMO: nemo.toUpperCase(),
+      PERIODO: "DI",
+      numeroPagina: String(page),
     });
 
-    if (!altData?.listaResult) return [];
+    if (!data || data.length === 0) break;
 
-    return altData.listaResult
-      .filter((item) => item.PrecioCierre && item.PrecioCierre > 0)
-      .map((item) => ({
-        date: parseApiDate(item.FechaString || item.Fecha || ""),
-        close: item.PrecioCierre!,
-        open: item.PrecioApertura,
-        high: item.PrecioMaximo,
-        low: item.PrecioMinimo,
-        volume: item.Volumen,
-      }))
-      .filter((item) => item.date !== "");
+    totalPages = data[0]?.TOTAL_PAGINAS || 1;
+
+    for (const row of data) {
+      if (row.PRE_CIE > 0 && row.FEC_FIJ_CIE) {
+        const date = parseDate(row.FEC_FIJ_CIE);
+        if (date) {
+          results.push({ date, close: row.PRE_CIE });
+        }
+      }
+    }
+
+    page++;
+    // Safety: max 10 pages to avoid burning through request quota
+    if (page > 10) break;
   }
 
-  return data.listaResult
-    .filter((item) => item.PrecioCierre && item.PrecioCierre > 0)
-    .map((item) => ({
-      date: parseApiDate(item.FechaString || item.Fecha || ""),
-      close: item.PrecioCierre!,
-      open: item.PrecioApertura,
-      high: item.PrecioMaximo,
-      low: item.PrecioMinimo,
-      volume: item.Volumen,
-    }))
-    .filter((item) => item.date !== "");
+  // Filter by date range and sort
+  const from = _fromDate;
+  const to = _toDate;
+  return results
+    .filter((r) => r.date >= from && r.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**
- * Parse date from Bolsa de Santiago format (DD-MM-YYYY or DD/MM/YYYY) to YYYY-MM-DD
+ * GET /api/Util/Transacciones?NEMO=X&fechaDesde=X&fechaHasta=X&numeroPagina=1
+ * Returns transactions for an instrument (max 3-month periods)
  */
-function parseApiDate(dateStr: string): string {
+export async function getTransacciones(
+  nemo: string,
+  fromDate: string,
+  toDate: string
+): Promise<Array<{ date: string; price: number; quantity: number; amount: number }>> {
+  const data = await makeRequest<BDTransaccion[]>("/api/Util/Transacciones", {
+    NEMO: nemo.toUpperCase(),
+    fechaDesde: fromDate,
+    fechaHasta: toDate,
+    numeroPagina: "1",
+  });
+
+  if (!data) return [];
+
+  return data
+    .filter((t) => t.PRECIO > 0)
+    .map((t) => ({
+      date: parseDate(t.FECHA) || t.FECHA,
+      price: t.PRECIO,
+      quantity: t.CANTIDAD,
+      amount: t.MONTO,
+    }));
+}
+
+/**
+ * Search instruments by name/nemo from the available instruments list
+ */
+export async function searchChileanStocks(query: string): Promise<ChileanStock[]> {
+  const instrumentos = await getInstrumentosRV();
+  if (instrumentos.length === 0) return [];
+
+  const queryUpper = query.toUpperCase();
+  const matches = instrumentos.filter(
+    (inst) => inst.NEMO?.toUpperCase().includes(queryUpper)
+  );
+
+  return matches.slice(0, 15).map((inst) => ({
+    ticker: inst.NEMO,
+    name: inst.NEMO,
+    price: inst.PRE_ULT_TR || 0,
+    change: 0,
+    changePercent: 0,
+    currency: inst.MONEDA === 1 ? "USD" : "CLP",
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Parse date from various formats to YYYY-MM-DD */
+function parseDate(dateStr: string): string {
   if (!dateStr) return "";
-  // Handle DD-MM-YYYY or DD/MM/YYYY
+  // DD-MM-YYYY or DD/MM/YYYY
   const match = dateStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
   if (match) {
     const [, day, month, year] = match;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
-  // Handle YYYY-MM-DD (already in correct format)
+  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
     return dateStr.split("T")[0];
   }
-  // Handle ISO date
+  // ISO date
   try {
     return new Date(dateStr).toISOString().split("T")[0];
   } catch {
@@ -271,23 +289,20 @@ function parseApiDate(dateStr: string): string {
   }
 }
 
-// Cache de instrumentos para evitar llamadas repetidas
-let instrumentosCache: BolsaSantiagoInstrumento[] | null = null;
+// Cache for instruments
+let instrumentosCache: BDInstrumento[] | null = null;
 let cacheTimestamp = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-export async function getInstrumentosRVCached(): Promise<BolsaSantiagoInstrumento[]> {
+export async function getInstrumentosRVCached(): Promise<BDInstrumento[]> {
   const now = Date.now();
-
-  if (instrumentosCache && (now - cacheTimestamp) < CACHE_DURATION) {
+  if (instrumentosCache && now - cacheTimestamp < CACHE_DURATION) {
     return instrumentosCache;
   }
-
   const data = await getInstrumentosRV();
   if (data.length > 0) {
     instrumentosCache = data;
     cacheTimestamp = now;
   }
-
   return data;
 }

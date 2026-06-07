@@ -20,9 +20,9 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
     fetch("/api/monthly-reports")
       .then((r) => r.json())
       .then((d) => {
-        if (d.data?.reports) setReports(d.data.reports);
+        if (d.reports) setReports(d.reports);
       })
-      .catch(() => {});
+      .catch((e) => console.error("[MonthlyReport] List error:", e));
   }, [uploadSuccess]);
 
   // Update selected month when currentMonth changes
@@ -80,6 +80,7 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
         setTimeout(() => setUploadSuccess(false), 3000);
       } else {
         const err = await res.json();
+        console.error("[MonthlyReport] Upload error:", err);
         alert(`Error: ${err.error || "No se pudo subir el reporte"}`);
       }
     } catch {

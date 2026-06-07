@@ -18,9 +18,9 @@ export default function ReporteMensualPage() {
     fetch(`/api/monthly-reports?month=${month}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.data?.report) {
-          setHtml(d.data.report.html_content);
-          setTitle(d.data.report.title || `Reporte ${month}`);
+        if (d.report) {
+          setHtml(d.report.html_content);
+          setTitle(d.report.title || `Reporte ${month}`);
         } else {
           setError("No hay reporte para este mes.");
         }

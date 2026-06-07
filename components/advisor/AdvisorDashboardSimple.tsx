@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import AdvisorHeader from "@/components/shared/AdvisorHeader";
 import StatsCards from "@/components/dashboard/StatsCards";
 import WeeklyCalendar from "@/components/dashboard/WeeklyCalendar";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
@@ -88,14 +87,6 @@ export default function ImprovedAdvisorDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
-      <AdvisorHeader
-        advisorName={advisor.name}
-        advisorEmail={advisor.email}
-        advisorPhoto={advisor.photo}
-      />
-
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Bienvenida */}
         <div className="mb-8">

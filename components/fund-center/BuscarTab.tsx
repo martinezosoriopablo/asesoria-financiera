@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Search, TrendingUp, TrendingDown, Minus, ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Minus, ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Clock, Download, CheckCircle, AlertTriangle } from 'lucide-react';
 import FondoDetalleModal from '@/components/market/FondoDetalleModal';
-import SearchMode from '@/app/fund-center/components/SearchMode';
+import SearchMode from '@/app/(advisor-shell)/fund-center/components/SearchMode';
 
 // ─── Types ───
 interface FondoResult {
@@ -350,6 +350,8 @@ function FIDetailView({ fondo, precios, loading, onBack }: {
     rescatable: boolean | null;
     plazo_rescate: string | null;
   } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (!selectedSerie && series.length > 0) setSelectedSerie(series[0]);
@@ -363,6 +365,31 @@ function FIDetailView({ fondo, precios, loading, onBack }: {
       .then(d => { if (d.extracted) setFichaData(d.extracted); })
       .catch(() => {});
   }, [fondo.rut]);
+
+  const syncPrecios = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/fondos-inversion/fetch-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rut: fondo.rut }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSyncResult({
+          success: true,
+          message: `${data.scrape.rowsScraped} precios descargados (series: ${data.import.seriesDetected?.join(', ') || '—'})`,
+        });
+      } else {
+        setSyncResult({ success: false, message: data.error || 'Error al sincronizar' });
+      }
+    } catch {
+      setSyncResult({ success: false, message: 'Error de conexion' });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const preciosSerie = precios.filter(p => p.serie === selectedSerie).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const latestSerie = preciosSerie.length > 0 ? preciosSerie[preciosSerie.length - 1] : null;
@@ -391,10 +418,26 @@ function FIDetailView({ fondo, precios, loading, onBack }: {
                   <h2 className="text-lg font-bold text-gb-black">{fondo.nombre}</h2>
                 </div>
                 <p className="text-sm text-gb-gray">{fondo.administradora}</p>
-                <div className="flex flex-wrap gap-2 mt-3">
+                <div className="flex flex-wrap items-center gap-2 mt-3">
                   <span className="text-xs bg-gray-100 text-gb-gray px-2 py-0.5 rounded">RUT {fondo.rut}</span>
                   <span className="text-xs bg-gray-100 text-gb-gray px-2 py-0.5 rounded">{fondo.moneda || 'CLP'}</span>
+                  <button
+                    onClick={syncPrecios}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50"
+                  >
+                    {syncing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    {syncing ? 'Descargando...' : 'Actualizar Precios'}
+                  </button>
                 </div>
+                {syncResult && (
+                  <div className={`flex items-center gap-2 text-xs mt-2 px-3 py-2 rounded-lg ${
+                    syncResult.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                  }`}>
+                    {syncResult.success ? <CheckCircle className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                    {syncResult.message}
+                  </div>
+                )}
               </div>
               <div className="text-right">
                 {latestSerie ? (

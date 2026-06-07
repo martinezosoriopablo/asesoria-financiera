@@ -1,0 +1,92 @@
+<h2>Renta Fija: calculo de devengo entre cartolas</h2>
+<p class="subtitle">Mismo principio que dividendos — solo contamos lo que pasa entre snapshots</p>
+
+<!-- DIAGRAMA -->
+<div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+  <h3 style="margin: 0 0 16px 0;">Ejemplo: Santander 5.294% semi-annual, $50,000 nominal</h3>
+  <div style="font-size: 13px; font-family: monospace; background: white; border-radius: 8px; padding: 16px; line-height: 2.2;">
+    <div>Snapshot A (31-Mar) ────────────────────── Snapshot B (30-Abr)</div>
+    <div style="margin-top: 8px;">
+      <strong>Devengo del periodo:</strong>
+    </div>
+    <div style="color: #666; margin-left: 16px;">
+      cuponSemestral = 5.294% / 2 = 2.647%<br>
+      cuponDiario = 2.647% / 180 dias (30/360) = 0.01471%<br>
+      diasEntrCartolas = 30 dias<br>
+      devengo = $50,000 x 0.01471% x 30 = <strong style="color: #38a169;">$220.58</strong>
+    </div>
+    <div style="margin-top: 12px;">
+      <strong>Diferencia de precio:</strong>
+    </div>
+    <div style="color: #666; margin-left: 16px;">
+      precioA = 98.50 &rarr; precioB = 99.12<br>
+      difPrecio = (99.12 - 98.50) / 100 x $50,000 = <strong style="color: #38a169;">+$310</strong>
+    </div>
+    <div style="margin-top: 12px;">
+      <strong>Cupon cobrado en el periodo:</strong>
+    </div>
+    <div style="color: #666; margin-left: 16px;">
+      Fecha cupon: 15-Feb (ya paso) / 15-Ago (no ha llegado)<br>
+      Cupones cobrados entre 31-Mar y 30-Abr: <strong>$0</strong>
+    </div>
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+      <strong>Retorno total periodo = devengo + difPrecio + cupones</strong><br>
+      <span style="margin-left: 16px;">= $220.58 + $310 + $0 = <strong style="color: #38a169;">$530.58</strong> (+1.06%)</span>
+    </div>
+  </div>
+</div>
+
+<!-- PREGUNTA CUPON COBRADO -->
+<h2>Pregunta: como detectamos cupones cobrados entre cartolas?</h2>
+<p class="subtitle">Los bonos pagan cupon semi-annual. Si cae entre dos snapshots, hay que contarlo.</p>
+
+<div style="background: #fff8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px; border-left: 4px solid #dd6b20;">
+  <h3 style="margin: 0 0 8px 0; color: #dd6b20;">Datos que ya tenemos por bono</h3>
+  <div style="font-size: 13px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+    <div>couponRate: 5.294%</div>
+    <div>maturityDate: 2027-08-15</div>
+    <div>couponFrequency: 2 (semi-annual)</div>
+    <div>faceValue / nominal: $50,000</div>
+  </div>
+  <div style="margin-top: 8px; font-size: 13px; color: #666;">
+    Con maturityDate + frequency podemos calcular las fechas de cupon hacia atras
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="auto-calc" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Calculo automatico desde maturity + frequency</h3>
+      <p>Ya tenemos <code>cash-flows.ts</code> que genera el schedule de cupones. Filtramos cuales caen entre fecha snapshot A y B. Monto = nominal x cuponRate / frequency.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>100% automatico, ya tenemos la logica</li><li>No requiere input del asesor</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Asume bullet bond con cupones regulares</li><li>Fecha exacta puede tener +/- 1-2 dias por feriados</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="manual-entry" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Ingreso manual del asesor</h3>
+      <p>Boton "Registrar cupon" por bono, similar al registro de dividendos que ya existe. El asesor ingresa fecha y monto.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Preciso: monto real recibido</li><li>Captura withholding tax si aplica</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Mas trabajo para el asesor</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="auto-plus-override" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Auto-calculo con override manual</h3>
+      <p>Se calcula automaticamente desde el schedule. Si el asesor quiere corregir (ej: retencion de impuesto, fecha ajustada), puede editar el monto.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Funciona sin input, pero permite precision</li><li>Best of both worlds</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Mas UI para el override</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

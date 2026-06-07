@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { handleApiError } from "@/lib/api-response";
 
 // GET /api/bonds/latest-prices?cusips=ABC123,DEF456
 // Returns the most recent price per CUSIP from bond_prices table
 export async function GET(request: NextRequest) {
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   return handleApiError("bonds-latest-prices-get", async () => {

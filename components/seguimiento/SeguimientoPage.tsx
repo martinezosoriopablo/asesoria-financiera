@@ -375,7 +375,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             if (result.funds) setFundsMeta(result.funds);
 
             // If series is too short (< 30 points), trigger CMF backfill to get more data
-            if (result.series.length < 30) {
+            if (!portalMode && result.series.length < 30) {
               const uniqueRuns = [...new Set(holdingsWithRun.map((h) => h.run))];
               if (uniqueRuns.length > 0) {
                 setBackfillStatus(`Descargando histórico CMF para ${uniqueRuns.length} fondos...`);

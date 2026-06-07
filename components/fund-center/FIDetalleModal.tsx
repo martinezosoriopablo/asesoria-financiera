@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw, Download, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface FIDetalleProps {
   rut: string;
@@ -39,6 +39,8 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
   const [precios, setPrecios] = useState<FIPrecio[]>([]);
   const [loading, setLoading] = useState(true);
   const [fondoId, setFondoId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -69,6 +71,39 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
     };
     loadData();
   }, [rut]);
+
+  const syncPrecios = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/fondos-inversion/fetch-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rut }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSyncResult({
+          success: true,
+          message: `${data.scrape.rowsScraped} precios descargados (${data.import.seriesDetected?.join(', ') || '—'})`,
+        });
+        // Reload prices
+        if (fondoId) {
+          const detailRes = await fetch(`/api/fondos-inversion/lookup?id=${fondoId}&dias=15`);
+          const detailData = await detailRes.json();
+          if (detailData.success && detailData.precios) {
+            setPrecios(detailData.precios.slice(0, 10));
+          }
+        }
+      } else {
+        setSyncResult({ success: false, message: data.error || 'Error al sincronizar' });
+      }
+    } catch {
+      setSyncResult({ success: false, message: 'Error de conexion' });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -203,13 +238,35 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gb-border flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium bg-gb-black text-white rounded-lg hover:bg-gb-dark transition-colors"
-          >
-            Cerrar
-          </button>
+        <div className="px-6 py-3 border-t border-gb-border space-y-2">
+          {syncResult && (
+            <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
+              syncResult.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+            }`}>
+              {syncResult.success ? <CheckCircle className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+              {syncResult.message}
+            </div>
+          )}
+          <div className="flex justify-between">
+            <button
+              onClick={syncPrecios}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors disabled:opacity-50"
+            >
+              {syncing ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {syncing ? 'Descargando...' : 'Actualizar Precios'}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium bg-gb-black text-white rounded-lg hover:bg-gb-dark transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>

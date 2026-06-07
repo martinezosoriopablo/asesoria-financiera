@@ -1,7 +1,7 @@
 // components/tax/TaxMap.tsx
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, Fragment } from "react";
 import { Loader, ChevronDown, ChevronUp, Info } from "lucide-react";
 import type { TaxableHolding } from "@/lib/tax/types";
 
@@ -277,9 +277,8 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
                 const barWidth = maxGainAbs > 0 ? Math.abs(gains) / maxGainAbs * 100 : 0;
 
                 return (
-                  <>
+                  <Fragment key={`${h.run}-${h.serie}-${i}`}>
                     <tr
-                      key={`${h.run}-${h.serie}-${i}`}
                       className="border-b border-gb-border last:border-b-0 hover:bg-gray-50 cursor-pointer"
                       onClick={() => setExpandedRow(isExpanded ? null : i)}
                     >
@@ -423,7 +422,7 @@ export default function TaxMap({ holdings, onHoldingsChange }: Props) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

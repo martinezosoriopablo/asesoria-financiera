@@ -1,0 +1,120 @@
+<h2>Diseno Completo: Retornos por Tipo de Activo</h2>
+<p class="subtitle">Resumen de todas las decisiones tomadas</p>
+
+<!-- DECISION 1 -->
+<div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #4a7dff;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">Layout: Secciones separadas por clase</h3>
+    <span style="background: #e8f0fe; color: #4a7dff; padding: 4px 10px; border-radius: 6px; font-size: 12px;">DECIDIDO</span>
+  </div>
+  <p style="font-size: 13px; color: #666; margin: 8px 0 0;">Renta Variable / Renta Fija / Cash — cada una con columnas optimizadas. Secciones se muestran/ocultan segun assetType de holdings.</p>
+</div>
+
+<!-- DECISION 2 -->
+<div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #38a169;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">Dividendos: entre cartolas via Alpha Vantage</h3>
+    <span style="background: #e6ffed; color: #38a169; padding: 4px 10px; border-radius: 6px; font-size: 12px;">DECIDIDO</span>
+  </div>
+  <p style="font-size: 13px; color: #666; margin: 8px 0 0;">Solo contamos dividendos con ex_date entre snapshot A y B. Fuente: Alpha Vantage DIVIDENDS endpoint. No necesitamos fecha de compra.</p>
+</div>
+
+<!-- DECISION 3 -->
+<div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #805ad5;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">Storage: tabla dividend_history</h3>
+    <span style="background: #f0e6ff; color: #805ad5; padding: 4px 10px; border-radius: 6px; font-size: 12px;">DECIDIDO</span>
+  </div>
+  <p style="font-size: 13px; color: #666; margin: 8px 0 0;">Tabla normalizada (ticker, ex_date, amount, source). Un fetch sirve para todos los clientes. Patron identico a bond_prices.</p>
+</div>
+
+<!-- DECISION 4 -->
+<div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #dd6b20;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">Bonos: devengo + dif. precio + cupones auto-calc con override</h3>
+    <span style="background: #fff3e0; color: #dd6b20; padding: 4px 10px; border-radius: 6px; font-size: 12px;">DECIDIDO</span>
+  </div>
+  <p style="font-size: 13px; color: #666; margin: 8px 0 0;">Devengo 30/360 automatico. Cupones detectados via cash-flows.ts (maturity + frequency). Asesor puede corregir monto. Columna YTM incluida.</p>
+</div>
+
+<!-- DECISION 5 -->
+<div style="background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border-left: 4px solid #1a1a2e;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0;">Vista adaptativa segun composicion</h3>
+    <span style="background: #eee; color: #333; padding: 4px 10px; border-radius: 6px; font-size: 12px;">DECIDIDO</span>
+  </div>
+  <p style="font-size: 13px; color: #666; margin: 8px 0 0;">4 casos: solo fondos, fondos+acciones, solo RF, mixto. Columna dividendos solo si hay stocks/ETFs. Seccion RF solo si hay bonds.</p>
+</div>
+
+<!-- COMPONENTES A MODIFICAR -->
+<div style="background: #1a1a2e; color: white; border-radius: 12px; padding: 20px; margin-top: 32px; margin-bottom: 24px;">
+  <h3 style="color: white; margin: 0 0 16px 0;">Componentes del codebase afectados</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px;">
+    <div>
+      <div style="color: #63b3ed; font-weight: 600; margin-bottom: 8px;">MODIFICAR</div>
+      <div style="font-family: monospace; line-height: 2; color: #e2e8f0;">
+        <div>components/seguimiento/</div>
+        <div style="margin-left: 16px;">HoldingReturnsPanel.tsx</div>
+        <div style="margin-left: 32px; color: #a0aec0;">Refactor: secciones RV/RF/Cash</div>
+        <div style="margin-left: 32px; color: #a0aec0;">+ columna dividendos (RV)</div>
+        <div style="margin-left: 32px; color: #a0aec0;">+ columnas devengo/dif/cupones/YTM (RF)</div>
+      </div>
+    </div>
+    <div>
+      <div style="color: #68d391; font-weight: 600; margin-bottom: 8px;">CREAR</div>
+      <div style="font-family: monospace; line-height: 2; color: #e2e8f0;">
+        <div>supabase/migrations/</div>
+        <div style="margin-left: 16px;">YYYYMMDD_dividend_history.sql</div>
+        <div>lib/</div>
+        <div style="margin-left: 16px;">alphavantage-dividends.ts</div>
+        <div>lib/bonds/</div>
+        <div style="margin-left: 16px;">period-return.ts</div>
+        <div>app/api/dividends/</div>
+        <div style="margin-left: 16px;">sync/route.ts</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COLUMNAS FINALES -->
+<div style="margin-bottom: 24px;">
+  <h3>Columnas finales por seccion</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div style="background: #f0f4ff; border-radius: 8px; padding: 16px;">
+      <h4 style="color: #4a7dff; margin: 0 0 8px 0;">Renta Variable (fondos, ETFs, acciones)</h4>
+      <div style="font-size: 12px; line-height: 2;">
+        <div>Activo | Tipo (badge) | Peso</div>
+        <div>P. Compra | P. Actual | Valor</div>
+        <div>Retorno Precio | <strong>Dividendos*</strong> | Ret. Total | Contrib.</div>
+        <div style="color: #888; margin-top: 4px;">* solo si hasStocksOrETFs</div>
+      </div>
+    </div>
+    <div style="background: #fff8f0; border-radius: 8px; padding: 16px;">
+      <h4 style="color: #dd6b20; margin: 0 0 8px 0;">Renta Fija (bonos)</h4>
+      <div style="font-size: 12px; line-height: 2;">
+        <div>Emisor | Rating | Cupon | Venc. | Peso</div>
+        <div>P. Compra | P. Mercado | <strong>YTM</strong></div>
+        <div><strong>Devengo</strong> | <strong>Dif. Precio</strong> | <strong>Cupones</strong> | Ret. Total | Contrib.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Apruebas este diseno?</h2>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Aprobado — escribir spec</h3>
+      <p>Guardar el diseno como spec y pasar a plan de implementacion.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="changes" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Cambios necesarios</h3>
+      <p>Quiero ajustar algo antes de avanzar.</p>
+    </div>
+  </div>
+</div>

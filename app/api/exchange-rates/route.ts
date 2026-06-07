@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getCurrentRates } from "@/lib/bcch";
-import { requireAdvisor } from "@/lib/auth/api-auth";
+import { requireAuth } from "@/lib/auth/api-auth";
 import { handleApiError } from "@/lib/api-response";
 
 // Cache simple en memoria (10 minutos)
@@ -17,7 +17,7 @@ let cache: {
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
 
 export async function GET(request: NextRequest) {
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   const blocked = await applyRateLimit(request, "exchange-rates", { limit: 10, windowSeconds: 60 });

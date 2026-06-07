@@ -1,0 +1,42 @@
+<h2>Reporte Radiografia por Email</h2>
+<p class="subtitle">Como deberia generarse y enviarse el reporte HTML con graficos?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>HTML puro con graficos CSS/SVG inline</h3>
+      <p>Barras de allocation con CSS puro, donuts con SVG inline, tablas HTML estilizadas. <strong>Maximo compatibilidad</strong> con clientes de correo (Gmail, Outlook, Apple Mail). Sin dependencias externas.</p>
+      <div style="margin-top:8px; padding:8px 12px; background:#f0fdf4; border-radius:6px; font-size:13px; color:#166534;">
+        Recomendado &mdash; los clientes de email no ejecutan JavaScript ni cargan recursos externos de forma confiable
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>HTML con imagenes de graficos (server-rendered)</h3>
+      <p>Generar los graficos como PNG en el servidor (usando canvas/sharp), embedirlos como base64 en el HTML. Graficos mas sofisticados (treemaps, donuts con gradientes) pero mas complejo de mantener.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Link a version web + resumen en email</h3>
+      <p>Email con un resumen liviano (texto + barras CSS) y un boton "Ver Reporte Completo" que abre la radiografia en el navegador (requiere login). Menos trabajo pero depende de que el cliente haga click.</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:24px; padding:16px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0;">
+  <h3 style="margin:0 0 8px 0; font-size:14px;">Contexto tecnico</h3>
+  <ul style="margin:0; padding-left:20px; font-size:13px; color:#64748b; line-height:1.6;">
+    <li>Ya tienes <strong>Resend</strong> configurado para enviar emails HTML</li>
+    <li>Los graficos de Recharts (React) NO funcionan en emails (requieren JS)</li>
+    <li>Gmail elimina &lt;style&gt; tags — hay que usar estilos inline</li>
+    <li>Outlook no soporta SVG en algunos casos — pero si en versiones modernas</li>
+    <li>El reporte se genera desde la data de <code>/api/portfolio/radiografia</code></li>
+  </ul>
+</div>

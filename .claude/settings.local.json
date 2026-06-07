@@ -76,7 +76,8 @@
       "Bash(npx:*)",
       "Bash(rm:*)",
       "Bash(cat:*)",
-      "Bash(cmd.exe:*)"
+      "Bash(cmd.exe:*)",
+      "Bash(do echo:*)"
     ]
   }
 }

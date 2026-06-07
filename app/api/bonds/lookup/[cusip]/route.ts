@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor } from "@/lib/auth/api-auth";
+import { requireAuth } from "@/lib/auth/api-auth";
 import { lookupSymbol, makeHeaders } from "@/lib/finra/historical";
 import { handleApiError } from "@/lib/api-response";
 
@@ -7,7 +7,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ cusip: string }> }
 ) {
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAuth();
   if (authError) return authError;
 
   const { cusip } = await params;

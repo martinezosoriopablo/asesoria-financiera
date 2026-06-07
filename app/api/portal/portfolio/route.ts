@@ -59,12 +59,16 @@ export async function GET() {
       cash_percent: latestSnapshot.cash_percent || 0,
       cumulative_return: latestSnapshot.cumulative_return,
       daily_return: latestSnapshot.daily_return,
-      holdings: holdings.map((h: Record<string, unknown>) => ({
-        nombre: (h.fundName || h.nombre || h.name || "Sin nombre") as string,
-        tipo: (h.assetClass || h.tipo || "—") as string,
-        valor: (h.marketValue || h.marketValueCLP || h.valor || 0) as number,
-        porcentaje: ((h.marketValue || h.marketValueCLP || h.valor || 0) as number) / totalVal * 100,
-      })),
+      holdings: holdings.map((h: Record<string, unknown>) => {
+        // Prefer marketValueCLP (already converted to CLP) over marketValue (may be in USD/UF)
+        const valorCLP = (h.marketValueCLP || h.marketValue || h.valor || 0) as number;
+        return {
+          nombre: (h.fundName || h.nombre || h.name || "Sin nombre") as string,
+          tipo: (h.assetClass || h.tipo || "—") as string,
+          valor: valorCLP,
+          porcentaje: valorCLP / totalVal * 100,
+        };
+      }),
     };
   }
 

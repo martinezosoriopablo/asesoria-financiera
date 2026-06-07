@@ -1,443 +1,397 @@
-// app/page.tsx
-
-"use client";
-
-import React from "react";
 import Link from "next/link";
 import {
   TrendingUp,
+  Shield,
   FileText,
-  BarChart3,
-  CheckCircle,
-  ArrowRight,
-  Globe,
   Building2,
+  Globe,
+  Users,
+  BarChart3,
+  ArrowRight,
+  Phone,
+  Mail,
 } from "lucide-react";
+
+const services = [
+  {
+    title: "Asesoria Financiera",
+    icon: TrendingUp,
+    description:
+      "Gestion de portafolios, analisis de costos, recomendaciones personalizadas con datos CMF en tiempo real.",
+  },
+  {
+    title: "Seguros Internacionales",
+    icon: Shield,
+    description:
+      "Polizas con companias de USA. Productos no disponibles en Chile. Coberturas de vida, salud, patrimonio.",
+  },
+  {
+    title: "Asesoria Tributaria",
+    icon: FileText,
+    description:
+      "Planificacion tributaria personalizada. Optimizacion de carga fiscal. Red de especialistas.",
+  },
+  {
+    title: "Soluciones Inmobiliarias",
+    icon: Building2,
+    description:
+      "Productos de inversion inmobiliaria. Asesoria en compra/venta. Gestion patrimonial.",
+  },
+];
+
+const differentiators = [
+  {
+    icon: Globe,
+    title: "Acceso internacional",
+    description:
+      "Productos de USA y mercados globales que no estan disponibles en Chile.",
+  },
+  {
+    icon: Users,
+    title: "Todo integrado",
+    description:
+      "Un solo equipo para inversiones, seguros, impuestos e inmobiliario.",
+  },
+  {
+    icon: BarChart3,
+    title: "Tecnologia + experiencia",
+    description:
+      "Plataforma propia con datos en tiempo real, respaldada por asesores humanos.",
+  },
+];
+
+const steps = [
+  {
+    number: "1",
+    title: "Agenda una reunion",
+    description: "Conecta con tu asesor para entender tu situacion actual y objetivos.",
+  },
+  {
+    number: "2",
+    title: "Definimos tu estrategia",
+    description: "Creamos un plan personalizado que integre todos los servicios que necesitas.",
+  },
+  {
+    number: "3",
+    title: "Gestion continua",
+    description: "Seguimiento permanente con reportes, ajustes y acompanamiento profesional.",
+  },
+];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white text-gb-black">
       {/* Navbar */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-slate-200 z-50 shadow-sm">
+      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <Building2 className="w-8 h-8 text-blue-600" />
-              <span className="text-xl font-bold text-slate-900">
-                Stonex Advisory
-              </span>
-            </div>
+          <div className="flex items-center justify-between h-20">
+            <span
+              className="text-2xl tracking-[0.15em] text-gb-black"
+              style={{ fontFamily: "'Archivo Black', sans-serif" }}
+            >
+              GLOBAL
+            </span>
 
-            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
-              <Link
-                href="/fund-center"
-                className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
+              <a
+                href="#servicios"
+                className="text-sm text-gray-500 hover:text-gb-black font-medium transition-colors"
               >
-                Panorama del Mercado
+                Servicios
+              </a>
+              <a
+                href="#nosotros"
+                className="text-sm text-gray-500 hover:text-gb-black font-medium transition-colors"
+              >
+                Nosotros
+              </a>
+              <Link
+                href="/login"
+                className="px-5 py-2.5 text-sm font-medium border border-gray-300 rounded text-gb-black hover:bg-gray-50 transition-colors"
+              >
+                Portal Clientes
               </Link>
               <Link
-                href="/portfolio-comparison"
-                className="text-slate-600 hover:text-slate-900 font-medium transition-colors"
+                href="/login"
+                className="px-5 py-2.5 text-sm font-medium bg-gb-black text-white rounded hover:bg-gb-dark transition-colors"
               >
-                Comparador
-              </Link>
-              <Link
-                href="/portfolio-comparison"
-                className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
-              >
-                Comenzar Ahora
+                Acceso Asesores
               </Link>
             </div>
 
-            {/* Mobile Menu Button */}
-            <div className="md:hidden">
+            {/* Mobile */}
+            <div className="flex md:hidden items-center gap-2">
               <Link
-                href="/portfolio-comparison"
-                className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg text-sm"
+                href="/login"
+                className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded text-gb-black"
               >
-                Comenzar
+                Clientes
+              </Link>
+              <Link
+                href="/login"
+                className="px-3 py-1.5 text-xs font-medium bg-gb-black text-white rounded"
+              >
+                Asesores
               </Link>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-slate-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-5xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
-              Ahorra hasta{" "}
-              <span className="text-blue-600">$165,000 al año</span>
-              <br />
-              en costos de fondos mutuos
-            </h1>
-            <p className="text-xl text-slate-600 mb-10 leading-relaxed">
-              Compara tu portafolio actual con alternativas internacionales de
-              bajo costo. Accede a fondos globales con costos desde 0.03% anual.
-            </p>
+      {/* Hero — full-width photo background */}
+      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1920&q=80')",
+          }}
+        />
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/60" />
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/fund-center"
-                className="px-8 py-4 bg-white border-2 border-slate-300 text-slate-900 font-bold text-lg rounded-xl hover:border-slate-400 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-              >
-                <Globe className="w-6 h-6" />
-                Ver Panorama del Mercado
-              </Link>
-              <Link
-                href="/portfolio-comparison"
-                className="px-8 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                <TrendingUp className="w-6 h-6" />
-                Comparar Mi Portafolio
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-            </div>
-
-            <p className="text-sm text-slate-500 mt-6">
-              Sin costo • Sin compromiso • Resultados en menos de 5 minutos
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Problem/Solution Section */}
-      <section className="py-20 px-4 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">
-                ¿Sabes cuánto pagas realmente en tu portafolio?
-              </h2>
-              <p className="text-lg text-slate-600 mb-6">
-                La mayoría de los inversionistas en Chile pagan entre{" "}
-                <strong className="text-red-600">1.0% - 1.5%</strong> anual en
-                costos de administración, sin saberlo.
-              </p>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-red-600 font-bold">❌</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">
-                      Fondos chilenos tradicionales
-                    </p>
-                    <p className="text-slate-600">TER promedio: 1.35% anual</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-green-600 font-bold">✓</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">
-                      Fondos internacionales (ETFs)
-                    </p>
-                    <p className="text-slate-600">TER desde: 0.03% - 0.6% anual</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-8 p-6 bg-green-50 border-2 border-green-200 rounded-xl">
-                <p className="text-lg font-bold text-green-900 mb-2">
-                  💰 Ahorro potencial en $10M CLP:
-                </p>
-                <p className="text-3xl font-bold text-green-600">
-                  $120,000 - $130,000
-                </p>
-                <p className="text-sm text-green-700 mt-1">por año en costos</p>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl p-8 border border-slate-300">
-              <div className="space-y-6">
-                <div className="bg-white rounded-xl p-6 shadow-md">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-slate-600">
-                      TER Promedio Chile
-                    </span>
-                    <span className="text-sm text-red-600 font-bold">Alto</span>
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-3">
-                    <div className="bg-red-500 h-3 rounded-full w-[90%]"></div>
-                  </div>
-                  <p className="text-2xl font-bold text-slate-900 mt-3">1.35%</p>
-                </div>
-                <div className="bg-white rounded-xl p-6 shadow-md">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-slate-600">
-                      TER Fondos Stonex
-                    </span>
-                    <span className="text-sm text-green-600 font-bold">Bajo</span>
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-3">
-                    <div className="bg-green-500 h-3 rounded-full w-[15%]"></div>
-                  </div>
-                  <p className="text-2xl font-bold text-slate-900 mt-3">0.13%</p>
-                </div>
-                <div className="text-center pt-4">
-                  <p className="text-lg font-bold text-slate-900">
-                    Diferencia: <span className="text-blue-600">1.22%</span>
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    En $10M = $122,000/año de ahorro
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 px-4 bg-slate-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-slate-900 mb-4">
-              Todo lo que necesitas para tomar la mejor decisión
-            </h2>
-            <p className="text-xl text-slate-600">
-              Herramientas profesionales al alcance de un click
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow border border-slate-200">
-              <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center mb-6">
-                <Globe className="w-8 h-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                Panorama del Mercado
-              </h3>
-              <p className="text-slate-600 mb-4">
-                Visualiza estadísticas de todas las AGFs chilenas. Compara costos
-                promedio, rentabilidades y identifica las mejores opciones.
-              </p>
-              <Link
-                href="/fund-center"
-                className="text-blue-600 font-semibold hover:text-blue-700 inline-flex items-center gap-2"
-              >
-                Explorar mercado
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow border border-slate-200">
-              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center mb-6">
-                <BarChart3 className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                Comparador de Portafolios
-              </h3>
-              <p className="text-slate-600 mb-4">
-                Compara tu portafolio actual con alternativas optimizadas. Ve el
-                ahorro exacto en costos y mejora en rentabilidad.
-              </p>
-              <Link
-                href="/portfolio-comparison"
-                className="text-green-600 font-semibold hover:text-green-700 inline-flex items-center gap-2"
-              >
-                Comparar ahora
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow border border-slate-200">
-              <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center mb-6">
-                <FileText className="w-8 h-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                Reportes en PDF
-              </h3>
-              <p className="text-slate-600 mb-4">
-                Genera reportes profesionales con toda la comparación. Compártelos
-                con familia, socios o asesores financieros.
-              </p>
-              <span className="text-purple-600 font-semibold inline-flex items-center gap-2">
-                Incluido en comparador
-                <CheckCircle className="w-4 h-4" />
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="py-20 px-4 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-slate-900 mb-4">
-              Cómo funciona
-            </h2>
-            <p className="text-xl text-slate-600">
-              Tres pasos simples para empezar a ahorrar
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Step 1 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg">
-                1
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                Explora el Mercado
-              </h3>
-              <p className="text-slate-600">
-                Ve cómo están las AGFs chilenas en términos de costos y
-                rentabilidades. Entiende el panorama completo.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg">
-                2
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                Compara tu Portafolio
-              </h3>
-              <p className="text-slate-600">
-                Ingresa tu email, selecciona tus fondos actuales y compáralos con
-                alternativas globales optimizadas.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-6 shadow-lg">
-                3
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-3">
-                Descarga tu Reporte
-              </h3>
-              <p className="text-slate-600">
-                Genera un PDF profesional con todos los números y compártelo con
-                quien necesites. Toma decisiones informadas.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8 text-center">
-            <div>
-              <div className="text-5xl font-bold mb-2">2,000+</div>
-              <p className="text-xl text-blue-100">Fondos Analizados</p>
-              <p className="text-sm text-blue-200 mt-2">
-                Base de datos completa de fondos chilenos
-              </p>
-            </div>
-            <div>
-              <div className="text-5xl font-bold mb-2">18</div>
-              <p className="text-xl text-blue-100">AGFs Comparadas</p>
-              <p className="text-sm text-blue-200 mt-2">
-                Todas las administradoras del mercado
-              </p>
-            </div>
-            <div>
-              <div className="text-5xl font-bold mb-2">100%</div>
-              <p className="text-xl text-blue-100">Datos Oficiales</p>
-              <p className="text-sm text-blue-200 mt-2">
-                Información directo de la CMF
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 px-4 bg-white">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-6">
-            Empieza a ahorrar hoy
-          </h2>
-          <p className="text-xl text-slate-600 mb-10">
-            Sin costo, sin compromiso. Descubre cuánto puedes ahorrar en menos de
-            5 minutos.
-          </p>
-          <Link
-            href="/portfolio-comparison"
-            className="inline-flex items-center gap-3 px-10 py-5 bg-blue-600 text-white font-bold text-xl rounded-xl hover:bg-blue-700 transition-colors shadow-2xl hover:shadow-xl"
+        <div className="relative max-w-4xl mx-auto text-center px-4 py-32">
+          <p
+            className="text-base md:text-lg tracking-[0.3em] text-white/70 mb-8"
+            style={{ fontFamily: "'Archivo Black', sans-serif" }}
           >
-            <TrendingUp className="w-7 h-7" />
-            Comparar Mi Portafolio Ahora
-            <ArrowRight className="w-6 h-6" />
-          </Link>
-          <p className="text-sm text-slate-500 mt-6">
-            ✓ Gratis ✓ Sin registro ✓ Resultados instantáneos
+            GLOBAL
           </p>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+            Tu equipo financiero completo
+          </h1>
+          <p className="text-lg md:text-xl text-white/70 mb-12 leading-relaxed max-w-2xl mx-auto">
+            Asesoria de inversiones, seguros internacionales, planificacion
+            tributaria y soluciones inmobiliarias. Todo en un solo lugar.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href="#servicios"
+              className="px-8 py-3.5 bg-white text-gb-black font-semibold rounded hover:bg-gray-100 transition-colors inline-flex items-center justify-center gap-2"
+            >
+              Conoce nuestros servicios
+              <ArrowRight className="w-5 h-5" />
+            </a>
+            <a
+              href="#contacto"
+              className="px-8 py-3.5 border border-white/40 text-white font-semibold rounded hover:bg-white/10 transition-colors inline-flex items-center justify-center"
+            >
+              Agenda una reunion
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Servicios */}
+      <section id="servicios" className="py-24 px-4 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-xs font-semibold text-gray-400 tracking-[0.2em] uppercase mb-3">
+              Nuestros servicios
+            </p>
+            <h2 className="text-3xl md:text-4xl font-bold text-gb-black mb-4">
+              Cuatro verticales para tus necesidades
+            </h2>
+            <p className="text-lg text-gray-500">
+              Cobertura integral para todo tu patrimonio
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {services.map((s) => {
+              const Icon = s.icon;
+              return (
+                <div
+                  key={s.title}
+                  className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 hover:shadow-sm transition-all"
+                >
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-5">
+                    <Icon className="w-6 h-6 text-gb-black" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gb-black mb-2">
+                    {s.title}
+                  </h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    {s.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Diferenciadores */}
+      <section id="nosotros" className="py-24 px-4 bg-[#f7f7f7]">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-xs font-semibold text-gray-400 tracking-[0.2em] uppercase mb-3">
+              Por que elegirnos
+            </p>
+            <h2 className="text-3xl md:text-4xl font-bold text-gb-black mb-4">
+              Por que GLOBAL
+            </h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-10">
+            {differentiators.map((d) => {
+              const Icon = d.icon;
+              return (
+                <div key={d.title} className="text-center">
+                  <div className="w-14 h-14 bg-white border border-gray-200 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <Icon className="w-7 h-7 text-gb-black" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gb-black mb-2">
+                    {d.title}
+                  </h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">
+                    {d.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Como funciona */}
+      <section className="py-24 px-4 bg-white">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-xs font-semibold text-gray-400 tracking-[0.2em] uppercase mb-3">
+              Proceso
+            </p>
+            <h2 className="text-3xl md:text-4xl font-bold text-gb-black mb-4">
+              Como funciona
+            </h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Connector line (desktop) */}
+            <div className="hidden md:block absolute top-7 left-[20%] right-[20%] h-px bg-gray-200" />
+            {steps.map((s) => (
+              <div key={s.number} className="text-center relative">
+                <div className="w-14 h-14 bg-gb-black text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-5 relative z-10">
+                  {s.number}
+                </div>
+                <h3 className="text-lg font-semibold text-gb-black mb-2">
+                  {s.title}
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  {s.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA final — photo background */}
+      <section id="contacto" className="relative py-24 px-4 overflow-hidden">
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?w=1920&q=80')",
+          }}
+        />
+        <div className="absolute inset-0 bg-black/65" />
+
+        <div className="relative max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+            Empieza hoy
+          </h2>
+          <p className="text-lg text-white/70 mb-10">
+            Accede a tu portal o contacta a nuestro equipo para agendar una
+            reunion.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/login"
+              className="px-8 py-3.5 border border-white/40 text-white font-semibold rounded hover:bg-white/10 transition-colors inline-flex items-center justify-center"
+            >
+              Portal Clientes
+            </Link>
+            <Link
+              href="/login"
+              className="px-8 py-3.5 bg-white text-gb-black font-semibold rounded hover:bg-gray-100 transition-colors inline-flex items-center justify-center gap-2"
+            >
+              Acceso Asesores
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-300 py-12 px-4">
+      <footer className="bg-gb-black py-14 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
+          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="w-6 h-6 text-blue-400" />
-                <span className="text-lg font-bold text-white">
-                  Stonex Advisory
-                </span>
-              </div>
-              <p className="text-sm text-slate-400">
-                Herramientas profesionales para optimizar tu portafolio de
-                inversiones.
+              <span
+                className="text-lg tracking-[0.15em] text-white"
+                style={{ fontFamily: "'Archivo Black', sans-serif" }}
+              >
+                GLOBAL
+              </span>
+              <p className="text-sm text-white/40 mt-4 leading-relaxed">
+                Tu equipo financiero completo. Inversiones, seguros, tributario
+                e inmobiliario.
               </p>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-4">Herramientas</h4>
-              <ul className="space-y-2 text-sm">
+              <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">
+                Servicios
+              </h4>
+              <ul className="space-y-2.5 text-sm text-white/40">
                 <li>
-                  <Link
-                    href="/fund-center"
-                    className="hover:text-white transition-colors"
-                  >
-                    Panorama del Mercado
-                  </Link>
+                  <a href="#servicios" className="hover:text-white transition-colors">
+                    Asesoria Financiera
+                  </a>
                 </li>
                 <li>
-                  <Link
-                    href="/portfolio-comparison"
-                    className="hover:text-white transition-colors"
-                  >
-                    Comparador de Portafolios
-                  </Link>
+                  <a href="#servicios" className="hover:text-white transition-colors">
+                    Seguros Internacionales
+                  </a>
+                </li>
+                <li>
+                  <a href="#servicios" className="hover:text-white transition-colors">
+                    Asesoria Tributaria
+                  </a>
+                </li>
+                <li>
+                  <a href="#servicios" className="hover:text-white transition-colors">
+                    Soluciones Inmobiliarias
+                  </a>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-4">Información</h4>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li>Sobre Nosotros</li>
-                <li>Metodología</li>
-                <li>Fuente de Datos: CMF Chile</li>
+              <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">
+                Contacto
+              </h4>
+              <ul className="space-y-2.5 text-sm text-white/40">
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  contacto@global.cl
+                </li>
+                <li className="flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  +56 9 0000 0000
+                </li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-white mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li>Términos de Uso</li>
+              <h4 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider">
+                Legal
+              </h4>
+              <ul className="space-y-2.5 text-sm text-white/40">
+                <li>Terminos de Uso</li>
                 <li>Privacidad</li>
-                <li>Disclaimer</li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-slate-800 pt-8 text-center text-sm text-slate-400">
-            <p>© 2024 Stonex Advisory. Todos los derechos reservados.</p>
-            <p className="mt-2">
-              Datos actualizados desde la Comisión para el Mercado Financiero
-              (CMF) de Chile
-            </p>
+          <div className="border-t border-white/10 pt-8 text-center text-sm text-white/30">
+            <p>&copy; 2026 GLOBAL. Todos los derechos reservados.</p>
           </div>
         </div>
       </footer>

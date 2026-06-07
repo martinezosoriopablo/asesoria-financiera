@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Clock, MapPin, Video, Phone, User, Edit3, Trash2 } from "lucide-react";
+import { Clock, MapPin, Video, Phone, Bell, User, Edit3, Trash2 } from "lucide-react";
 
 interface Meeting {
   id: string;
@@ -97,6 +97,8 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
         return <Video className="w-3 h-3" />;
       case "llamada":
         return <Phone className="w-3 h-3" />;
+      case "recordatorio":
+        return <Bell className="w-3 h-3" />;
       default:
         return <MapPin className="w-3 h-3" />;
     }
@@ -108,6 +110,8 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
         return "bg-blue-100 text-blue-700 border-blue-200";
       case "llamada":
         return "bg-green-100 text-green-700 border-green-200";
+      case "recordatorio":
+        return "bg-amber-100 text-amber-700 border-amber-200";
       default:
         return "bg-purple-100 text-purple-700 border-purple-200";
     }
@@ -115,7 +119,7 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
 
   return (
     <>
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
         {weekDays.map((day, index) => {
           const dayMeetings = getMeetingsForDay(day);
           const today = isToday(day);
@@ -215,6 +219,10 @@ export default function WeeklyCalendar({ meetings = [], onEdit, onDelete }: Week
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-100 border border-green-200 rounded" />
           <span className="text-gb-gray">Llamada</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-amber-100 border border-amber-200 rounded" />
+          <span className="text-gb-gray">Recordatorio</span>
         </div>
       </div>
     </>
