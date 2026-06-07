@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Valores de fallback estáticos — ÚLTIMA INSTANCIA
+        console.error("[exchange-rates] CRITICAL: Both BCCH and mindicador.cl failed, using static fallback");
         return NextResponse.json({
           success: true,
           usd: 950,
@@ -103,6 +104,8 @@ export async function GET(request: NextRequest) {
           uf: 38000,
           timestamp: new Date().toISOString(),
           fallback: true,
+          stale: true,
+          warning: "Valores estáticos de emergencia — verificar manualmente",
           error: "Using static fallback values — both BCCH and mindicador.cl failed",
         });
       }
