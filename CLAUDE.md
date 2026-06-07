@@ -55,6 +55,12 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 **Shared text utilities:** `lib/text.ts` (stripAccents, normalizeText), `lib/fund-utils.ts` (detectSerieCode), `lib/constants/chilean-finance.ts` (CHILEAN_TICKERS). Do NOT define these locally in routes.
 
+**Portfolio classification:** `lib/portfolio/classify.ts` (detectCurrencyFromName, assetTypeToClass, classifyFund) and `lib/portfolio/currency.ts` (toCLP, fromCLP with ExchangeRates interface). Do NOT define these locally in components.
+
+**ErrorBoundary:** `components/shared/ErrorBoundary.tsx` wraps the advisor shell layout. Add to new route groups as needed.
+
+**Price service logging:** All fallback chains in `lib/prices/price-service.ts` log warnings when primary source fails. EODHD uses a circuit breaker (18 calls/day window) via `lib/prices/circuit-breaker.ts`.
+
 **Questionnaire frequency:** Per-client configurable (`questionnaire_frequency` column: annual/semi-annual/quarterly/biennial). After saving risk profile, `next_questionnaire_date` is computed. ClientDetail shows overdue warning badge.
 
 **Broker email generator:** `/api/portfolio/generar-carta-corredor` generates a formal Chilean-style email draft via Claude. Client copies and sends from their own email. Triggered from RadiografiaCartola component via `CartaCorredorModal`.

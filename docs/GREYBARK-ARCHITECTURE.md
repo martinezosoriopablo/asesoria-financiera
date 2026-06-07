@@ -310,6 +310,9 @@ Fuentes adicionales de datos:
 - **RLS en 25 tablas**: Ninguna tabla sensible accesible sin autorizacion
 - **Rate limiting**: Todos los endpoints protegidos (Upstash Redis con fallback in-memory)
 - **Auth**: Supabase Auth con middleware de roles (advisor/client/admin)
+- **ErrorBoundary**: React error boundaries en layout del asesor previenen crashes de pagina completa
+- **Circuit breaker**: EODHD API limitado a 18 calls/dia con fallback automatico a Yahoo
+- **Price fallback logging**: Cadenas de fallback (AV→Yahoo, EODHD→Yahoo, Bolsa→Yahoo) logean warnings cuando fuente primaria falla
 - **Service Role**: Solo usado despues de verificacion de auth en API routes
 - **Sanitizacion**: Input sanitization en rutas criticas
 - **Audit**: Logs de acciones administrativas
