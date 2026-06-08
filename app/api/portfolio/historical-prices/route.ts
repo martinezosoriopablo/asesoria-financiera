@@ -566,7 +566,7 @@ export async function POST(req: NextRequest) {
       fundInfo.set(key, {
         id: key,
         fundName: bh.fundName,
-        quantity: bh.quantity,
+        quantity: 1, // fechaMap stores total CLP value, dot-product does qty*price
         tac: null,
         cartolaPrice: 0,
         moneda: bh.currency || "USD",
