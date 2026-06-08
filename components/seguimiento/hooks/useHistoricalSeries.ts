@@ -134,7 +134,26 @@ export function useHistoricalSeries({
         cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
       }));
 
-    if (holdingsWithRun.length === 0 && internationalHoldings.length === 0 && holdingsByName.length === 0) return;
+    // Bond holdings: have couponRate + maturityDate, use bond math for projected prices
+    const bondHoldings = holdings
+      .filter((h) => {
+        const qty = h.quantity || 0;
+        if (qty <= 0) return false;
+        // Must have coupon rate and maturity to project prices
+        return (h.couponRate != null && h.couponRate > 0 && h.maturityDate);
+      })
+      .map((h) => ({
+        fundName: h.fundName || "",
+        securityId: (h.securityId || "").trim(),
+        quantity: h.quantity || 0,
+        marketValue: h.marketValue || 0,
+        couponRate: h.couponRate!,
+        maturityDate: h.maturityDate!,
+        currency: h.currency || "USD",
+      }));
+
+    const hasTradeableHoldings = holdingsWithRun.length > 0 || internationalHoldings.length > 0 || holdingsByName.length > 0;
+    if (!hasTradeableHoldings && bondHoldings.length === 0) return;
 
     // Go back 1 year from today for historical data (rent 1Y, 6M, etc.)
     const oneYearAgo = new Date();
@@ -152,6 +171,10 @@ export function useHistoricalSeries({
             holdings: holdingsWithRun,
             holdingsByName: holdingsByName.length > 0 ? holdingsByName : undefined,
             internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
+            bondHoldings: bondHoldings.length > 0 ? bondHoldings.map(b => ({
+              ...b,
+              referenceDate: latestCartola.snapshot_date,
+            })) : undefined,
             fromDate,
           }),
         });
@@ -183,6 +206,10 @@ export function useHistoricalSeries({
                           holdings: holdingsWithRun,
                           holdingsByName: holdingsByName.length > 0 ? holdingsByName : undefined,
                           internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
+                          bondHoldings: bondHoldings.length > 0 ? bondHoldings.map(b => ({
+                            ...b,
+                            referenceDate: latestCartola.snapshot_date,
+                          })) : undefined,
                           fromDate,
                         }),
                       })

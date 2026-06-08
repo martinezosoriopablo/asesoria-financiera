@@ -6,6 +6,7 @@ import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/
 import { detectSerieCode } from "@/lib/fund-utils";
 import { stripAccents } from "@/lib/text";
 import { handleApiError } from "@/lib/api-response";
+import { projectBondPrices } from "@/lib/bonds/price-projection";
 
 // POST /api/portfolio/historical-prices
 // Producto punto: vector de cuotas × vector de precios por fecha
@@ -36,6 +37,17 @@ interface InternationalHoldingInput {
   currency?: string;
 }
 
+interface BondHoldingInput {
+  fundName: string;
+  securityId?: string;
+  quantity: number;        // face value
+  marketValue: number;     // market value at reference date
+  couponRate: number;      // annual %, e.g. 5.4
+  maturityDate: string;    // ISO date
+  referenceDate: string;   // cartola date
+  currency?: string;       // usually USD
+}
+
 export async function POST(req: NextRequest) {
   const blocked = await applyRateLimit(req, "historical-prices", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
@@ -44,16 +56,18 @@ export async function POST(req: NextRequest) {
   if (authError) return authError;
 
   return handleApiError("historical-prices-post", async () => {
-  const { holdings, holdingsByName, internationalHoldings, fromDate } = await req.json() as {
+  const { holdings, holdingsByName, internationalHoldings, bondHoldings, fromDate } = await req.json() as {
     holdings: HoldingInput[];
     holdingsByName?: HoldingByNameInput[];
     internationalHoldings?: InternationalHoldingInput[];
+    bondHoldings?: BondHoldingInput[];
     fromDate?: string;
   };
 
   const hasHoldings = (holdings && holdings.length > 0) ||
     (holdingsByName && holdingsByName.length > 0) ||
-    (internationalHoldings && internationalHoldings.length > 0);
+    (internationalHoldings && internationalHoldings.length > 0) ||
+    (bondHoldings && bondHoldings.length > 0);
   if (!hasHoldings) {
     return NextResponse.json({ error: "holdings required" }, { status: 400 });
   }
@@ -506,6 +520,68 @@ export async function POST(req: NextRequest) {
       normalizedPrices.set(key, fechaMap);
     }
     } // end tradeableHoldings.length > 0
+  }
+
+  // 4c. Bond holdings: generate projected prices using bond math (constant-yield method)
+  if (bondHoldings && bondHoldings.length > 0) {
+    const toDate = new Date().toISOString().split("T")[0];
+    const bondFromDate = fromDate || new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+
+    // Pre-load dólar for USD→CLP conversion
+    const startYear = parseInt(bondFromDate.split("-")[0], 10);
+    const endYear = new Date().getFullYear();
+    for (let y = startYear; y <= endYear; y++) {
+      await preloadYear("dolar", y);
+    }
+
+    for (const bh of bondHoldings) {
+      if (bh.quantity <= 0 || bh.marketValue <= 0) continue;
+
+      // Reference price as % of par
+      const refPrice = (bh.marketValue / bh.quantity) * 100;
+
+      const projected = projectBondPrices({
+        faceValue: bh.quantity,
+        couponRate: bh.couponRate,
+        maturityDate: bh.maturityDate,
+        referencePrice: refPrice,
+        referenceDate: bh.referenceDate,
+        fromDate: bondFromDate,
+        toDate,
+      });
+
+      if (projected.length === 0) continue;
+
+      const key = `bond-${bh.securityId || bh.fundName}`;
+      const isCLP = (bh.currency || "USD") === "CLP";
+
+      fundInfo.set(key, {
+        id: key,
+        fundName: bh.fundName,
+        quantity: bh.quantity,
+        tac: null,
+        cartolaPrice: 0,
+        moneda: bh.currency || "USD",
+      });
+
+      const fechaMap = new Map<string, number>();
+      for (const p of projected) {
+        // p.price is fraction of par (e.g. 0.985 for 98.5%)
+        const usdValue = bh.quantity * p.price;
+        if (isCLP) {
+          fechaMap.set(p.date, usdValue);
+        } else {
+          try {
+            const dolar = await getDolarObservado(p.date);
+            fechaMap.set(p.date, usdValue * dolar);
+          } catch {
+            // Skip dates without FX rate
+          }
+        }
+      }
+
+      normalizedPrices.set(key, fechaMap);
+    }
   }
 
   // 5. Producto punto por fecha: sum(cuotas_i × precio_i(t))
