@@ -23,6 +23,7 @@ import CompositionBoxes from "./CompositionBoxes";
 import CartolaHistory from "./CartolaHistory";
 import RebalancingTable from "./RebalancingTable";
 import SeguimientoSummaryCards from "./SeguimientoSummaryCards";
+import SeguimientoHeader from "./SeguimientoHeader";
 import MonthlyReportSection from "./MonthlyReportSection";
 import SendSeguimientoModal from "./SendSeguimientoModal";
 import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
@@ -31,15 +32,8 @@ import { useExchangeRates } from "./hooks/useExchangeRates";
 import { useHistoricalSeries } from "./hooks/useHistoricalSeries";
 import { useBenchmarkConfig } from "./hooks/useBenchmarkConfig";
 import {
-  ArrowLeft,
   Loader,
-  Plus,
-  TrendingUp,
-  Calendar,
-  RefreshCw,
   AlertTriangle,
-  Scale,
-  Mail,
 } from "lucide-react";
 
 interface Client {
@@ -690,66 +684,18 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            {!portalMode && (
-              <Link
-                href={`/clients/${clientId}`}
-                className="inline-flex items-center gap-1 text-sm text-gb-gray hover:text-gb-black mb-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                {client.nombre} {client.apellido}
-              </Link>
-            )}
-            <h1 className="text-2xl font-semibold text-gb-black">
-              Seguimiento{portalMode ? "" : " de Cartolas"}
-            </h1>
-          </div>
-          {!portalMode && (
-            <div className="flex gap-2">
-              <Link
-                href={`/recomendacion/${clientId}`}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
-              >
-                <Scale className="w-4 h-4" />
-                Ver Radiografia
-              </Link>
-              <button
-                onClick={fetchData}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-200 text-slate-600 rounded-md hover:bg-slate-50 transition-colors"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                Actualizar
-              </button>
-              <button
-                onClick={openSendModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gb-primary rounded-md hover:bg-gb-primary/90 transition-colors"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                Enviar Reporte
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleFillPrices(false)}
-                  disabled={fillingPrices || snapshots.length === 0}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-amber-300 text-amber-700 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative group"
-                  title="Fuentes: CMF > Fintual API > Yahoo > Manual. Interpola precios entre cartolas."
-                >
-                  <TrendingUp className={`w-4 h-4 ${fillingPrices ? "animate-pulse" : ""}`} />
-                  {fillingPrices ? "Llenando..." : "Llenar Precios"}
-                </button>
-              </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Agregar Cartola
-              </button>
-            </div>
-          )}
-        </div>
+        <SeguimientoHeader
+          clientId={clientId}
+          clientName={`${client.nombre} ${client.apellido}`}
+          portalMode={portalMode}
+          loading={loading}
+          fillingPrices={fillingPrices}
+          snapshotsExist={snapshots.length > 0}
+          onRefresh={fetchData}
+          onOpenSendModal={openSendModal}
+          onFillPrices={() => handleFillPrices(false)}
+          onAddSnapshot={() => setShowAddModal(true)}
+        />
 
         {/* Fill prices result banner */}
         {!portalMode && fillResult && (
