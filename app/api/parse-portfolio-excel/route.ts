@@ -372,7 +372,9 @@ async function enrichSecurityIds(holdings: Holding[]): Promise<void> {
     // Already a CFI/CFIETF → done
     if (/^CFI/i.test(secId)) return false;
     // Bonds don't need enrichment
-    if (h.assetClass === "fixedIncome" || h.assetClass === "bond") return false;
+    if (h.assetClass === "fixedIncome" || h.assetClass === "bond" || h.assetClass === "Fixed Income") return false;
+    // CUSIP-style IDs (9 alphanumeric chars) are bond identifiers — preserve as-is
+    if (/^[A-Z0-9]{9}$/i.test(secId)) return false;
     // Has a non-empty securityId that needs resolving → yes
     if (secId) return true;
     // No securityId but fundName starts with "FM " → likely a fondo mutuo, try to match
