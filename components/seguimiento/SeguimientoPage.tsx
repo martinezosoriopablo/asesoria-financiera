@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import { formatNumber, formatCurrency, formatDate } from "@/lib/format";
 import EvolucionChart from "./EvolucionChart";
-import SnapshotsTable from "./SnapshotsTable";
+
 import AddSnapshotModal from "./AddSnapshotModal";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
 import PerformanceAttribution from "./PerformanceAttribution";
@@ -20,6 +20,7 @@ import RecommendationHistory from "./RecommendationHistory";
 import ClientMonthlyClosing from "./ClientMonthlyClosing";
 import PortfolioBreakdownPies from "./PortfolioBreakdownPies";
 import CompositionBoxes from "./CompositionBoxes";
+import CartolaHistory from "./CartolaHistory";
 import RebalancingTable from "./RebalancingTable";
 import SeguimientoSummaryCards from "./SeguimientoSummaryCards";
 import MonthlyReportSection from "./MonthlyReportSection";
@@ -37,10 +38,6 @@ import {
   Calendar,
   RefreshCw,
   AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Trash2,
   Scale,
   Mail,
 } from "lucide-react";
@@ -138,7 +135,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
   const [fillingPrices, setFillingPrices] = useState(false);
   const [fillResult, setFillResult] = useState<string | null>(null);
   const [fillDetails, setFillDetails] = useState<Array<{ name: string; securityId?: string | null; source: string; sourceId: string | null }> | null>(null);
-  const [showAllSnapshots, setShowAllSnapshots] = useState(false);
+
   const [executions, setExecutions] = useState<Array<{
     id: string; ticker: string; nombre: string; asset_class: string;
     action: string; target_percent: number | null; actual_percent: number | null;
@@ -1031,95 +1028,16 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
           />
         )}
 
-        {/* Cartolas ingresadas */}
-        {!portalMode && (() => {
-          const cartolas = snapshots.filter(
-            (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
-          );
-          const apiSnapshots = snapshots.filter(
-            (s) => s.source !== "statement" && s.source !== "manual" && s.source !== "excel"
-          );
-
-          return (
-            <>
-              {cartolas.length > 0 && (
-                <div className="bg-white rounded-lg border border-gb-border shadow-sm mb-6">
-                  <div className="px-6 py-4 border-b border-gb-border flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    <h2 className="text-base font-semibold text-gb-black">
-                      Cartolas Ingresadas
-                    </h2>
-                    <span className="text-xs text-gb-gray ml-1">({cartolas.length})</span>
-                  </div>
-                  <SnapshotsTable
-                    snapshots={cartolas}
-                    onEdit={setEditingSnapshot}
-                    onDelete={handleDeleteSnapshot}
-                    onSetBaseline={handleSetBaseline}
-                  />
-                </div>
-              )}
-
-              {/* Full snapshot history (collapsible) */}
-              {apiSnapshots.length > 0 && (
-                <div className="bg-white rounded-lg border border-gb-border shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => setShowAllSnapshots(!showAllSnapshots)}
-                      className="flex-1 px-6 py-4 border-b border-gb-border flex items-center justify-between hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        {showAllSnapshots ? (
-                          <ChevronDown className="w-4 h-4 text-gb-gray" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-gb-gray" />
-                        )}
-                        <h2 className="text-base font-semibold text-gb-black">
-                          Historial Completo de Snapshots
-                        </h2>
-                        <span className="text-xs text-gb-gray">
-                          ({snapshots.length} total — {apiSnapshots.length} interpolados)
-                        </span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={handleDeleteAllSnapshots}
-                      className="px-4 py-4 border-b border-gb-border text-xs text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors flex items-center gap-1"
-                      title="Eliminar todos los snapshots"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Limpiar todo
-                    </button>
-                  </div>
-                  {showAllSnapshots && (
-                    <SnapshotsTable
-                      snapshots={snapshots}
-                      onEdit={setEditingSnapshot}
-                      onDelete={handleDeleteSnapshot}
-                    />
-                  )}
-                </div>
-              )}
-            </>
-          );
-        })()}
-
-        {/* Empty state */}
-        {!portalMode && snapshots.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-lg border border-gb-border">
-            <TrendingUp className="w-12 h-12 text-gb-gray mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gb-black mb-2">Sin historial de cartolas</h3>
-            <p className="text-sm text-gb-gray mb-4">
-              Agrega la primera cartola para comenzar a trackear la evolución del portafolio.
-            </p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Agregar Primera Cartola
-            </button>
-          </div>
+        {/* Cartolas ingresadas + empty state */}
+        {!portalMode && (
+          <CartolaHistory
+            snapshots={snapshots}
+            onEdit={setEditingSnapshot}
+            onDelete={handleDeleteSnapshot}
+            onDeleteAll={handleDeleteAllSnapshots}
+            onSetBaseline={handleSetBaseline}
+            onAddFirst={() => setShowAddModal(true)}
+          />
         )}
       </div>
 
