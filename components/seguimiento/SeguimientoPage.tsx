@@ -24,8 +24,8 @@ import MonthlyReportSection from "./MonthlyReportSection";
 import SendSeguimientoModal from "./SendSeguimientoModal";
 import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
-import { detectSerieCode } from "@/lib/fund-utils";
 import { useExchangeRates } from "./hooks/useExchangeRates";
+import { useHistoricalSeries } from "./hooks/useHistoricalSeries";
 import {
   ArrowLeft,
   Loader,
@@ -145,13 +145,9 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
   const [savingExecution, setSavingExecution] = useState(false);
   const [showExecutions, setShowExecutions] = useState(false);
 
-  const [historicalSeries, setHistoricalSeries] = useState<Array<{ fecha: string; total: number; [key: string]: string | number }>>([]);
-  const [fundsMeta, setFundsMeta] = useState<Array<{ fundName: string; run: string; serie: string; tac: number | null; moneda: string; quantity: number; lastPriceDate?: string | null; stale?: boolean }>>([]);
-  const [loadingHistorical, setLoadingHistorical] = useState(false);
   const [livePortfolioValue, setLivePortfolioValue] = useState<number | null>(null);
   const [livePriceDate, setLivePriceDate] = useState<string | null>(null);
   const [holdingReturnsData, setHoldingReturnsData] = useState<HoldingReturnsData | null>(null);
-  const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
   const [compositionBaseMode, setCompositionBaseMode] = useState<"inicio" | "fecha">("inicio");
   const [compositionBaseDate, setCompositionBaseDate] = useState<string>("");
   const [benchmarkConfig, setBenchmarkConfig] = useState<BenchmarkComponent[] | null>(null);
@@ -270,160 +266,6 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
       .finally(() => setLoadingBaseline(false));
   }, [data, clientId]);
 
-  // Fetch historical price series for the evolution chart
-  useEffect(() => {
-    if (!data || data.snapshots.length === 0) return;
-
-    // Find holdings with RUN+serie from the latest cartola snapshot
-    const cartolaSnaps = data.snapshots.filter(
-      (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
-    );
-    if (cartolaSnaps.length === 0) return;
-
-    const latestCartola = cartolaSnaps[cartolaSnaps.length - 1];
-    const holdings = latestCartola.holdings as Array<{
-      fundName?: string; securityId?: string; serie?: string;
-      quantity?: number; currency?: string;
-      marketPrice?: number; marketValue?: number;
-    }> | null;
-    if (!holdings || holdings.length === 0) return;
-
-    const holdingsWithRun = holdings
-      .filter((h) => {
-        const id = h.securityId || "";
-        return /^\d{3,6}$/.test(id.trim()) && (h.quantity || 0) > 0;
-      })
-      .map((h) => ({
-        fundName: h.fundName || "",
-        run: parseInt((h.securityId || "").trim(), 10),
-        serie: h.serie || detectSerieCode(h.fundName || "") || "",
-        quantity: h.quantity || 0,
-        currency: h.currency || "CLP",
-        cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
-      }));
-
-    // International holdings: tradeable instruments with non-numeric securityId
-    // Filter out ISIN-like codes (e.g. G1R06N212) and FDIC/cash that have no price source
-    const internationalHoldings = holdings
-      .filter((h) => {
-        const id = (h.securityId || "").trim().toUpperCase();
-        if (!id || /^\d{1,6}$/.test(id) || (h.quantity || 0) <= 0) return false;
-        // Include: CFI*, CFIETF*, Chilean ADRs (ending CL), tickers with .SN, known ETF tickers (2-5 uppercase letters)
-        if (/^CFI/.test(id)) return true; // Chilean FI/ETF
-        if (/^[A-Z]{3,10}CL$/.test(id)) return true; // Chilean ADR (GOOGLCL, NVDACL)
-        if (id.includes(".SN")) return true; // Explicit Santiago suffix
-        if (/^[A-Z]{1,5}$/.test(id)) return true; // US ETF/stock ticker (ACWI, SPY, etc.)
-        // CUSIP-style IDs for mapped international UCITS funds (e.g. L2R330245)
-        if (/^[A-Z0-9]{9}$/i.test(id)) return true;
-        return false;
-      })
-      .map((h) => ({
-        fundName: h.fundName || "",
-        securityId: (h.securityId || "").trim(),
-        quantity: h.quantity || 0,
-        marketValue: h.marketValue || 0,
-        currency: h.currency || "CLP",
-      }));
-
-    // Holdings without securityId but with fundName — resolve by name matching in API
-    const holdingsByName = holdings
-      .filter((h) => {
-        const id = (h.securityId || "").trim();
-        const name = (h.fundName || "").trim();
-        // No securityId (or too short), has a fund name, has quantity
-        return (!id || /^\d{1,2}$/.test(id)) && name.length > 3 && (h.quantity || 0) > 0;
-      })
-      .map((h) => ({
-        fundName: h.fundName || "",
-        serie: h.serie || "",
-        quantity: h.quantity || 0,
-        currency: h.currency || "CLP",
-        cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
-      }));
-
-    if (holdingsWithRun.length === 0 && internationalHoldings.length === 0 && holdingsByName.length === 0) return;
-
-    // Go back 1 year from today for historical data (rent 1Y, 6M, etc.)
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    oneYearAgo.setDate(oneYearAgo.getDate() - 7); // extra week buffer
-    const fromDate = oneYearAgo.toISOString().split("T")[0];
-
-    const fetchHistorical = async () => {
-      setLoadingHistorical(true);
-      try {
-        const res = await fetch("/api/portfolio/historical-prices", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            holdings: holdingsWithRun,
-            holdingsByName: holdingsByName.length > 0 ? holdingsByName : undefined,
-            internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
-            fromDate,
-          }),
-        });
-        if (res.ok) {
-          const result = await res.json();
-          if (result.success && result.series) {
-            setHistoricalSeries(result.series);
-            if (result.funds) setFundsMeta(result.funds);
-
-            // If series is too short (< 30 points), trigger CMF backfill to get more data
-            if (!portalMode && result.series.length < 30) {
-              const uniqueRuns = [...new Set(holdingsWithRun.map((h) => h.run))];
-              if (uniqueRuns.length > 0) {
-                setBackfillStatus(`Descargando histórico CMF para ${uniqueRuns.length} fondos...`);
-                fetch("/api/portfolio/backfill-cmf", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ runs: uniqueRuns, snapshotDate: fromDate }),
-                })
-                  .then((r) => r.json())
-                  .then((r) => {
-                    if (r.success && r.totalImported > 0) {
-                      setBackfillStatus(`${r.totalImported} precios importados, actualizando gráfico...`);
-                      // Re-fetch historical after backfill
-                      fetch("/api/portfolio/historical-prices", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          holdings: holdingsWithRun,
-                          holdingsByName: holdingsByName.length > 0 ? holdingsByName : undefined,
-                          internationalHoldings: internationalHoldings.length > 0 ? internationalHoldings : undefined,
-                          fromDate,
-                        }),
-                      })
-                        .then((r2) => r2.json())
-                        .then((r2) => {
-                          if (r2.success && r2.series) {
-                            setHistoricalSeries(r2.series);
-                            if (r2.funds) setFundsMeta(r2.funds);
-                          }
-                          setBackfillStatus(null);
-                        })
-                        .catch(() => setBackfillStatus(null));
-                    } else {
-                      setBackfillStatus(r.error ? `Error CMF: ${r.error}` : null);
-                      setTimeout(() => setBackfillStatus(null), 5000);
-                    }
-                  })
-                  .catch((err) => {
-                    console.warn("[backfill-cmf] Error:", err);
-                    setBackfillStatus(null);
-                  });
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching historical prices:", err);
-      } finally {
-        setLoadingHistorical(false);
-      }
-    };
-
-    fetchHistorical();
-  }, [data]);
 
 
   // Exchange rates: current, historical deflators, cartola/current rates
@@ -439,6 +281,22 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     livePriceDate,
   });
 
+  // Historical price series, period returns, and weighted TAC
+  const {
+    historicalSeries,
+    fundsMeta,
+    loadingHistorical,
+    backfillStatus,
+    setBackfillStatus,
+    periodReturns,
+    weightedTAC,
+  } = useHistoricalSeries({
+    snapshots: data?.snapshots,
+    portalMode,
+    deflatorData,
+    findDeflatorValue,
+  });
+
   // Convert CLP value to display currency
   const convertFromCLP = useCallback((clpValue: number, rates: { uf: number; usd: number } | null): string => {
     if (!rates || displayCurrency === "CLP") return formatCurrency(clpValue);
@@ -447,75 +305,6 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     return formatCurrency(clpValue);
   }, [displayCurrency]);
 
-  // Calculate period returns from historical series (nominal + real + USD)
-  type PeriodReturn = { nominal: number; real: number | null; usd: number | null };
-  const periodReturns = useMemo(() => {
-    if (historicalSeries.length < 2) return null;
-
-    const latest = historicalSeries[historicalSeries.length - 1];
-    const latestValue = latest.total as number;
-    const latestDateStr = (latest.fecha as string).split("T")[0];
-    // Parse as local date to avoid timezone shift (e.g. 2026-04-21 UTC -> Apr 20 in Chile)
-    const [ly, lm, ld] = latestDateStr.split("-").map(Number);
-    const latestDate = new Date(ly, lm - 1, ld);
-
-    const getReturnForPeriod = (targetStr: string): PeriodReturn | null => {
-      const point = historicalSeries.find((p) => (p.fecha as string) >= targetStr);
-      if (!point || point === latest) return null;
-
-      // If the closest point is more than 10 days after the target date,
-      // the series doesn't have enough data for this period — skip it
-      // rather than showing the same return for all periods
-      const pointDate = new Date(point.fecha as string);
-      const targetDate = new Date(targetStr);
-      const daysDiff = (pointDate.getTime() - targetDate.getTime()) / 86400000;
-      if (daysDiff > 10) return null;
-
-      const startValue = point.total as number;
-      if (startValue <= 0) return null;
-      const nominal = ((latestValue / startValue) - 1) * 100;
-      const startDateStr = point.fecha as string;
-
-      let real: number | null = null;
-      let usd: number | null = null;
-
-      if (deflatorData) {
-        const ufStart = findDeflatorValue(deflatorData.uf, startDateStr);
-        const ufEnd = findDeflatorValue(deflatorData.uf, latestDateStr);
-        if (ufStart && ufEnd && ufStart > 0) {
-          real = ((1 + nominal / 100) / (ufEnd / ufStart) - 1) * 100;
-        }
-
-        const usdStart = findDeflatorValue(deflatorData.usd, startDateStr);
-        const usdEnd = findDeflatorValue(deflatorData.usd, latestDateStr);
-        if (usdStart && usdEnd && usdStart > 0) {
-          usd = ((1 + nominal / 100) / (usdEnd / usdStart) - 1) * 100;
-        }
-      }
-
-      return { nominal, real, usd };
-    };
-
-    const toLocalDateStr = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    };
-    const getForMonths = (months: number) => {
-      const targetDate = new Date(latestDate);
-      targetDate.setMonth(targetDate.getMonth() - months);
-      return getReturnForPeriod(toLocalDateStr(targetDate));
-    };
-
-    return {
-      "1M": getForMonths(1),
-      "3M": getForMonths(3),
-      "6M": getForMonths(6),
-      "1Y": getForMonths(12),
-      "YTD": getReturnForPeriod(`${latestDate.getFullYear()}-01-01`),
-    };
-  }, [historicalSeries, deflatorData, findDeflatorValue]);
 
   const assembleSeguimientoData = useCallback((): SeguimientoEmailData | null => {
     const metrics = data?.metrics;
@@ -758,33 +547,6 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     return ((last / first) - 1) * 100;
   }, [baselineSeries]);
 
-  // TAC ponderado del portafolio
-  const weightedTAC = useMemo(() => {
-    if (fundsMeta.length === 0 || historicalSeries.length === 0) return null;
-
-    const latest = historicalSeries[historicalSeries.length - 1];
-    const totalValue = latest.total;
-    if (totalValue <= 0) return null;
-
-    let tacSum = 0;
-    let coveredValue = 0;
-
-    for (const fund of fundsMeta) {
-      if (fund.tac === null || fund.tac === undefined) continue;
-      const fundValue = (latest[fund.fundName] as number) || 0;
-      if (fundValue > 0) {
-        tacSum += fund.tac * fundValue;
-        coveredValue += fundValue;
-      }
-    }
-
-    if (coveredValue <= 0) return null;
-    return {
-      weighted: tacSum / coveredValue,
-      annualCost: Math.round(totalValue * (tacSum / coveredValue) / 100),
-      coverage: coveredValue / totalValue,
-    };
-  }, [fundsMeta, historicalSeries]);
 
   const triggerBackfill = useCallback(async () => {
     try {
