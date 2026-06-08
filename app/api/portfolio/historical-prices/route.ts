@@ -388,6 +388,20 @@ export async function POST(req: NextRequest) {
   // 4b. International holdings: fetch from international_prices + Yahoo/AV fallback
   // Process in parallel to avoid Vercel timeout from sequential API calls
   if (internationalHoldings && internationalHoldings.length > 0) {
+    // Pre-filter: resolve sources and skip non-tradeable (cmf, bcch, finra)
+    const tradeableHoldings = internationalHoldings
+      .filter((ih) => ih.securityId && ih.quantity > 0)
+      .filter((ih) => {
+        const res = resolveSource({
+          securityId: ih.securityId,
+          fundName: ih.fundName,
+          marketValue: ih.marketValue || 0,
+          currency: ih.currency,
+        });
+        return !["cmf", "bcch", "finra"].includes(res.source);
+      });
+
+    if (tradeableHoldings.length > 0) {
     const toDate = new Date().toISOString().split("T")[0];
     const intFromDate = fromDate || new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
 
@@ -400,8 +414,7 @@ export async function POST(req: NextRequest) {
 
     // Process all international holdings in parallel
     const intResults = await Promise.allSettled(
-      internationalHoldings
-        .filter((ih) => ih.securityId && ih.quantity > 0)
+      tradeableHoldings
         .map(async (ih) => {
           const resolution = resolveSource({
             securityId: ih.securityId,
@@ -410,7 +423,7 @@ export async function POST(req: NextRequest) {
             currency: ih.currency,
           });
 
-          if (resolution.source === "cmf" || resolution.source === "bcch") return null;
+          if (resolution.source === "cmf" || resolution.source === "bcch" || resolution.source === "finra") return null;
 
           // For cl-adr, DB ticker is the original secId + .SN (e.g. GOOGLCL.SN)
           const dbTicker = resolution.source === "cl-adr"
@@ -492,6 +505,7 @@ export async function POST(req: NextRequest) {
 
       normalizedPrices.set(key, fechaMap);
     }
+    } // end tradeableHoldings.length > 0
   }
 
   // 5. Producto punto por fecha: sum(cuotas_i × precio_i(t))

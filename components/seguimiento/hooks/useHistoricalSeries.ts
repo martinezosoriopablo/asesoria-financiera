@@ -66,6 +66,8 @@ export function useHistoricalSeries({
       fundName?: string; securityId?: string; serie?: string;
       quantity?: number; currency?: string;
       marketPrice?: number; marketValue?: number;
+      assetClass?: string; assetType?: string;
+      couponRate?: number | null; maturityDate?: string | null;
     }> | null;
     if (!holdings || holdings.length === 0) return;
 
@@ -89,6 +91,16 @@ export function useHistoricalSeries({
       .filter((h) => {
         const id = (h.securityId || "").trim().toUpperCase();
         if (!id || /^\d{1,6}$/.test(id) || (h.quantity || 0) <= 0) return false;
+
+        // Skip bonds — they resolve to FINRA which has no historical price API
+        const name = (h.fundName || "").toUpperCase();
+        const isBond = (h.assetClass || "").toLowerCase().includes("fixed") ||
+          (h.assetClass || "").toLowerCase() === "fixedincome" ||
+          (h.assetType || "").toLowerCase() === "bond" ||
+          /\b(CPN|DUE\s+\d|NOTE|UNSECD|FXD\/VAR)\b/.test(name) ||
+          !!(h.couponRate || h.maturityDate);
+        if (isBond) return false;
+
         // Include: CFI*, CFIETF*, Chilean ADRs (ending CL), tickers with .SN, known ETF tickers (2-5 uppercase letters)
         if (/^CFI/.test(id)) return true; // Chilean FI/ETF
         if (/^[A-Z]{3,10}CL$/.test(id)) return true; // Chilean ADR (GOOGLCL, NVDACL)
