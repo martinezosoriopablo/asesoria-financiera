@@ -108,6 +108,8 @@ RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessibl
 - `app/api/` — ~149 API route handlers
 - `app/(portal)/` — Client portal pages (route group)
 - `components/` — React components organized by domain (seguimiento, portfolio, risk, market, etc.)
+- `components/seguimiento/hooks/` — Extracted hooks: useExchangeRates, useHistoricalSeries, useBenchmarkConfig, useSnapshotExchangeRates, useAutoMatch, useSnapshotForm, useHoldingQuotes, useBondCalculations
+- `components/clients/hooks/` — Extracted hooks: useClientData, useClientModals
 - `lib/prices/` — Unified price service (source routing, AV/Yahoo/EODHD clients, DB ops, 34 tests)
 - `lib/returns/` — Returns calculator (pure functions, replaces TWR)
 - `lib/bonds/` — Bond utilities (duration, accrued interest calculations + tests)
