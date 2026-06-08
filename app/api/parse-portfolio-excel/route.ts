@@ -164,7 +164,15 @@ function detectAssetClass(fundName: string): string {
     nameLower.includes("corporate") ||
     nameLower.includes("soberan") ||
     nameLower.includes("pacto") ||
-    nameLower.includes("rf ")
+    nameLower.includes("rf ") ||
+    /\bNOTE\b/i.test(fundName) ||
+    /\bCPN\b/i.test(fundName) ||
+    /\bDUE\b\s+\d/i.test(fundName) ||
+    /\bCOUPON\b/i.test(fundName) ||
+    /\bUNSECD\b/i.test(fundName) ||
+    /\bSR\s+(NOTE|UNSECD|GLBL)\b/i.test(fundName) ||
+    /\bGTD\b.*\bNOTE\b/i.test(fundName) ||
+    /\bFXD\/VAR\b/i.test(fundName)
   ) {
     return "Fixed Income";
   }
