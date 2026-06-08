@@ -1,30 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { X, Loader, AlertTriangle, Check, DollarSign, Calendar, RefreshCw, Plus, TrendingUp, TrendingDown, Building2, Search, Sparkles, CheckCircle2 } from "lucide-react";
-import { detectCurrencyFromName, assetTypeToClass, classifyFund } from "@/lib/portfolio/classify";
-
-interface Holding {
-  fundName: string;
-  securityId?: string | null;
-  serie?: string; // fm_serie (e.g., "B", "BPRIV") for precise fund lookup
-  quantity?: number;
-  unitCost?: number;
-  costBasis?: number;
-  marketPrice?: number;
-  marketValue: number;
-  unrealizedGainLoss?: number;
-  assetClass?: string;
-  assetType?: string; // fund | etf | stock | bond | cash | other
-  currency?: string;
-  source?: string; // Custodian name
-  isPrevisional?: boolean;
-  couponRate?: number | null;
-  maturityDate?: string | null;
-  creditRating?: string | null;
-  purchaseDate?: string | null;  // ISO date — when the bond was purchased
-  marketYield?: number | null;   // % — advisor-provided market yield for Chilean bonds
-}
+import { useSnapshotExchangeRates } from "./hooks/useSnapshotExchangeRates";
+import { useAutoMatch } from "./hooks/useAutoMatch";
+import { useSnapshotForm, parseDate } from "./hooks/useSnapshotForm";
+import type { Holding } from "./hooks/useSnapshotForm";
+import type { MatchSuggestion } from "./hooks/useAutoMatch";
 
 interface ParsedData {
   clientName?: string;
@@ -59,29 +41,6 @@ interface Props {
   existingSnapshot?: ExistingSnapshot; // Existing snapshot data for edit mode
 }
 
-interface ExchangeRates {
-  usd: number;
-  eur: number;
-  uf: number;
-}
-
-interface MatchSuggestion {
-  index: number;
-  matched: boolean;
-  matchType?: "fund" | "stock";
-  confidence: "high" | "medium" | "low";
-  matchedName?: string;
-  matchedId?: string;
-  matchedSerie?: string; // fm_serie (e.g., "B", "BPRIV")
-  price?: number;
-  currency?: string;
-  source?: string;
-  assetClass?: string; // from DB familia_estudios
-  familiaEstudios?: string;
-  applied?: boolean;
-  dismissed?: boolean;
-}
-
 const ASSET_CLASS_OPTIONS = [
   { value: "equity", label: "Renta Variable", color: "bg-blue-100 text-blue-800" },
   { value: "fixedIncome", label: "Renta Fija", color: "bg-green-100 text-green-800" },
@@ -107,26 +66,7 @@ export default function ReviewSnapshotModal({
   editMode = false,
   existingSnapshot,
 }: Props) {
-  // Exchange rates state
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
-  const [loadingRates, setLoadingRates] = useState(true);
-  const [ratesError, _setRatesError] = useState<string | null>(null);
-
-  // Initialize holdings - use existingSnapshot in edit mode, otherwise parsed data
-  const getInitialHoldings = (): Holding[] => {
-    const sourceHoldings = editMode && existingSnapshot?.holdings
-      ? existingSnapshot.holdings
-      : parsedData.holdings || [];
-
-    return sourceHoldings.map((h) => ({
-      ...h,
-      assetClass: h.assetClass || assetTypeToClass(h.assetType) || classifyFund(h.fundName),
-      currency: h.currency || parsedData.detectedCurrency || detectCurrencyFromName(h.fundName),
-    }));
-  };
-
-  const [holdings, setHoldings] = useState<Holding[]>(getInitialHoldings());
-
+  // fechaCartola state lives here so both useSnapshotExchangeRates and useSnapshotForm can use it
   const [fechaCartola, setFechaCartola] = useState(() => {
     if (editMode && existingSnapshot?.snapshot_date) {
       return existingSnapshot.snapshot_date;
@@ -137,284 +77,81 @@ export default function ReviewSnapshotModal({
     }
     return new Date().toISOString().split("T")[0];
   });
-  const [consolidationCurrency, setConsolidationCurrency] = useState("CLP");
 
-  // Cash flows state - use existing values in edit mode
-  const [deposits, setDeposits] = useState(editMode && existingSnapshot?.deposits ? existingSnapshot.deposits : 0);
-  const [withdrawals, setWithdrawals] = useState(editMode && existingSnapshot?.withdrawals ? existingSnapshot.withdrawals : 0);
-  const [depositsCurrency, setDepositsCurrency] = useState("CLP");
-  const [withdrawalsCurrency, setWithdrawalsCurrency] = useState("CLP");
+  // Exchange rates hook — depends on fechaCartola
+  const { exchangeRates, loadingRates, ratesError, usingFallbackRates } = useSnapshotExchangeRates(fechaCartola);
 
-  const [saving, setSaving] = useState(false);
-  const [savingMsg, setSavingMsg] = useState("Guardando...");
-  const [error, setError] = useState<string | null>(null);
+  // Form state hook — receives fechaCartola and exchangeRates
+  const {
+    holdings, setHoldings,
+    consolidationCurrency, setConsolidationCurrency,
+    deposits, setDeposits,
+    withdrawals, setWithdrawals,
+    depositsCurrency, setDepositsCurrency,
+    withdrawalsCurrency, setWithdrawalsCurrency,
+    saving, setSaving,
+    savingMsg, setSavingMsg,
+    error, setError,
+    toCLP, fromCLP,
+    totalsByCurrency, consolidatedTotal, totalInCLP,
+    netCashFlowCLP,
+    composition,
+    uniqueSources,
+    handleAssetClassChange,
+    handleValueChange,
+    handleCurrencyChange,
+    handleQuantityChange,
+    handlePriceChange,
+    handlePurchaseDateChange,
+  } = useSnapshotForm({
+    parsedData,
+    editMode,
+    existingSnapshot,
+    sources,
+    exchangeRates,
+    fechaCartola,
+    setFechaCartola,
+  });
 
-  // Auto-match state
-  const [matchSuggestions, setMatchSuggestions] = useState<MatchSuggestion[]>([]);
-  const [autoMatchLoading, setAutoMatchLoading] = useState(false);
-  const [usingFallbackRates, setUsingFallbackRates] = useState(false);
-  const [autoMatchComplete, setAutoMatchComplete] = useState(false);
-  // Holdings that couldn't be matched (no price match, or not found at all)
-  const [unmatchedIndices, setUnmatchedIndices] = useState<Set<number>>(new Set());
-  // Count of auto-applied matches (for showing feedback even after auto-apply)
-  const [autoAppliedCount, setAutoAppliedCount] = useState(0);
-  // Index to auto-open search for (set after match completes, used once)
-  const [pendingSearchIndex, setPendingSearchIndex] = useState<number | null>(null);
+  // Auto-match hook
+  const {
+    matchSuggestions,
+    autoMatchLoading,
+    autoMatchComplete,
+    unmatchedIndices,
+    setUnmatchedIndices,
+    autoAppliedCount,
+    pendingSearchIndex,
+    setPendingSearchIndex,
+    applyMatchSuggestion,
+    dismissMatchSuggestion,
+    applyAllSuggestions,
+  } = useAutoMatch({
+    holdings,
+    setHoldings,
+    editMode,
+    sources,
+    fechaCartola,
+  });
 
-  // Fetch exchange rates at cartola date (not today)
-  // Re-fetches when fechaCartola changes so valuation always matches the statement date
-  useEffect(() => {
-    const controller = new AbortController();
+  // State for fund/stock search
+  const [searchingIndex, setSearchingIndex] = useState<number | null>(null);
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    type: "fund" | "stock";
+    fo_run?: number;
+    serie?: string;
+    nombre: string;
+    agf?: string;
+    exchange?: string;
+    moneda: string;
+    valor_cuota: number | null;
+    fecha_precio: string | null;
+  }>>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
-    async function fetchRates() {
-      setLoadingRates(true);
-      setUsingFallbackRates(false);
-      try {
-        const cartolaYear = fechaCartola.substring(0, 4);
-
-        // Fetch historical dólar + UF at cartola date in parallel
-        const [dolarRes, ufRes, eurRes] = await Promise.all([
-          fetch(`/api/exchange-rates/historical?indicator=dolar&year=${cartolaYear}`, { signal: controller.signal }).catch(() => null),
-          fetch(`/api/exchange-rates/historical?indicator=uf&year=${cartolaYear}`, { signal: controller.signal }).catch(() => null),
-          // EUR: mindicador.cl has historical euro data
-          fetch(`https://mindicador.cl/api/euro/${cartolaYear}`, { signal: controller.signal }).catch(() => null),
-        ]);
-
-        // Helper: find closest value <= date from a serie
-        const findClosest = (serie: Array<{ fecha: string; valor: number }>, targetDate: string): number | null => {
-          const candidates = serie.filter(e => e.fecha <= targetDate);
-          if (candidates.length === 0) return null;
-          candidates.sort((a, b) => b.fecha.localeCompare(a.fecha));
-          return candidates[0].valor;
-        };
-
-        // Helper: find closest value >= date (for T+1 USD lookup)
-        const findClosestNext = (serie: Array<{ fecha: string; valor: number }>, targetDate: string): number | null => {
-          const candidates = serie.filter(e => e.fecha >= targetDate);
-          if (candidates.length === 0) return null;
-          candidates.sort((a, b) => a.fecha.localeCompare(b.fecha));
-          return candidates[0].valor;
-        };
-
-        let usdRate = 980; // fallback
-        let ufRate = 38500;
-        let eurRate = 1060;
-        let anyHistorical = false;
-
-        // Dólar observado: use T+1 convention (observado from next calendar day)
-        // Chilean brokerages value USD positions using the dólar observado published
-        // the day AFTER the valuation date (the observado published on day D is the
-        // average from D-1).
-        if (dolarRes) {
-          try {
-            const data = await dolarRes.json();
-            if (data.success && data.serie?.length > 0) {
-              const nextDay = new Date(fechaCartola + "T12:00:00");
-              nextDay.setDate(nextDay.getDate() + 1);
-              const nextDayStr = nextDay.toISOString().split("T")[0];
-              const val = findClosestNext(data.serie, nextDayStr);
-              if (val) { usdRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] Dólar observado T+1 (>=${nextDayStr}): $${usdRate}`);
-            }
-          } catch { /* use fallback */ }
-        }
-
-        // UF at cartola date (same day, no T+1)
-        if (ufRes) {
-          try {
-            const data = await ufRes.json();
-            if (data.success && data.serie?.length > 0) {
-              const val = findClosest(data.serie, fechaCartola);
-              if (val) { ufRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] UF ${fechaCartola}: $${ufRate}`);
-            }
-          } catch { /* use fallback */ }
-        }
-
-        // EUR at cartola date (mindicador.cl format)
-        if (eurRes) {
-          try {
-            const data = await eurRes.json();
-            if (data.serie?.length > 0) {
-              const serie = data.serie.map((e: { fecha: string; valor: number }) => ({
-                fecha: e.fecha.split("T")[0],
-                valor: e.valor,
-              }));
-              const val = findClosest(serie, fechaCartola);
-              if (val) { eurRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] EUR ${fechaCartola}: $${eurRate}`);
-            }
-          } catch { /* use fallback */ }
-        }
-
-        if (controller.signal.aborted) return;
-
-        setExchangeRates({ usd: usdRate, eur: eurRate, uf: ufRate });
-        if (!anyHistorical) {
-          setUsingFallbackRates(true);
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
-          setUsingFallbackRates(true);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoadingRates(false);
-        }
-      }
-    }
-    fetchRates();
-
-    return () => controller.abort();
-  }, [fechaCartola]);
-
-  // Auto-match holdings on mount (with abort controller to handle strict mode double-fire)
-  // Skip in edit mode — holdings were already matched when snapshot was created
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function autoMatchHoldings() {
-      if (holdings.length === 0) return;
-      if (editMode) {
-        setAutoMatchComplete(true);
-        return;
-      }
-
-      // Bonds and cash already have prices from the cartola — skip matching
-      const matchableHoldings = holdings.map((h, i) => ({ ...h, _origIndex: i }))
-        .filter((h) => h.assetType !== "bond" && h.assetType !== "cash");
-
-      setAutoMatchLoading(true);
-      try {
-        const res = await fetch("/api/fondos/match-holdings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            holdings: matchableHoldings.map((h) => ({
-              fundName: h.fundName,
-              securityId: h.securityId,
-              quantity: h.quantity,
-              marketValue: h.marketValue,
-              marketPrice: h.marketPrice,
-            })),
-            cartolaSource: sources,
-            cartolaDate: fechaCartola,
-          }),
-          signal: controller.signal,
-        });
-
-        if (controller.signal.aborted) return;
-
-        const data = await res.json();
-        console.log("[auto-match] API response:", JSON.stringify({
-          success: data.success,
-          matchCount: data.matches?.length,
-          matches: data.matches?.map((m: MatchSuggestion) => ({
-            idx: m.index,
-            matched: m.matched,
-            confidence: m.confidence,
-            name: m.matchedName?.substring(0, 30),
-            price: m.price,
-            assetClass: m.assetClass,
-          })),
-        }));
-
-        if (controller.signal.aborted) return;
-
-        if (data.success && data.matches) {
-          // Remap API indices (relative to matchable subset) back to original holdings indices
-          const rawMatches = data.matches as MatchSuggestion[];
-          const allMatches = rawMatches.map((m) => ({
-            ...m,
-            index: matchableHoldings[m.index]?._origIndex ?? m.index,
-          }));
-
-          // Show ALL matched results as suggestions
-          const relevantMatches = allMatches.filter(
-            (m) => m.matched && m.matchedName
-          );
-
-          // Track truly unmatched holdings (API returned matched: false)
-          // Low confidence with matchedName ARE valid suggestions — don't mark as unmatched
-          const unmatched = new Set<number>();
-          for (const m of allMatches) {
-            if (!m.matched) {
-              unmatched.add(m.index);
-            }
-          }
-
-          // Auto-apply high-confidence matches: update price, securityId, currency, AND assetClass
-          const updated = [...holdings];
-          let appliedCount = 0;
-          for (const m of allMatches) {
-            if (m.matched && m.confidence === "high" && updated[m.index]) {
-              const h = updated[m.index];
-              // For stocks/ETFs: keep cartola price (it's the price at statement date).
-              // Yahoo/AV prices are today's prices — wrong for a historical snapshot.
-              // Only update securityId, currency, assetClass.
-              const isStock = m.matchType === "stock";
-              updated[m.index] = {
-                ...h,
-                ...(!isStock && m.price ? { marketPrice: m.price } : {}),
-                securityId: m.matchedId || h.securityId,
-                serie: m.matchedSerie || h.serie,
-                currency: m.currency || h.currency,
-                ...(m.assetClass ? { assetClass: m.assetClass } : {}),
-                ...(!isStock && h.quantity && h.quantity > 0 && m.price
-                  ? { marketValue: h.quantity * m.price }
-                  : {}),
-              };
-              appliedCount++;
-            }
-            // Also apply assetClass for medium confidence matches (DB classification is reliable)
-            if (m.matched && m.confidence === "medium" && m.assetClass && updated[m.index]) {
-              updated[m.index] = { ...updated[m.index], assetClass: m.assetClass };
-            }
-          }
-
-          if (controller.signal.aborted) return;
-
-          // Mark high-confidence as applied in the suggestions list
-          const suggestionsWithStatus = relevantMatches.map(s =>
-            s.confidence === "high" ? { ...s, applied: true } : s
-          );
-
-          // Batch all state updates together
-          setMatchSuggestions(suggestionsWithStatus);
-          setUnmatchedIndices(unmatched);
-          setAutoAppliedCount(appliedCount);
-          if (appliedCount > 0) setHoldings(updated);
-
-          // Set pending search index for unmatched holdings (separate effect will open it)
-          if (unmatched.size > 0) {
-            const unmatchedArr = Array.from(unmatched).sort((a, b) => a - b);
-            setPendingSearchIndex(unmatchedArr[0]);
-          }
-
-          console.log("[auto-match] Results:", {
-            total: allMatches.length,
-            matched: relevantMatches.length,
-            autoApplied: appliedCount,
-            unmatched: unmatched.size,
-            pendingReview: suggestionsWithStatus.filter(s => !s.applied).length,
-          });
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          console.error("Error auto-matching holdings:", err);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setAutoMatchLoading(false);
-          setAutoMatchComplete(true);
-        }
-      }
-    }
-
-    autoMatchHoldings();
-    return () => controller.abort();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // State for custom search query in the search dialog
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Separate effect to open search dialog for first unmatched holding
   // This runs AFTER auto-match completes, avoiding state conflicts
@@ -454,232 +191,6 @@ export default function ReviewSnapshotModal({
 
     openSearch();
   }, [pendingSearchIndex, autoMatchComplete]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function parseDate(period: string): string {
-    if (!period) return new Date().toISOString().split("T")[0];
-
-    const p = period.trim();
-
-    // Try ISO format first (2025-01-31)
-    if (/^\d{4}-\d{2}-\d{2}$/.test(p)) {
-      return p;
-    }
-
-    // Chilean format dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy
-    const ddmmyyyy = p.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-    if (ddmmyyyy) {
-      const [, day, month, year] = ddmmyyyy;
-      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    }
-
-    // "al DD/MM/YYYY" format common in Chilean docs
-    const alDate = p.match(/al\s+(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i);
-    if (alDate) {
-      const [, day, month, year] = alDate;
-      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    }
-
-    // Month Year format (Jan 2025, January 2025, Enero 2025)
-    const monthNames: Record<string, string> = {
-      jan: "01", january: "01", ene: "01", enero: "01",
-      feb: "02", february: "02", febrero: "02",
-      mar: "03", march: "03", marzo: "03",
-      apr: "04", april: "04", abr: "04", abril: "04",
-      may: "05", mayo: "05",
-      jun: "06", june: "06", junio: "06",
-      jul: "07", july: "07", julio: "07",
-      aug: "08", august: "08", ago: "08", agosto: "08",
-      sep: "09", sept: "09", september: "09", septiembre: "09",
-      oct: "10", october: "10", octubre: "10",
-      nov: "11", november: "11", noviembre: "11",
-      dec: "12", december: "12", dic: "12", diciembre: "12",
-    };
-
-    // "Month YYYY" or "Month de YYYY"
-    const monthYear = p.match(/([a-zA-Z]+)(?:\s+de)?\s+(\d{4})/i);
-    if (monthYear) {
-      const [, monthStr, year] = monthYear;
-      const month = monthNames[monthStr.toLowerCase()];
-      if (month) {
-        // Use last day of month
-        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-        return `${year}-${month}-${lastDay.toString().padStart(2, "0")}`;
-      }
-    }
-
-    // "DD de Month de YYYY" format
-    const fullDateSpanish = p.match(/(\d{1,2})\s+de\s+([a-zA-Z]+)\s+de\s+(\d{4})/i);
-    if (fullDateSpanish) {
-      const [, day, monthStr, year] = fullDateSpanish;
-      const month = monthNames[monthStr.toLowerCase()];
-      if (month) {
-        return `${year}-${month}-${day.padStart(2, "0")}`;
-      }
-    }
-
-    // Try native Date parsing as fallback
-    try {
-      const date = new Date(p);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split("T")[0];
-      }
-    } catch {
-      // ignore
-    }
-
-    return new Date().toISOString().split("T")[0];
-  }
-
-  const toCLP = useCallback((value: number, currency: string): number => {
-    if (!exchangeRates) return value;
-    switch (currency) {
-      case "USD": return value * exchangeRates.usd;
-      case "EUR": return value * exchangeRates.eur;
-      case "UF": return value * exchangeRates.uf;
-      case "CLP": return value;
-      default: return value;
-    }
-  }, [exchangeRates]);
-
-  const fromCLP = useCallback((clpValue: number, targetCurrency: string): number => {
-    if (!exchangeRates) return clpValue;
-    switch (targetCurrency) {
-      case "USD": return clpValue / exchangeRates.usd;
-      case "EUR": return clpValue / exchangeRates.eur;
-      case "UF": return clpValue / exchangeRates.uf;
-      case "CLP": return clpValue;
-      default: return clpValue;
-    }
-  }, [exchangeRates]);
-
-  // Calculate totals
-  const { totalsByCurrency, consolidatedTotal, totalInCLP } = useMemo(() => {
-    const totals: Record<string, number> = { USD: 0, CLP: 0, EUR: 0, UF: 0 };
-    let clpTotal = 0;
-
-    holdings.forEach((h) => {
-      const curr = h.currency || "USD";
-      totals[curr] = (totals[curr] || 0) + (h.marketValue || 0);
-      clpTotal += toCLP(h.marketValue || 0, curr);
-    });
-
-    return {
-      totalsByCurrency: totals,
-      totalInCLP: clpTotal,
-      consolidatedTotal: fromCLP(clpTotal, consolidationCurrency),
-    };
-  }, [holdings, toCLP, fromCLP, consolidationCurrency]);
-
-  // Calculate net cash flows in CLP
-  const netCashFlowCLP = useMemo(() => {
-    const depositsCLP = toCLP(deposits, depositsCurrency);
-    const withdrawalsCLP = toCLP(withdrawals, withdrawalsCurrency);
-    return depositsCLP - withdrawalsCLP;
-  }, [deposits, withdrawals, depositsCurrency, withdrawalsCurrency, toCLP]);
-
-  // Calculate composition
-  const composition = useMemo(() => {
-    const comp: Record<string, { value: number; percent: number }> = {
-      equity: { value: 0, percent: 0 },
-      fixedIncome: { value: 0, percent: 0 },
-      balanced: { value: 0, percent: 0 },
-      alternatives: { value: 0, percent: 0 },
-      cash: { value: 0, percent: 0 },
-    };
-
-    holdings.forEach((h) => {
-      const clpValue = toCLP(h.marketValue || 0, h.currency || "USD");
-      const assetClass = h.assetClass || "equity";
-
-      if (assetClass === "balanced") {
-        comp.equity.value += clpValue * 0.5;
-        comp.fixedIncome.value += clpValue * 0.5;
-      } else {
-        comp[assetClass].value += clpValue;
-      }
-    });
-
-    if (totalInCLP > 0) {
-      Object.keys(comp).forEach((key) => {
-        comp[key].percent = (comp[key].value / totalInCLP) * 100;
-      });
-    }
-
-    return comp;
-  }, [holdings, totalInCLP, toCLP]);
-
-  // Get unique sources
-  const uniqueSources = useMemo(() => {
-    const holdingSources = holdings.map(h => h.source).filter(Boolean);
-    return [...new Set([...sources, ...holdingSources])];
-  }, [holdings, sources]);
-
-  const handleAssetClassChange = (index: number, newClass: string) => {
-    const updated = [...holdings];
-    updated[index] = { ...updated[index], assetClass: newClass };
-    setHoldings(updated);
-  };
-
-  const handleValueChange = (index: number, newValue: number) => {
-    const updated = [...holdings];
-    updated[index] = { ...updated[index], marketValue: newValue };
-    setHoldings(updated);
-  };
-
-  const handleCurrencyChange = (index: number, newCurrency: string) => {
-    const updated = [...holdings];
-    updated[index] = { ...updated[index], currency: newCurrency };
-    setHoldings(updated);
-  };
-
-  const handleQuantityChange = (index: number, newQuantity: number) => {
-    const updated = [...holdings];
-    const holding = updated[index];
-    const price = holding.marketPrice || 0;
-    updated[index] = {
-      ...holding,
-      quantity: newQuantity,
-      marketValue: price > 0 ? newQuantity * price : holding.marketValue,
-    };
-    setHoldings(updated);
-  };
-
-  const handlePriceChange = (index: number, newPrice: number) => {
-    const updated = [...holdings];
-    const holding = updated[index];
-    const quantity = holding.quantity || 0;
-    updated[index] = {
-      ...holding,
-      marketPrice: newPrice,
-      marketValue: quantity > 0 ? quantity * newPrice : holding.marketValue,
-    };
-    setHoldings(updated);
-  };
-
-  const handlePurchaseDateChange = (index: number, newDate: string) => {
-    const updated = [...holdings];
-    updated[index] = { ...updated[index], purchaseDate: newDate || null };
-    setHoldings(updated);
-  };
-
-  // State for fund/stock search
-  const [searchingIndex, setSearchingIndex] = useState<number | null>(null);
-  const [searchResults, setSearchResults] = useState<Array<{
-    id: string;
-    type: "fund" | "stock";
-    fo_run?: number;
-    serie?: string;
-    nombre: string;
-    agf?: string;
-    exchange?: string;
-    moneda: string;
-    valor_cuota: number | null;
-    fecha_precio: string | null;
-  }>>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  // State for custom search query in the search dialog
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Search for fund price in database
   const searchFundPrice = useCallback(async (index: number, fundName: string, customQuery?: string) => {
@@ -767,82 +278,6 @@ export default function ReviewSnapshotModal({
     setSearchingIndex(null);
     setSearchResults([]);
     setSearchQuery("");
-  };
-
-  // Apply a match suggestion
-  const applyMatchSuggestion = (suggestion: MatchSuggestion) => {
-    const updated = [...holdings];
-    const holding = updated[suggestion.index];
-
-    updated[suggestion.index] = {
-      ...holding,
-      marketPrice: suggestion.price || holding.marketPrice,
-      securityId: suggestion.matchedId || holding.securityId,
-      serie: suggestion.matchedSerie || holding.serie,
-      currency: suggestion.currency || holding.currency,
-      // Set asset class from DB classification if available
-      ...(suggestion.assetClass ? { assetClass: suggestion.assetClass } : {}),
-    };
-
-    // Recalculate market value if we have quantity and price
-    if (holding.quantity && holding.quantity > 0 && suggestion.price) {
-      updated[suggestion.index].marketValue = holding.quantity * suggestion.price;
-    }
-
-    setHoldings(updated);
-
-    // Clear unmatched status if this was an unmatched holding
-    setUnmatchedIndices(prev => {
-      const next = new Set(prev);
-      next.delete(suggestion.index);
-      return next;
-    });
-
-    // Mark suggestion as applied
-    setMatchSuggestions((prev) =>
-      prev.map((s) =>
-        s.index === suggestion.index ? { ...s, applied: true } : s
-      )
-    );
-  };
-
-  // Dismiss a match suggestion
-  const dismissMatchSuggestion = (index: number) => {
-    setMatchSuggestions((prev) =>
-      prev.map((s) =>
-        s.index === index ? { ...s, dismissed: true } : s
-      )
-    );
-  };
-
-  // Apply all high-confidence suggestions
-  const applyAllSuggestions = () => {
-    const toApply = matchSuggestions.filter(
-      (s) => !s.applied && !s.dismissed && s.confidence === "high"
-    );
-
-    const updated = [...holdings];
-    for (const suggestion of toApply) {
-      const holding = updated[suggestion.index];
-      updated[suggestion.index] = {
-        ...holding,
-        marketPrice: suggestion.price || holding.marketPrice,
-        securityId: suggestion.matchedId || holding.securityId,
-        currency: suggestion.currency || holding.currency,
-        ...(suggestion.assetClass ? { assetClass: suggestion.assetClass } : {}),
-      };
-
-      if (holding.quantity && holding.quantity > 0 && suggestion.price) {
-        updated[suggestion.index].marketValue = holding.quantity * suggestion.price;
-      }
-    }
-
-    setHoldings(updated);
-    setMatchSuggestions((prev) =>
-      prev.map((s) =>
-        toApply.some((t) => t.index === s.index) ? { ...s, applied: true } : s
-      )
-    );
   };
 
   // Get pending suggestions count
