@@ -319,7 +319,18 @@ Fuentes adicionales de datos:
 
 ---
 
-## 10. Metricas del Codebase
+## 10. Patron de Hooks Extraidos
+
+Los componentes grandes usan hooks extraidos en subdirectorios `hooks/`:
+
+- `components/seguimiento/hooks/` — useExchangeRates, useHistoricalSeries, useBenchmarkConfig, useSnapshotExchangeRates, useAutoMatch, useSnapshotForm, useBondCalculations, useHoldingQuotes
+- `components/clients/hooks/` — useClientData, useClientModals
+
+Esto reduce los componentes principales (SeguimientoPage, ReviewSnapshotModal, ClientDetail, HoldingReturnsPanel) a su logica de presentacion, delegando estado y side effects a hooks reutilizables.
+
+---
+
+## 11. Metricas del Codebase
 
 | Metrica | Valor |
 |---------|-------|
@@ -337,7 +348,7 @@ Fuentes adicionales de datos:
 
 ---
 
-## 11. Costos Operativos Estimados
+## 12. Costos Operativos Estimados
 
 | Servicio | Plan | Costo Mensual |
 |----------|------|---------------|
@@ -353,7 +364,7 @@ Fuentes adicionales de datos:
 
 ---
 
-## 12. Roadmap y Oportunidades
+## 13. Roadmap y Oportunidades
 
 ### Completado recientemente (Abril-Junio 2026)
 - Extraccion de fichas con Gemini AI (12/12 campos, beneficio tributario)
