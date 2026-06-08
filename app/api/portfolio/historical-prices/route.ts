@@ -48,6 +48,12 @@ interface BondHoldingInput {
   currency?: string;       // usually USD
 }
 
+interface FlatHoldingInput {
+  fundName: string;
+  marketValue: number;     // constant value (no price projection)
+  currency?: string;
+}
+
 export async function POST(req: NextRequest) {
   const blocked = await applyRateLimit(req, "historical-prices", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
@@ -56,18 +62,20 @@ export async function POST(req: NextRequest) {
   if (authError) return authError;
 
   return handleApiError("historical-prices-post", async () => {
-  const { holdings, holdingsByName, internationalHoldings, bondHoldings, fromDate } = await req.json() as {
+  const { holdings, holdingsByName, internationalHoldings, bondHoldings, flatHoldings, fromDate } = await req.json() as {
     holdings: HoldingInput[];
     holdingsByName?: HoldingByNameInput[];
     internationalHoldings?: InternationalHoldingInput[];
     bondHoldings?: BondHoldingInput[];
+    flatHoldings?: FlatHoldingInput[];
     fromDate?: string;
   };
 
   const hasHoldings = (holdings && holdings.length > 0) ||
     (holdingsByName && holdingsByName.length > 0) ||
     (internationalHoldings && internationalHoldings.length > 0) ||
-    (bondHoldings && bondHoldings.length > 0);
+    (bondHoldings && bondHoldings.length > 0) ||
+    (flatHoldings && flatHoldings.length > 0);
   if (!hasHoldings) {
     return NextResponse.json({ error: "holdings required" }, { status: 400 });
   }
@@ -574,6 +582,59 @@ export async function POST(req: NextRequest) {
           try {
             const dolar = await getDolarObservado(p.date);
             fechaMap.set(p.date, usdValue * dolar);
+          } catch {
+            // Skip dates without FX rate
+          }
+        }
+      }
+
+      normalizedPrices.set(key, fechaMap);
+    }
+  }
+
+  // 4d. Flat holdings: constant value (bonds without coupon/maturity, cash, money market)
+  // These contribute a flat daily amount to the portfolio total.
+  if (flatHoldings && flatHoldings.length > 0) {
+    const toDate = new Date().toISOString().split("T")[0];
+    const flatFromDate = fromDate || new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+
+    // Pre-load dólar if needed
+    const needsFX = flatHoldings.some(fh => (fh.currency || "USD") !== "CLP");
+    if (needsFX) {
+      const startYear = parseInt(flatFromDate.split("-")[0], 10);
+      const endYear = new Date().getFullYear();
+      for (let y = startYear; y <= endYear; y++) {
+        await preloadYear("dolar", y);
+      }
+    }
+
+    for (const fh of flatHoldings) {
+      if (fh.marketValue <= 0) continue;
+
+      const key = `flat-${fh.fundName}`;
+      const isCLP = (fh.currency || "USD") === "CLP";
+
+      fundInfo.set(key, {
+        id: key,
+        fundName: fh.fundName,
+        quantity: 1,
+        tac: null,
+        cartolaPrice: 0,
+        moneda: fh.currency || "USD",
+      });
+
+      // Generate daily entries with constant value
+      const fechaMap = new Map<string, number>();
+      const start = new Date(flatFromDate + "T00:00:00");
+      const end = new Date(toDate + "T00:00:00");
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (isCLP) {
+          fechaMap.set(dateStr, fh.marketValue);
+        } else {
+          try {
+            const dolar = await getDolarObservado(dateStr);
+            fechaMap.set(dateStr, fh.marketValue * dolar);
           } catch {
             // Skip dates without FX rate
           }

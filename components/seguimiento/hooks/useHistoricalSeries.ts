@@ -152,8 +152,48 @@ export function useHistoricalSeries({
         currency: h.currency || "USD",
       }));
 
-    const hasTradeableHoldings = holdingsWithRun.length > 0 || internationalHoldings.length > 0 || holdingsByName.length > 0;
-    if (!hasTradeableHoldings && bondHoldings.length === 0) return;
+    // Collect indices of holdings already categorized
+    const categorizedIndices = new Set<number>();
+    holdings.forEach((h, i) => {
+      const id = (h.securityId || "").trim();
+      const name = (h.fundName || "").trim();
+      const qty = h.quantity || 0;
+      // holdingsWithRun
+      if (/^\d{3,6}$/.test(id) && qty > 0) { categorizedIndices.add(i); return; }
+      // internationalHoldings (non-bond)
+      if (id && !/^\d{1,6}$/.test(id) && qty > 0) {
+        const upper = id.toUpperCase();
+        const nameUp = (h.fundName || "").toUpperCase();
+        const isBond = (h.assetClass || "").toLowerCase().includes("fixed") ||
+          (h.assetClass || "").toLowerCase() === "fixedincome" ||
+          (h.assetType || "").toLowerCase() === "bond" ||
+          /\b(CPN|DUE\s+\d|NOTE|UNSECD|FXD\/VAR)\b/.test(nameUp) ||
+          !!(h.couponRate || h.maturityDate);
+        if (!isBond && (/^CFI/.test(upper) || /^[A-Z]{3,10}CL$/.test(upper) ||
+            upper.includes(".SN") || /^[A-Z]{1,5}$/.test(upper) || /^[A-Z0-9]{9}$/i.test(upper))) {
+          categorizedIndices.add(i); return;
+        }
+      }
+      // holdingsByName
+      if ((!id || /^\d{1,2}$/.test(id)) && name.length > 3 && qty > 0) { categorizedIndices.add(i); return; }
+      // bondHoldings (with coupon + maturity)
+      if (qty > 0 && h.couponRate != null && h.couponRate > 0 && h.maturityDate) { categorizedIndices.add(i); return; }
+    });
+
+    // Flat holdings: everything with marketValue that wasn't categorized
+    // (bonds without coupon/maturity, cash, money market, etc.)
+    const flatHoldings = holdings
+      .filter((_, i) => !categorizedIndices.has(i))
+      .filter((h) => (h.marketValue || 0) > 0)
+      .map((h) => ({
+        fundName: h.fundName || "",
+        marketValue: h.marketValue || 0,
+        currency: h.currency || "USD",
+      }));
+
+    const hasAnyHoldings = holdingsWithRun.length > 0 || internationalHoldings.length > 0 ||
+      holdingsByName.length > 0 || bondHoldings.length > 0 || flatHoldings.length > 0;
+    if (!hasAnyHoldings) return;
 
     // Go back 1 year from today for historical data (rent 1Y, 6M, etc.)
     const oneYearAgo = new Date();
@@ -175,6 +215,7 @@ export function useHistoricalSeries({
               ...b,
               referenceDate: latestCartola.snapshot_date,
             })) : undefined,
+            flatHoldings: flatHoldings.length > 0 ? flatHoldings : undefined,
             fromDate,
           }),
         });
@@ -210,6 +251,7 @@ export function useHistoricalSeries({
                             ...b,
                             referenceDate: latestCartola.snapshot_date,
                           })) : undefined,
+                          flatHoldings: flatHoldings.length > 0 ? flatHoldings : undefined,
                           fromDate,
                         }),
                       })
