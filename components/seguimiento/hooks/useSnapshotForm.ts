@@ -223,15 +223,29 @@ export function useSnapshotForm(options: UseSnapshotFormOptions) {
       cash: { value: 0, percent: 0 },
     };
 
+    // Normalize display names to internal keys
+    const normalizeClass = (cls: string): string => {
+      const lower = cls.toLowerCase();
+      if (lower === "fixed income" || lower === "fixedincome" || lower === "bond") return "fixedIncome";
+      if (lower === "equity" || lower === "stock" || lower === "renta variable") return "equity";
+      if (lower === "alternatives" || lower === "alternative" || lower === "alternativo") return "alternatives";
+      if (lower === "cash" || lower === "liquidez" || lower === "efectivo") return "cash";
+      if (lower === "balanced" || lower === "balanceado") return "balanced";
+      return cls;
+    };
+
     holdings.forEach((h) => {
       const clpValue = toCLP(h.marketValue || 0, h.currency || "USD");
-      const assetClass = h.assetClass || "equity";
+      const assetClass = normalizeClass(h.assetClass || "equity");
 
       if (assetClass === "balanced") {
         comp.equity.value += clpValue * 0.5;
         comp.fixedIncome.value += clpValue * 0.5;
-      } else {
+      } else if (comp[assetClass]) {
         comp[assetClass].value += clpValue;
+      } else {
+        // Unknown class defaults to equity
+        comp.equity.value += clpValue;
       }
     });
 
