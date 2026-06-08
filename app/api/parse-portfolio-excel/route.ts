@@ -43,24 +43,24 @@ const COLUMN_MAPPINGS = {
     "cantidad cuotas", "cuotas totales", "participacion", "participación"
   ],
   marketValue: [
-    "valor total", "total", "market value", "valor mercado", "monto",
+    "valor total", "total", "market value", "mkt value", "valor mercado", "monto",
     "valor actual", "current value", "saldo", "balance", "valorización",
     "valorizacion", "valor", "monto total", "valor posicion", "valor posición",
     "valorizado"
   ],
   marketPrice: [
-    "valor cuota", "precio", "price", "market price", "precio mercado",
+    "valor cuota", "precio", "price", "market price", "usd price", "precio mercado",
     "precio actual", "current price", "unit price", "precio unitario",
     "valor unitario", "precio cierre", "ultimo precio", "último precio",
     "nav", "cotizacion", "cotización"
   ],
   costBasis: [
-    "costo total", "total cost", "cost basis", "inversion", "inversión",
+    "costo total", "total cost", "cost basis", "adjusted cost", "inversion", "inversión",
     "monto invertido", "valor libro", "book value", "costo", "cost",
     "precio compra", "base"
   ],
   securityId: [
-    "ticker", "cusip", "isin", "simbolo", "símbolo", "codigo", "código",
+    "ticker", "cusip", "isin", "symbol/id", "symbol", "simbolo", "símbolo", "codigo", "código",
     "id", "rut", "security id", "identificador", "nemotecnico", "nemotécnico"
   ]
 };
@@ -85,7 +85,7 @@ const CHILEAN_SOURCES: Record<string, string[]> = {
   "Renta4": ["renta4", "renta 4"],
   "Vector": ["vector"],
   "Tanner": ["tanner"],
-  "Pershing": ["pershing"],
+  "Pershing": ["pershing", "lmg&l", "lmg&amp;l", "lmgl"],
 };
 
 // Parse Chilean number format (dots for thousands, commas for decimals)
