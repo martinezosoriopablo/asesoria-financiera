@@ -23,6 +23,11 @@ interface Holding {
   marketValue: number;
   unrealizedGainLoss?: number;
   assetClass?: string;
+  assetType?: string;
+  purchaseDate?: string | null;
+  couponRate?: number | null;
+  maturityDate?: string | null;
+  marketYield?: number | null;
 }
 
 // Excel serial date range: 30000 = ~1982, 50000 = ~2036 — covers plausible financial statement dates
@@ -62,6 +67,14 @@ const COLUMN_MAPPINGS = {
   securityId: [
     "ticker", "cusip", "isin", "symbol/id", "symbol", "simbolo", "símbolo", "codigo", "código",
     "id", "rut", "security id", "identificador", "nemotecnico", "nemotécnico"
+  ],
+  purchaseDate: [
+    "open date", "purchase date", "trade date", "fecha compra", "fecha operacion",
+    "fecha operación", "fecha adquisicion", "fecha adquisición", "settlement date",
+    "fecha liquidacion", "fecha liquidación", "date"
+  ],
+  yield: [
+    "yield", "ytm", "rendimiento", "tir", "yield to maturity"
   ]
 };
 
@@ -581,6 +594,8 @@ export async function POST(request: NextRequest) {
     const priceCol = findColumnIndex(headers, "marketPrice");
     const costCol = findColumnIndex(headers, "costBasis");
     const tickerCol = findColumnIndex(headers, "securityId");
+    const dateCol = findColumnIndex(headers, "purchaseDate");
+    const yieldCol = findColumnIndex(headers, "yield");
 
     // Validate minimum columns
     if (nameCol === -1 || valueCol === -1) {
@@ -635,6 +650,46 @@ export async function POST(request: NextRequest) {
         const cost = parseChileanNumber(row[costCol]);
         if (cost > 0) {
           holding.costBasis = cost;
+        }
+      }
+
+      // Purchase date (Excel serial or string)
+      if (dateCol !== -1 && row[dateCol]) {
+        const rawDate = row[dateCol];
+        if (typeof rawDate === "number" && rawDate > EXCEL_SERIAL_DATE_MIN && rawDate < EXCEL_SERIAL_DATE_MAX) {
+          const excelEpoch = new Date(1899, 11, 30);
+          const date = new Date(excelEpoch.getTime() + Math.floor(rawDate) * 24 * 60 * 60 * 1000);
+          if (!isNaN(date.getTime())) {
+            holding.purchaseDate = date.toISOString().split("T")[0];
+          }
+        } else {
+          const dateStr = String(rawDate).trim();
+          if (dateStr) holding.purchaseDate = dateStr;
+        }
+      }
+
+      // Market yield
+      if (yieldCol !== -1 && row[yieldCol]) {
+        const yld = parseChileanNumber(row[yieldCol]);
+        if (yld !== 0) holding.marketYield = yld;
+      }
+
+      // Extract coupon rate and maturity date from bond name (e.g. "CPN 5.400% DUE 02/15/34")
+      if (holding.assetClass === "Fixed Income") {
+        holding.assetType = "bond";
+        const cpnMatch = fundName.match(/CPN\s+(\d+\.?\d*)\s*%/i);
+        if (cpnMatch) holding.couponRate = parseFloat(cpnMatch[1]);
+
+        const dueMatch = fundName.match(/DUE\s+(\d{2})\/(\d{2})\/(\d{2,4})/i);
+        if (dueMatch) {
+          const [, mm, dd, yy] = dueMatch;
+          const year = yy.length === 2 ? `20${yy}` : yy;
+          holding.maturityDate = `${year}-${mm}-${dd}`;
+        }
+
+        // Unit cost is price paid (% of par) for bonds
+        if (holding.costBasis && holding.quantity && holding.quantity > 0) {
+          holding.unitCost = (holding.costBasis / holding.quantity) * 100;
         }
       }
 
