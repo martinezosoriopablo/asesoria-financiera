@@ -3,13 +3,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { BarChart3, Loader } from "lucide-react";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { calcBondPeriodReturn } from "@/lib/bonds/period-return";
-import { calcYieldToMaturity } from "@/lib/bonds/yield";
-import { calcModifiedDuration } from "@/lib/bonds/duration";
 import { inferInstrumentType } from "@/lib/instrument-type";
 import EquitySection, { type EquityHolding } from "./EquitySection";
 import FixedIncomeSection, { type BondHoldingRow } from "./FixedIncomeSection";
 import type { Snapshot } from "./SeguimientoPage";
+import { useHoldingQuotes } from "./hooks/useHoldingQuotes";
+import { useBondCalculations } from "./hooks/useBondCalculations";
 
 interface HoldingData {
   fundName: string;
@@ -148,18 +147,7 @@ interface Props {
   pricesAtDateEndpoint?: string;
 }
 
-interface BondLookup {
-  cusip: string;
-  issuer: string;
-  couponRate: number;
-  maturityDate: string;
-}
-
 export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, ufRateInitial, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
-  const [marketPrices, setMarketPrices] = useState<Map<string, { price: number; currency: string }>>(new Map());
-  const [bondLookups, setBondLookups] = useState<Map<string, BondLookup>>(new Map());
-  const [bondPrices, setBondPrices] = useState<Map<string, { price: number; ytm: number | null; date: string }>>(new Map());
-  const [loadingPrices, setLoadingPrices] = useState(false);
   const [returnMode, setReturnMode] = useState<"cartola" | "compra">("cartola");
 
   // Extract unique holdings and their returns over time from snapshots
@@ -334,126 +322,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     };
   }, [snapshots, returnMode]);
 
-  // Fetch current market prices for all non-bond, non-cash holdings via unified price service
-  useEffect(() => {
-    if (holdingSummaries.length === 0) return;
-
-    // Only funds, stocks, ETFs (not bonds — they use FINRA, not cash)
-    const needsPricing = holdingSummaries.filter(h =>
-      h.assetType !== "bond" && h.assetType !== "cash"
-    );
-    if (needsPricing.length === 0) return;
-
-    const today = new Date().toISOString().split("T")[0];
-    // Use yesterday as startDate to get "today's" price
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-
-    const fetchPrices = async () => {
-      setLoadingPrices(true);
-      try {
-        const res = await fetch(pricesAtDateEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            holdings: needsPricing.map(h => ({
-              fundName: h.fundName,
-              securityId: h.securityId || null,
-              serie: h.serie || null,
-              quantity: h.quantity,
-              assetClass: h.assetClass,
-              currency: h.currency || null,
-              market: h.market || null,
-              cartolaPrice: h.currentPrice || null,
-            })),
-            startDate: yesterday,
-            endDate: today,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.results) {
-            const priceMap = new Map<string, { price: number; currency: string }>();
-            for (const r of data.results) {
-              if (r.endPrice && r.endPrice > 0) {
-                priceMap.set(r.fundName, { price: r.endPrice, currency: r.currency || "CLP" });
-              }
-            }
-            setMarketPrices(priceMap);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching market prices:", err);
-      } finally {
-        setLoadingPrices(false);
-      }
-    };
-
-    fetchPrices();
-  }, [holdingSummaries]);
-
-  // Fetch bond details from FINRA for bonds missing coupon/maturity
-  useEffect(() => {
-    const bondsNeedingLookup = holdingSummaries.filter(h =>
-      h.assetType === "bond" && h.securityId && (!h.couponRate || !h.maturityDate)
-    );
-    if (bondsNeedingLookup.length === 0) return;
-
-    const fetchBondDetails = async () => {
-      const lookupMap = new Map<string, BondLookup>();
-
-      for (const h of bondsNeedingLookup) {
-        try {
-          const cusip = (h.securityId || "").trim();
-          if (!cusip) continue;
-          const res = await fetch(`/api/bonds/lookup/${encodeURIComponent(cusip)}`);
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (data.success && data.bond) {
-            lookupMap.set(h.fundName, data.bond);
-          }
-        } catch {
-          // Skip failed lookups
-        }
-      }
-
-      if (lookupMap.size > 0) setBondLookups(lookupMap);
-    };
-
-    fetchBondDetails();
-  }, [holdingSummaries]);
-
-  // Fetch latest bond prices from FINRA (stored in bond_prices table)
-  useEffect(() => {
-    const bonds = holdingSummaries.filter(h => h.assetType === "bond" && h.securityId);
-    if (bonds.length === 0) return;
-
-    const cusips = bonds.map(h => (h.securityId || "").trim()).filter(Boolean);
-    if (cusips.length === 0) return;
-
-    const fetchBondPrices = async () => {
-      try {
-        const res = await fetch(`/api/bonds/latest-prices?cusips=${encodeURIComponent(cusips.join(","))}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.success && data.prices) {
-          const map = new Map<string, { price: number; ytm: number | null; date: string }>();
-          // Map by fundName for easy lookup
-          for (const h of bonds) {
-            const cusip = (h.securityId || "").trim();
-            if (cusip && data.prices[cusip]) {
-              map.set(h.fundName, data.prices[cusip]);
-            }
-          }
-          if (map.size > 0) setBondPrices(map);
-        }
-      } catch {
-        // Silently skip — bonds will use cartola prices
-      }
-    };
-
-    fetchBondPrices();
-  }, [holdingSummaries]);
+  // Fetch market prices, bond lookups, and bond prices via unified hook
+  const { marketPrices, bondLookups, bondPrices, loadingPrices } = useHoldingQuotes(holdingSummaries, pricesAtDateEndpoint);
 
   // Build TAC map from fundsMeta
   const tacByFundName = useMemo(() => {
@@ -593,158 +463,15 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   }, [enrichedSummaries]);
 
   // --- Build bond holdings ---
-  const bondHoldings: BondHoldingRow[] = useMemo(() => {
-    const latestDate = snapshots
-      .filter(s => s.holdings && (s.holdings as HoldingData[]).length > 0)
-      .sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date))[0]?.snapshot_date;
-
-    // Bond prices from Stonex cartolas are stored as decimals (1.0375 = 103.75% of par)
-    // Convert to % of par if the price looks like a decimal ratio
-    const toBondPricePct = (price: number): number => {
-      if (price > 0 && price < 3) return price * 100; // 1.0375 → 103.75
-      return price; // already in % of par (e.g., 103.75)
-    };
-
-    return enrichedSummaries
-      .filter(h => h.assetType === "bond")
-      .map(h => {
-        const couponRatePct = h.couponRate || 0;
-        const couponRateDecimal = couponRatePct / 100;
-        // purchasePrice changes with returnMode toggle — used for return calculation
-        const purchasePricePct = toBondPricePct(h.purchasePrice);
-        const cartolaMarketPricePct = toBondPricePct(h.currentPrice);
-        // costBasisPricePct is always the actual cost basis — used for market value calc
-        const costBasisPricePct = toBondPricePct(h.costBasis || h.unitCost || h.purchasePrice);
-
-        // Chilean bond = no valid CUSIP (9-char alphanumeric) and no FINRA price
-        const secId = (h.securityId || "").trim();
-        const hasValidCusip = /^[A-Z0-9]{9}$/i.test(secId);
-        const finraPrice = bondPrices.get(h.fundName);
-        const isChileanBond = !hasValidCusip && !finraPrice;
-
-        const faceValue = h.quantity || (cartolaMarketPricePct > 0 ? h.marketValue / (cartolaMarketPricePct / 100) : 0);
-        const freq = 2; // semi-annual default
-
-        // All bond calculations require purchaseDate — without it, show raw data only
-        let devengoUSD = 0;
-        let devengoPct = 0;
-        let marketDeviationUSD = 0;
-        let totalReturnPct = 0;
-        let ytm = 0;
-        let duration = 0;
-        let marketYieldPct = 0;
-
-        if (h.purchaseDate && h.maturityDate && couponRateDecimal > 0) {
-          // Bond model always uses actual cost basis for YTM, devengo, duration
-          const bondParams = {
-            faceValue,
-            couponRate: couponRateDecimal,
-            couponFrequency: freq,
-            maturityDate: h.maturityDate,
-            purchaseDate: h.purchaseDate,
-            purchasePrice: costBasisPricePct,
-            currentPrice: costBasisPricePct, // solve at cost basis → TIR de compra
-          };
-
-          try { ytm = calcYieldToMaturity(bondParams, new Date(h.purchaseDate + "T00:00:00")) * 100; } catch { ytm = 0; }
-          try { duration = calcModifiedDuration(bondParams); } catch { duration = 0; }
-
-          // --- Unified model for ALL bonds (Chilean + international) ---
-          // Devengo: linear accrual at purchase YTM (independent of market)
-          const periodResult = calcBondPeriodReturn({
-            faceValue,
-            couponRate: couponRateDecimal,
-            couponFrequency: freq,
-            maturityDate: h.maturityDate,
-            purchasePrice: costBasisPricePct,
-            currentPrice: costBasisPricePct, // devengo only — same as purchase
-            startDate: previousSnapshotDate || h.purchaseDate,
-            endDate: latestDate || previousSnapshotDate || h.purchaseDate,
-            purchaseDate: h.purchaseDate,
-          });
-          devengoUSD = periodResult.devengoUSD;
-          devengoPct = periodResult.devengoPct;
-
-          // Market deviation via duration × Δyield
-          // Chilean: marketYield from advisor (default = purchaseYTM → deviation = 0)
-          // International: marketYield from FINRA
-          if (isChileanBond) {
-            marketYieldPct = h.marketYield != null ? h.marketYield : ytm;
-          } else {
-            marketYieldPct = finraPrice?.ytm != null ? finraPrice.ytm : ytm;
-          }
-          const yieldDeltaDecimal = (marketYieldPct - ytm) / 100;
-          marketDeviationUSD = -duration * yieldDeltaDecimal * faceValue;
-
-          // Total return = devengo + market deviation (duration approx)
-          // Uses purchasePricePct (mode-dependent) for return, costBasisPricePct for MV
-          const returnBase = faceValue * purchasePricePct / 100;
-          totalReturnPct = returnBase > 0
-            ? ((devengoUSD + marketDeviationUSD) / returnBase) * 100
-            : 0;
-        }
-
-        // Market value today:
-        // International bonds: use actual FINRA price
-        // Chilean bonds: costBasis + devengo + marketDeviation (valued at purchaseYTM,
-        //   adjusted by duration × Δyield if advisor provided a different marketYield)
-        // Always uses costBasisPricePct — MV is independent of returnMode toggle
-        let marketValueCalc: number;
-        let displayMarketPricePct: number;
-        if (isChileanBond) {
-          const costBasisCalcForMV = faceValue * costBasisPricePct / 100;
-          marketValueCalc = costBasisCalcForMV + devengoUSD + marketDeviationUSD;
-          // Back-derive display price as % of par for the table
-          displayMarketPricePct = faceValue > 0 ? (marketValueCalc / faceValue) * 100 : purchasePricePct;
-        } else {
-          const finraPriceForDisplay = finraPrice ? finraPrice.price : cartolaMarketPricePct;
-          displayMarketPricePct = finraPriceForDisplay;
-          marketValueCalc = faceValue * displayMarketPricePct / 100;
-        }
-
-        // costBasis from cartola may be price-as-%-of-par (e.g. 87.825) rather than total amount.
-        // Use calculated costBasis (faceValue × costBasisPrice%) which is always in the right units.
-        const calcCostBasis = faceValue * costBasisPricePct / 100;
-        let actualCostBasis = calcCostBasis;
-
-        // Convert to CLP based on currency
-        if (isChileanBond && ufRate) {
-          // Chilean bonds are in UF
-          marketValueCalc *= ufRate;
-          actualCostBasis *= (ufRateInitial || ufRate);
-          devengoUSD *= ufRate;
-          marketDeviationUSD *= ufRate;
-        } else if (!isChileanBond && usdRate) {
-          // International bonds are in USD
-          marketValueCalc *= usdRate;
-          actualCostBasis *= usdRate;
-          devengoUSD *= usdRate;
-          marketDeviationUSD *= usdRate;
-        }
-
-        return {
-          fundName: h.fundName,
-          cusip: h.securityId || "",
-          creditRating: h.creditRating || "NR",
-          couponRate: couponRatePct,
-          maturityDate: h.maturityDate || "",
-          weight: 0, // recalculated below after totalValue is known
-          purchasePrice: purchasePricePct,
-          costBasis: actualCostBasis,
-          marketPrice: displayMarketPricePct,
-          ytm,
-          marketYield: marketYieldPct,
-          duration,
-          devengoUSD,
-          devengoPct,
-          marketDeviationUSD,
-          totalReturn: totalReturnPct,
-          contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
-          marketValue: marketValueCalc,
-          currency: isChileanBond ? "UF" : "USD", // original denomination (value is CLP-converted)
-        };
-      });
-  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate, ufRateInitial, usdRate]);
+  const bondHoldings = useBondCalculations({
+    enrichedSummaries,
+    previousSnapshotDate,
+    snapshots,
+    bondPrices,
+    ufRate,
+    ufRateInitial,
+    usdRate,
+  });
 
   // Cash holdings
   const cashValue = enrichedSummaries
