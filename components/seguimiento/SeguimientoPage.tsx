@@ -15,7 +15,6 @@ import ComparacionBar from "./ComparacionBar";
 import HoldingReturnsPanel, { type HoldingReturnsData } from "./HoldingReturnsPanel";
 
 import BenchmarkConfig from "./BenchmarkConfig";
-import type { BenchmarkComponent } from "@/lib/prices/types";
 import BaselineComparison from "./BaselineComparison";
 import RecommendationHistory from "./RecommendationHistory";
 import ClientMonthlyClosing from "./ClientMonthlyClosing";
@@ -26,6 +25,7 @@ import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
 import { getBenchmarkFromScore } from "@/lib/risk/benchmarks";
 import { useExchangeRates } from "./hooks/useExchangeRates";
 import { useHistoricalSeries } from "./hooks/useHistoricalSeries";
+import { useBenchmarkConfig } from "./hooks/useBenchmarkConfig";
 import {
   ArrowLeft,
   Loader,
@@ -116,6 +116,7 @@ interface SeguimientoData {
   metrics: Metrics | null;
   recommendation: Client["cartera_recomendada"] | null;
   client: Client;
+  benchmarkConfig?: Array<{ ticker: string; weight: number; spread?: number }> | null;
 }
 
 interface Props {
@@ -150,11 +151,17 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
   const [holdingReturnsData, setHoldingReturnsData] = useState<HoldingReturnsData | null>(null);
   const [compositionBaseMode, setCompositionBaseMode] = useState<"inicio" | "fecha">("inicio");
   const [compositionBaseDate, setCompositionBaseDate] = useState<string>("");
-  const [benchmarkConfig, setBenchmarkConfig] = useState<BenchmarkComponent[] | null>(null);
-  const [benchmarkReturns, setBenchmarkReturns] = useState<Record<string, number> | null>(null);
-  const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
-  const [baselineSeries, setBaselineSeries] = useState<Array<{ fecha: string; total: number }> | null>(null);
-  const [loadingBaseline, setLoadingBaseline] = useState(false);
+  // Benchmark config, returns, baseline series — extracted to useBenchmarkConfig hook
+  const {
+    benchmarkConfig, setBenchmarkConfig,
+    benchmarkReturns, benchmarkLabel,
+    baselineSeries, loadingBaseline,
+    baselineMonthlyReturns, baselineAccReturn,
+  } = useBenchmarkConfig({
+    snapshots: data?.snapshots,
+    clientId,
+    initialBenchmarkConfig: data?.benchmarkConfig || null,
+  });
   const [displayCurrency, setDisplayCurrency] = useState<string>("CLP");
   const [showSendModal, setShowSendModal] = useState(false);
   const [clientEmail, setClientEmail] = useState("");
@@ -188,9 +195,6 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
         if (result.data?.client?.display_currency) {
           setDisplayCurrency(result.data.client.display_currency);
         }
-        if (result.data?.benchmarkConfig) {
-          setBenchmarkConfig(result.data.benchmarkConfig);
-        }
       } else {
         setError(result.error || "Error al cargar datos");
       }
@@ -206,66 +210,6 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     fetchData();
     if (!portalMode) fetchExecutions();
   }, [fetchData, fetchExecutions]);
-
-  // Fetch benchmark returns when config and snapshots are available
-  useEffect(() => {
-    if (!data || !benchmarkConfig || data.snapshots.length < 2) return;
-
-    const cartolaSnaps = data.snapshots.filter(
-      (s) => s.source === "statement" || s.source === "manual" || s.source === "excel"
-    );
-    if (cartolaSnaps.length < 1) return;
-
-    const firstDate = cartolaSnaps[0].snapshot_date;
-    const today = new Date().toISOString().split("T")[0];
-
-    fetch("/api/prices/benchmark-returns", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        benchmark: benchmarkConfig,
-        fromDate: firstDate,
-        toDate: today,
-      }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) {
-          setBenchmarkReturns(d.data.returns);
-          setBenchmarkLabel(d.data.label);
-        }
-      })
-      .catch(() => {});
-  }, [data, benchmarkConfig]);
-
-  // Fetch baseline evolution (portfolio inicial revalorizado)
-  useEffect(() => {
-    if (!data || data.snapshots.length === 0) return;
-
-    const baseline = data.snapshots.find((s) => s.is_baseline);
-    const latestSnap = data.snapshots[data.snapshots.length - 1];
-    // Only fetch if baseline exists and is different from latest snapshot
-    if (!baseline || !latestSnap || baseline.id === latestSnap.id) {
-      setBaselineSeries(null);
-      return;
-    }
-
-    setLoadingBaseline(true);
-    fetch('/api/portfolio/baseline-evolution', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId }),
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.success && result.series) {
-          setBaselineSeries(result.series);
-        }
-      })
-      .catch((err) => console.error('Error fetching baseline evolution:', err))
-      .finally(() => setLoadingBaseline(false));
-  }, [data, clientId]);
-
 
 
   // Exchange rates: current, historical deflators, cartola/current rates
@@ -509,43 +453,6 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
 
     setShowSendModal(true);
   }, [clientId, clientEmail, narrativeText, loadingNarrative]);
-
-  // Calculate monthly returns from baseline series for RetornosComparados
-  const baselineMonthlyReturns = useMemo(() => {
-    if (!baselineSeries || baselineSeries.length < 2) return undefined;
-
-    const returns: Record<string, number> = {};
-    const byMonth = new Map<string, { first: number; last: number }>();
-    for (const point of baselineSeries) {
-      const monthKey = (point.fecha as string).substring(0, 7);
-      const entry = byMonth.get(monthKey);
-      if (!entry) {
-        byMonth.set(monthKey, { first: point.total, last: point.total });
-      } else {
-        entry.last = point.total;
-      }
-    }
-
-    let prevLast: number | null = null;
-    for (const [monthKey, { first, last }] of byMonth) {
-      const startVal = prevLast ?? first;
-      if (startVal > 0) {
-        returns[monthKey] = ((last / startVal) - 1) * 100;
-      }
-      prevLast = last;
-    }
-
-    return Object.keys(returns).length > 0 ? returns : undefined;
-  }, [baselineSeries]);
-
-  // Baseline accumulated return for summary cards
-  const baselineAccReturn = useMemo(() => {
-    if (!baselineSeries || baselineSeries.length < 2) return null;
-    const first = baselineSeries[0].total;
-    const last = baselineSeries[baselineSeries.length - 1].total;
-    if (first <= 0) return null;
-    return ((last / first) - 1) * 100;
-  }, [baselineSeries]);
 
 
   const triggerBackfill = useCallback(async () => {
