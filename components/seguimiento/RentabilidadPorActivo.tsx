@@ -33,6 +33,8 @@ interface Props {
   holdingReturnsData: HoldingReturnsData | null;
   snapshots: Snapshot[];
   pricesAtDateEndpoint?: string;
+  /** Accumulated return from historicalSeries (single source of truth for portfolio total) */
+  historicalAccumulatedReturn?: number | null;
 }
 
 interface ChartItem {
@@ -63,7 +65,7 @@ interface MonthOption {
   isAccumulated: boolean;
 }
 
-export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
+export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, pricesAtDateEndpoint = "/api/portfolio/prices-at-date", historicalAccumulatedReturn }: Props) {
   // Cartola snapshots with holdings, sorted by date
   const cartolas = useMemo(() =>
     snapshots
@@ -170,10 +172,12 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
 
       if (items.length === 0) return [];
 
+      // Use historicalSeries accumulated return when available for consistency
+      // with evolution chart and period returns; fall back to holdingReturnsData
       items.push({
         name: "PORTAFOLIO TOTAL",
         fullName: "Portafolio Total",
-        returnPct: portfolioReturn,
+        returnPct: historicalAccumulatedReturn ?? portfolioReturn,
         assetClass: undefined,
         color: "#1e293b",
       });

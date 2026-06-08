@@ -234,6 +234,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     backfillStatus,
     setBackfillStatus,
     periodReturns,
+    accumulatedReturn,
     weightedTAC,
   } = useHistoricalSeries({
     snapshots: data?.snapshots,
@@ -383,7 +384,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
       const clientFirst = data.client.nombre;
       const ytdRet = pr["YTD"]?.nominal;
       const oneMRet = pr["1M"]?.nominal;
-      const totalRet = ytdRet ?? oneMRet ?? metrics.totalReturn;
+      const totalRet = ytdRet ?? oneMRet ?? accumulatedReturn ?? metrics.totalReturn;
       if (totalRet !== null && totalRet !== undefined) {
         const sign = totalRet >= 0 ? "positivo" : "negativo";
         parts.push(`El portafolio de ${clientFirst} ha tenido un desempeno ${sign} con una rentabilidad de ${totalRet >= 0 ? "+" : ""}${totalRet.toFixed(1)}% en el periodo.`);
@@ -1340,6 +1341,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
           <RentabilidadPorActivo
             holdingReturnsData={holdingReturnsData}
             snapshots={snapshots}
+            historicalAccumulatedReturn={accumulatedReturn}
           />
         )}
 
@@ -1369,7 +1371,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             snapshots={snapshots}
             recommendation={recommendation}
             previousPortfolio={snapshots.find(s => s.is_baseline) || null}
-            totalReturn={metrics?.totalReturn}
+            totalReturn={accumulatedReturn ?? metrics?.totalReturn}
             holdingReturnsData={holdingReturnsData}
           />
         )}

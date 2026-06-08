@@ -37,6 +37,7 @@ interface UseHistoricalSeriesReturn {
   backfillStatus: string | null;
   setBackfillStatus: React.Dispatch<React.SetStateAction<string | null>>;
   periodReturns: { "1M": PeriodReturn | null; "3M": PeriodReturn | null; "6M": PeriodReturn | null; "1Y": PeriodReturn | null; "YTD": PeriodReturn | null } | null;
+  accumulatedReturn: number | null;
   weightedTAC: { weighted: number; annualCost: number; coverage: number } | null;
 }
 
@@ -356,6 +357,16 @@ export function useHistoricalSeries({
     };
   }, [historicalSeries, deflatorData, findDeflatorValue]);
 
+  // Accumulated return from first to last point of historicalSeries
+  // This is the single source of truth for portfolio-level total return
+  const accumulatedReturn = useMemo(() => {
+    if (historicalSeries.length < 2) return null;
+    const first = historicalSeries[0].total as number;
+    const last = historicalSeries[historicalSeries.length - 1].total as number;
+    if (first <= 0) return null;
+    return ((last / first) - 1) * 100;
+  }, [historicalSeries]);
+
   // TAC ponderado del portafolio
   const weightedTAC = useMemo(() => {
     if (fundsMeta.length === 0 || historicalSeries.length === 0) return null;
@@ -391,6 +402,7 @@ export function useHistoricalSeries({
     backfillStatus,
     setBackfillStatus,
     periodReturns,
+    accumulatedReturn,
     weightedTAC,
   };
 }
