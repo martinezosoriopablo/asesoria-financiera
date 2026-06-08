@@ -51,6 +51,17 @@ interface ExchangeRates {
   uf: number;
 }
 
+// Normalize display names (from API) to internal keys (used by UI)
+function normalizeClass(cls: string): string {
+  const lower = cls.toLowerCase();
+  if (lower === "fixed income" || lower === "fixedincome" || lower === "bond") return "fixedIncome";
+  if (lower === "equity" || lower === "stock" || lower === "renta variable") return "equity";
+  if (lower === "alternatives" || lower === "alternative" || lower === "alternativo") return "alternatives";
+  if (lower === "cash" || lower === "liquidez" || lower === "efectivo") return "cash";
+  if (lower === "balanced" || lower === "balanceado") return "balanced";
+  return cls;
+}
+
 interface UseSnapshotFormOptions {
   parsedData: ParsedData;
   editMode: boolean;
@@ -147,7 +158,7 @@ export function useSnapshotForm(options: UseSnapshotFormOptions) {
 
     return sourceHoldings.map((h) => ({
       ...h,
-      assetClass: h.assetClass || assetTypeToClass(h.assetType) || classifyFund(h.fundName),
+      assetClass: normalizeClass(h.assetClass || assetTypeToClass(h.assetType) || classifyFund(h.fundName)),
       currency: h.currency || parsedData.detectedCurrency || detectCurrencyFromName(h.fundName),
     }));
   };
@@ -221,17 +232,6 @@ export function useSnapshotForm(options: UseSnapshotFormOptions) {
       balanced: { value: 0, percent: 0 },
       alternatives: { value: 0, percent: 0 },
       cash: { value: 0, percent: 0 },
-    };
-
-    // Normalize display names to internal keys
-    const normalizeClass = (cls: string): string => {
-      const lower = cls.toLowerCase();
-      if (lower === "fixed income" || lower === "fixedincome" || lower === "bond") return "fixedIncome";
-      if (lower === "equity" || lower === "stock" || lower === "renta variable") return "equity";
-      if (lower === "alternatives" || lower === "alternative" || lower === "alternativo") return "alternatives";
-      if (lower === "cash" || lower === "liquidez" || lower === "efectivo") return "cash";
-      if (lower === "balanced" || lower === "balanceado") return "balanced";
-      return cls;
     };
 
     holdings.forEach((h) => {
