@@ -235,12 +235,24 @@ function detectSource(workbook: XLSX.WorkBook, data: unknown[][]): string {
   return "Excel";
 }
 
-// Detect currency based on values
-function detectCurrency(holdings: Holding[], totalValue: number): {
+// Detect currency based on headers and values
+function detectCurrency(holdings: Holding[], totalValue: number, headers?: string[]): {
   currency: "USD" | "CLP";
   confidence: "high" | "medium" | "low";
   reason: string;
 } {
+  // Check headers for explicit currency hints (e.g. "USD Price", "Mkt Value USD")
+  if (headers) {
+    const headerStr = headers.join(" ").toLowerCase();
+    if (headerStr.includes("usd")) {
+      return {
+        currency: "USD",
+        confidence: "high",
+        reason: "Headers contain USD column"
+      };
+    }
+  }
+
   if (totalValue > 1_000_000) {
     return {
       currency: "CLP",
@@ -709,7 +721,7 @@ export async function POST(request: NextRequest) {
     await enrichSecurityIds(holdings);
 
     // Detect currency
-    const currencyInfo = detectCurrency(holdings, totalValue);
+    const currencyInfo = detectCurrency(holdings, totalValue, headers);
 
     // Detect source
     const source = detectSource(workbook, data);
