@@ -1,28 +1,22 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Loader,
   AlertTriangle,
   PieChart,
-
+  ArrowRight,
   CheckCircle2,
   XCircle,
-  FileText,
-  Pencil,
-  Save,
-  RotateCcw,
-  Copy,
-  Check,
 } from "lucide-react";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrency, formatPercent } from "@/lib/format";
 import XraySummaryCards from "./XraySummaryCards";
-import XrayTaxSummary from "./XrayTaxSummary";
 import XrayHoldingsTable from "./XrayHoldingsTable";
 import XrayProposalTable from "./XrayProposalTable";
+import XrayReportSection from "./XrayReportSection";
 import {
   useXrayProposal,
-
+  type HoldingAnalysis,
   type XrayData,
   type ProposalOverride,
   type FundMeta,
@@ -62,14 +56,6 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [modelData, setModelData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  // Report state
-  const [report, setReport] = useState<string>("");
-  const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedReport, setEditedReport] = useState<string>("");
-  const [copied, setCopied] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Advisory fee state (editable, default 1%)
   const [advisoryFee, setAdvisoryFee] = useState<number>(1.0);
@@ -95,14 +81,13 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
   // Storage key for persisting report
   const storageKey = clientId ? `xray-report-${clientId}` : null;
 
-  // Load saved report and exchange rates on mount
+  // Load saved customContext on mount
   React.useEffect(() => {
     if (!storageKey) return;
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.report) { setReport(parsed.report); setEditedReport(parsed.report); }
         if (parsed.customContext) setCustomContext(parsed.customContext);
       }
     } catch { /* ignore */ }
@@ -220,110 +205,6 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
     }
   };
 
-  const generateReport = async () => {
-    if (!data || !mergedProposal || !adjustedCosts) return;
-    setReportLoading(true);
-    setReportError(null);
-    try {
-      // Build enriched xrayData with all advisor edits applied
-      const enrichedXrayData = {
-        ...data,
-        // Override with adjusted costs (reflects TAC edits)
-        tacPromedioPortfolio: adjustedCosts.tacPromedio,
-        costoAnualTotal: adjustedCosts.costoAnual,
-        costoProyectado10Y: adjustedCosts.costoProyectado10Y,
-        holdingsConTac: adjustedCosts.holdingsConTac,
-        // Override holdings with effective TAC
-        holdings: data.holdings.map(h => ({
-          ...h,
-          tac: getEffectiveTac(h),
-        })),
-        // Override proposal with merged (includes search overrides + TAC edits + returns)
-        proposal: {
-          holdings: mergedProposal.holdings,
-          currentTacPromedio: mergedProposal.currentTacPromedio,
-          proposedTacPromedio: mergedProposal.proposedTacPromedio,
-          currentCostoAnual: mergedProposal.currentCostoAnual,
-          proposedCostoAnual: mergedProposal.proposedCostoAnual,
-          ahorroFondosAnual: mergedProposal.ahorroFondosAnual,
-          currentRent12m: mergedProposal.currentRent12m,
-          proposedRent12m: mergedProposal.proposedRent12m,
-        },
-      };
-      const res = await fetch("/api/portfolio/xray-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          xrayData: enrichedXrayData,
-          clientName,
-          advisoryFee,
-          customContext: customContext.trim() || undefined,
-          ufValue: ufValue || undefined,
-          usdValue: usdValue || undefined,
-          cartolaDate: cartolaDate || undefined,
-          currentValue: currentValue || undefined,
-          currentValueDate: currentValueDate || undefined,
-          modelData: modelData || undefined,
-        }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setReport(result.report);
-        setEditedReport(result.report);
-        // Persist to localStorage
-        if (storageKey) {
-          try { localStorage.setItem(storageKey, JSON.stringify({ report: result.report, customContext: customContext.trim() })); } catch { /* ignore */ }
-        }
-      } else {
-        setReportError(result.error || "Error generando informe");
-      }
-    } catch {
-      setReportError("Error de conexión");
-    } finally {
-      setReportLoading(false);
-    }
-  };
-
-  const startEditing = () => {
-    setEditedReport(report);
-    setIsEditing(true);
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        textareaRef.current.style.height = "auto";
-        textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
-      }
-    }, 50);
-  };
-
-  const saveEdit = () => {
-    setReport(editedReport);
-    setIsEditing(false);
-    // Persist edited report
-    if (storageKey) {
-      try { localStorage.setItem(storageKey, JSON.stringify({ report: editedReport, customContext: customContext.trim() })); } catch { /* ignore */ }
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditedReport(report);
-    setIsEditing(false);
-  };
-
-  const regenerateReport = () => {
-    generateReport();
-  };
-
-  const copyReport = async () => {
-    try {
-      await navigator.clipboard.writeText(report);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback
-    }
-  };
-
   const selectFundForProposal = useCallback((holdingFundName: string, result: { nombre: string; agf?: string; serie?: string; tac?: number | null; rent_1m?: number | null; rent_3m?: number | null; rent_12m?: number | null }) => {
     setProposalOverrides(prev => ({
       ...prev,
@@ -355,57 +236,6 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
     fundsMeta,
     advisoryFee,
   });
-
-  // Simple markdown renderer for ## headings and bold
-  const renderMarkdown = (text: string) => {
-    const lines = text.split("\n");
-    const elements: React.ReactNode[] = [];
-    let currentParagraph: string[] = [];
-
-    const flushParagraph = () => {
-      if (currentParagraph.length > 0) {
-        const text = currentParagraph.join("\n");
-        elements.push(
-          <p key={elements.length} className="text-sm text-gb-black leading-relaxed mb-3">
-            {text.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
-              part.startsWith("**") && part.endsWith("**")
-                ? <strong key={i}>{part.slice(2, -2)}</strong>
-                : part
-            )}
-          </p>
-        );
-        currentParagraph = [];
-      }
-    };
-
-    for (const line of lines) {
-      if (line.startsWith("## ")) {
-        flushParagraph();
-        elements.push(
-          <h4 key={elements.length} className="text-sm font-bold text-gb-black mt-4 mb-2 pb-1 border-b border-gb-border">
-            {line.replace("## ", "")}
-          </h4>
-        );
-      } else if (line.startsWith("- ")) {
-        flushParagraph();
-        elements.push(
-          <li key={elements.length} className="text-sm text-gb-black ml-4 mb-1 list-disc">
-            {line.slice(2).split(/(\*\*[^*]+\*\*)/).map((part, i) =>
-              part.startsWith("**") && part.endsWith("**")
-                ? <strong key={i}>{part.slice(2, -2)}</strong>
-                : part
-            )}
-          </li>
-        );
-      } else if (line.trim() === "") {
-        flushParagraph();
-      } else {
-        currentParagraph.push(line);
-      }
-    }
-    flushParagraph();
-    return elements;
-  };
 
   if (!data && !loading) {
     return (
@@ -618,134 +448,93 @@ export default function RadiografiaCartola({ holdings, clientName, clientId, fun
       )}
 
       {/* Tax Summary Section */}
-      <XrayTaxSummary
-        holdings={data.holdings}
-        rawHoldings={holdings}
-        mergedProposal={mergedProposal}
-        ufValue={ufValue}
-        usdValue={usdValue}
-        clientName={clientName}
-        clientId={clientId}
-        readOnly={readOnly}
-      />
+      {data?.holdings && data.holdings.length > 0 && (
+        <div className="bg-white rounded-lg border border-gb-border shadow-sm">
+          <div className="px-4 py-3 border-b border-gb-border">
+            <h3 className="text-sm font-semibold text-gb-black">Analisis Tributario del Cambio</h3>
+            <p className="text-[11px] text-gb-gray mt-0.5">Regimen tributario de cada posicion para el cambio de custodia.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gb-border bg-gray-50">
+                  <th className="px-3 py-2 text-left font-medium text-gb-gray">Fondo</th>
+                  <th className="px-3 py-2 text-left font-medium text-gb-gray">Regimen</th>
+                  <th className="px-3 py-2 text-center font-medium text-gb-gray">MLT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.holdings.map((h: HoldingAnalysis, i: number) => (
+                  <tr key={i} className="border-b border-gb-border/50 last:border-0">
+                    <td className="px-3 py-2 text-gb-black">{h.fundName}</td>
+                    <td className="px-3 py-2">
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                        h.beneficio107lir ? "bg-blue-100 text-blue-700" :
+                        h.beneficio108lir ? "bg-purple-100 text-purple-700" :
+                        h.isApvEligible ? "bg-green-100 text-green-700" :
+                        "bg-gray-100 text-gray-700"
+                      }`}>
+                        {h.beneficio107lir ? "Art. 107 (10%)" :
+                         h.beneficio108lir ? "Art. 108/MLT" :
+                         h.isApvEligible ? "APV" : "General"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center">{h.beneficio108lir ? "Si" : "No"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!readOnly && (
+            <div className="px-4 py-3 border-t border-gb-border">
+              <button
+                onClick={() => {
+                  // Save enriched xray data to sessionStorage for faster load
+                  try {
+                    sessionStorage.setItem("tax-simulator-holdings", JSON.stringify({
+                      rawHoldings: holdings,
+                      xrayHoldings: data?.holdings || [],
+                      ufValue: ufValue || 38000,
+                      usdRate: usdValue || 0,
+                      clientName,
+                      clientId,
+                      proposal: mergedProposal ? Object.fromEntries(
+                        mergedProposal.holdings.filter(h => h.changed).map(h => [h.originalFund, { proposedTac: h.proposedTac }])
+                      ) : undefined,
+                    }));
+                  } catch { /* sessionStorage may be full */ }
+                  // Navigate with clientId as fallback
+                  window.location.href = `/tax-optimizer${clientId ? `?clientId=${clientId}` : ""}`;
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-gb-primary hover:text-gb-primary/80"
+              >
+                Ver simulador completo
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Report Section — advisor only */}
       {!readOnly && (
-      <div className="bg-white rounded-lg border border-gb-border shadow-sm">
-        <div className="px-4 py-3 border-b border-gb-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-blue-500" />
-            <h3 className="text-sm font-semibold text-gb-black">
-              Informe de Radiografía
-            </h3>
-          </div>
-          {!report && !reportLoading && (
-            <button
-              onClick={() => generateReport()}
-              className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
-            >
-              Generar Informe
-            </button>
-          )}
-          {report && !isEditing && (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={copyReport}
-                className="text-xs px-2 py-1 text-gb-gray hover:bg-slate-100 rounded transition-colors flex items-center gap-1"
-                title="Copiar al portapapeles"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copiado" : "Copiar"}
-              </button>
-              <button
-                onClick={startEditing}
-                className="text-xs px-2 py-1 text-gb-gray hover:bg-slate-100 rounded transition-colors flex items-center gap-1"
-                title="Editar informe"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Editar
-              </button>
-              <button
-                onClick={regenerateReport}
-                className="text-xs px-2 py-1 text-gb-gray hover:bg-slate-100 rounded transition-colors flex items-center gap-1"
-                title="Regenerar informe"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Regenerar
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="p-4">
-          {reportLoading && (
-            <div className="flex items-center justify-center gap-3 py-8">
-              <Loader className="w-5 h-5 animate-spin text-blue-500" />
-              <span className="text-sm text-gb-gray">Generando informe profesional...</span>
-            </div>
-          )}
-          {reportError && (
-            <p className="text-sm text-red-600 py-4 text-center">
-              <AlertTriangle className="w-4 h-4 inline mr-1" />
-              {reportError}
-            </p>
-          )}
-          {/* Custom context — always visible */}
-          {!reportLoading && !isEditing && (
-            <div className="mb-3">
-              <label className="text-xs font-medium text-gb-gray block mb-1">
-                Notas del asesor para el informe (se incluyen en el prompt)
-              </label>
-              <textarea
-                value={customContext}
-                onChange={(e) => setCustomContext(e.target.value)}
-                placeholder="Ej: El cliente tiene perfil conservador, está próximo a jubilarse, quiere priorizar renta fija, tiene beneficio 57bis..."
-                className="w-full px-3 py-2 text-xs border border-gb-border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                rows={2}
-              />
-              {!report && (
-                <p className="text-[10px] text-gb-gray mt-1">
-                  Estas notas se incluirán en el informe AI. Puedes editarlas y regenerar en cualquier momento.
-                </p>
-              )}
-            </div>
-          )}
-          {report && !isEditing && (
-            <div className="prose prose-sm max-w-none">
-              {renderMarkdown(report)}
-            </div>
-          )}
-          {isEditing && (
-            <div>
-              <textarea
-                ref={textareaRef}
-                value={editedReport}
-                onChange={(e) => {
-                  setEditedReport(e.target.value);
-                  e.target.style.height = "auto";
-                  e.target.style.height = e.target.scrollHeight + "px";
-                }}
-                className="w-full min-h-[300px] p-3 text-sm font-mono border border-gb-border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                placeholder="Edita el informe..."
-              />
-              <div className="flex justify-end gap-2 mt-2">
-                <button
-                  onClick={cancelEdit}
-                  className="text-xs px-3 py-1.5 text-gb-gray bg-white border border-gb-border rounded-md hover:bg-slate-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={saveEdit}
-                  className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  Guardar
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        <XrayReportSection
+          data={data}
+          mergedProposal={mergedProposal}
+          adjustedCosts={adjustedCosts}
+          getEffectiveTac={getEffectiveTac}
+          clientName={clientName}
+          advisoryFee={advisoryFee}
+          ufValue={ufValue}
+          usdValue={usdValue}
+          cartolaDate={cartolaDate}
+          currentValue={currentValue}
+          currentValueDate={currentValueDate}
+          modelData={modelData}
+          storageKey={storageKey}
+          customContext={customContext}
+          onCustomContextChange={setCustomContext}
+        />
       )}
 
       {/* Disclaimer */}
