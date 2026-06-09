@@ -692,11 +692,13 @@ export default function PerformanceAttribution({
 
       for (const h of [...equityHoldings, ...fixedIncomeFundHoldings, ...alternativesHoldings]) {
         const initCLP = initialCLPByName.get(h.fundName) || 0;
-        const valueDelta = h.marketValue - initCLP;
-        const contribution = portfolioInitialValue > 0
-          ? (valueDelta / portfolioInitialValue) * 100
+        // For holdings NOT in first snapshot (initCLP=0), use HoldingReturnsPanel's
+        // contribution directly — computing (fullMarketValue / portfolioInitial) would
+        // inflate the contribution with the entire position, not just the gain.
+        const contribution = initCLP > 0 && portfolioInitialValue > 0
+          ? ((h.marketValue - initCLP) / portfolioInitialValue) * 100
           : (h.contribution ?? 0);
-        const posReturn = initCLP > 0 ? (valueDelta / initCLP) * 100 : (h.totalReturn ?? 0);
+        const posReturn = initCLP > 0 ? ((h.marketValue - initCLP) / initCLP) * 100 : (h.totalReturn ?? 0);
 
         positions.push({
           name: h.fundName,
@@ -711,11 +713,10 @@ export default function PerformanceAttribution({
 
       for (const b of bondHoldings) {
         const initCLP = initialCLPByName.get(b.fundName) || 0;
-        const valueDelta = b.marketValue - initCLP;
-        const contribution = portfolioInitialValue > 0
-          ? (valueDelta / portfolioInitialValue) * 100
+        const contribution = initCLP > 0 && portfolioInitialValue > 0
+          ? ((b.marketValue - initCLP) / portfolioInitialValue) * 100
           : (b.contribution ?? 0);
-        const posReturn = initCLP > 0 ? (valueDelta / initCLP) * 100 : (b.totalReturn ?? 0);
+        const posReturn = initCLP > 0 ? ((b.marketValue - initCLP) / initCLP) * 100 : (b.totalReturn ?? 0);
 
         positions.push({
           name: b.fundName,
@@ -830,28 +831,18 @@ export default function PerformanceAttribution({
     ];
 
     let totalAllocationEffect = 0;
-    let totalSelectionEffect = 0;
 
     const effects = classes.map((cls) => {
       const classReturn = realReturns[cls.key] || 0;
       const weightDiff = (cls.actualWeight - cls.recWeight) / 100;
 
-      // Allocation effect: (Actual Weight - Benchmark Weight) * Benchmark Class Return
+      // Allocation effect: (Actual Weight - Benchmark Weight) * Class Return
       const allocationEffect = weightDiff * classReturn;
-
-      // Selection effect: actual class return vs benchmark class return, weighted by actual weight
-      const actualClassReturn = cls.actualWeight > 0 ?
-        (assetClassAttribution?.contributions.find(c => c.key === cls.key)?.return || classReturn) : 0;
-      const selectionEffect = (actualClassReturn - classReturn) * (cls.actualWeight / 100);
-
       totalAllocationEffect += allocationEffect;
-      totalSelectionEffect += selectionEffect;
 
       return {
         ...cls,
         allocationEffect,
-        selectionEffect,
-        totalEffect: allocationEffect + selectionEffect,
       };
     });
 
@@ -862,11 +853,10 @@ export default function PerformanceAttribution({
       benchmarkReturn,
       activeReturn,
       allocationEffect: totalAllocationEffect,
-      selectionEffect: totalSelectionEffect,
-      interactionEffect: activeReturn - totalAllocationEffect - totalSelectionEffect,
+      residual: activeReturn - totalAllocationEffect,
       effects,
     };
-  }, [recommendation, firstSnapshot, lastSnapshot, snapshotsWithAssetData, assetClassAttribution]);
+  }, [recommendation, firstSnapshot, lastSnapshot, snapshotsWithAssetData]);
 
   // ============================================
   // 4. PREVIOUS PORTFOLIO COMPARISON
@@ -1044,10 +1034,10 @@ export default function PerformanceAttribution({
                                     }
                                   >
                                     {cls.breakdown
-                                      .filter(b => hasContribution ? (isNeg ? b.contribution < 0 : b.contribution > 0) : true)
                                       .map((seg) => {
-                                        const segPct = hasContribution && cls.totalContribution !== 0
-                                          ? (Math.abs(seg.contribution) / Math.abs(cls.totalContribution)) * 100
+                                        const absTotal = cls.breakdown.reduce((s, b) => s + Math.abs(b.contribution), 0);
+                                        const segPct = hasContribution && absTotal > 0
+                                          ? (Math.abs(seg.contribution) / absTotal) * 100
                                           : 100 / Math.max(cls.breakdown.length, 1);
                                         return (
                                           <div
@@ -1337,7 +1327,7 @@ export default function PerformanceAttribution({
               </div>
 
               {/* Effect breakdown */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg border border-gb-border text-center">
                   <p className="text-xs text-gb-gray font-medium mb-1">Efecto Asignación</p>
                   <p className={`text-lg font-bold ${benchmarkAttribution.allocationEffect >= 0 ? "text-green-600" : "text-red-600"}`}>
@@ -1346,18 +1336,11 @@ export default function PerformanceAttribution({
                   <p className="text-xs text-gb-gray mt-1">Decisiones de peso por clase</p>
                 </div>
                 <div className="p-3 rounded-lg border border-gb-border text-center">
-                  <p className="text-xs text-gb-gray font-medium mb-1">Efecto Selección</p>
-                  <p className={`text-lg font-bold ${benchmarkAttribution.selectionEffect >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {formatPercent(benchmarkAttribution.selectionEffect)}
+                  <p className="text-xs text-gb-gray font-medium mb-1">Residual</p>
+                  <p className={`text-lg font-bold ${benchmarkAttribution.residual >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {formatPercent(benchmarkAttribution.residual)}
                   </p>
-                  <p className="text-xs text-gb-gray mt-1">Selección de instrumentos</p>
-                </div>
-                <div className="p-3 rounded-lg border border-gb-border text-center">
-                  <p className="text-xs text-gb-gray font-medium mb-1">Efecto Interacción</p>
-                  <p className={`text-lg font-bold ${benchmarkAttribution.interactionEffect >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {formatPercent(benchmarkAttribution.interactionEffect)}
-                  </p>
-                  <p className="text-xs text-gb-gray mt-1">Timing y otros</p>
+                  <p className="text-xs text-gb-gray mt-1">Selección + interacción</p>
                 </div>
               </div>
             </div>
