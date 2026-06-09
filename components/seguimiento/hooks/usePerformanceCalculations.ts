@@ -756,9 +756,10 @@ export function usePerformanceCalculations({
 
     const totalInitialValue = firstSnapshot.total_value;
     const positions = Array.from(holdingsMap.values()).map((pos) => {
+      // New holdings (initialValue=0) get 0% return — we don't know actual cost
       const posReturn = pos.initialValue > 0
         ? ((pos.finalValue - pos.initialValue) / pos.initialValue) * 100
-        : (pos.finalValue > 0 ? 100 : 0);
+        : 0;
       const weight = pos.initialValue / totalInitialValue;
       const contribution = posReturn * weight;
 
