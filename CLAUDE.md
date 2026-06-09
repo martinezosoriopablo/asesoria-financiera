@@ -43,7 +43,7 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 **HoldingReturnsPanel:** Toggle "Desde Cartola" / "Desde Compra" switches return base between cartola market price and cost basis. All marketValues are CLP-converted (USD×usdRate, UF×ufRate). Weights recalculated AFTER totalValue (non-bond+bond) via `final*Holdings` useMemos. Bonds: `costBasisPricePct` (always real) for MV/devengo/duration; `purchasePricePct` (mode-dependent) only for return %.
 
-**PerformanceAttribution:** Position contributions = `(finalCLP - initialCLP) / portfolioInitialCLP × 100` (captures price + FX impact). Initial CLP from snapshot `marketValueCLP` or proportion × total_value. Sorted highest→lowest contribution (green top, red bottom), all positions shown.
+**PerformanceAttribution:** Computation in `usePerformanceCalculations` hook, JSX in PerformanceAttribution.tsx (4 inline sub-components: AssetClassSection, PositionSection, BenchmarkSection, ComparisonSection). Position contributions = `(finalCLP - initialCLP) / portfolioInitialCLP × 100` (captures price + FX impact). For new holdings not in first snapshot (initCLP=0), uses `h.contribution` from HoldingReturnsPanel instead of inflating with full marketValue. Initial CLP from snapshot `marketValueCLP` or proportion × total_value. Benchmark comparison shows allocation effect + residual (no Brinson 3-effect — lacks per-class benchmark indices). Sorted highest→lowest contribution (green top, red bottom), all positions shown.
 
 **Composition boxes (RV/RF/Alt/Caja):** Initial values derived from holdingReturnsData: `marketValue × (purchasePrice / currentPrice)` per holding. NOT from snapshot stored class values (those may have classification mismatches). Final values from live holdingReturnsData directly.
 
@@ -108,8 +108,10 @@ RLS uses `get_accessible_advisor_ids()` (self + subordinates) and `get_accessibl
 - `app/api/` — ~149 API route handlers
 - `app/(portal)/` — Client portal pages (route group)
 - `components/` — React components organized by domain (seguimiento, portfolio, risk, market, etc.)
-- `components/seguimiento/hooks/` — Extracted hooks: useExchangeRates, useHistoricalSeries, useBenchmarkConfig, useSnapshotExchangeRates, useAutoMatch, useSnapshotForm, useHoldingQuotes, useBondCalculations
+- `components/seguimiento/hooks/` — Extracted hooks: useSeguimientoData (state+fetch+handlers), useSeguimientoEmail (email assembly), usePerformanceCalculations (attribution logic), useExchangeRates, useHistoricalSeries, useBenchmarkConfig, useSnapshotExchangeRates, useAutoMatch, useSnapshotForm, useHoldingQuotes, useHoldingSummaries, useBondCalculations, useXrayProposal
+- `components/seguimiento/` — Sub-components: SeguimientoHeader, SeguimientoSummaryCards, CompositionBoxes, CartolaHistory, RebalancingTable, HoldingsEditTable, AutoMatchSuggestions, XraySummaryCards, XrayHoldingsTable, XrayProposalTable, XrayTaxSummary, XrayReportSection
 - `components/clients/hooks/` — Extracted hooks: useClientData, useClientModals
+- `components/clients/ClientInfoCard.tsx` — Client info card sub-component
 - `lib/prices/` — Unified price service (source routing, AV/Yahoo/EODHD clients, DB ops, 34 tests)
 - `lib/returns/` — Returns calculator (pure functions, replaces TWR)
 - `lib/bonds/` — Bond utilities (duration, accrued interest calculations + tests)
