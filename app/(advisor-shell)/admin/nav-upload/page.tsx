@@ -1,8 +1,8 @@
-// components/admin/NavUploader.tsx
-
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader } from "lucide-react";
 
 interface UploadResult {
@@ -18,9 +18,18 @@ interface UploadResult {
 }
 
 export default function NavUploader() {
+  const { advisor, loading: authLoading } = useAdvisor();
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
+
+  // Admin guard
+  useEffect(() => {
+    if (!authLoading && advisor && !advisor.isAdmin) {
+      router.push("/advisor");
+    }
+  }, [authLoading, advisor, router]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -69,6 +78,8 @@ export default function NavUploader() {
       setUploading(false);
     }
   };
+
+  if (!advisor || !advisor.isAdmin) return null;
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 max-w-2xl mx-auto">

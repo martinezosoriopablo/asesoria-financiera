@@ -2,7 +2,7 @@
 // List all fund_fichas + fi_fichas for admin review
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fichas-review", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
   const supabase = createAdminClient();
@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fichas-patch", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
   return handleApiError("fichas-review-patch", async () => {
@@ -164,7 +164,7 @@ export async function DELETE(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fichas-delete", { limit: 30, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAdvisor();
+  const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
   return handleApiError("fichas-review-delete", async () => {

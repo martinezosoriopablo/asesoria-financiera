@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAdvisor } from '@/lib/hooks/useAdvisor';
 import UploadRentAgregadasModal from '@/components/market/UploadRentAgregadasModal';
 import UploadTACModal from '@/components/market/UploadTACModal';
@@ -55,7 +56,8 @@ interface DataHealth {
 }
 
 export default function DataSyncPage() {
-  const { advisor } = useAdvisor();
+  const { advisor, loading: authLoading } = useAdvisor();
+  const router = useRouter();
   const [status, setStatus] = useState<SyncStatus>({ fintual: null, aafm: null, cmf: null });
   const [loading, setLoading] = useState(true);
 
@@ -82,6 +84,13 @@ export default function DataSyncPage() {
   const addResult = (key: string, msg: string, ok: boolean) => {
     setResults(prev => [{ key, msg, ok, ts: Date.now() }, ...prev.filter(r => r.key !== key).slice(0, 9)]);
   };
+
+  // Admin guard
+  useEffect(() => {
+    if (!authLoading && advisor && !advisor.isAdmin) {
+      router.push("/advisor");
+    }
+  }, [authLoading, advisor, router]);
 
   // Load status
   useEffect(() => {
@@ -295,7 +304,7 @@ export default function DataSyncPage() {
     setSyncingFillPrices(false);
   };
 
-  if (!advisor) return null;
+  if (!advisor || !advisor.isAdmin) return null;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#fafafa' }}>

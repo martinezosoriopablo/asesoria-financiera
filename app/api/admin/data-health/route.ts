@@ -2,7 +2,7 @@
 // Returns data health metrics: stale prices, ficha coverage, extraction quality
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "data-health", { limit: 5, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error } = await requireAdvisor();
+  const { error } = await requireAdmin();
   if (error) return error;
 
   const admin = createAdminClient();

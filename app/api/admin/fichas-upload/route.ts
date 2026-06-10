@@ -2,7 +2,7 @@
 // Upload a ficha PDF manually, extract data, save to fund_fichas
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { extractFromPdf } from "@/lib/ficha-extract";
 import { validateUpload } from "@/lib/upload-validation";
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fichas-upload", { limit: 20, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { user, error: authError } = await requireAdvisor();
+  const { user, error: authError } = await requireAdmin();
   if (authError) return authError;
 
   return handleApiError("fichas-upload-post", async () => {
