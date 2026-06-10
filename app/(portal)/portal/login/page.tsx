@@ -49,15 +49,24 @@ function PortalLoginContent() {
   };
 
   const checkSession = async () => {
-    const supabase = createSupabaseBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user }, error } = await supabase.auth.getUser();
 
-    const activeRole = user?.user_metadata?.active_role || user?.user_metadata?.role;
-    const roles = (user?.user_metadata?.roles as string[]) || [];
-    if (user && (activeRole === "client" || roles.includes("client"))) {
-      router.push("/portal/dashboard");
-      router.refresh();
-    } else {
+      if (error || !user) {
+        setStatus("login");
+        return;
+      }
+
+      const activeRole = user.user_metadata?.active_role || user.user_metadata?.role;
+      const roles = (user.user_metadata?.roles as string[]) || [];
+      if (activeRole === "client" || roles.includes("client")) {
+        router.push("/portal/dashboard");
+        router.refresh();
+      } else {
+        setStatus("login");
+      }
+    } catch {
       setStatus("login");
     }
   };
