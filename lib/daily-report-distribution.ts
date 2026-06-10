@@ -80,7 +80,7 @@ export async function distributeDailyReport(reportId: string): Promise<Distribut
   for (let i = 0; i < clients.length; i += batchSize) {
     const batch = clients.slice(i, i + batchSize);
     const emails = batch.map(client => ({
-      from: `Greybark Advisors <pmartinez@greybark.com>`,
+      from: `Global <${process.env.SENDER_EMAIL || "noreply@global.cl"}>`,
       to: client.email!,
       subject: report.subject,
       html: htmlContent,

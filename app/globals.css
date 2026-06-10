@@ -19,6 +19,17 @@
   --gb-warning: #D97706;
   --gb-danger: #DC2626;
   --gb-info: #2563eb;
+
+  /* Global Landing brand (blue palette from landing.md) */
+  --gl-ink:    #0B2C5E;
+  --gl-deep:   #07203F;
+  --gl-ring:   #14467E;
+  --gl-azure:  #2E86E0;
+  --gl-sky:    #6FB2EF;
+  --gl-paper:  #FBFCFE;
+  --gl-mist:   #EEF3FA;
+  --gl-line:   #DCE7F4;
+  --gl-muted:  #5B6B82;
 }
 
 @theme inline {
@@ -40,6 +51,15 @@
   --color-gb-warning: var(--gb-warning);
   --color-gb-danger: var(--gb-danger);
   --color-gb-info: var(--gb-info);
+  --color-gl-ink: var(--gl-ink);
+  --color-gl-deep: var(--gl-deep);
+  --color-gl-ring: var(--gl-ring);
+  --color-gl-azure: var(--gl-azure);
+  --color-gl-sky: var(--gl-sky);
+  --color-gl-paper: var(--gl-paper);
+  --color-gl-mist: var(--gl-mist);
+  --color-gl-line: var(--gl-line);
+  --color-gl-muted: var(--gl-muted);
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono);
 }

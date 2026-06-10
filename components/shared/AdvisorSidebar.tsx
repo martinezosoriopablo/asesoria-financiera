@@ -28,6 +28,7 @@ import {
   Target,
 } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import GlobalLogo from "@/components/landing/GlobalLogo";
 
 interface AdvisorSidebarProps {
   collapsed: boolean;
@@ -114,69 +115,26 @@ export default function AdvisorSidebar({
         collapsed ? "w-16" : "w-60"
       }`}
     >
-      {/* Logo + Advisor */}
+      {/* Logo */}
       <div className={`border-b border-white/10 shrink-0 ${collapsed ? "px-2 py-4" : "px-5 py-4"}`}>
-        <Link href="/advisor" className="flex items-center gap-3 overflow-hidden">
-          {!collapsed ? (
-            <span className="text-lg text-white tracking-wide" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+        <Link href="/advisor" className="flex items-center gap-2.5 overflow-hidden">
+          <GlobalLogo variant="light" size={collapsed ? 28 : 30} />
+          {!collapsed && (
+            <span className="text-lg text-white tracking-[0.1em] font-medium">
               GLOBAL
-            </span>
-          ) : (
-            <span className="text-lg text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
-              G
             </span>
           )}
         </Link>
-        {!collapsed && advisorName && (
-          <div className="mt-3 flex items-center gap-2.5">
-            {advisorPhoto ? (
-              <Image
-                src={advisorPhoto}
-                alt={advisorName}
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20 shrink-0"
-                width={32}
-                height={32}
-                unoptimized
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold shrink-0">
-                {initials}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white leading-tight truncate">
-                {advisorName}
-              </div>
-              <div className="text-[11px] text-slate-400 leading-tight truncate">
-                {advisorEmail}
-              </div>
-            </div>
+        {!collapsed && (
+          <div className="mt-2 flex items-center justify-between">
             <div className="shrink-0 [&_button]:text-slate-400 [&_button]:hover:text-white [&_button]:hover:bg-gb-sidebar-hover">
               <NotificationBell />
             </div>
           </div>
         )}
-        {collapsed && advisorName && (
-          <div className="mt-3 space-y-2">
-            <div className="flex justify-center">
-              {advisorPhoto ? (
-                <Image
-                  src={advisorPhoto}
-                  alt={advisorName}
-                  className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20"
-                  width={32}
-                  height={32}
-                  unoptimized
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold">
-                  {initials}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-center [&_button]:text-slate-400 [&_button]:hover:text-white [&_button]:hover:bg-gb-sidebar-hover">
-              <NotificationBell />
-            </div>
+        {collapsed && (
+          <div className="mt-2 flex justify-center [&_button]:text-slate-400 [&_button]:hover:text-white [&_button]:hover:bg-gb-sidebar-hover">
+            <NotificationBell />
           </div>
         )}
       </div>
@@ -250,8 +208,54 @@ export default function AdvisorSidebar({
         </div>
       </nav>
 
-      {/* Bottom section: settings + collapse */}
+      {/* Bottom section: advisor info + settings + collapse */}
       <div className="border-t border-white/10 px-2 py-2 space-y-1">
+        {/* Advisor info */}
+        {!collapsed && advisorName && (
+          <div className="flex items-center gap-2.5 px-3 py-2">
+            {advisorPhoto ? (
+              <Image
+                src={advisorPhoto}
+                alt={advisorName}
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20 shrink-0"
+                width={32}
+                height={32}
+                unoptimized
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold shrink-0">
+                {initials}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-white leading-tight truncate">
+                {advisorName}
+              </div>
+              <div className="text-[11px] text-slate-400 leading-tight truncate">
+                {advisorEmail}
+              </div>
+            </div>
+          </div>
+        )}
+        {collapsed && advisorName && (
+          <div className="flex justify-center py-1">
+            {advisorPhoto ? (
+              <Image
+                src={advisorPhoto}
+                alt={advisorName}
+                className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20"
+                width={32}
+                height={32}
+                unoptimized
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-semibold">
+                {initials}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Settings menu */}
         <div className="relative">
           <button

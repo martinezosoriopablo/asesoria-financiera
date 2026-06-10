@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
         new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", minimumFractionDigits: 0 }).format(n);
 
       await resend.emails.send({
-        from: `${advisor.company_name || "Asesoría Financiera"} <${process.env.RESEND_FROM_EMAIL || "noreply@greybark.com"}>`,
+        from: `${advisor.company_name || "Global"} <${process.env.RESEND_FROM_EMAIL || "noreply@global.cl"}>`,
         to: client.email,
         subject: `Reporte de portafolio — ${new Date().toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`,
         html: `

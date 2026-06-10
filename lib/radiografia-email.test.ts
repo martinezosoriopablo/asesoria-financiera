@@ -29,7 +29,7 @@ function makeData(overrides: Partial<RadiografiaEmailData> = {}): RadiografiaEma
       { severity: "media", text: "Top 3 = 53% del portafolio" },
     ],
     narrative: null,
-    platformUrl: "https://app.greybark.cl",
+    platformUrl: "https://app.global.cl",
     ...overrides,
   };
 }
@@ -97,7 +97,7 @@ describe("buildRadiografiaHTML", () => {
 
   it("includes footer with platform link", () => {
     const html = buildRadiografiaHTML(makeData());
-    expect(html).toContain("https://app.greybark.cl");
+    expect(html).toContain("https://app.global.cl");
     expect(html).toContain("no constituye recomendacion");
   });
 

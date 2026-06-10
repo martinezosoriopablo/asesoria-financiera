@@ -19,6 +19,7 @@ import {
   Search,
   User,
 } from "lucide-react";
+import GlobalLogo from "@/components/landing/GlobalLogo";
 
 interface PortalSidebarProps {
   collapsed: boolean;
@@ -115,14 +116,11 @@ export default function PortalSidebar({
     >
       {/* Logo + Client info */}
       <div className={`border-b border-white/10 shrink-0 ${collapsed ? "px-2 py-4" : "px-5 py-4"}`}>
-        <Link href="/portal/bienvenida" className="flex items-center gap-3 overflow-hidden">
-          {!collapsed ? (
-            <span className="text-lg text-white tracking-wide" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+        <Link href="/portal/bienvenida" className="flex items-center gap-2.5 overflow-hidden">
+          <GlobalLogo variant="light" size={collapsed ? 28 : 30} />
+          {!collapsed && (
+            <span className="text-lg text-white tracking-[0.1em] font-medium">
               GLOBAL
-            </span>
-          ) : (
-            <span className="text-lg text-white" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
-              G
             </span>
           )}
         </Link>

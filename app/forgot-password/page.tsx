@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Mail, Loader, AlertCircle, CheckCircle, ArrowLeft } from "lucide-react";
+import GlobalLogo from "@/components/landing/GlobalLogo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -69,7 +70,9 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <span className="text-3xl text-gb-black tracking-wide uppercase inline-block mb-6" style={{ fontFamily: "'Archivo Black', sans-serif" }}>GLOBAL</span>
+          <div className="flex justify-center mb-6">
+            <GlobalLogo size={48} />
+          </div>
           <h1 className="text-xl font-semibold text-gb-black">
             Recuperar contraseña
           </h1>

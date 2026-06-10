@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Global",
-  description: "Tu equipo financiero completo",
+  description: "Asesoria de inversiones independiente",
 };
 
 export default function RootLayout({

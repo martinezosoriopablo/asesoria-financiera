@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Lock, Mail, Loader, AlertCircle, Eye, EyeOff } from "lucide-react";
+import GlobalLogo from "@/components/landing/GlobalLogo";
 
 function LoginForm() {
   const router = useRouter();
@@ -44,33 +45,42 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel — branding + photo */}
-      <div className="hidden lg:flex lg:w-1/2 relative">
+      {/* Left panel — brand gradient */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-[#07203F]">
+        {/* Mesh gradient */}
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 opacity-40"
           style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1920&q=80')",
+            background:
+              "radial-gradient(ellipse 80% 60% at 70% 40%, #14467E 0%, transparent 70%), radial-gradient(ellipse 60% 50% at 20% 80%, #2E86E0 0%, transparent 60%)",
           }}
         />
-        <div className="absolute inset-0 bg-black/60" />
+        {/* Grid pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+            backgroundSize: "60px 60px",
+          }}
+        />
         <div className="relative flex flex-col justify-between w-full p-12">
-          <span
-            className="text-2xl tracking-[0.15em] text-white"
-            style={{ fontFamily: "'Archivo Black', sans-serif" }}
-          >
-            GLOBAL
-          </span>
+          <div className="flex items-center gap-3">
+            <GlobalLogo variant="light" size={44} />
+            <span className="text-2xl tracking-[0.12em] text-white font-medium">
+              GLOBAL
+            </span>
+          </div>
           <div>
-            <h2 className="text-3xl font-bold text-white mb-4 leading-tight">
-              Tu equipo financiero completo
+            <h2 className="text-3xl font-light text-white mb-4 leading-tight">
+              Mas de 25 anos de <span className="text-[#6FB2EF]">experiencia</span>
             </h2>
-            <p className="text-white/60 text-sm leading-relaxed max-w-md">
-              Asesoria de inversiones, seguros internacionales, planificacion
-              tributaria y soluciones inmobiliarias.
+            <p className="text-white/50 text-sm leading-relaxed max-w-md">
+              Asesoria de inversiones independiente, sin conflictos de interes.
+              Nuestro foco es construir relaciones duraderas y de largo plazo.
             </p>
           </div>
-          <p className="text-white/30 text-xs">
+          <p className="text-white/25 text-xs">
             &copy; 2026 GLOBAL. Todos los derechos reservados.
           </p>
         </div>
@@ -81,16 +91,13 @@ function LoginForm() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="text-center mb-10">
-            <span
-              className="text-2xl tracking-[0.15em] text-gb-black lg:hidden"
-              style={{ fontFamily: "'Archivo Black', sans-serif" }}
-            >
-              GLOBAL
-            </span>
-            <h1 className="text-xl font-semibold text-gb-black mt-2 lg:mt-0">
+            <div className="flex justify-center lg:hidden mb-4">
+              <GlobalLogo size={56} />
+            </div>
+            <h1 className="text-2xl font-semibold text-[#0B2C5E] mt-2 lg:mt-0">
               Iniciar sesion
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-[#5B6B82] mt-1.5">
               Ingresa con tus credenciales
             </p>
           </div>
@@ -104,42 +111,42 @@ function LoginForm() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gb-black mb-1.5">
+              <label className="block text-sm font-medium text-[#0B2C5E] mb-1.5">
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B6B82]" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@empresa.com"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gb-black/20 focus:border-gb-black transition-colors"
+                  className="w-full pl-10 pr-4 py-2.5 border border-[#DCE7F4] rounded-lg text-sm focus:ring-2 focus:ring-[#2E86E0]/20 focus:border-[#2E86E0] transition-colors"
                   disabled={loading}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gb-black mb-1.5">
+              <label className="block text-sm font-medium text-[#0B2C5E] mb-1.5">
                 Contraseña
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B6B82]" />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Tu contraseña"
-                  className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-gb-black/20 focus:border-gb-black transition-colors"
+                  className="w-full pl-10 pr-10 py-2.5 border border-[#DCE7F4] rounded-lg text-sm focus:ring-2 focus:ring-[#2E86E0]/20 focus:border-[#2E86E0] transition-colors"
                   disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gb-black transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5B6B82] hover:text-[#0B2C5E] transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -150,7 +157,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-gb-black text-white text-sm font-medium rounded-lg hover:bg-gb-dark disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+              className="w-full py-2.5 bg-[#0B2C5E] text-white text-sm font-medium rounded-lg hover:bg-[#07203F] disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
             >
               {loading ? (
                 <>
@@ -165,14 +172,14 @@ function LoginForm() {
             <div className="text-center">
               <Link
                 href="/forgot-password"
-                className="text-sm text-gray-500 hover:text-gb-black transition-colors"
+                className="text-sm text-[#5B6B82] hover:text-[#2E86E0] transition-colors"
               >
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
           </form>
 
-          <p className="text-center text-xs text-gray-400 mt-10">
+          <p className="text-center text-xs text-[#5B6B82]/60 mt-10">
             GLOBAL — Plataforma de Asesoria Financiera
           </p>
         </div>
@@ -183,7 +190,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader className="w-5 h-5 animate-spin text-gb-gray" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader className="w-5 h-5 animate-spin text-[#5B6B82]" /></div>}>
       <LoginForm />
     </Suspense>
   );

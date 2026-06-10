@@ -406,7 +406,7 @@ El cliente ya tiene una cartera de inversiones que debemos analizar y comparar c
   };
   const bandaDescripcion = bandDescriptions[benchmark.band] || "moderado";
 
-  return `Eres un asesor financiero de Greybark Research. Tu tarea es generar una cartera de inversión personalizada para un cliente.
+  return `Eres un asesor financiero de Global. Tu tarea es generar una cartera de inversión personalizada para un cliente.
 
 IMPORTANTE: El cliente NO es un especialista en finanzas. Debes explicar todo en lenguaje simple y educativo, como si le explicaras a alguien que recién comienza a invertir.
 

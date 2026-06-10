@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home, FileText, FileUp, Lock, ArrowRightLeft, Briefcase } from "lucide-react";
+import GlobalLogo from "@/components/landing/GlobalLogo";
 
 interface PortalTopbarProps {
   clientName: string;
@@ -79,7 +80,8 @@ export default function PortalTopbar({ clientName, clientEmail, unreadCount = 0,
       <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
         {/* Logo */}
         <Link href="/portal/bienvenida" className="flex items-center gap-2">
-          <span className="text-lg text-gb-black tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>GLOBAL</span>
+          <GlobalLogo size={28} />
+          <span className="text-lg text-[#0B2C5E] tracking-[0.1em] font-medium">GLOBAL</span>
         </Link>
 
         {/* Desktop nav */}

@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       emailSubject = "Tu portal de inversiones está listo";
       emailBody = `
         <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
-          Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
+          Tu asesor financiero te ha dado acceso al portal de inversiones de Global.
         </p>
         <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
           Puedes acceder con tu email y contraseña actual. Si no recuerdas tu contraseña, usa la opción "Olvidé mi contraseña" en la página de inicio de sesión.
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
       emailSubject = "Tu portal de inversiones está listo — define tu contraseña";
       emailBody = `
         <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 8px;">
-          Tu asesor financiero te ha dado acceso al portal de inversiones de Greybark Advisors.
+          Tu asesor financiero te ha dado acceso al portal de inversiones de Global.
         </p>
         <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
           Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
@@ -175,17 +175,17 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Enviar email via Resend
-    const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
+    const senderEmail = process.env.SENDER_EMAIL || "noreply@global.cl";
     let emailSent = false;
     let emailError: string | null = null;
 
     const { data: emailData, error: resendError } = await resend.emails.send({
-      from: `Greybark Advisors <${senderEmail}>`,
+      from: `Global <${senderEmail}>`,
       to: client.email,
       subject: emailSubject,
       html: `
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <img src="${appUrl}/logo-greybark.png" alt="Greybark Advisors" style="height: 40px; margin-bottom: 32px;" />
+          <img src="${appUrl}/logo-global.png" alt="Global" style="height: 40px; margin-bottom: 32px;" />
           <h1 style="font-size: 20px; color: #1a1a1a; margin-bottom: 16px;">
             Hola ${escapeHtml(client.nombre || '')},
           </h1>

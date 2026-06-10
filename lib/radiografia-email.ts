@@ -246,7 +246,7 @@ export function buildRadiografiaHTML(data: RadiografiaEmailData): string {
     <div style="background:#1e293b; color:white; padding:24px 32px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-          <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; margin-bottom:4px; font-family:${FONT};">Greybark Advisors</div>
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; margin-bottom:4px; font-family:${FONT};">Global</div>
           <div style="font-size:20px; font-weight:600; font-family:${FONT};">Radiografia de Cartera</div>
         </div>
         <div style="text-align:right;">
@@ -275,7 +275,7 @@ export function buildRadiografiaHTML(data: RadiografiaEmailData): string {
   const footer = `
     <div style="padding:20px 32px; background:#f8fafc;">
       <div style="font-size:11px; color:#94a3b8; text-align:center; font-family:${FONT};">
-        Greybark Advisors &mdash; Este reporte es informativo y no constituye recomendacion de inversion.
+        Global &mdash; Este reporte es informativo y no constituye recomendacion de inversion.
         <br/>Para ver la radiografia completa, <a href="${escapeHtml(data.platformUrl)}" style="color:#3b82f6; text-decoration:underline;">ingresa a la plataforma</a>.
       </div>
     </div>`;

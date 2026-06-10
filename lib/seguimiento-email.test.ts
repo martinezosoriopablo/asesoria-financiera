@@ -56,7 +56,7 @@ function makeData(overrides: Partial<SeguimientoEmailData> = {}): SeguimientoEma
       { name: "Deposito a Plazo BCI", instrumentType: "DAP", contributionPp: 0.05 },
     ],
     narrative: "El portafolio tuvo un buen desempeno en mayo.\n\nLa renta variable chilena lidero los retornos gracias al rally del IPSA.",
-    platformUrl: "https://app.greybark.cl/seguimiento",
+    platformUrl: "https://app.global.cl/seguimiento",
     ...overrides,
   };
 }
@@ -171,7 +171,7 @@ describe("buildSeguimientoHTML", () => {
     const html = buildSeguimientoHTML(makeData());
     expect(html).toContain("no constituye recomendacion de inversion");
     expect(html).toContain("ingresa a la plataforma");
-    expect(html).toContain("app.greybark.cl");
+    expect(html).toContain("app.global.cl");
     // Exchange rates in footer
     expect(html).toContain("USD");
     expect(html).toContain("UF");

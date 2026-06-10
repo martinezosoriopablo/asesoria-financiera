@@ -46,10 +46,10 @@ export async function POST(request: NextRequest) {
     }
 
     const resend = new Resend(resendKey);
-    const senderEmail = process.env.SENDER_EMAIL || "noreply@greybark.cl";
+    const senderEmail = process.env.SENDER_EMAIL || "noreply@global.cl";
 
     const { data: emailResult, error: emailError } = await resend.emails.send({
-      from: `Greybark Advisors <${senderEmail}>`,
+      from: `Global <${senderEmail}>`,
       to: recipientEmail,
       subject: subject || "Reporte de Seguimiento",
       html,

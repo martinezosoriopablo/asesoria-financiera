@@ -127,7 +127,7 @@ export default function AdvisorHeader({
                   unoptimized
                 />
               ) : (
-                <span className="text-xl text-gb-black tracking-wide uppercase" style={{ fontFamily: "'Archivo Black', sans-serif" }}>
+                <span className="text-xl text-[#0B2C5E] tracking-[0.1em] font-medium">
                   GLOBAL
                 </span>
               )}
