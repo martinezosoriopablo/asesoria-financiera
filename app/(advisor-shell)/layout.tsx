@@ -38,7 +38,7 @@ export default function AdvisorShellLayout({ children }: { children: React.React
         onToggleCollapse={toggleSidebar}
         advisorName={advisor.name}
         advisorEmail={advisor.email}
-        advisorPhoto={advisor.photo}
+        advisorPhoto={advisor.photo ?? undefined}
         isAdmin={advisor.isAdmin}
         hasClientRole={advisor.hasClientRole}
       />

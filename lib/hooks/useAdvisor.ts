@@ -10,7 +10,7 @@ interface AdvisorInfo {
   id: string;
   email: string;
   name: string;
-  photo: string;
+  photo: string | null;
   logo?: string | null;
   companyName?: string | null;
   role: AdvisorRole;
@@ -49,9 +49,7 @@ export function useAdvisor() {
               name: data
                 ? `${data.nombre} ${data.apellido}`
                 : user.email!,
-              photo:
-                data?.foto_url ||
-                "https://zysotxkelepvotzujhxe.supabase.co/storage/v1/object/public/assets/foto.png",
+              photo: data?.foto_url || null,
               logo: data?.logo_url || null,
               companyName: data?.company_name || null,
               role,

@@ -49,6 +49,9 @@ export default function AdvisorProfilePage() {
   if (!advisor) return null;
 
   const photoUrl = advisor.photo;
+  const initials = profile
+    ? `${profile.nombre?.[0] || ""}${profile.apellido?.[0] || ""}`.toUpperCase()
+    : advisor.name?.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
 
   const fetchProfile = async () => {
     try {
@@ -196,14 +199,20 @@ export default function AdvisorProfilePage() {
           <div className="bg-gb-black px-8 py-10">
             <div className="flex items-center gap-6">
               <div className="relative">
-                <Image
-                  src={photoUrl}
-                  alt={`${profile.nombre} ${profile.apellido}`}
-                  className="w-20 h-20 rounded-full border-3 border-white object-cover"
-                  width={80}
-                  height={80}
-                  unoptimized
-                />
+                {photoUrl ? (
+                  <Image
+                    src={photoUrl}
+                    alt={`${profile.nombre} ${profile.apellido}`}
+                    className="w-20 h-20 rounded-full border-3 border-white object-cover"
+                    width={80}
+                    height={80}
+                    unoptimized
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full border-3 border-white bg-gb-primary text-white flex items-center justify-center text-2xl font-semibold">
+                    {initials}
+                  </div>
+                )}
                 <button className="absolute bottom-0 right-0 w-7 h-7 bg-white rounded-full flex items-center justify-center border border-gb-border hover:bg-gb-light transition-colors">
                   <Camera className="w-3.5 h-3.5 text-gb-gray" />
                 </button>
