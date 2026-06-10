@@ -46,7 +46,7 @@ export default function Navbar() {
               Proceso
             </a>
             <Link
-              href="/login"
+              href="/portal/login"
               className="px-5 py-2.5 text-sm font-medium border border-gl-line rounded-full text-gl-ink hover:bg-gl-mist transition-colors"
               style={{ fontFamily: "var(--font-body)" }}
             >
@@ -85,7 +85,7 @@ export default function Navbar() {
             Proceso
           </a>
           <div className="flex gap-2 pt-2">
-            <Link href="/login" className="flex-1 text-center px-4 py-2.5 text-sm font-medium border border-gl-line rounded-full text-gl-ink">
+            <Link href="/portal/login" className="flex-1 text-center px-4 py-2.5 text-sm font-medium border border-gl-line rounded-full text-gl-ink">
               Clientes
             </Link>
             <Link href="/login" className="flex-1 text-center px-4 py-2.5 text-sm font-medium bg-gl-ink text-white rounded-full">
