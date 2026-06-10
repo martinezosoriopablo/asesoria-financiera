@@ -17,6 +17,7 @@ import {
   ArrowRightLeft,
   Lock,
   Search,
+  User,
 } from "lucide-react";
 
 interface PortalSidebarProps {
@@ -204,6 +205,25 @@ export default function PortalSidebar({
 
       {/* Bottom section */}
       <div className="border-t border-white/10 px-2 py-2 space-y-1">
+        {/* Profile */}
+        <Link
+          href="/portal/perfil"
+          title={collapsed ? "Mi Perfil" : undefined}
+          className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors relative group ${
+            collapsed ? "justify-center px-2" : ""
+          } ${pathname === "/portal/perfil" ? "text-white bg-gb-sidebar-hover" : "text-slate-400 hover:text-slate-200 hover:bg-gb-sidebar-hover"}`}
+        >
+          <User className="w-[18px] h-[18px] shrink-0" />
+          {!collapsed && (
+            <span className="text-sm font-medium">Mi Perfil</span>
+          )}
+          {collapsed && (
+            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-gb-dark text-white text-xs font-medium rounded-md whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+              Mi Perfil
+            </div>
+          )}
+        </Link>
+
         {/* Change password */}
         <Link
           href="/portal/cambiar-password"
