@@ -18,6 +18,21 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const checkSession = async () => {
       const supabase = createSupabaseBrowserClient();
+
+      // If there's a code in the URL (PKCE flow), exchange it first
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          setError("El enlace ha expirado o es inválido. Por favor solicita uno nuevo.");
+          setCheckingSession(false);
+          return;
+        }
+        // Clean URL after exchange
+        window.history.replaceState({}, "", "/reset-password");
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
