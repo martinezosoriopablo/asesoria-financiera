@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import PortalSidebar from "@/components/portal/PortalSidebar";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
 import { Loader } from "lucide-react";
 
 // Pages that should NOT show the sidebar (auth/setup pages)
@@ -88,7 +89,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <div
         className={`${sidebarCollapsed ? "pl-16" : "pl-60"} min-h-screen flex flex-col transition-all duration-200`}
       >
-        <main className="flex-1">{children}</main>
+        <main className="flex-1"><ErrorBoundary>{children}</ErrorBoundary></main>
       </div>
     </div>
   );

@@ -7,7 +7,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   Home,
   LayoutDashboard,
-  LineChart,
   Briefcase,
   FileText,
   FileUp,
@@ -33,7 +32,6 @@ interface PortalSidebarProps {
 const NAV_ITEMS = [
   { href: "/portal/bienvenida", label: "Inicio", icon: Home },
   { href: "/portal/dashboard", label: "Mi Portafolio", icon: LayoutDashboard },
-  { href: "/portal/seguimiento", label: "Seguimiento", icon: LineChart },
   { href: "/portal/radiografia", label: "Radiografia", icon: Search },
   { href: "/portal/mis-servicios", label: "Mis Servicios", icon: Briefcase },
   { href: "/portal/reportes", label: "Reportes", icon: FileText, badgeKey: "reports" as const },

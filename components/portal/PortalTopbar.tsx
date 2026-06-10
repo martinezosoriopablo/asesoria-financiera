@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home, FileText, FileUp, Lock, ArrowRightLeft, LineChart, Briefcase } from "lucide-react";
+import { LogOut, Menu, X, MessageSquare, LayoutDashboard, Home, FileText, FileUp, Lock, ArrowRightLeft, Briefcase } from "lucide-react";
 
 interface PortalTopbarProps {
   clientName: string;
@@ -17,7 +17,6 @@ interface PortalTopbarProps {
 const tabs = [
   { label: "Inicio", href: "/portal/bienvenida", icon: Home },
   { label: "Mi Portafolio", href: "/portal/dashboard", icon: LayoutDashboard },
-  { label: "Seguimiento", href: "/portal/seguimiento", icon: LineChart },
   { label: "Mis Servicios", href: "/portal/mis-servicios", icon: Briefcase },
   { label: "Reportes", href: "/portal/reportes", icon: FileText, badgeKey: "reports" as const },
   { label: "Mis Cartolas", href: "/portal/mis-cartolas", icon: FileUp },
