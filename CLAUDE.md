@@ -78,7 +78,8 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 **Unified price service** (`lib/prices/`): Single-thermometer architecture that routes any holding to its correct price source. Key files:
 - `types.ts` — `PriceSource`, `HoldingForPricing`, `BenchmarkComponent`, `DailyPrice`
-- `price-service.ts` — `resolveSource()` (pure routing: FX→bcch, RUN→cmf, CFIETF/CFI→yahoo, CUSIP-bond→finra, US/INT→alphavantage, .SN→yahoo, fallback→cmf), `fetchPriceRange()`, `fetchLatestPrice()`, DB ops for `international_prices` table, `backfillSymbol()`
+- `price-service.ts` — `resolveSource()` (pure routing: FX→bcch, RUN→cmf, CFIETF/CFI→yahoo, Chilean ADR→cl-adr, CUSIP en INTL_FUND_MAP→eodhd/yahoo, CUSIP-bond→finra, market CL→yahoo(.SN), US/INT→alphavantage, .SN→yahoo, fallback→cmf), `fetchPriceRange()`, `fetchLatestPrice()`, DB ops for `international_prices` table, `backfillSymbol()`
+- `price-service.ts` — `INTL_FUND_MAP`: Mapeo CUSIP→fuente para fondos UCITS internacionales (Raymond James). Cada entry tiene `eodhd` (ISIN.EUFUND) y/o `yahoo` (Morningstar ID) + `currency`. EODHD es primario con circuit breaker (18 calls/día), Yahoo es fallback automático. Fondos: DWS LatAm (L2R330245→0P0000XBML), BNY Mellon HY (G1R06N212→0P00019BP0), Jupiter Merian (G6016L337→0P00000ICR), UBAM (L9381G101→0P00000AZP).
 - `alphavantage.ts` — AlphaVantage client (daily prices + quotes). Env: `ALPHAVANTAGE_API_KEY`.
 - `yahoo.ts` — Yahoo Finance wrapper (historical + quotes) using raw v8 API (NOT the `yahoo-finance2` library which switched to v3).
 - `eodhd.ts` — EODHD client for additional price data. Env: `EODHD_API_KEY`.
@@ -89,7 +90,7 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 - `GET /api/prices/historical` — Historical range for a symbol
 - `GET /api/benchmark/config` + `PUT /api/benchmark/config` — Per-client benchmark configuration (stored in `clients.benchmark_config` JSONB)
 - `POST /api/portfolio/historical-prices` — Dot-product portfolio evolution: accepts `holdings` (by RUN), `holdingsByName` (name-matching), and `internationalHoldings` (Yahoo/AV). Processes international holdings in parallel via `Promise.allSettled`. Requires ≥50% of instruments to have data per date (not all).
-- `POST /api/portfolio/prices-at-date` — Per-holding prices at two dates for return calculation. On-demand Yahoo/AV fallback when `international_prices` DB is empty.
+- `POST /api/portfolio/prices-at-date` — Per-holding prices at two dates for return calculation. On-demand Yahoo/AV fallback when `international_prices` DB is empty. **CRÍTICO: holdings internacionales (resueltos a EODHD/Yahoo/AV por `resolveSource`) NUNCA deben caer al fallback de name-matching de fondos chilenos (`getChileanFundPriceByName`). El guard `isInternational` lo impide. Sin él, un fondo USD como "DWS Invest Latin American" matchea un fondo chileno CLP y produce retornos absurdos (~9900%). NUNCA eliminar este guard.**
 
 **Seguimiento API filters:** The `GET /api/clients/[id]/seguimiento` route excludes `source=api-prices` snapshots to avoid polluting manual cartola tracking with auto-generated price snapshots.
 
