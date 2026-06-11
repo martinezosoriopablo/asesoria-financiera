@@ -458,20 +458,21 @@ export default function ComiteReportsPanel() {
               className="flex-1 px-3 py-1.5 text-sm border border-gb-border rounded-lg focus:ring-1 focus:ring-gb-accent focus:border-transparent"
               autoFocus
             />
-            <label className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-              customLabel.trim() ? "bg-gb-accent text-white hover:bg-gb-dark" : "bg-gray-200 text-gray-400 pointer-events-none"
-            }`}>
-              <Upload className="w-3 h-3 inline mr-1" />
+            <button
+              onClick={() => customFileRef.current?.click()}
+              disabled={!customLabel.trim()}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-gb-accent text-white rounded-lg hover:bg-gb-dark disabled:opacity-50 disabled:pointer-events-none transition-colors"
+            >
+              <Upload className="w-3 h-3" />
               Subir HTML
-              <input
-                ref={customFileRef}
-                type="file"
-                accept=".html,.htm,text/html"
-                onChange={handleCustomFileChange}
-                className="hidden"
-                disabled={!customLabel.trim()}
-              />
-            </label>
+            </button>
+            <input
+              ref={customFileRef}
+              type="file"
+              accept=".html,.htm,text/html"
+              onChange={handleCustomFileChange}
+              className="sr-only"
+            />
             <button
               onClick={() => { setShowAddForm(false); setCustomLabel(""); }}
               className="p-1.5 text-gb-gray hover:text-gb-black transition-colors"
