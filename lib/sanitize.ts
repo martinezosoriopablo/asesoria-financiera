@@ -37,11 +37,13 @@ const ALLOWED_TAGS = new Set([
   "a", "img",
   "blockquote", "pre", "code",
   "caption", "col", "colgroup",
+  "style", "section", "article", "header", "footer", "nav", "main",
+  "figure", "figcaption", "details", "summary", "mark", "small", "sup", "sub",
 ]);
 
 /** Tags whose content (including children) should be removed entirely. */
 const STRIP_WITH_CONTENT = new Set([
-  "script", "style", "iframe", "embed", "object", "form",
+  "script", "iframe", "embed", "object", "form",
   "applet", "base", "link", "meta",
 ]);
 
@@ -130,8 +132,11 @@ function sanitizeAttributes(tag: string, attrsStr: string): string {
     // Block all event handlers (on*)
     if (attrName.startsWith("on")) continue;
 
-    // Block style attribute (can contain expressions in some browsers)
-    if (attrName === "style") continue;
+    // Allow style attribute (content is rendered inside sandboxed iframe)
+    if (attrName === "style") {
+      parts.push(` style="${escapeAttrValue(attrValue)}"`);
+      continue;
+    }
 
     // Handle href on <a>
     if (attrName === "href") {
