@@ -223,25 +223,52 @@ export default function ComiteReportsPanel() {
     }
   };
 
-  const pendingCustomSlug = useRef<string | null>(null);
+  const customFileRef = useRef<HTMLInputElement>(null);
 
-  const handleAddCustomReport = () => {
-    if (!customLabel.trim()) return;
+  const handleCustomFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     const slug = customLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
     if (!slug) return;
-    pendingCustomSlug.current = slug;
-    setSelectedType(slug);
-    setShowAddForm(false);
-    setCustomLabel("");
-  };
 
-  // Open file dialog after selectedType is set from custom report
-  useEffect(() => {
-    if (pendingCustomSlug.current && selectedType === pendingCustomSlug.current) {
-      pendingCustomSlug.current = null;
-      setTimeout(() => fileInputRef.current?.click(), 50);
+    setUploading(slug);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", slug);
+
+      const res = await fetch("/api/comite/upload", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (data.success) {
+        setReports((prev) => [
+          ...prev,
+          {
+            id: slug,
+            type: slug,
+            label: customLabel.trim(),
+            icon: FileText,
+            uploaded: true,
+            filename: file.name,
+            uploadedAt: new Date().toISOString(),
+            isCustom: true,
+          },
+        ]);
+        setLastUpdate(new Date().toISOString());
+        setShowAddForm(false);
+        setCustomLabel("");
+      } else {
+        setError(data.error || "Error al subir el archivo");
+      }
+    } catch {
+      setError("Error de conexión al subir el archivo");
+    } finally {
+      setUploading(null);
+      if (customFileRef.current) customFileRef.current.value = "";
     }
-  }, [selectedType]);
+  };
 
   const handleViewReport = (type: string) => {
     window.open(`/reporte-comite/${encodeURIComponent(type)}`, "_blank");
@@ -429,16 +456,22 @@ export default function ComiteReportsPanel() {
               onChange={(e) => setCustomLabel(e.target.value)}
               placeholder="Nombre del informe"
               className="flex-1 px-3 py-1.5 text-sm border border-gb-border rounded-lg focus:ring-1 focus:ring-gb-accent focus:border-transparent"
-              onKeyDown={(e) => e.key === "Enter" && handleAddCustomReport()}
               autoFocus
             />
-            <button
-              onClick={handleAddCustomReport}
-              disabled={!customLabel.trim()}
-              className="px-3 py-1.5 text-xs font-medium bg-gb-accent text-white rounded-lg hover:bg-gb-dark disabled:opacity-50 transition-colors"
-            >
-              Subir
-            </button>
+            <label className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+              customLabel.trim() ? "bg-gb-accent text-white hover:bg-gb-dark" : "bg-gray-200 text-gray-400 pointer-events-none"
+            }`}>
+              <Upload className="w-3 h-3 inline mr-1" />
+              Subir HTML
+              <input
+                ref={customFileRef}
+                type="file"
+                accept=".html,.htm,text/html"
+                onChange={handleCustomFileChange}
+                className="hidden"
+                disabled={!customLabel.trim()}
+              />
+            </label>
             <button
               onClick={() => { setShowAddForm(false); setCustomLabel(""); }}
               className="p-1.5 text-gb-gray hover:text-gb-black transition-colors"
