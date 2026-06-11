@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { supabaseBrowserClient } from "@/lib/supabase/supabaseClient";
-import MonthlyReportSection from "@/components/seguimiento/MonthlyReportSection";
 import {
   getBenchmarkFromScore,
   AssetAllocation,
@@ -117,9 +116,6 @@ export default function DashboardPage() {
             estratégico sugerido para tus inversiones.
           </p>
         </header>
-
-        {/* Reporte Mensual de Mercados */}
-        <MonthlyReportSection />
 
         {/* Buscador por email */}
         <section className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 mb-6">

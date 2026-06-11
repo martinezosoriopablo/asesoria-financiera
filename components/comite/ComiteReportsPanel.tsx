@@ -48,8 +48,6 @@ export default function ComiteReportsPanel() {
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [viewingReport, setViewingReport] = useState<{ type: string; label: string; content: string; title: string } | null>(null);
-  const [loadingView, setLoadingView] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [customLabel, setCustomLabel] = useState("");
@@ -225,38 +223,28 @@ export default function ComiteReportsPanel() {
     }
   };
 
+  const pendingCustomSlug = useRef<string | null>(null);
+
   const handleAddCustomReport = () => {
     if (!customLabel.trim()) return;
     const slug = customLabel.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
     if (!slug) return;
+    pendingCustomSlug.current = slug;
     setSelectedType(slug);
     setShowAddForm(false);
     setCustomLabel("");
-    setTimeout(() => {
-      fileInputRef.current?.click();
-    }, 0);
   };
 
-  const handleViewReport = async (type: string, label: string) => {
-    setLoadingView(type);
-    try {
-      const res = await fetch(`/api/comite/${type}`);
-      const data = await res.json();
-      if (data.success && data.report) {
-        setViewingReport({
-          type,
-          label,
-          content: data.report.content,
-          title: data.report.title || label,
-        });
-      } else {
-        setError(data.error || "Error al cargar el reporte");
-      }
-    } catch {
-      setError("Error de conexión al cargar el reporte");
-    } finally {
-      setLoadingView(null);
+  // Open file dialog after selectedType is set from custom report
+  useEffect(() => {
+    if (pendingCustomSlug.current && selectedType === pendingCustomSlug.current) {
+      pendingCustomSlug.current = null;
+      setTimeout(() => fileInputRef.current?.click(), 50);
     }
+  }, [selectedType]);
+
+  const handleViewReport = (type: string) => {
+    window.open(`/reporte-comite/${encodeURIComponent(type)}`, "_blank");
   };
 
   const fetchActiveModels = useCallback(async () => {
@@ -380,17 +368,13 @@ export default function ComiteReportsPanel() {
                 <Loader className="w-4 h-4 text-gb-accent animate-spin" />
               ) : report.uploaded ? (
                 <div className="flex items-center gap-2">
-                  {loadingView === report.type ? (
-                    <Loader className="w-3 h-3 text-gb-accent animate-spin" />
-                  ) : (
-                    <button
-                      onClick={() => handleViewReport(report.type, report.label)}
-                      className="flex items-center gap-1 text-xs font-medium text-gb-accent hover:text-gb-dark transition-colors"
-                    >
-                      <Eye className="w-3 h-3" />
-                      Ver
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleViewReport(report.type)}
+                    className="flex items-center gap-1 text-xs font-medium text-gb-accent hover:text-gb-dark transition-colors"
+                  >
+                    <Eye className="w-3 h-3" />
+                    Ver
+                  </button>
                   <button
                     onClick={() => handleUploadClick(report.type)}
                     className="flex items-center gap-1 text-xs text-gb-gray hover:text-gb-accent transition-colors"
@@ -672,32 +656,6 @@ export default function ComiteReportsPanel() {
         )}
       </div>
 
-      {/* Modal para ver reporte */}
-      {viewingReport && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-gb-border">
-              <h3 className="text-lg font-semibold text-gb-black">
-                {viewingReport.title}
-              </h3>
-              <button
-                onClick={() => setViewingReport(null)}
-                className="p-1.5 hover:bg-gb-light rounded-md transition-colors"
-              >
-                <X className="w-5 h-5 text-gb-gray" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <iframe
-                srcDoc={viewingReport.content}
-                className="w-full h-full min-h-[70vh] border-0"
-                title={viewingReport.title}
-                sandbox="allow-same-origin"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
