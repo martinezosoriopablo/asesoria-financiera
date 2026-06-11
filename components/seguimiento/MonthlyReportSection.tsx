@@ -8,11 +8,18 @@ interface Props {
   currentMonth?: string;
 }
 
+/** Get current month as YYYY-MM */
+function getCurrentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default function MonthlyReportSection({ currentMonth }: Props) {
   const [reports, setReports] = useState<Array<{ month: string; title: string }>>([]);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth || "");
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadMonth, setUploadMonth] = useState(getCurrentMonth());
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Fetch available reports list
@@ -42,31 +49,8 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
     try {
       const htmlContent = await file.text();
 
-      // Auto-detect month from filename or HTML content
-      let month = selectedMonth;
-      const filenameMatch = file.name.match(/(\d{4}-\d{2})/);
-      if (filenameMatch) month = filenameMatch[1];
-
-      if (!month) {
-        // Try to detect from HTML title
-        const titleMatch = htmlContent.match(/(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})/i);
-        if (titleMatch) {
-          const monthNames: Record<string, string> = {
-            enero: "01", febrero: "02", marzo: "03", abril: "04",
-            mayo: "05", junio: "06", julio: "07", agosto: "08",
-            septiembre: "09", octubre: "10", noviembre: "11", diciembre: "12",
-          };
-          const mName = titleMatch[0].split(/\s+/)[0].toLowerCase();
-          const mNum = monthNames[mName];
-          if (mNum) month = `${titleMatch[1]}-${mNum}`;
-        }
-      }
-
-      if (!month) {
-        alert("No se pudo detectar el mes. Nombre el archivo como monthly_report_YYYY-MM.html");
-        setUploading(false);
-        return;
-      }
+      // Use the month from the picker (always available)
+      const month = uploadMonth;
 
       const res = await fetch("/api/monthly-reports", {
         method: "POST",
@@ -102,7 +86,7 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Month selector */}
+          {/* View existing reports */}
           {reports.length > 0 && (
             <select
               value={selectedMonth}
@@ -120,7 +104,28 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
             </select>
           )}
 
-          {/* Upload button */}
+          {/* View report link */}
+          {hasReport && (
+            <a
+              href={`/reporte-mensual/${selectedMonth}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gb-primary text-white rounded-md hover:bg-gb-primary/90 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Ver Reporte
+            </a>
+          )}
+
+          <div className="h-4 w-px bg-gb-border" />
+
+          {/* Upload: month picker + file button */}
+          <input
+            type="month"
+            value={uploadMonth}
+            onChange={(e) => setUploadMonth(e.target.value)}
+            className="text-sm border border-gb-border rounded-md px-2 py-1 bg-white"
+          />
           <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gb-border rounded-md hover:bg-slate-50 transition-colors">
             {uploading ? (
               <Loader className="w-3.5 h-3.5 animate-spin" />
@@ -138,19 +143,6 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
               className="hidden"
             />
           </label>
-
-          {/* View report link */}
-          {hasReport && (
-            <a
-              href={`/reporte-mensual/${selectedMonth}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gb-primary text-white rounded-md hover:bg-gb-primary/90 transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Ver Reporte
-            </a>
-          )}
         </div>
       </div>
 
