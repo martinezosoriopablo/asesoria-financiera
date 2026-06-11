@@ -365,6 +365,7 @@ async function getPriceForHolding(
   }
 
   // 3. International instrument (has non-numeric securityId)
+  let isInternational = false;
   if (secId && !/^\d+$/.test(secId)) {
     const resolution = resolveSource({
       securityId: secId,
@@ -374,6 +375,7 @@ async function getPriceForHolding(
       currency: h.currency,
     });
     if (resolution.source !== "cmf") {
+      isInternational = true;
       // For cl-adr, the DB ticker is the original secId + .SN (e.g. GOOGLCL.SN)
       // while resolution.symbol is the US underlying (e.g. GOOGL)
       const dbTicker = resolution.source === "cl-adr"
@@ -410,8 +412,12 @@ async function getPriceForHolding(
   }
 
   // 4. Fallback: Chilean fund by name matching
-  const byName = await getChileanFundPriceByName(h.fundName, targetDate, supabase);
-  if (byName) return { ...byName, currency: h.currency || "CLP" };
+  // NEVER use this for international holdings — a CLP valor_cuota would be
+  // mistaken for a USD NAV, producing wildly wrong returns.
+  if (!isInternational) {
+    const byName = await getChileanFundPriceByName(h.fundName, targetDate, supabase);
+    if (byName) return { ...byName, currency: h.currency || "CLP" };
+  }
 
   return null;
 }

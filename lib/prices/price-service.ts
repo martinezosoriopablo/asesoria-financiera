@@ -37,7 +37,7 @@ interface IntlFundMapping {
 
 const INTL_FUND_MAP: Record<string, IntlFundMapping> = {
   // DWS Invest Latin American Equities A2 USD (cartola CUSIP: L2R330245)
-  L2R330245: { eodhd: "LU0813337184.EUFUND", currency: "USD" },
+  L2R330245: { eodhd: "LU0813337184.EUFUND", yahoo: "0P0000XBML", currency: "USD" },
   // BNY Mellon Global Short-Dated High Yield Bond — W class CUSIP not in Yahoo
   // Using C Acc class on Yahoo as proxy (same fund, different fee class)
   G1R06N212: { eodhd: "IE00BD5CTV53.EUFUND", yahoo: "0P00019BP0", currency: "USD" },
