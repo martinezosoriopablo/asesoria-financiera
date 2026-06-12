@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error("Error saving comite report:", error);
       return NextResponse.json(
-        { success: false, error: "Error al guardar el reporte" },
+        { success: false, error: `Error al guardar el reporte: ${error.message}` },
         { status: 500 }
       );
     }
