@@ -65,11 +65,6 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
         setResult(data);
         setFile(null);
         
-        console.log('✅ Upload exitoso:', {
-          insertados: data.insertados,
-          verificados: data.verificados,
-          errores: data.errores
-        });
         
         // ✅ MEJORADO: Cerrar modal y recargar página COMPLETA
         setTimeout(() => {

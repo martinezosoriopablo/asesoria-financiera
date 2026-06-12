@@ -59,8 +59,6 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
         const data = await response.json();
         
         if (data.success) {
-          // ✅ El API ya retorna solo fondos con datos
-          console.log('📊 Fondos con datos para comparar:', data.fondos.length);
           setFondosDisponibles(data.fondos);
         }
       } catch (error) {

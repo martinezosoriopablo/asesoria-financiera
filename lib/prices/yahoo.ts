@@ -35,7 +35,7 @@ export async function fetchYahooHistorical(
 
     const prices: DailyPrice[] = [];
     for (let i = 0; i < timestamps.length; i++) {
-      if (closes[i] != null) {
+      if (closes[i] != null && isFinite(closes[i]!) && closes[i]! > 0) {
         const date = new Date(timestamps[i] * 1000)
           .toISOString()
           .split("T")[0];
@@ -43,7 +43,8 @@ export async function fetchYahooHistorical(
       }
     }
     return prices.sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
+  } catch (err) {
+    console.warn(`[yahoo] historical fetch error for ${ticker}:`, err instanceof Error ? err.message : err);
     return [];
   }
 }
@@ -77,13 +78,14 @@ export async function fetchYahooQuote(
     const closes: (number | null)[] = result.indicators?.quote?.[0]?.close || [];
 
     for (let i = timestamps.length - 1; i >= 0; i--) {
-      if (closes[i] != null) {
+      if (closes[i] != null && isFinite(closes[i]!) && closes[i]! > 0) {
         const date = new Date(timestamps[i] * 1000).toISOString().split("T")[0];
         return { price: closes[i]!, date };
       }
     }
     return null;
-  } catch {
+  } catch (err) {
+    console.warn(`[yahoo] quote error for ${ticker}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }

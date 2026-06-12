@@ -34,19 +34,18 @@ export interface ScrapeResult {
   queryTimeMs?: number;
 }
 
-const SECURITY_ANSWERS: Record<string, string> = {
-  "high school": "Santiago",
-  city: "Santiago",
-  "first boss": "Martin",
-  supervisor: "Martin",
-  boss: "Martin",
-  "middle name": "Aurora",
-  mother: "Aurora",
-};
+function getSecurityAnswers(): Record<string, string> {
+  const raw = process.env.FINRA_SECURITY_ANSWERS;
+  if (!raw) {
+    throw new Error("FINRA_SECURITY_ANSWERS must be set in .env.local (JSON: {\"keyword\":\"answer\",...})");
+  }
+  return JSON.parse(raw);
+}
 
 function findSecurityAnswer(questionText: string): string | null {
+  const answers = getSecurityAnswers();
   const q = questionText.toLowerCase();
-  for (const [key, answer] of Object.entries(SECURITY_ANSWERS)) {
+  for (const [key, answer] of Object.entries(answers)) {
     if (q.includes(key)) return answer;
   }
   return null;

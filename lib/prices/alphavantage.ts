@@ -36,12 +36,13 @@ export async function fetchDailyPrices(symbol: string): Promise<DailyPrice[]> {
     const prices: DailyPrice[] = [];
     for (const [date, values] of Object.entries(timeSeries)) {
       const close = parseFloat((values as Record<string, string>)["4. close"]);
-      if (!isNaN(close)) {
+      if (isFinite(close) && close > 0) {
         prices.push({ date, price: close });
       }
     }
     return prices.sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
+  } catch (err) {
+    console.warn(`[alphavantage] fetch error for ${symbol}:`, err instanceof Error ? err.message : err);
     return [];
   }
 }
@@ -73,10 +74,11 @@ export async function fetchQuote(
 
     const price = parseFloat(quote["05. price"]);
     const date = quote["07. latest trading day"];
-    if (isNaN(price) || !date) return null;
+    if (!isFinite(price) || price <= 0 || !date) return null;
 
     return { price, date };
-  } catch {
+  } catch (err) {
+    console.warn(`[alphavantage] quote error for ${symbol}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }

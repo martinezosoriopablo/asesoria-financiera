@@ -47,7 +47,7 @@ export async function fetchEodhdHistorical(
     if (!Array.isArray(data) || data.length === 0) return [];
 
     return data
-      .filter((d: { date: string; close: number }) => d.close != null)
+      .filter((d: { date: string; close: number }) => d.close != null && isFinite(d.close) && d.close > 0)
       .map((d: { date: string; close: number }) => ({
         date: d.date,
         price: d.close,
@@ -88,7 +88,7 @@ export async function fetchEodhdQuote(
     if (!Array.isArray(data) || data.length === 0) return null;
 
     const last = data[data.length - 1];
-    if (last.close == null) return null;
+    if (last.close == null || !isFinite(last.close) || last.close <= 0) return null;
     return { price: last.close, date: last.date };
   } catch (err) {
     console.warn(`[EODHD] Quote fetch error for ${ticker}:`, err instanceof Error ? err.message : err);

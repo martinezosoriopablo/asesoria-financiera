@@ -2,19 +2,33 @@
 
 import { useState, useEffect } from "react";
 import SeguimientoPage from "@/components/seguimiento/SeguimientoPage";
-import { Loader } from "lucide-react";
+import { Loader, AlertCircle } from "lucide-react";
 
 export default function PortalDashboardPage() {
   const [clientId, setClientId] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     fetch("/api/portal/me")
       .then((r) => r.json())
       .then((data) => {
-        if (data.client?.id) setClientId(data.client.id);
+        if (data.client?.id) {
+          setClientId(data.client.id);
+        } else {
+          setError(true);
+        }
       })
-      .catch(() => {});
+      .catch(() => setError(true));
   }, []);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <AlertCircle className="w-8 h-8 text-red-400" />
+        <p className="text-sm text-gb-gray">No se pudo cargar tu información. Intenta recargar la página.</p>
+      </div>
+    );
+  }
 
   if (!clientId) {
     return (

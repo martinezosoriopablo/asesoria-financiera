@@ -515,7 +515,6 @@ export default function ComparisonModeV2() {
 
       // Load saved recommended portfolio if exists
       if (clientData.cartera_recomendada?.cartera && clientData.cartera_recomendada.cartera.length > 0) {
-        console.log("Loading saved cartera:", clientData.cartera_recomendada.cartera);
         setCarteraLoadedFromDB(true);
         applyCartera(clientData.cartera_recomendada.cartera);
       } else {
@@ -568,7 +567,6 @@ export default function ComparisonModeV2() {
       if (error) {
         console.error("Error saving cartera:", error);
       } else {
-        console.log("Cartera saved successfully");
         setCarteraLoadedFromDB(true);
 
         // Generate rebalancing summary
@@ -737,7 +735,6 @@ export default function ComparisonModeV2() {
                 : h
             ));
           }
-          console.log(`Loaded ${historicalData.length} data points with TER: ${terValue}, ISIN: ${excelModalData.isin}`);
           setShowExcelModal(false);
         } else {
           alert("No se encontraron datos válidos en el archivo.");
@@ -843,7 +840,6 @@ export default function ComparisonModeV2() {
                 : h
             ));
           }
-          console.log(`Loaded ${historicalData.length} data points for ${uploadingForPortfolio} position ${uploadingForIndex}`);
         } else {
           alert("No se encontraron datos válidos en el archivo. Asegúrese de tener columnas de fecha y precio.");
         }
@@ -891,7 +887,6 @@ export default function ComparisonModeV2() {
 
           if (result.success && result.profile) {
             const profile = result.profile;
-            console.log(`✓ ${pos.ticker} via ${profile.source}`);
 
             setProposedPositions((prev) =>
               prev.map((p, idx) =>
@@ -2375,7 +2370,6 @@ export default function ComparisonModeV2() {
                   onCarteraGenerada={(data: { recomendacion?: { cartera?: CarteraPosition[]; generadoEn?: string }; cartera?: CarteraPosition[]; generadoEn?: string }) => {
                     // La cartera viene en data.recomendacion.cartera
                     const posiciones = data.recomendacion?.cartera || data.cartera || [];
-                    console.log("Cartera generada:", posiciones);
                     setCarteraIA(data);
                     setCarteraLoadedFromDB(false); // New cartera, not saved yet
                     if (posiciones.length > 0) {

@@ -1764,8 +1764,6 @@ export default function ComparisonMode() {
                       allocations: [...ac.allocations.map(a => ({ ...a }))]
                     }));
 
-                    console.log("Aplicando cartera con", cartera.length, "posiciones");
-
                     for (const position of cartera) {
                       // Find matching asset class (IDs: equity, fixed_income, alternative, cash)
                       const assetClassId = position.clase === "Renta Variable" ? "equity"
@@ -1775,13 +1773,11 @@ export default function ComparisonMode() {
                         : null;
 
                       if (!assetClassId) {
-                        console.log("No se encontró asset class para:", position.clase);
                         continue;
                       }
 
                       const acIndex = updated.findIndex((ac) => ac.id === assetClassId);
                       if (acIndex === -1) {
-                        console.log("Asset class no encontrado:", assetClassId);
                         continue;
                       }
 
@@ -1807,7 +1803,6 @@ export default function ComparisonMode() {
                           proposedFund: proposedFund,
                           neutralPercent: position.porcentaje,
                         };
-                        console.log("Actualizado:", position.ticker, "en", assetClassId);
                       } else {
                         // Add new allocation
                         updated[acIndex].allocations.push({
@@ -1819,7 +1814,6 @@ export default function ComparisonMode() {
                           currentFund: null,
                           proposedFund: proposedFund,
                         });
-                        console.log("Agregado:", position.ticker, "a", assetClassId);
                       }
                     }
 
@@ -1829,12 +1823,6 @@ export default function ComparisonMode() {
                         ac.expanded = true;
                       }
                     }
-
-                    console.log("Estado actualizado:", updated.map(ac => ({
-                      id: ac.id,
-                      allocations: ac.allocations.length,
-                      withProposed: ac.allocations.filter(a => a.proposedFund).length
-                    })));
 
                     return updated;
                   });
@@ -1855,7 +1843,6 @@ export default function ComparisonMode() {
 
                       if (result.success && result.profile) {
                         const profile = result.profile;
-                        console.log(`✓ Found ${ticker} via ${profile.source}`, result.attempts);
                         return {
                           id: `etf-${ticker}`,
                           ticker: profile.symbol || ticker,
@@ -1929,11 +1916,9 @@ export default function ComparisonMode() {
                       // Try to find Yahoo Finance symbol for this fund
                       const yahooMapping = findYahooSymbol(fundName);
                       if (!yahooMapping) {
-                        console.log(`No Yahoo mapping found for: ${fundName}`);
                         return null;
                       }
 
-                      console.log(`Fetching Yahoo data for ${fundName} -> ${yahooMapping.yahooSymbol}`);
                       const response = await fetch(`/api/funds/yahoo-historical?symbol=${encodeURIComponent(yahooMapping.yahooSymbol)}&range=1y`);
                       const result = await response.json();
 
@@ -2072,12 +2057,6 @@ export default function ComparisonMode() {
                   // Force re-render with timeout to ensure state is applied
                   setTimeout(() => {
                     setAssetClasses((current) => {
-                      console.log("Final asset classes:", current.map(ac => ({
-                        id: ac.id,
-                        expanded: ac.expanded,
-                        allocations: ac.allocations.length,
-                        withProposed: ac.allocations.filter(a => a.proposedFund).length
-                      })));
                       // Force all sections with allocations to expand
                       return current.map(ac => ({
                         ...ac,

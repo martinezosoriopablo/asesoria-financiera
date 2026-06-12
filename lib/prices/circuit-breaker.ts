@@ -15,7 +15,7 @@ export class CircuitBreaker {
 
   private pruneOld(): void {
     const cutoff = Date.now() - this.config.windowMs;
-    this.calls = this.calls.filter((t) => t > cutoff);
+    this.calls = this.calls.filter((t) => t >= cutoff);
   }
 
   canCall(): boolean {

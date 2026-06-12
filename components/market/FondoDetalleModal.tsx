@@ -138,7 +138,6 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
         body: JSON.stringify(fichaData),
       });
       const data = await res.json();
-      console.log('Save ficha response:', data);
       if (data.success) {
         setFichaSaved(true);
         setTimeout(() => setFichaSaved(false), 2000);

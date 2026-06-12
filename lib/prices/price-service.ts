@@ -181,13 +181,13 @@ async function fetchUsdClpRates(
     const timestamps: number[] = result.timestamp || [];
     const closes: (number | null)[] = result.indicators?.quote?.[0]?.close || [];
     for (let i = 0; i < timestamps.length; i++) {
-      if (closes[i] != null) {
+      if (closes[i] != null && isFinite(closes[i]!) && closes[i]! > 0) {
         const date = new Date(timestamps[i] * 1000).toISOString().split("T")[0];
         rates.set(date, closes[i]!);
       }
     }
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    console.warn("[price-service] CLP=X FX fetch error:", err instanceof Error ? err.message : err);
   }
   return rates;
 }
@@ -203,15 +203,18 @@ async function fetchClAdrHistorical(
   ]);
   if (usPrices.length === 0 || fxRates.size === 0) return [];
 
-  // Forward-fill FX rate for dates where we have a US price but no exact FX match
+  // Forward-fill FX rate (max 7 days) for dates where we have a US price but no exact FX match
   const sortedFxDates = [...fxRates.keys()].sort();
   const getFx = (date: string): number | null => {
     if (fxRates.has(date)) return fxRates.get(date)!;
-    // Find closest previous FX rate
+    // Find closest previous FX rate within 7-day window
     let last: number | null = null;
+    const minDate = new Date(date);
+    minDate.setDate(minDate.getDate() - 7);
+    const minDateStr = minDate.toISOString().split("T")[0];
     for (const d of sortedFxDates) {
       if (d > date) break;
-      last = fxRates.get(d)!;
+      if (d >= minDateStr) last = fxRates.get(d)!;
     }
     return last;
   };
@@ -219,7 +222,7 @@ async function fetchClAdrHistorical(
   const result: DailyPrice[] = [];
   for (const p of usPrices) {
     const fx = getFx(p.date);
-    if (fx) {
+    if (fx && isFinite(p.price) && isFinite(fx)) {
       result.push({ date: p.date, price: Math.round(p.price * fx) });
     }
   }
@@ -236,7 +239,9 @@ async function fetchClAdrLatest(
   const fxQuote = await fetchYahooQuote("CLP=X");
   if (!fxQuote) return null;
 
-  return { price: Math.round(quote.price * fxQuote.price), date: quote.date };
+  const clpPrice = quote.price * fxQuote.price;
+  if (!isFinite(clpPrice) || clpPrice <= 0) return null;
+  return { price: Math.round(clpPrice), date: quote.date };
 }
 
 // ---------------------------------------------------------------------------
@@ -385,9 +390,12 @@ export async function storeInternationalPrices(
       source,
     }));
 
-    await sb
+    const { error } = await sb
       .from("international_prices")
       .upsert(batch as any, { onConflict: "ticker,price_date" });
+    if (error) {
+      console.error(`[price-service] upsert error for ${symbol}:`, error.message);
+    }
   }
 }
 
