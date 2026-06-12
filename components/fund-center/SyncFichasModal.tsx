@@ -64,8 +64,8 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
     try {
       const endpoint = fundType === 'fm' ? '/api/fondos/sync-fichas' : '/api/fondos-inversion/sync-fichas';
       const body = fundType === 'fm'
-        ? { nombre_agf: nombre, limit: 100, force }
-        : { administradora: nombre, limit: 100, force };
+        ? { nombre_agf: nombre, limit: 500, force }
+        : { administradora: nombre, limit: 500, force };
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,7 +135,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                 {fichasSynced} fichas {typeLabel} con datos extraidos
               </div>
               <div className="text-xs text-blue-700">
-                Datos: TAC, horizonte, tolerancia riesgo, objetivo, beneficio tributario
+                Datos: TAC, horizonte, tolerancia riesgo, objetivo, beneficio tributario, patrimonio UF, % RV/RF
               </div>
             </div>
           </div>

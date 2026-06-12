@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient();
     const body = await request.json();
 
-  const { administradora, fi_ruts, limit: batchLimit = 20, force = false } = body;
+  const { administradora, fi_ruts, limit: batchLimit = 200, force = false } = body;
 
   if (!administradora && !fi_ruts) {
     return NextResponse.json({

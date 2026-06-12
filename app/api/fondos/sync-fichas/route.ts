@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
 
   // Options: sync by AGF name, by specific fo_runs, or discover all
-  const { nombre_agf, fo_runs, limit: batchLimit = 20, force = false } = body;
+  const { nombre_agf, fo_runs, limit: batchLimit = 200, force = false } = body;
 
   if (!nombre_agf && !fo_runs) {
     return NextResponse.json({

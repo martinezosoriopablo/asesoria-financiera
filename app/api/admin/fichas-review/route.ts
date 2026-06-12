@@ -136,7 +136,7 @@ export async function PATCH(request: NextRequest) {
 
   return handleApiError("fichas-review-patch", async () => {
     const { tipo, fo_run, fm_serie, fi_rut, fi_serie, field, value } = await request.json();
-    const EDITABLE = ["tac_serie", "horizonte_inversion", "tolerancia_riesgo", "beneficio_apv", "beneficio_57bis", "beneficio_107lir", "beneficio_108lir", "notas_tributarias", "objetivo", "rent_1m", "rent_3m", "rent_6m", "rent_12m", "nombre_fondo_pdf"];
+    const EDITABLE = ["tac_serie", "horizonte_inversion", "tolerancia_riesgo", "beneficio_apv", "beneficio_57bis", "beneficio_107lir", "beneficio_108lir", "notas_tributarias", "objetivo", "rent_1m", "rent_3m", "rent_6m", "rent_12m", "nombre_fondo_pdf", "patrimonio_uf", "pct_renta_variable", "pct_renta_fija"];
     if (!EDITABLE.includes(field)) {
       return NextResponse.json({ success: false, error: `Campo '${field}' no es editable` }, { status: 400 });
     }
