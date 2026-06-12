@@ -22,7 +22,7 @@ export interface ExtractedFichaData {
   beneficio_107lir: boolean;
   beneficio_108lir: boolean;
   notas_tributarias: string | null;
-  patrimonio_uf: number | null;
+  pct_uf: number | null;
   pct_renta_variable: number | null;
   pct_renta_fija: number | null;
   extraction_method: "gemini" | "regex";
@@ -45,13 +45,14 @@ Los demas cuadrados estan vacios. Responde con el nombre de la opcion que tiene 
 Si no logras distinguir cual tiene el check, responde con el que visualmente se vea diferente (marcado, relleno, o con simbolo).
 Si definitivamente ninguno tiene marca, responde null.
 
-PATRIMONIO Y COMPOSICION:
-- Busca "Patrimonio" o "Patrimonio Neto" del fondo. Puede estar en UF o pesos. Si esta en UF, reporta el numero. Si esta en pesos, reporta null.
-- Busca la composicion de cartera / estructura de inversiones. Extrae el porcentaje en Renta Variable (acciones, equity) y Renta Fija (bonos, depositos). Si hay un grafico de torta/pie con la composicion, usa esos porcentajes.
+COMPOSICION DE CARTERA:
+- Busca la seccion "Estructura de la Cartera" o "Composicion" o "Cartera de Inversiones".
+- Extrae el porcentaje invertido en instrumentos denominados en UF (reajustables). Puede aparecer como "UF", "Unidad de Fomento", o "Reajustable". Si hay un grafico de torta por moneda/reajustabilidad, usa ese valor.
+- Extrae el porcentaje en Renta Variable (acciones, equity) y Renta Fija (bonos, depositos a plazo, letras hipotecarias). Puede ser un grafico de torta o tabla.
 
 Responde SOLO JSON valido sin markdown ni backticks. Porcentajes como numeros (5.00 no "5.00%"). Serie solo el codigo (ej: "B", "AFP", no incluir fecha ni "Serie").
 
-{"nombre_fondo": "str", "serie": "str", "tac_serie_pct": "num o null", "rent_1m_pct": "num o null", "rent_3m_pct": "num o null", "rent_6m_pct": "num o null", "rent_12m_pct": "num o null", "rescatable": "bool o null", "plazo_rescate": "str o null", "horizonte_inversion": "str o null", "tolerancia_riesgo": "str o null", "objetivo": "str max 500 o null", "beneficio_tributario": "str (APV/APVC/57 LIR/107 LIR/108 LIR) o null", "patrimonio_uf": "num o null (patrimonio neto en UF)", "pct_renta_variable": "num 0-100 o null", "pct_renta_fija": "num 0-100 o null"}`;
+{"nombre_fondo": "str", "serie": "str", "tac_serie_pct": "num o null", "rent_1m_pct": "num o null", "rent_3m_pct": "num o null", "rent_6m_pct": "num o null", "rent_12m_pct": "num o null", "rescatable": "bool o null", "plazo_rescate": "str o null", "horizonte_inversion": "str o null", "tolerancia_riesgo": "str o null", "objetivo": "str max 500 o null", "beneficio_tributario": "str (APV/APVC/57 LIR/107 LIR/108 LIR) o null", "pct_uf": "num 0-100 o null (% cartera en instrumentos UF/reajustables)", "pct_renta_variable": "num 0-100 o null", "pct_renta_fija": "num 0-100 o null"}`;
 
 // --- Primary: Gemini AI extraction ---
 async function extractWithGemini(buffer: ArrayBuffer): Promise<{ data: ExtractedFichaData; exhausted: boolean } | null> {
@@ -116,7 +117,7 @@ async function extractWithGemini(buffer: ArrayBuffer): Promise<{ data: Extracted
         beneficio_107lir: ben === "107 LIR",
         beneficio_108lir: ben === "108 LIR",
         notas_tributarias: parsed.beneficio_tributario || null,
-        patrimonio_uf: parsed.patrimonio_uf ?? null,
+        pct_uf: parsed.pct_uf ?? null,
         pct_renta_variable: parsed.pct_renta_variable ?? null,
         pct_renta_fija: parsed.pct_renta_fija ?? null,
         extraction_method: "gemini",
@@ -217,7 +218,7 @@ function extractWithRegex(text: string): ExtractedFichaData {
     beneficio_107lir,
     beneficio_108lir,
     notas_tributarias,
-    patrimonio_uf: null,
+    pct_uf: null,
     pct_renta_variable: null,
     pct_renta_fija: null,
     extraction_method: "regex",
