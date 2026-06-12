@@ -3,6 +3,7 @@
 // and updates fintual_funds table with current prices
 
 import * as XLSX from "xlsx";
+import { parseChileanNumber } from "@/lib/format";
 
 // Conditional debug logging — silent in production
 const DEBUG = process.env.NODE_ENV === "development";
@@ -270,13 +271,7 @@ function parseAAFMJson(json: any, dateStr: string): AAFMFundRow[] {
   return results;
 }
 
-function toNum(val: unknown): number {
-  if (val === null || val === undefined || val === "") return 0;
-  if (typeof val === "number") return val;
-  const str = String(val).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  const num = parseFloat(str);
-  return isNaN(num) ? 0 : num;
-}
+const toNum = parseChileanNumber;
 
 export function parseAAFMExcel(buffer: Buffer): AAFMFundRow[] {
   const workbook = XLSX.read(buffer, { type: "buffer" });
@@ -445,17 +440,7 @@ function findColExact(headers: string[], patterns: string[]): number {
   return findCol(headers, patterns);
 }
 
-function parseNumber(value: unknown): number {
-  if (value === null || value === undefined || value === "") return 0;
-  if (typeof value === "number") return value;
-  // Try as-is first (already a number string like "60684.937")
-  const direct = parseFloat(String(value));
-  if (!isNaN(direct)) return direct;
-  // Handle Chilean format: 1.234,56 → 1234.56
-  const str = String(value).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  const num = parseFloat(str);
-  return isNaN(num) ? 0 : num;
-}
+const parseNumber = parseChileanNumber;
 
 // Match AAFM fund rows to fintual_funds records and update prices
 export interface SyncResult {

@@ -12,6 +12,7 @@
  */
 
 import { Solver } from '2captcha-ts'
+import { parseChileanNumberOrNull } from '@/lib/format'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 const CMF_BASE = 'https://www.cmfchile.cl'
@@ -86,13 +87,7 @@ function htmlDecode(s: string): string {
     .replace(/&quot;/g, '"')
 }
 
-function parseNumber(s: string): number | null {
-  if (!s) return null
-  const clean = s.replace(/\./g, '').replace(/,/g, '.').replace(/[^\d.\-]/g, '')
-  if (!clean) return null
-  const n = parseFloat(clean)
-  return isNaN(n) ? null : n
-}
+const parseNumber = parseChileanNumberOrNull;
 
 function parseFecha(s: string): string | null {
   // CMF usually returns DD/MM/YYYY

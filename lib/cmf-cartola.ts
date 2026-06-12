@@ -11,6 +11,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as iconv from 'iconv-lite'
+import { parseChileanNumber } from '@/lib/format'
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -74,13 +75,7 @@ export interface CMFMetadata {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function parseNumber(val: string): number {
-  if (!val || val.trim() === '') return 0
-  // CMF uses comma as decimal separator in some cases
-  const cleaned = val.trim().replace(/\./g, '').replace(',', '.')
-  const num = parseFloat(cleaned)
-  return isNaN(num) ? 0 : num
-}
+const parseNumber = parseChileanNumber;
 
 function parseDateCMF(val: string): Date {
   const trimmed = val.trim()
