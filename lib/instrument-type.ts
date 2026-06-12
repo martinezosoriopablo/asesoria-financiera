@@ -33,8 +33,6 @@ const CUSIP_RE = /^[A-Z0-9]{9}$/i;
 
 // Chilean ETF nemotécnicos (fondos de inversión tipo ETF en Bolsa de Santiago)
 const CHILEAN_ETF_RE = /^CFI\s*ETF/i;
-// International stocks traded on Bolsa de Santiago end in "CL" (e.g. GOOGLCL, NVDACL)
-const CHILEAN_ADR_RE = /^[A-Z]{3,10}CL$/;
 
 /**
  * Infer instrument type from holding fields.

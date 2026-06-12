@@ -392,6 +392,7 @@ export async function storeInternationalPrices(
 
     const { error } = await sb
       .from("international_prices")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .upsert(batch as any, { onConflict: "ticker,price_date" });
     if (error) {
       console.error(`[price-service] upsert error for ${symbol}:`, error.message);

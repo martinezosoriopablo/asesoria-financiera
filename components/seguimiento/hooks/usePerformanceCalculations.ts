@@ -519,7 +519,6 @@ export function usePerformanceCalculations({
 
       // Cash
       if (cashValue > 0 && totalValue > 0) {
-        const cashWeight = (cashValue / totalValue) * 100;
         const meta = INSTRUMENT_COLORS.cash;
         result.push({
           name: classKeyMap.cash,

@@ -6,7 +6,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
-import { getHistoricalPrices as getBolsaHistorical } from "@/lib/bolsa-santiago/client";
 import { detectSerieCode } from "@/lib/fund-utils";
 import { stripAccents } from "@/lib/text";
 import { handleApiError } from "@/lib/api-response";

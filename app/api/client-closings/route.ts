@@ -101,7 +101,6 @@ export async function POST(req: NextRequest) {
     if (!client) return errorResponse("Cliente no encontrado", 404);
 
     // 3. Get client's snapshots for the month (manual cartola)
-    const monthStart = `${month}-01`;
     const nextMonth = new Date(`${month}-01`);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     const monthEnd = nextMonth.toISOString().split("T")[0];
@@ -259,7 +258,7 @@ INSTRUCCIONES:
 
 export async function PUT(req: NextRequest) {
   return handleApiError("client-closings-update", async () => {
-    const { advisor, error } = await requireAdvisor();
+    const { error } = await requireAdvisor();
     if (error) return error;
 
     const { id, content, status } = await req.json();

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { formatNumber } from "@/lib/format";
 import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
 import type { HoldingReturnsData } from "../HoldingReturnsPanel";
 

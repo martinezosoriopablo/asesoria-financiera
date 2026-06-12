@@ -45,7 +45,7 @@ export default function BienvenidaPage() {
   const [advisor, setAdvisor] = useState<AdvisorInfo | null>(null);
   const [hasSnapshots, setHasSnapshots] = useState(false);
   const [questionnaireLink, setQuestionnaireLink] = useState<string | null>(null);
-  const [unreadReports, setUnreadReports] = useState(0);
+  const [, setUnreadReports] = useState(0);
 
   useEffect(() => {
     fetchData();
