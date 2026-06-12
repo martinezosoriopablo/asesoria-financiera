@@ -102,8 +102,10 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleTokens>
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Error obteniendo tokens: ${error.error_description || error.error}`);
+    const text = await response.text();
+    let msg = `HTTP ${response.status}`;
+    try { const err = JSON.parse(text); msg = err.error_description || err.error || msg; } catch { /* not JSON */ }
+    throw new Error(`Error obteniendo tokens: ${msg}`);
   }
 
   const data = await response.json();
@@ -137,8 +139,10 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Error refrescando token: ${error.error_description || error.error}`);
+    const text = await response.text();
+    let msg = `HTTP ${response.status}`;
+    try { const err = JSON.parse(text); msg = err.error_description || err.error || msg; } catch { /* not JSON */ }
+    throw new Error(`Error refrescando token: ${msg}`);
   }
 
   const data = await response.json();

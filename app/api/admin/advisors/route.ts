@@ -31,13 +31,28 @@ export async function GET(request: NextRequest) {
     // Si es admin, puede ver sus subordinados + él mismo
     // Si es advisor normal, solo ve su propio perfil
     if (advisor!.rol === 'admin') {
-      // Admin ve: él mismo + sus subordinados
-      query = query.or(`id.eq.${advisor!.id},parent_advisor_id.eq.${advisor!.id}`);
-    } else {
-      // Advisor normal solo ve su perfil
-      query = query.eq("id", advisor!.id);
+      // Fetch self + subordinates (two parameterized queries, no string interpolation)
+      const [selfRes, subsRes] = await Promise.all([
+        supabase.from("advisors")
+          .select("id, email, nombre, apellido, foto_url, logo_url, company_name, linkedin_url, rol, parent_advisor_id, activo, created_at")
+          .eq("id", advisor!.id),
+        supabase.from("advisors")
+          .select("id, email, nombre, apellido, foto_url, logo_url, company_name, linkedin_url, rol, parent_advisor_id, activo, created_at")
+          .eq("parent_advisor_id", advisor!.id),
+      ]);
+      if (selfRes.error) throw selfRes.error;
+      if (subsRes.error) throw subsRes.error;
+      const advisors = [...(selfRes.data || []), ...(subsRes.data || [])]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return NextResponse.json({
+        success: true,
+        advisors,
+        total: advisors.length,
+        isAdmin: true,
+      });
     }
 
+    query = query.eq("id", advisor!.id);
     const { data: advisors, error } = await query;
 
     if (error) throw error;
@@ -46,7 +61,7 @@ export async function GET(request: NextRequest) {
       success: true,
       advisors: advisors || [],
       total: advisors?.length || 0,
-      isAdmin: advisor!.rol === 'admin',
+      isAdmin: false,
     });
   });
 }

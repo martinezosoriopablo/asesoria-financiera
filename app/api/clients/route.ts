@@ -38,26 +38,54 @@ export async function GET(request: NextRequest) {
     // Obtener clientes compartidos conmigo
     const sharedClientIds = await getSharedClientIds(advisor!.id);
 
-    // Construir filtro de asesores
-    let advisorFilterStr: string;
-    if (advisorFilter && advisor!.rol === 'admin' && allowedAdvisorIds.includes(advisorFilter)) {
-      // Admin filtrando por un asesor específico
-      advisorFilterStr = `asesor_id.eq.${advisorFilter}`;
-    } else {
-      // Mostrar todos los permitidos + huérfanos + compartidos
-      const parts = allowedAdvisorIds.map(id => `asesor_id.eq.${id}`);
-      parts.push('asesor_id.is.null');
-      if (sharedClientIds.length > 0) {
-        parts.push(...sharedClientIds.map(id => `id.eq.${id}`));
-      }
-      advisorFilterStr = parts.join(',');
-    }
-
+    // Build client query with parameterized filters (no string interpolation in .or())
     let query = supabase
       .from("clients")
       .select("*")
-      .or(advisorFilterStr)
       .order("created_at", { ascending: false });
+
+    if (advisorFilter && advisor!.rol === 'admin' && allowedAdvisorIds.includes(advisorFilter)) {
+      // Admin filtrando por un asesor específico
+      query = query.eq("asesor_id", advisorFilter);
+    } else {
+      // Mostrar todos los permitidos + huérfanos + compartidos
+      // Use .in() for advisor IDs and separate query for shared + orphans
+      const allVisibleIds = [...allowedAdvisorIds];
+      // Fetch clients by asesor_id IN allowed list + orphans (asesor_id is null)
+      // Supabase doesn't support .in() + .is(null) in one filter, so fetch separately
+      const ownPromise = supabase.from("clients").select("*").in("asesor_id", allVisibleIds).order("created_at", { ascending: false });
+      const orphanPromise = supabase.from("clients").select("*").is("asesor_id", null).order("created_at", { ascending: false });
+      const sharedPromise = sharedClientIds.length > 0
+        ? supabase.from("clients").select("*").in("id", sharedClientIds).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null });
+      const [ownRes, orphanRes, sharedRes] = await Promise.all([ownPromise, orphanPromise, sharedPromise]);
+
+      if (ownRes.error) throw ownRes.error;
+      if (orphanRes.error) throw orphanRes.error;
+      if (sharedRes.error) throw sharedRes.error;
+
+      // Merge and deduplicate by id
+      const seen = new Set<string>();
+      const merged = [...(ownRes.data || []), ...(orphanRes.data || []), ...(sharedRes.data || [])]
+        .filter((c) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // Apply remaining filters in-memory (status, perfilRiesgo, search already applied below)
+      // But we need to return early with the merged result, applying filters
+      let filtered = merged;
+      if (status) filtered = filtered.filter((c) => c.status === status);
+      if (perfilRiesgo) filtered = filtered.filter((c) => c.perfil_riesgo === perfilRiesgo);
+      if (search) {
+        const s = search.toLowerCase();
+        filtered = filtered.filter((c) =>
+          (c.nombre || "").toLowerCase().includes(s) ||
+          (c.apellido || "").toLowerCase().includes(s) ||
+          (c.email || "").toLowerCase().includes(s)
+        );
+      }
+
+      return NextResponse.json({ success: true, clients: filtered, total: filtered.length });
+    }
 
     if (status) {
       query = query.eq("status", status);

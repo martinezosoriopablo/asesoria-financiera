@@ -68,7 +68,8 @@ async function extractWithGemini(buffer: ArrayBuffer): Promise<{ data: Extracted
         signal: AbortSignal.timeout(60000),
       }
     );
-  } catch {
+  } catch (err) {
+    console.warn("[ficha-extract] Gemini fetch error:", err instanceof Error ? err.message : err);
     return null;
   }
 
@@ -111,7 +112,8 @@ async function extractWithGemini(buffer: ArrayBuffer): Promise<{ data: Extracted
         extraction_method: "gemini",
       },
     };
-  } catch {
+  } catch (err) {
+    console.warn("[ficha-extract] Gemini JSON parse error:", err instanceof Error ? err.message : err);
     return null;
   }
 }
