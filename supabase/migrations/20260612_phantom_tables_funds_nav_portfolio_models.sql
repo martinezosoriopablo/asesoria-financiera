@@ -87,14 +87,14 @@ CREATE POLICY "Advisors can manage portfolio_models" ON portfolio_models
   USING (
     client_id IN (
       SELECT id FROM clients
-      WHERE asesor_id IN (SELECT unnest(get_accessible_advisor_ids()))
+      WHERE asesor_id IN (SELECT get_accessible_advisor_ids())
          OR asesor_id IS NULL
     )
   )
   WITH CHECK (
     client_id IN (
       SELECT id FROM clients
-      WHERE asesor_id IN (SELECT unnest(get_accessible_advisor_ids()))
+      WHERE asesor_id IN (SELECT get_accessible_advisor_ids())
          OR asesor_id IS NULL
     )
   );
