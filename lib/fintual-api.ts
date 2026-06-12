@@ -151,12 +151,6 @@ export async function getSeriesPrices(
   return data.data;
 }
 
-// Buscar un fondo por RUN
-export async function searchFundByRun(_run: string): Promise<FintualRealAsset | null> {
-  // La API de Fintual no tiene endpoint de búsqueda directa
-  // Tendríamos que buscar en nuestra BD local
-  return null;
-}
 
 // Obtener el último valor cuota de una serie
 export async function getLatestPrice(realAssetId: string): Promise<FintualDayData | null> {

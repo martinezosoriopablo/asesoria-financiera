@@ -86,31 +86,28 @@ export function useHistoricalSeries({
         cartolaPrice: (h.quantity && h.quantity > 0 ? (h.marketValue || 0) / h.quantity : 0) || h.marketPrice || 0,
       }));
 
+    // Shared detection: is this holding a tradeable international instrument?
+    const isTradeableInternational = (h: typeof holdings[0]): boolean => {
+      const id = (h.securityId || "").trim().toUpperCase();
+      if (!id || /^\d{1,6}$/.test(id) || (h.quantity || 0) <= 0) return false;
+      const name = (h.fundName || "").toUpperCase();
+      const isBond = (h.assetClass || "").toLowerCase().includes("fixed") ||
+        (h.assetClass || "").toLowerCase() === "fixedincome" ||
+        (h.assetType || "").toLowerCase() === "bond" ||
+        /\b(CPN|DUE\s+\d|NOTE|UNSECD|FXD\/VAR)\b/.test(name) ||
+        !!(h.couponRate || h.maturityDate);
+      if (isBond) return false;
+      if (/^CFI/.test(id)) return true;
+      if (/^[A-Z]{3,10}CL$/.test(id)) return true;
+      if (id.includes(".SN")) return true;
+      if (/^[A-Z]{1,5}$/.test(id)) return true;
+      if (/^[A-Z0-9]{9}$/i.test(id)) return true;
+      return false;
+    };
+
     // International holdings: tradeable instruments with non-numeric securityId
-    // Filter out ISIN-like codes (e.g. G1R06N212) and FDIC/cash that have no price source
     const internationalHoldings = holdings
-      .filter((h) => {
-        const id = (h.securityId || "").trim().toUpperCase();
-        if (!id || /^\d{1,6}$/.test(id) || (h.quantity || 0) <= 0) return false;
-
-        // Skip bonds — they resolve to FINRA which has no historical price API
-        const name = (h.fundName || "").toUpperCase();
-        const isBond = (h.assetClass || "").toLowerCase().includes("fixed") ||
-          (h.assetClass || "").toLowerCase() === "fixedincome" ||
-          (h.assetType || "").toLowerCase() === "bond" ||
-          /\b(CPN|DUE\s+\d|NOTE|UNSECD|FXD\/VAR)\b/.test(name) ||
-          !!(h.couponRate || h.maturityDate);
-        if (isBond) return false;
-
-        // Include: CFI*, CFIETF*, Chilean ADRs (ending CL), tickers with .SN, known ETF tickers (2-5 uppercase letters)
-        if (/^CFI/.test(id)) return true; // Chilean FI/ETF
-        if (/^[A-Z]{3,10}CL$/.test(id)) return true; // Chilean ADR (GOOGLCL, NVDACL)
-        if (id.includes(".SN")) return true; // Explicit Santiago suffix
-        if (/^[A-Z]{1,5}$/.test(id)) return true; // US ETF/stock ticker (ACWI, SPY, etc.)
-        // CUSIP-style IDs for mapped international UCITS funds (e.g. L2R330245)
-        if (/^[A-Z0-9]{9}$/i.test(id)) return true;
-        return false;
-      })
+      .filter(isTradeableInternational)
       .map((h) => ({
         fundName: h.fundName || "",
         securityId: (h.securityId || "").trim(),
@@ -161,20 +158,8 @@ export function useHistoricalSeries({
       const qty = h.quantity || 0;
       // holdingsWithRun
       if (/^\d{3,6}$/.test(id) && qty > 0) { categorizedIndices.add(i); return; }
-      // internationalHoldings (non-bond)
-      if (id && !/^\d{1,6}$/.test(id) && qty > 0) {
-        const upper = id.toUpperCase();
-        const nameUp = (h.fundName || "").toUpperCase();
-        const isBond = (h.assetClass || "").toLowerCase().includes("fixed") ||
-          (h.assetClass || "").toLowerCase() === "fixedincome" ||
-          (h.assetType || "").toLowerCase() === "bond" ||
-          /\b(CPN|DUE\s+\d|NOTE|UNSECD|FXD\/VAR)\b/.test(nameUp) ||
-          !!(h.couponRate || h.maturityDate);
-        if (!isBond && (/^CFI/.test(upper) || /^[A-Z]{3,10}CL$/.test(upper) ||
-            upper.includes(".SN") || /^[A-Z]{1,5}$/.test(upper) || /^[A-Z0-9]{9}$/i.test(upper))) {
-          categorizedIndices.add(i); return;
-        }
-      }
+      // internationalHoldings (non-bond) — reuse shared detection
+      if (isTradeableInternational(h)) { categorizedIndices.add(i); return; }
       // holdingsByName
       if ((!id || /^\d{1,2}$/.test(id)) && name.length > 3 && qty > 0) { categorizedIndices.add(i); return; }
       // bondHoldings (with coupon + maturity)
