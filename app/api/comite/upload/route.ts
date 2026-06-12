@@ -4,7 +4,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { sanitizeHtml } from "@/lib/sanitize";
 import { validateUpload } from "@/lib/upload-validation";
 import { errorResponse, handleApiError } from "@/lib/api-response";
 
@@ -74,8 +73,8 @@ export async function POST(request: NextRequest) {
       ? `${dateMatch[3]}-${getMonthNumber(dateMatch[2])}-${dateMatch[1].padStart(2, "0")}`
       : new Date().toISOString().split("T")[0];
 
-    // Sanitize HTML to prevent stored XSS
-    const sanitizedContent = sanitizeHtml(content);
+    // Content is rendered inside a sandboxed iframe — safe to store as-is
+    // (sanitizeHtml was stripping styles, causing reports to lose formatting)
 
     // Guardar en Supabase
     const { data, error } = await supabase
@@ -85,7 +84,7 @@ export async function POST(request: NextRequest) {
           type,
           filename: file.name,
           title,
-          content: sanitizedContent,
+          content,
           report_date: reportDate,
           uploaded_by: user!.id,
           uploaded_at: new Date().toISOString(),
