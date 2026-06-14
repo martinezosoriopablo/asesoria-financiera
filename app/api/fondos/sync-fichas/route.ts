@@ -105,6 +105,8 @@ export async function POST(request: NextRequest) {
     alreadySynced = new Set((existingFichas || []).map(f => `${f.fo_run}-${f.fm_serie}`));
   }
 
+
+
   const results: { fo_run: number; serie: string; status: string; extracted?: ExtractedFichaData }[] = [];
   let synced = 0;
   let errors = 0;
@@ -145,7 +147,7 @@ export async function POST(request: NextRequest) {
         }, { onConflict: "fo_run,fm_serie" });
         if (upsertError) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: `db_error: ${upsertError.message}` }); errors++; }
         else { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "ok" }); synced++; }
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 4000));
         continue;
       }
 
@@ -194,8 +196,8 @@ export async function POST(request: NextRequest) {
             synced++;
           }
 
-          // Small delay to be polite to CMF
-          await new Promise(r => setTimeout(r, 300));
+          // Throttle: ~4s between requests to stay under Gemini free tier 15 RPM
+          await new Promise(r => setTimeout(r, 4000));
         } catch (err) {
           results.push({ fo_run: foRun, serie, status: `error: ${err instanceof Error ? err.message : "unknown"}` });
           errors++;

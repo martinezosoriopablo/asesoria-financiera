@@ -318,31 +318,30 @@ function extractBeneficioTributario(text: string): {
   return { beneficio_apv, beneficio_57bis, beneficio_107lir, beneficio_108lir, notas_tributarias };
 }
 
-// --- Main entry point: try Gemini first (with retry), fallback to regex ---
+// --- Main entry point: Gemini primary, regex only if no API key ---
 export async function extractFromPdf(buffer: ArrayBuffer): Promise<ExtractionResult> {
-  // Try Gemini — retry once on 429 (rate limit) after 3 second delay
-  let geminiResult = await extractWithGemini(buffer);
+  // Try Gemini — retry up to 2 times on 429 with increasing delay
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const geminiResult = await extractWithGemini(buffer);
 
-  if (geminiResult?.exhausted) {
-    console.log("[ficha-extract] Gemini 429, retrying in 3s...");
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    geminiResult = await extractWithGemini(buffer);
+    if (geminiResult?.exhausted) {
+      const delay = (attempt + 1) * 5000; // 5s, 10s, 15s
+      console.log(`[ficha-extract] Gemini 429, retry ${attempt + 1}/3 in ${delay / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      continue;
+    }
+
+    if (geminiResult?.data) {
+      return { data: geminiResult.data };
+    }
+
+    // Gemini returned null (error, not 429) — break and fallback
+    break;
   }
 
-  if (geminiResult?.exhausted) {
-    // Still exhausted after retry — fallback to regex, signal caller
-    console.warn("[ficha-extract] Gemini quota exhausted after retry, falling back to regex");
-    const result = await extractText(new Uint8Array(buffer));
-    const text = (result.text as string[]).join("\n");
-    return { data: extractWithRegex(text), gemini_exhausted: true };
-  }
-  if (geminiResult?.data) {
-    return { data: geminiResult.data };
-  }
-
-  // Gemini failed or no key — use regex
-  console.log("[ficha-extract] Gemini unavailable, using regex fallback");
+  // If we exhausted retries on 429, signal caller to stop the batch
+  console.warn("[ficha-extract] Gemini unavailable after retries — falling back to regex");
   const result = await extractText(new Uint8Array(buffer));
   const text = (result.text as string[]).join("\n");
-  return { data: extractWithRegex(text) };
+  return { data: extractWithRegex(text), gemini_exhausted: true };
 }

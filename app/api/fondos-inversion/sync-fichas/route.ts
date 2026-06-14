@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
     alreadySynced = new Set((existingFichas || []).map(f => `${f.fi_rut}-${f.fi_serie}`));
   }
 
+
+
   const results: { fi_rut: string; nombre: string; serie: string; status: string }[] = [];
   let synced = 0;
   let errors = 0;
@@ -125,7 +127,8 @@ export async function POST(request: NextRequest) {
             synced++;
           }
 
-          await new Promise(r => setTimeout(r, 300));
+          // Throttle: ~4s between requests to stay under Gemini free tier 15 RPM
+          await new Promise(r => setTimeout(r, 4000));
         } catch (err) {
           results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: `error: ${err instanceof Error ? err.message : "unknown"}` });
           errors++;
