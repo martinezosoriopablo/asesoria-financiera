@@ -4,9 +4,16 @@ import React from "react";
 import { formatNumber } from "@/lib/format";
 import type { HoldingReturnsData } from "./HoldingReturnsPanel";
 
+interface SnapshotHolding {
+  fundName: string;
+  marketValue: number;
+  marketValueCLP?: number;
+}
+
 interface Snapshot {
   snapshot_date: string;
   cash_value: number;
+  holdings?: unknown[] | null;
 }
 
 interface Props {
@@ -49,22 +56,47 @@ export default function CompositionBoxes({
     ? new Date(baseSnap.snapshot_date + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "2-digit" })
     : "Inicio";
 
-  // Derive initial CLP per holding from its return (returnFromBase is already currency-consistent).
-  // This avoids both: (1) currency mixing in price ratios, (2) classification mismatches
-  // between old snapshot class values and current holdingReturnsData classification.
-  const initFromReturn = (h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => {
-    const ret = (h.totalReturn ?? h.returnPrice ?? 0) / 100;
-    return ret !== 0 ? h.marketValue / (1 + ret) : h.marketValue;
-  };
+  // --- Compute initial values per asset class ---
+  let rvInitial: number;
+  let rfInitial: number;
+  let altInitial: number;
+  let cashInitial: number;
 
-  const rvInitial = d.equityHoldings.reduce((s, h) => s + initFromReturn(h), 0);
-  const rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + initFromReturn(h), 0)
-    + d.bondHoldings.reduce((s, h) => {
-      const ret = (h.totalReturn ?? 0) / 100;
-      return s + (ret !== 0 ? h.marketValue / (1 + ret) : (h.costBasis > 0 ? h.costBasis : h.marketValue));
-    }, 0);
-  const altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + initFromReturn(h), 0);
-  const cashInitial = baseSnap.cash_value || 0;
+  if (useCustomBase && baseSnap.holdings && Array.isArray(baseSnap.holdings)) {
+    // "Desde fecha": look up each holding's CLP value in the base snapshot,
+    // grouped by CURRENT classification (avoids mismatch with old snapshot class values).
+    const baseHoldings = baseSnap.holdings as SnapshotHolding[];
+    const baseValueByName = new Map<string, number>();
+    for (const h of baseHoldings) {
+      if (h.fundName) {
+        const clp = (h.marketValueCLP && h.marketValueCLP > 0) ? h.marketValueCLP : (h.marketValue || 0);
+        baseValueByName.set(h.fundName, (baseValueByName.get(h.fundName) || 0) + clp);
+      }
+    }
+    const lookupInit = (h: { fundName: string }) => baseValueByName.get(h.fundName) || 0;
+
+    rvInitial = d.equityHoldings.reduce((s, h) => s + lookupInit(h), 0);
+    rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + lookupInit(h), 0)
+      + d.bondHoldings.reduce((s, h) => s + lookupInit(h), 0);
+    altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + lookupInit(h), 0);
+    cashInitial = baseSnap.cash_value || 0;
+  } else {
+    // "Desde inicio": derive initial CLP per holding from its return (returnFromBase
+    // is already currency-consistent). Avoids both currency mixing and classification mismatch.
+    const initFromReturn = (h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => {
+      const ret = (h.totalReturn ?? h.returnPrice ?? 0) / 100;
+      return ret !== 0 ? h.marketValue / (1 + ret) : h.marketValue;
+    };
+
+    rvInitial = d.equityHoldings.reduce((s, h) => s + initFromReturn(h), 0);
+    rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + initFromReturn(h), 0)
+      + d.bondHoldings.reduce((s, h) => {
+        const ret = (h.totalReturn ?? 0) / 100;
+        return s + (ret !== 0 ? h.marketValue / (1 + ret) : (h.costBasis > 0 ? h.costBasis : h.marketValue));
+      }, 0);
+    altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + initFromReturn(h), 0);
+    cashInitial = baseSnap.cash_value || 0;
+  }
 
   // Final (current) values: from live holdingReturnsData
   const rvFinal = d.equityHoldings.reduce((s, h) => s + h.marketValue, 0);

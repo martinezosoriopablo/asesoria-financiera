@@ -24,6 +24,7 @@ export interface SeguimientoEmailData {
   attribution: Array<{ name: string; instrumentType: string; contributionPp: number }>;
   narrative: string | null;
   platformUrl: string;
+  returnsBasis?: { fromDate: string; toDate: string; isMonthly?: boolean }; // dates for disclaimer
 }
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -110,7 +111,7 @@ function buildHeader(data: SeguimientoEmailData): string {
     </div>`;
 }
 
-function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, rates: { usd: number; uf: number }): string {
+function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, rates: { usd: number; uf: number }, returnsBasis?: { fromDate: string; toDate: string }): string {
   const classes = ["equity", "fixedIncome", "alternatives", "cash"] as const;
 
   const rows = classes
@@ -131,9 +132,14 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
     })
     .join("");
 
+  const basisNote = returnsBasis
+    ? `<div style="font-size:11px; color:#94a3b8; margin-bottom:12px; font-family:${FONT};">Retornos del periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}</div>`
+    : "";
+
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px; font-family:${FONT};">Composicion</div>
+      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:4px; font-family:${FONT};">Composicion</div>
+      ${basisNote}
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
         <tr style="border-bottom:1px solid #e2e8f0;">
           <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Clase</th>
@@ -251,7 +257,7 @@ function buildBenchmarkSection(bm: NonNullable<SeguimientoEmailData["benchmarkCo
     </div>`;
 }
 
-function buildHoldingReturnsSection(holdings: SeguimientoEmailData["holdingReturns"]): string {
+function buildHoldingReturnsSection(holdings: SeguimientoEmailData["holdingReturns"], returnsBasis?: { fromDate: string; toDate: string; isMonthly?: boolean }): string {
   const sorted = [...holdings].sort((a, b) => b.returnPct - a.returnPct);
   const top = sorted.slice(0, 20);
   const maxAbs = Math.max(...top.map((h) => Math.abs(h.returnPct)), 1);
@@ -277,9 +283,14 @@ function buildHoldingReturnsSection(holdings: SeguimientoEmailData["holdingRetur
     })
     .join("");
 
+  const basisNote = returnsBasis
+    ? `<div style="font-size:11px; color:#94a3b8; margin-bottom:8px; font-family:${FONT};">${returnsBasis.isMonthly ? `Periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}` : `Desde inicio del seguimiento (${escapeHtml(returnsBasis.fromDate)})`}</div>`
+    : "";
+
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px; font-family:${FONT};">Rentabilidad por Posicion</div>
+      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:4px; font-family:${FONT};">Rentabilidad por Posicion</div>
+      ${basisNote}
       <table style="width:100%; border-collapse:collapse;">
         <tr style="border-bottom:1px solid #e2e8f0;">
           <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-size:11px; font-family:${FONT};">Instrumento</th>
@@ -370,11 +381,11 @@ function buildFooter(data: SeguimientoEmailData): string {
 
 export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
   const header = buildHeader(data);
-  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates);
+  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates, data.returnsBasis);
   const periodReturns = buildPeriodReturnsSection(data.periodReturns);
   const distribution = buildDistributionSection(data.distribution);
   const benchmark = data.benchmarkComparison ? buildBenchmarkSection(data.benchmarkComparison) : "";
-  const holdingReturns = buildHoldingReturnsSection(data.holdingReturns);
+  const holdingReturns = buildHoldingReturnsSection(data.holdingReturns, data.returnsBasis);
   const attribution = buildAttributionSection(data.attribution);
   const narrative = data.narrative ? buildNarrativeSection(data.narrative) : "";
   const footer = buildFooter(data);
