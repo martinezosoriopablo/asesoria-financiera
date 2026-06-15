@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     .eq("id", advisor!.id)
     .single();
 
-  const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
+  const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-6";
 
   return handleApiError("tax-report", async () => {
     const { scenarios, selectedScenario, clientName, totalValueUF } = await request.json() as {

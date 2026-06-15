@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       .eq("id", advisor!.id)
       .single();
 
-    const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-20250514";
+    const model = advisorProfile?.preferred_ai_model || "claude-sonnet-4-6";
 
     // Obtener datos del request
     const body = await request.json();

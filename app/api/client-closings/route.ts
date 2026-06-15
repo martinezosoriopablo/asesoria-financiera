@@ -199,7 +199,7 @@ INSTRUCCIONES:
       return errorResponse("API key de Anthropic no configurada", 500);
     }
 
-    const model = "claude-sonnet-4-20250514";
+    const model = "claude-sonnet-4-6";
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {

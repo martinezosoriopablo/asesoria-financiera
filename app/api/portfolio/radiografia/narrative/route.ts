@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       .eq("id", advisor!.id)
       .single();
 
-    const model = advisorRow?.preferred_ai_model || "claude-sonnet-4-20250514";
+    const model = advisorRow?.preferred_ai_model || "claude-sonnet-4-6";
 
     const ROLE_LABELS: Record<string, string> = {
       rv: "Renta Variable",

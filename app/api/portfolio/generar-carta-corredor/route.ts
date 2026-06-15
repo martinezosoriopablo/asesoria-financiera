@@ -81,7 +81,7 @@ Responde SOLO en formato JSON valido, sin texto adicional:
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1000,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -101,7 +101,7 @@ Responde SOLO en formato JSON valido, sin texto adicional:
         advisorId: advisor!.id,
         inputTokens: data.usage.input_tokens,
         outputTokens: data.usage.output_tokens,
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
       });
     }
 

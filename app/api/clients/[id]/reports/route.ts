@@ -201,7 +201,7 @@ INSTRUCCIONES:
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 1500,
           messages: [{ role: "user", content: prompt }],
         }),
@@ -215,7 +215,7 @@ INSTRUCCIONES:
           advisorId: advisor!.id,
           inputTokens: claudeResponse.usage.input_tokens,
           outputTokens: claudeResponse.usage.output_tokens,
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
         });
       }
 

@@ -12,8 +12,8 @@ interface TrackUsageParams {
 // Pricing: https://docs.anthropic.com/en/docs/about-claude/models
 const DEFAULT_COST = { input: 3, output: 15 };
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
-  "claude-sonnet-4-20250514": { input: 3, output: 15 },
-  "claude-opus-4-20250514": { input: 15, output: 75 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-opus-4-6": { input: 15, output: 75 },
 };
 
 export async function trackAIUsage({ advisorId, inputTokens, outputTokens, model }: TrackUsageParams) {

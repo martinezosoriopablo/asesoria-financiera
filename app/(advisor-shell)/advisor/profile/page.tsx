@@ -360,12 +360,12 @@ export default function AdvisorProfilePage() {
           </p>
           <div className="space-y-3">
             <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50"
-              style={{ borderColor: profile.preferred_ai_model === 'claude-sonnet-4-20250514' || !profile.preferred_ai_model ? '#1a1a1a' : '#e5e5e5' }}>
+              style={{ borderColor: profile.preferred_ai_model === 'claude-sonnet-4-6' || !profile.preferred_ai_model ? '#1a1a1a' : '#e5e5e5' }}>
               <input
                 type="radio"
                 name="preferred_ai_model"
-                value="claude-sonnet-4-20250514"
-                checked={profile.preferred_ai_model === 'claude-sonnet-4-20250514' || !profile.preferred_ai_model}
+                value="claude-sonnet-4-6"
+                checked={profile.preferred_ai_model === 'claude-sonnet-4-6' || !profile.preferred_ai_model}
                 onChange={(e) => setProfile({ ...profile, preferred_ai_model: e.target.value })}
                 className="mt-1"
               />
@@ -375,12 +375,12 @@ export default function AdvisorProfilePage() {
               </div>
             </label>
             <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50"
-              style={{ borderColor: profile.preferred_ai_model === 'claude-opus-4-20250514' ? '#1a1a1a' : '#e5e5e5' }}>
+              style={{ borderColor: profile.preferred_ai_model === 'claude-opus-4-6' ? '#1a1a1a' : '#e5e5e5' }}>
               <input
                 type="radio"
                 name="preferred_ai_model"
-                value="claude-opus-4-20250514"
-                checked={profile.preferred_ai_model === 'claude-opus-4-20250514'}
+                value="claude-opus-4-6"
+                checked={profile.preferred_ai_model === 'claude-opus-4-6'}
                 onChange={(e) => setProfile({ ...profile, preferred_ai_model: e.target.value })}
                 className="mt-1"
               />
