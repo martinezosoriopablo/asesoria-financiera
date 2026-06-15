@@ -100,23 +100,34 @@ export async function POST(req: NextRequest) {
 
     if (!client) return errorResponse("Cliente no encontrado", 404);
 
-    // 3. Get client's snapshots for the month (manual cartola)
+    // 3. Get client's snapshots — latest in/before this month + previous one
+    const monthStart = `${month}-01`;
     const nextMonth = new Date(`${month}-01`);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     const monthEnd = nextMonth.toISOString().split("T")[0];
 
-    // Get the latest cartola before or in this month
-    const { data: snaps } = await sb
+    // Latest snapshot up to month end (current)
+    const { data: currentSnaps } = await sb
       .from("portfolio_snapshots")
       .select("snapshot_date, total_value, equity_value, fixed_income_value, alternatives_value, cash_value, holdings, source")
       .eq("client_id", clientId)
       .neq("source", "api-prices")
       .lte("snapshot_date", monthEnd)
       .order("snapshot_date", { ascending: false })
-      .limit(2);
+      .limit(1);
 
-    const latestSnap = snaps?.[0];
-    const previousSnap = snaps?.[1];
+    // Previous snapshot (before this month) for comparison
+    const { data: prevSnaps } = await sb
+      .from("portfolio_snapshots")
+      .select("snapshot_date, total_value")
+      .eq("client_id", clientId)
+      .neq("source", "api-prices")
+      .lt("snapshot_date", monthStart)
+      .order("snapshot_date", { ascending: false })
+      .limit(1);
+
+    const latestSnap = currentSnaps?.[0];
+    const previousSnap = prevSnaps?.[0];
 
     // 4. Build holdings summary
     let holdingsSummary = "Sin datos de holdings disponibles.";
@@ -141,10 +152,13 @@ export async function POST(req: NextRequest) {
         .map((h) => {
           const mv = h.marketValueCLP || h.marketValue || 0;
           const weight = totalMV > 0 ? ((mv / totalMV) * 100).toFixed(1) : "0";
-          const cost = h.costBasis || h.unitCost || 0;
-          const price = h.marketPrice || 0;
-          const retPct = cost > 0 && price > 0 ? (((price - cost) / cost) * 100).toFixed(1) : "n/a";
-          return `- ${h.fundName} (${h.securityId || "?"}) | ${h.assetClass || "?"} | Peso: ${weight}% | Retorno: ${retPct}%`;
+          // Return: use unitCost vs marketPrice (same unit: price per share/quota)
+          // Only compare when both exist and are in the same currency
+          let retPct = "n/a";
+          if (h.unitCost && h.unitCost > 0 && h.marketPrice && h.marketPrice > 0) {
+            retPct = (((h.marketPrice - h.unitCost) / h.unitCost) * 100).toFixed(1);
+          }
+          return `- ${h.fundName} (${h.securityId || "?"}) | ${h.assetClass || "?"} | ${h.currency || "CLP"} | Peso: ${weight}% | Val: $${Math.round(mv / 1e6)}M | Retorno: ${retPct}%`;
         })
         .join("\n");
     }
