@@ -26,6 +26,9 @@ interface EmailSnapshot {
   snapshot_date: string;
   cash_value: number;
   total_value: number;
+  equity_value?: number;
+  fixed_income_value?: number;
+  alternatives_value?: number;
   holdings?: unknown[] | null;
   source?: string;
 }
@@ -65,15 +68,15 @@ interface MonthlyResult {
 function computeMonthlyData(
   reportMonth: string,
   snapshots: EmailSnapshot[],
-  holdingReturnsData: HoldingReturnsData,
+  holdingReturnsData: HoldingReturnsData | null,
 ): MonthlyResult | null {
   const [y, m] = reportMonth.split("-").map(Number);
   const monthEnd = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
   const monthStart = `${y}-${String(m).padStart(2, "0")}-01`;
 
-  // Only use cartola snapshots (not api-prices) with holdings
+  // All cartola snapshots (not api-prices), sorted chronologically
   const cartolas = snapshots
-    .filter(s => s.source !== "api-prices" && s.holdings && Array.isArray(s.holdings) && (s.holdings as unknown[]).length > 0)
+    .filter(s => s.source !== "api-prices")
     .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
 
   if (cartolas.length < 2) return null;
@@ -86,23 +89,61 @@ function computeMonthlyData(
   }
   if (!endSnap) return null;
 
-  // Start snap: the cartola just BEFORE endSnap (previous cartola, ideally before monthStart)
-  const endIdx = cartolas.indexOf(endSnap);
-  const startSnap = endIdx > 0 ? cartolas[endIdx - 1] : null;
-  if (!startSnap || startSnap.snapshot_date === endSnap.snapshot_date) return null;
-
-  // If both snapshots are in the same month and there's an earlier one available, prefer it
-  if (startSnap.snapshot_date.startsWith(reportMonth) && endIdx > 1) {
-    // Try to find a cartola before the report month for a proper month-over-month comparison
-    const beforeMonth = cartolas.filter(s => s.snapshot_date < monthStart);
-    if (beforeMonth.length > 0) {
-      const betterStart = beforeMonth[beforeMonth.length - 1];
-      // Use the earlier start snap for a proper period
-      return computeMonthlyDataWithSnaps(betterStart, endSnap, holdingReturnsData);
-    }
+  // Start snap: ideally the cartola just BEFORE monthStart (end of previous month)
+  // If not available, use the cartola just before endSnap
+  const beforeMonth = cartolas.filter(s => s.snapshot_date < monthStart);
+  let startSnap: EmailSnapshot | null = null;
+  if (beforeMonth.length > 0) {
+    startSnap = beforeMonth[beforeMonth.length - 1]; // latest before month start
+  } else {
+    // No cartola before the month — use the one just before endSnap
+    const endIdx = cartolas.indexOf(endSnap);
+    startSnap = endIdx > 0 ? cartolas[endIdx - 1] : null;
   }
 
-  return computeMonthlyDataWithSnaps(startSnap, endSnap, holdingReturnsData);
+  if (!startSnap || startSnap.snapshot_date === endSnap.snapshot_date) return null;
+
+  // Check if both snapshots have holdings for per-holding detail
+  const startHasHoldings = startSnap.holdings && Array.isArray(startSnap.holdings) && (startSnap.holdings as unknown[]).length > 0;
+  const endHasHoldings = endSnap.holdings && Array.isArray(endSnap.holdings) && (endSnap.holdings as unknown[]).length > 0;
+
+  if (startHasHoldings && endHasHoldings && holdingReturnsData) {
+    // Full per-holding monthly computation
+    return computeMonthlyDataWithSnaps(startSnap, endSnap, holdingReturnsData);
+  }
+
+  // Fallback: use class-level values from snapshot columns (no per-holding detail)
+  return computeMonthlyFromClassValues(startSnap, endSnap);
+}
+
+/** Fallback when snapshots don't have holdings arrays — uses class-level DB columns */
+function computeMonthlyFromClassValues(
+  startSnap: EmailSnapshot,
+  endSnap: EmailSnapshot,
+): MonthlyResult {
+  const eqStart = startSnap.equity_value || 0;
+  const eqEnd = endSnap.equity_value || 0;
+  const fiStart = startSnap.fixed_income_value || 0;
+  const fiEnd = endSnap.fixed_income_value || 0;
+  const altStart = startSnap.alternatives_value || 0;
+  const altEnd = endSnap.alternatives_value || 0;
+  const cashStart = startSnap.cash_value || 0;
+  const cashEnd = endSnap.cash_value || 0;
+
+  const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
+
+  return {
+    comp: {
+      equity: { initial: eqStart, final: eqEnd, returnPct: eqStart > 0 ? ((eqEnd / eqStart) - 1) * 100 : 0 },
+      fixedIncome: { initial: fiStart, final: fiEnd, returnPct: fiStart > 0 ? ((fiEnd / fiStart) - 1) * 100 : 0 },
+      alternatives: { initial: altStart, final: altEnd, returnPct: altStart > 0 ? ((altEnd / altStart) - 1) * 100 : 0 },
+      cash: { initial: cashStart, final: cashEnd, returnPct: 0 },
+    },
+    holdingRets: [], // No per-holding detail without holdings arrays
+    attrList: [],
+    returnsBasis: { fromDate: fmtDate(startSnap.snapshot_date), toDate: fmtDate(endSnap.snapshot_date) },
+    monthTotalValue: endSnap.total_value,
+  };
 }
 
 function computeMonthlyDataWithSnaps(
@@ -248,68 +289,34 @@ export function useSeguimientoEmail({
 
     const latestValue = livePortfolioValue ?? metrics.currentValue;
 
-    // --- Try monthly computation first ---
+    // --- Monthly computation: THIS IS THE CORE OF THE REPORT ---
+    // A monthly closing report ALWAYS shows monthly data, never accumulated "desde inicio"
     let monthly: MonthlyResult | null = null;
-    if (reportMonth && holdingReturnsData && data.snapshots) {
+    if (reportMonth && data.snapshots) {
       monthly = computeMonthlyData(reportMonth, data.snapshots, holdingReturnsData);
     }
 
-    // --- Composition ---
+    // --- Composition & returns basis ---
     let comp: SeguimientoEmailData["composition"];
     let returnsBasis: { fromDate: string; toDate: string; isMonthly?: boolean } | undefined;
     let reportTotalValue = latestValue;
 
     if (monthly) {
-      // Use monthly data
       comp = monthly.comp;
       returnsBasis = { ...monthly.returnsBasis, isMonthly: true };
       reportTotalValue = monthly.monthTotalValue || latestValue;
-    } else if (holdingReturnsData) {
-      // Fallback: desde inicio
-      const hr = holdingReturnsData;
-      const eqFinal = hr.equityHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0;
-      const fiFinal = (hr.fixedIncomeFundHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0) +
-                      (hr.bondHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0);
-      const altFinal = hr.alternativesHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0;
-      const cashFinal = hr.cashValue || 0;
-
-      const initFromReturn = (h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => {
-        const ret = (h.totalReturn ?? h.returnPrice ?? 0) / 100;
-        return ret !== 0 ? h.marketValue / (1 + ret) : h.marketValue;
-      };
-      const eqInitial = hr.equityHoldings?.reduce((s: number, h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => s + initFromReturn(h), 0) || 0;
-      const fiInitial = (hr.fixedIncomeFundHoldings?.reduce((s: number, h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => s + initFromReturn(h), 0) || 0)
-        + (hr.bondHoldings?.reduce((s: number, h: { marketValue: number; totalReturn?: number; costBasis?: number }) => {
-          const ret = (h.totalReturn ?? 0) / 100;
-          return s + (ret !== 0 ? h.marketValue / (1 + ret) : (h.costBasis && h.costBasis > 0 ? h.costBasis : h.marketValue));
-        }, 0) || 0);
-      const altInitial = hr.alternativesHoldings?.reduce((s: number, h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => s + initFromReturn(h), 0) || 0;
-      const cashInitial = metrics.initialValue * (metrics.composition.cash / 100);
-
-      comp = {
-        equity: { initial: eqInitial, final: eqFinal, returnPct: eqInitial > 0 ? ((eqFinal / eqInitial) - 1) * 100 : 0 },
-        fixedIncome: { initial: fiInitial, final: fiFinal, returnPct: fiInitial > 0 ? ((fiFinal / fiInitial) - 1) * 100 : 0 },
-        alternatives: { initial: altInitial, final: altFinal, returnPct: altInitial > 0 ? ((altFinal / altInitial) - 1) * 100 : 0 },
-        cash: { initial: cashInitial, final: cashFinal, returnPct: 0 },
-      };
-
-      const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
-      // Use cartola snapshots (not api-prices) for the date range
-      const cartolaSnaps = (data.snapshots || [])
-        .filter(s => s.source !== "api-prices")
-        .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
-      returnsBasis = cartolaSnaps.length >= 2
-        ? { fromDate: fmtDate(cartolaSnaps[0].snapshot_date), toDate: fmtDate(cartolaSnaps[cartolaSnaps.length - 1].snapshot_date) }
-        : cartolaSnaps.length === 1
-        ? { fromDate: fmtDate(cartolaSnaps[0].snapshot_date), toDate: fmtDate(new Date().toISOString().split("T")[0]) }
-        : undefined;
     } else {
-      const initialValue = metrics.initialValue;
+      // No monthly data available (e.g., < 2 snapshots) — show current composition with 0% returns
+      const eqFinal = holdingReturnsData?.equityHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0;
+      const fiFinal = (holdingReturnsData?.fixedIncomeFundHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0)
+        + (holdingReturnsData?.bondHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0);
+      const altFinal = holdingReturnsData?.alternativesHoldings?.reduce((s: number, h: { marketValue: number }) => s + h.marketValue, 0) || 0;
+      const cashFinal = holdingReturnsData?.cashValue || metrics.currentValue * (metrics.composition.cash / 100);
       comp = {
-        equity: { initial: initialValue * metrics.composition.equity / 100, final: latestValue * metrics.composition.equity / 100, returnPct: 0 },
-        fixedIncome: { initial: initialValue * metrics.composition.fixedIncome / 100, final: latestValue * metrics.composition.fixedIncome / 100, returnPct: 0 },
-        alternatives: { initial: initialValue * metrics.composition.alternatives / 100, final: latestValue * metrics.composition.alternatives / 100, returnPct: 0 },
-        cash: { initial: initialValue * metrics.composition.cash / 100, final: latestValue * metrics.composition.cash / 100, returnPct: 0 },
+        equity: { initial: eqFinal, final: eqFinal, returnPct: 0 },
+        fixedIncome: { initial: fiFinal, final: fiFinal, returnPct: 0 },
+        alternatives: { initial: altFinal, final: altFinal, returnPct: 0 },
+        cash: { initial: cashFinal, final: cashFinal, returnPct: 0 },
       };
     }
 
@@ -367,51 +374,23 @@ export function useSeguimientoEmail({
       }
     }
 
-    // --- Holding returns & attribution ---
-    let holdingRetList: SeguimientoEmailData["holdingReturns"];
-    let attrList: SeguimientoEmailData["attribution"];
-
-    if (monthly) {
-      // Monthly data
-      holdingRetList = monthly.holdingRets;
-      attrList = monthly.attrList;
-    } else if (holdingReturnsData) {
-      // Desde inicio
-      holdingRetList = [
-        ...(holdingReturnsData.equityHoldings || []).map((h: { fundName: string; totalReturn?: number; assetType?: string }) => ({ name: h.fundName, assetType: h.assetType || "Accion", returnPct: h.totalReturn ?? 0 })),
-        ...(holdingReturnsData.fixedIncomeFundHoldings || []).map((h: { fundName: string; totalReturn?: number; assetType?: string }) => ({ name: h.fundName, assetType: h.assetType || "Fondo", returnPct: h.totalReturn ?? 0 })),
-        ...(holdingReturnsData.bondHoldings || []).map((h: { fundName: string; totalReturn?: number }) => ({ name: h.fundName, assetType: "Bono", returnPct: h.totalReturn ?? 0 })),
-        ...(holdingReturnsData.alternativesHoldings || []).map((h: { fundName: string; totalReturn?: number; assetType?: string }) => ({ name: h.fundName, assetType: h.assetType || "Alternativo", returnPct: h.totalReturn ?? 0 })),
-      ].sort((a, b) => b.returnPct - a.returnPct).slice(0, 20);
-
-      const allH = [
-        ...(holdingReturnsData.equityHoldings || []),
-        ...(holdingReturnsData.fixedIncomeFundHoldings || []),
-        ...(holdingReturnsData.bondHoldings || []),
-        ...(holdingReturnsData.alternativesHoldings || []),
-      ];
-      const rawAttr = allH.map(h => ({
-        name: h.fundName,
-        instrumentType: (h as { assetType?: string }).assetType || "Otro",
-        contributionPp: h.contribution ?? 0,
-      })).sort((a, b) => b.contributionPp - a.contributionPp);
-
-      const positives = rawAttr.filter(a => a.contributionPp >= 0);
-      const negatives = rawAttr.filter(a => a.contributionPp < 0);
-      attrList = [...positives.slice(0, 10), ...negatives.slice(0, 10)];
-    } else {
-      holdingRetList = [];
-      attrList = [];
-    }
+    // --- Holding returns & attribution (ALWAYS monthly, never accumulated) ---
+    const holdingRetList: SeguimientoEmailData["holdingReturns"] = monthly?.holdingRets || [];
+    const attrList: SeguimientoEmailData["attribution"] = monthly?.attrList || [];
 
     // --- Narrative ---
     let narrative = narrativeText;
     if (!narrative) {
       const parts: string[] = [];
       const clientFirst = data.client.nombre;
-      const ytdRet = pr["YTD"]?.nominal;
-      const oneMRet = pr["1M"]?.nominal;
-      const totalRet = ytdRet ?? oneMRet ?? accumulatedReturn ?? metrics.totalReturn;
+      // For monthly report, compute total monthly return from composition data
+      let monthlyTotalRet: number | null = null;
+      if (monthly) {
+        const totalStart = (comp.equity.initial + comp.fixedIncome.initial + comp.alternatives.initial + comp.cash.initial);
+        const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
+        monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
+      }
+      const totalRet = monthlyTotalRet ?? pr["1M"]?.nominal ?? accumulatedReturn ?? metrics.totalReturn;
       if (totalRet !== null && totalRet !== undefined) {
         const sign = totalRet >= 0 ? "positivo" : "negativo";
         parts.push(`El portafolio de ${clientFirst} ha tenido un desempeno ${sign} con una rentabilidad de ${totalRet >= 0 ? "+" : ""}${totalRet.toFixed(1)}% en el periodo.`);
