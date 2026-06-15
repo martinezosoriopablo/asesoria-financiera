@@ -235,13 +235,24 @@ export function usePerformanceCalculations({
           returnPct: number | null;
           currency?: string;
         }>) {
-          if (r.startPrice === null || r.endPrice === null) continue;
+          if (r.startPrice === null || r.endPrice === null || r.startPrice <= 0) continue;
           const h = holdings.find(hh => hh.fundName === r.fundName);
-          const holdingReturnPct = r.startPrice > 0 ? ((r.endPrice / r.startPrice) - 1) : 0;
-          // snap.holdings has marketValue ≈ end-of-month CLP value
-          // Derive start-of-month CLP by reversing the return
-          const endCLP = h?.marketValueCLP || h?.marketValue || (r.endPrice * (h?.quantity || 1));
-          const startCLP = holdingReturnPct !== 0 ? endCLP / (1 + holdingReturnPct) : endCLP;
+          const qty = h?.quantity || 1;
+
+          // CLP values from actual prices × quantity
+          const isCLP = (r.currency || h?.currency || "CLP") === "CLP";
+          let startCLP: number;
+          let endCLP: number;
+          if (isCLP) {
+            startCLP = r.startPrice * qty;
+            endCLP = r.endPrice * qty;
+          } else {
+            // Foreign currency: use snapshot CLP value as end anchor, derive start from price return
+            endCLP = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : h?.marketValue || r.endPrice * qty;
+            const ret = r.endPrice / r.startPrice;
+            startCLP = ret > 0 ? endCLP / ret : endCLP;
+          }
+
           totalStartCLP += startCLP;
           positionsRaw.push({ name: r.fundName, startCLP, endCLP, assetClass: r.assetClass });
         }
