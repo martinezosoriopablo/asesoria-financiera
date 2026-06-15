@@ -237,12 +237,11 @@ export function usePerformanceCalculations({
         }>) {
           if (r.startPrice === null || r.endPrice === null) continue;
           const h = holdings.find(hh => hh.fundName === r.fundName);
-          const qty = h?.quantity || 1;
-          // Use snapshot marketValue (always CLP) as initial value for correct weighting
-          // Then derive end value from return % to keep currency-consistent
           const holdingReturnPct = r.startPrice > 0 ? ((r.endPrice / r.startPrice) - 1) : 0;
-          const startCLP = h?.marketValue || r.startPrice * qty;
-          const endCLP = startCLP * (1 + holdingReturnPct);
+          // snap.holdings has marketValue ≈ end-of-month CLP value
+          // Derive start-of-month CLP by reversing the return
+          const endCLP = h?.marketValueCLP || h?.marketValue || (r.endPrice * (h?.quantity || 1));
+          const startCLP = holdingReturnPct !== 0 ? endCLP / (1 + holdingReturnPct) : endCLP;
           totalStartCLP += startCLP;
           positionsRaw.push({ name: r.fundName, startCLP, endCLP, assetClass: r.assetClass });
         }

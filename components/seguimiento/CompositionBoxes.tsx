@@ -6,6 +6,9 @@ import type { HoldingReturnsData } from "./HoldingReturnsPanel";
 
 interface Snapshot {
   snapshot_date: string;
+  equity_value: number;
+  fixed_income_value: number;
+  alternatives_value: number;
   cash_value: number;
 }
 
@@ -49,21 +52,11 @@ export default function CompositionBoxes({
     ? new Date(baseSnap.snapshot_date + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "2-digit" })
     : "Inicio";
 
-  // Derive initial CLP value per holding: marketValue × (purchasePrice / currentPrice)
-  // This uses the same classification and CLP conversion as final values,
-  // just at cartola-date prices instead of current prices.
-  const initCLP = (h: { marketValue: number; purchasePrice: number; currentPrice: number }) =>
-    h.currentPrice > 0 && h.purchasePrice > 0
-      ? h.marketValue * (h.purchasePrice / h.currentPrice)
-      : h.marketValue;
-
-  const rvInitial = d.equityHoldings.reduce((s, h) => s + initCLP(h), 0);
-  const rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + initCLP(h), 0)
-    + d.bondHoldings.reduce((s, h) => {
-      // Bonds: use costBasis as initial value (already in CLP)
-      return s + (h.costBasis > 0 ? h.costBasis : h.marketValue);
-    }, 0);
-  const altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + initCLP(h), 0);
+  // Initial values: use snapshot class-level values directly (already in CLP, from cartola)
+  // This is much more reliable than deriving from purchase-price ratios which can mix currencies
+  const rvInitial = baseSnap.equity_value || 0;
+  const rfInitial = baseSnap.fixed_income_value || 0;
+  const altInitial = baseSnap.alternatives_value || 0;
   const cashInitial = baseSnap.cash_value || 0;
 
   // Final (current) values: from live holdingReturnsData
