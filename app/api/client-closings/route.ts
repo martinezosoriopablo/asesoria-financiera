@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     // Previous snapshot (before this month) for comparison
     const { data: prevSnaps } = await sb
       .from("portfolio_snapshots")
-      .select("snapshot_date, total_value")
+      .select("snapshot_date, total_value, equity_value, fixed_income_value, alternatives_value, cash_value")
       .eq("client_id", clientId)
       .neq("source", "api-prices")
       .lt("snapshot_date", monthStart)
@@ -129,7 +129,25 @@ export async function POST(req: NextRequest) {
     const latestSnap = currentSnaps?.[0];
     const previousSnap = prevSnaps?.[0];
 
-    // 4. Build holdings summary
+    // 4. Build composition summary from snapshot class-level values (already in CLP)
+    const fmtM = (v: number) => `$${Math.round(v / 1e6)}M`;
+    const fmtPct = (v: number, total: number) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "0%";
+
+    let compositionSummary = "Sin datos de composición.";
+    if (latestSnap) {
+      const tv = latestSnap.total_value || 0;
+      const rv = latestSnap.equity_value || 0;
+      const rf = latestSnap.fixed_income_value || 0;
+      const alt = latestSnap.alternatives_value || 0;
+      const cash = latestSnap.cash_value || 0;
+      compositionSummary = `Valor Total: ${fmtM(tv)}
+- Renta Variable: ${fmtM(rv)} (${fmtPct(rv, tv)})
+- Renta Fija: ${fmtM(rf)} (${fmtPct(rf, tv)})
+- Alternativos: ${fmtM(alt)} (${fmtPct(alt, tv)})
+- Caja: ${fmtM(cash)} (${fmtPct(cash, tv)})`;
+    }
+
+    // 5. Build holdings list (names, weights, classes — NO return calc to avoid currency issues)
     let holdingsSummary = "Sin datos de holdings disponibles.";
     if (latestSnap?.holdings && Array.isArray(latestSnap.holdings)) {
       const holdings = latestSnap.holdings as Array<{
@@ -139,10 +157,6 @@ export async function POST(req: NextRequest) {
         marketValueCLP?: number;
         assetClass?: string;
         currency?: string;
-        costBasis?: number;
-        unitCost?: number;
-        marketPrice?: number;
-        quantity?: number;
       }>;
 
       const totalMV = holdings.reduce((s, h) => s + (h.marketValueCLP || h.marketValue || 0), 0);
@@ -152,24 +166,32 @@ export async function POST(req: NextRequest) {
         .map((h) => {
           const mv = h.marketValueCLP || h.marketValue || 0;
           const weight = totalMV > 0 ? ((mv / totalMV) * 100).toFixed(1) : "0";
-          // Return: use unitCost vs marketPrice (same unit: price per share/quota)
-          // Only compare when both exist and are in the same currency
-          let retPct = "n/a";
-          if (h.unitCost && h.unitCost > 0 && h.marketPrice && h.marketPrice > 0) {
-            retPct = (((h.marketPrice - h.unitCost) / h.unitCost) * 100).toFixed(1);
-          }
-          return `- ${h.fundName} (${h.securityId || "?"}) | ${h.assetClass || "?"} | ${h.currency || "CLP"} | Peso: ${weight}% | Val: $${Math.round(mv / 1e6)}M | Retorno: ${retPct}%`;
+          return `- ${h.fundName} | ${h.assetClass || "?"} | ${h.currency || "CLP"} | Peso: ${weight}%`;
         })
         .join("\n");
     }
 
-    // 5. Portfolio change
+    // 6. Portfolio and class-level change vs previous month
     let portfolioChange = "";
     if (latestSnap && previousSnap) {
-      const change = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
-      portfolioChange = `Valor portafolio pasó de $${Math.round(previousSnap.total_value / 1e6)}M a $${Math.round(latestSnap.total_value / 1e6)}M (${change}%) entre ${previousSnap.snapshot_date} y ${latestSnap.snapshot_date}.`;
+      const totalChg = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
+      portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%) | ${previousSnap.snapshot_date} → ${latestSnap.snapshot_date}`;
+
+      // Per-class changes
+      const classChange = (label: string, prev: number, curr: number) => {
+        if (prev <= 0 && curr <= 0) return null;
+        const chg = prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : "nuevo";
+        return `  ${label}: ${fmtM(prev)} → ${fmtM(curr)} (${typeof chg === "string" ? chg : chg + "%"})`;
+      };
+      const changes = [
+        classChange("RV", previousSnap.equity_value || 0, latestSnap.equity_value || 0),
+        classChange("RF", previousSnap.fixed_income_value || 0, latestSnap.fixed_income_value || 0),
+        classChange("Alt", previousSnap.alternatives_value || 0, latestSnap.alternatives_value || 0),
+        classChange("Caja", previousSnap.cash_value || 0, latestSnap.cash_value || 0),
+      ].filter(Boolean);
+      if (changes.length > 0) portfolioChange += "\n" + changes.join("\n");
     } else if (latestSnap) {
-      portfolioChange = `Valor portafolio actual: $${Math.round(latestSnap.total_value / 1e6)}M al ${latestSnap.snapshot_date}.`;
+      portfolioChange = `Valor portafolio actual: ${fmtM(latestSnap.total_value)} al ${latestSnap.snapshot_date}.`;
     }
 
     // 6. Strip HTML tags from monthly report for prompt
@@ -189,21 +211,24 @@ ${reportText}
 CLIENTE: ${client.nombre} ${client.apellido}
 PERFIL DE RIESGO: ${client.perfil_riesgo || "No definido"} (puntaje: ${client.puntaje_riesgo || "N/A"})
 
-CAMBIO EN PORTAFOLIO:
+COMPOSICIÓN ACTUAL DEL PORTAFOLIO:
+${compositionSummary}
+
+CAMBIO VS MES ANTERIOR:
 ${portfolioChange}
 
-COMPOSICIÓN DEL PORTAFOLIO (holdings actuales):
+HOLDINGS INDIVIDUALES:
 ${holdingsSummary}
 
 INSTRUCCIONES:
 1. Escribe una explicación de resultados de 4-6 párrafos en formato markdown
 2. Comienza con un resumen del mes: qué pasó en los mercados relevantes para ESTE cliente
 3. Explica cómo los movimientos de mercado impactaron SUS posiciones específicas (menciona nombres de instrumentos que tiene)
-4. Identifica los mayores contribuidores positivos y negativos de su portafolio
+4. Usa los datos de COMPOSICIÓN y CAMBIO VS MES ANTERIOR para hablar de la variación por clase de activo (RV, RF, Alt). NO inventes cifras que no estén en los datos.
 5. Relaciona los eventos del reporte mensual con el performance de sus instrumentos
 6. Cierra con perspectiva para el próximo mes basada en la sección "Lo Que Viene" del reporte
 7. Tono profesional pero cercano, tutéalo, español chileno
-8. NO des recomendaciones de compra/venta
+8. NO des recomendaciones de compra/venta. NO inventes retornos o valores que no aparezcan en los datos.
 9. Usa **negritas** para nombres de instrumentos y cifras importantes
 10. Escribe SOLO la explicación, sin título (el título lo pone la plataforma)`;
 
