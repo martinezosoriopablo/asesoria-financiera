@@ -295,8 +295,8 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         }
 
         const items: ChartItem[] = [];
-        let totalStartCLP = 0;
-        let totalEndCLP = 0;
+        let weightedRetSum = 0;
+        let totalWeight = 0;
 
         for (const r of data.results as Array<{
           fundName: string;
@@ -304,34 +304,16 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
           startPrice: number | null;
           endPrice: number | null;
           returnPct: number | null;
-          currency?: string;
           synthetic?: boolean;
         }>) {
-          if (r.returnPct === null || !r.startPrice || !r.endPrice) continue;
+          if (r.returnPct === null) continue;
 
           const h = holdings.find(hh => hh.fundName === r.fundName);
-          const qty = h?.quantity || 1;
+          // Weight = CLP value from snapshot (already in CLP)
+          const weight = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : (h?.marketValue || 0);
 
-          // CLP values from actual prices × quantity
-          // For CLP funds: price is in CLP, so startCLP = startPrice × qty
-          // For USD funds: price is in USD, but marketValueCLP gives us the CLP weight
-          // Use marketValueCLP from snapshot as the CLP reference for the end value,
-          // then derive start from the price ratio to maintain consistent CLP weighting
-          const isCLP = (r.currency || h?.currency || "CLP") === "CLP";
-          let startCLP: number;
-          let endCLP: number;
-          if (isCLP) {
-            startCLP = r.startPrice * qty;
-            endCLP = r.endPrice * qty;
-          } else {
-            // Foreign currency: use snapshot CLP value as end anchor, derive start from return
-            endCLP = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : h?.marketValue || r.endPrice * qty;
-            const ret = r.startPrice > 0 ? (r.endPrice / r.startPrice) : 1;
-            startCLP = ret > 0 ? endCLP / ret : endCLP;
-          }
-
-          totalStartCLP += startCLP;
-          totalEndCLP += endCLP;
+          weightedRetSum += (r.returnPct / 100) * weight;
+          totalWeight += weight;
 
           items.push({
             name: r.fundName.length > 30 ? r.fundName.slice(0, 28) + "…" : r.fundName,
@@ -343,11 +325,11 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
           });
         }
 
-        if (items.length > 0 && totalStartCLP > 0) {
+        if (items.length > 0 && totalWeight > 0) {
           items.push({
             name: "PORTAFOLIO TOTAL",
             fullName: "Portafolio Total",
-            returnPct: ((totalEndCLP / totalStartCLP) - 1) * 100,
+            returnPct: (weightedRetSum / totalWeight) * 100,
             assetClass: undefined,
             color: "#1e293b",
           });

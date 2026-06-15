@@ -224,8 +224,8 @@ export function usePerformanceCalculations({
           return;
         }
 
-        let totalStartCLP = 0;
-        const positionsRaw: Array<{ name: string; startCLP: number; endCLP: number; assetClass?: string }> = [];
+        let totalWeight = 0;
+        const positionsRaw: Array<{ name: string; weight: number; returnPct: number; assetClass?: string }> = [];
 
         for (const r of data.results as Array<{
           fundName: string;
@@ -233,46 +233,30 @@ export function usePerformanceCalculations({
           startPrice: number | null;
           endPrice: number | null;
           returnPct: number | null;
-          currency?: string;
         }>) {
-          if (r.startPrice === null || r.endPrice === null || r.startPrice <= 0) continue;
+          if (r.returnPct === null) continue;
           const h = holdings.find(hh => hh.fundName === r.fundName);
-          const qty = h?.quantity || 1;
-
-          // CLP values from actual prices × quantity
-          const isCLP = (r.currency || h?.currency || "CLP") === "CLP";
-          let startCLP: number;
-          let endCLP: number;
-          if (isCLP) {
-            startCLP = r.startPrice * qty;
-            endCLP = r.endPrice * qty;
-          } else {
-            // Foreign currency: use snapshot CLP value as end anchor, derive start from price return
-            endCLP = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : h?.marketValue || r.endPrice * qty;
-            const ret = r.endPrice / r.startPrice;
-            startCLP = ret > 0 ? endCLP / ret : endCLP;
-          }
-
-          totalStartCLP += startCLP;
-          positionsRaw.push({ name: r.fundName, startCLP, endCLP, assetClass: r.assetClass });
+          // Weight = CLP value from snapshot (already in CLP)
+          const weight = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : (h?.marketValue || 0);
+          totalWeight += weight;
+          positionsRaw.push({ name: r.fundName, weight, returnPct: r.returnPct, assetClass: r.assetClass });
         }
 
-        if (totalStartCLP <= 0) {
+        if (totalWeight <= 0) {
           setPastMonthAttribution([]);
           return;
         }
 
         const positions: PositionAttr[] = positionsRaw.map(p => {
-          const ret = p.startCLP > 0 ? ((p.endCLP - p.startCLP) / p.startCLP) * 100 : 0;
-          const contribution = ((p.endCLP - p.startCLP) / totalStartCLP) * 100;
-          const weight = (p.startCLP / totalStartCLP) * 100;
+          const portfolioWeight = (p.weight / totalWeight) * 100;
+          const contribution = (p.returnPct / 100) * (p.weight / totalWeight) * 100;
           return {
             name: p.name,
-            initialValue: p.startCLP,
-            finalValue: p.endCLP,
-            return: ret,
+            initialValue: p.weight,
+            finalValue: p.weight * (1 + p.returnPct / 100),
+            return: p.returnPct,
             contribution,
-            weight,
+            weight: portfolioWeight,
             assetClass: p.assetClass,
           };
         });
