@@ -423,7 +423,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
           <RentabilidadPorActivo
             holdingReturnsData={seg.holdingReturnsData}
             snapshots={snapshots}
-            historicalAccumulatedReturn={accumulatedReturn}
+            historicalAccumulatedReturn={seg.holdingReturnsData?.portfolioReturn ?? accumulatedReturn}
           />
         )}
 
@@ -453,7 +453,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             snapshots={snapshots}
             recommendation={seg.recommendation}
             previousPortfolio={snapshots.find(s => s.is_baseline) || null}
-            totalReturn={accumulatedReturn ?? metrics?.totalReturn}
+            totalReturn={seg.holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? metrics?.totalReturn}
             holdingReturnsData={seg.holdingReturnsData}
           />
         )}

@@ -560,7 +560,7 @@ export function useSeguimientoEmail({
         const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
         monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
       }
-      const totalRet = monthlyTotalRet ?? pr["1M"]?.nominal ?? accumulatedReturn ?? metrics.totalReturn;
+      const totalRet = monthlyTotalRet ?? pr["1M"]?.nominal ?? holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? metrics.totalReturn;
       if (totalRet !== null && totalRet !== undefined) {
         const sign = totalRet >= 0 ? "positivo" : "negativo";
         parts.push(`El portafolio de ${clientFirst} ha tenido un desempeno ${sign} con una rentabilidad de ${totalRet >= 0 ? "+" : ""}${totalRet.toFixed(1)}% en el periodo.`);

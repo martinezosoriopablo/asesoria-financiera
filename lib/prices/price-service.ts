@@ -430,15 +430,24 @@ export async function getPrice(
   date: string,
   resolution: SourceResolution
 ): Promise<{ price: number; date: string } | null> {
-  // Check DB first
-  const stored = await getStoredPrices(symbol, date, date);
+  // Lookback window: check up to 7 days before the requested date
+  // (handles weekends, holidays where no price exists on the exact date)
+  const to = date;
+  const fromD = new Date(date + "T00:00:00");
+  fromD.setDate(fromD.getDate() - 7);
+  const from = fromD.toISOString().slice(0, 10);
+
+  // Check DB first (with lookback range)
+  const stored = await getStoredPrices(symbol, from, to);
   if (stored.length > 0) {
-    return { price: stored[0].price, date: stored[0].date };
+    // Return the closest date to the requested date
+    const exact = stored.find((p) => p.date === date);
+    if (exact) return { price: exact.price, date: exact.date };
+    // Otherwise return the most recent price before/on the date
+    return { price: stored[stored.length - 1].price, date: stored[stored.length - 1].date };
   }
 
-  // Fetch on demand — small range around the requested date
-  const from = date;
-  const to = date;
+  // Fetch on demand — 7-day lookback range
   const fetched = await fetchPriceRange(resolution, from, to);
   if (fetched.length === 0) return null;
 
