@@ -55,10 +55,10 @@ interface PDFProps {
 // ============================================================
 
 const colors = {
-  primary: "#0F172A",
-  accent: "#0D9488",
-  gray: "#64748b",
-  lightGray: "#F0FDFA",
+  primary: "#0B2C5E",
+  accent: "#2E86E0",
+  gray: "#5B6B82",
+  lightGray: "#EEF3FA",
   white: "#ffffff",
   green: "#16a34a",
   red: "#dc2626",
@@ -361,7 +361,7 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoSection}>
-            <Text style={styles.companyName}>GREYBARK</Text>
+            <Text style={styles.companyName}>GLOBAL</Text>
             <Text style={styles.reportType}>Cartera Recomendada</Text>
           </View>
           <View style={styles.headerRight}>
@@ -496,7 +496,7 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            GREYBARK | Cartera Recomendada | {formatDate(generadoEn)}
+            Global | Cartera Recomendada | {formatDate(generadoEn)}
           </Text>
           <Text style={styles.disclaimer}>
             Este documento es solo para fines informativos y no constituye una recomendación de inversión personalizada.

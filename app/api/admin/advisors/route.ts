@@ -338,15 +338,15 @@ export async function PATCH(request: NextRequest) {
       const actionLink = linkData.properties?.action_link;
 
       const { error: emailError } = await resend.emails.send({
-        from: process.env.SENDER_EMAIL || "Greybark <noreply@greybark.com>",
+        from: process.env.SENDER_EMAIL || "Global <noreply@global.cl>",
         to: targetAdvisor.email,
-        subject: "Acceso a Greybark",
+        subject: "Acceso a Global",
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
             <h2>Hola ${targetAdvisor.nombre},</h2>
-            <p>Se te ha enviado un nuevo enlace de acceso a la plataforma Greybark.</p>
+            <p>Se te ha enviado un nuevo enlace de acceso a la plataforma Global.</p>
             <p style="margin: 24px 0;">
-              <a href="${actionLink}" style="background: #0D9488; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+              <a href="${actionLink}" style="background: #0B2C5E; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
                 Acceder a la plataforma
               </a>
             </p>
