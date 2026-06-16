@@ -246,6 +246,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         const items: ChartItem[] = [];
         let weightedRetSum = 0;
         let totalWeight = 0;
+        const coveredNames = new Set<string>();
 
         for (const r of data.results as Array<{
           fundName: string;
@@ -257,6 +258,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         }>) {
           if (r.returnPct === null) continue;
 
+          coveredNames.add(r.fundName);
           const h = holdings.find(hh => hh.fundName === r.fundName);
           // Weight = CLP value from snapshot (already in CLP)
           const weight = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : (h?.marketValue || 0);
@@ -272,6 +274,28 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
             color: getColor(r.assetClass),
             synthetic: r.synthetic,
           });
+        }
+
+        // Bonds return null from prices-at-date (no FINRA historical handler).
+        // Inject bond returns from holdingReturnsData (useBondCalculations).
+        if (holdingReturnsData?.bondHoldings) {
+          for (const b of holdingReturnsData.bondHoldings) {
+            if (coveredNames.has(b.fundName)) continue;
+            const ret = b.totalReturn ?? 0;
+            const weight = b.marketValue || 0;
+            if (weight <= 0) continue;
+
+            weightedRetSum += (ret / 100) * weight;
+            totalWeight += weight;
+
+            items.push({
+              name: b.fundName.length > 30 ? b.fundName.slice(0, 28) + "…" : b.fundName,
+              fullName: b.fundName,
+              returnPct: ret,
+              assetClass: "fixedIncome",
+              color: getColor("fixedIncome"),
+            });
+          }
         }
 
         if (items.length > 0 && totalWeight > 0) {

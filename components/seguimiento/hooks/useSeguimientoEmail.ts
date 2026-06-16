@@ -342,8 +342,10 @@ async function fetchMonthlyFromAPI(
     const holdingRets: SeguimientoEmailData["holdingReturns"] = [];
     const attrRaw: Array<{ name: string; instrumentType: string; weight: number; returnPct: number }> = [];
 
+    const coveredNames = new Set<string>();
     for (const r of results) {
       if (r.returnPct === null) continue;
+      coveredNames.add(r.fundName);
       const h = holdings.find(hh => hh.fundName === r.fundName);
       const weight = (h?.marketValueCLP && h.marketValueCLP > 0) ? h.marketValueCLP : (h?.marketValue || 0);
       if (weight <= 0) continue;
@@ -357,6 +359,21 @@ async function fetchMonthlyFromAPI(
 
       holdingRets.push({ name: r.fundName, assetType: typeOf.get(r.fundName) || "Otro", returnPct: r.returnPct });
       attrRaw.push({ name: r.fundName, instrumentType: typeOf.get(r.fundName) || "Otro", weight, returnPct: r.returnPct });
+    }
+
+    // Bonds return null from prices-at-date (no FINRA historical handler).
+    // Inject bond returns from holdingReturnsData (useBondCalculations).
+    for (const b of holdingReturnsData.bondHoldings) {
+      if (coveredNames.has(b.fundName)) continue;
+      const ret = b.totalReturn ?? 0;
+      const weight = b.marketValue || 0;
+      if (weight <= 0) continue;
+
+      totalWeight += weight;
+      fiWeight += weight;
+      fiWeightedRet += (ret / 100) * weight;
+      holdingRets.push({ name: b.fundName, assetType: "bond", returnPct: ret });
+      attrRaw.push({ name: b.fundName, instrumentType: "bond", weight, returnPct: ret });
     }
 
     if (totalWeight <= 0) return null;

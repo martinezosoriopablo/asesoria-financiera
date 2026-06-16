@@ -226,6 +226,7 @@ export function usePerformanceCalculations({
 
         let totalWeight = 0;
         const positionsRaw: Array<{ name: string; weight: number; returnPct: number; assetClass?: string }> = [];
+        const coveredNames = new Set<string>();
 
         for (const r of data.results as Array<{
           fundName: string;
@@ -235,11 +236,25 @@ export function usePerformanceCalculations({
           returnPct: number | null;
         }>) {
           if (r.returnPct === null) continue;
+          coveredNames.add(r.fundName);
           const h = holdings.find(hh => hh.fundName === r.fundName);
           // Weight = CLP value from snapshot (already in CLP)
           const weight = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : (h?.marketValue || 0);
           totalWeight += weight;
           positionsRaw.push({ name: r.fundName, weight, returnPct: r.returnPct, assetClass: r.assetClass });
+        }
+
+        // Bonds return null from prices-at-date (no FINRA historical handler).
+        // Inject bond returns from holdingReturnsData (useBondCalculations).
+        if (holdingReturnsData?.bondHoldings) {
+          for (const b of holdingReturnsData.bondHoldings) {
+            if (coveredNames.has(b.fundName)) continue;
+            const ret = b.totalReturn ?? 0;
+            const weight = b.marketValue || 0;
+            if (weight <= 0) continue;
+            totalWeight += weight;
+            positionsRaw.push({ name: b.fundName, weight, returnPct: ret, assetClass: "fixedIncome" });
+          }
         }
 
         if (totalWeight <= 0) {
