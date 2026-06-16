@@ -37,6 +37,16 @@ const PROFILE_LABELS: Record<string, string> = {
   agresivo: "Agresivo",
 };
 
+// Greybark brand colors
+const BRAND = {
+  primary: "#0D9488",     // teal-600
+  primaryDark: "#0F766E", // teal-700
+  dark: "#0F172A",        // slate-900
+  gray: "#64748B",
+  lightBg: "#F0FDFA",     // teal-50
+  border: "#CCFBF1",      // teal-100
+};
+
 const CLASS_COLORS: Record<string, string> = {
   equity: "#3b82f6",
   fixedIncome: "#10b981",
@@ -87,27 +97,35 @@ function returnCell(val: number | null): string {
 function buildHeader(data: SeguimientoEmailData): string {
   const profileLabel = PROFILE_LABELS[data.perfilCliente] || data.perfilCliente;
   const displayValue = formatValue(data.totalValueCLP, data.displayCurrency, data.exchangeRates);
+  // Derive logo URL from platformUrl origin
+  const origin = data.platformUrl ? data.platformUrl.replace(/\/clients\/.*$/, "") : "";
+  const logoUrl = origin ? `${origin}/logo-greybark.png` : "";
 
   return `
-    <div style="background:#1e293b; color:white; padding:24px 32px;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; margin-bottom:4px; font-family:${FONT};">Global</div>
-          <div style="font-size:20px; font-weight:600; font-family:${FONT};">Reporte de Seguimiento</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:14px; font-weight:500; font-family:${FONT};">${escapeHtml(data.clientName)}</div>
-          <div style="font-size:12px; color:#94a3b8; font-family:${FONT};">${escapeHtml(data.reportDate)}</div>
-        </div>
-      </div>
-      <div style="margin-top:12px; display:flex; gap:12px;">
-        <div style="background:#334155; padding:6px 12px; border-radius:6px; font-size:12px; font-family:${FONT};">
-          <span style="color:#94a3b8;">Perfil:</span> ${escapeHtml(profileLabel)}
-        </div>
-        <div style="background:#334155; padding:6px 12px; border-radius:6px; font-size:12px; font-family:${FONT};">
-          <span style="color:#94a3b8;">Valor:</span> ${displayValue}
-        </div>
-      </div>
+    <div style="padding:24px 32px; border-bottom:3px solid ${BRAND.primary};">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="vertical-align:middle;">
+            ${logoUrl ? `<img src="${logoUrl}" alt="Greybark" height="28" style="display:block; margin-bottom:6px;" />` : `<div style="font-size:18px; font-weight:700; letter-spacing:1px; color:${BRAND.dark}; margin-bottom:6px; font-family:${FONT};">GREYBARK</div>`}
+            <div style="font-size:16px; font-weight:600; color:${BRAND.primary}; font-family:${FONT};">Reporte de Seguimiento</div>
+          </td>
+          <td style="text-align:right; vertical-align:middle;">
+            <div style="font-size:14px; font-weight:600; color:${BRAND.dark}; font-family:${FONT};">${escapeHtml(data.clientName)}</div>
+            <div style="font-size:12px; color:${BRAND.gray}; font-family:${FONT};">${escapeHtml(data.reportDate)}</div>
+          </td>
+        </tr>
+      </table>
+      <table cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:12px;">
+        <tr>
+          <td style="background:${BRAND.lightBg}; border:1px solid ${BRAND.border}; padding:5px 12px; border-radius:6px; font-size:12px; font-family:${FONT}; color:${BRAND.dark};">
+            <span style="color:${BRAND.gray};">Perfil:</span> ${escapeHtml(profileLabel)}
+          </td>
+          <td style="width:8px;"></td>
+          <td style="background:${BRAND.lightBg}; border:1px solid ${BRAND.border}; padding:5px 12px; border-radius:6px; font-size:12px; font-family:${FONT}; color:${BRAND.dark};">
+            <span style="color:${BRAND.gray};">Valor:</span> ${displayValue}
+          </td>
+        </tr>
+      </table>
     </div>`;
 }
 
@@ -138,7 +156,7 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:4px; font-family:${FONT};">Composicion</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:4px; font-family:${FONT};">Composicion</div>
       ${basisNote}
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
         <tr style="border-bottom:1px solid #e2e8f0;">
@@ -171,7 +189,7 @@ function buildPeriodReturnsSection(periodReturns: SeguimientoEmailData["periodRe
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px; font-family:${FONT};">Rentabilidad por Periodo</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:12px; font-family:${FONT};">Rentabilidad por Periodo</div>
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
         <tr style="border-bottom:1px solid #e2e8f0;">
           <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Periodo</th>
@@ -216,7 +234,7 @@ function buildDistributionSection(distribution: SeguimientoEmailData["distributi
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px; font-family:${FONT};">Distribucion</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:12px; font-family:${FONT};">Distribucion</div>
       <div style="display:flex; gap:24px; flex-wrap:wrap;">
         ${byAsset}
         ${byCurrency}
@@ -243,7 +261,7 @@ function buildBenchmarkSection(bm: NonNullable<SeguimientoEmailData["benchmarkCo
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:4px; font-family:${FONT};">Benchmark</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:4px; font-family:${FONT};">Benchmark</div>
       <div style="font-size:12px; color:#64748b; margin-bottom:12px; font-family:${FONT};">${escapeHtml(bm.label)}</div>
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
         <tr style="border-bottom:1px solid #e2e8f0;">
@@ -289,7 +307,7 @@ function buildHoldingReturnsSection(holdings: SeguimientoEmailData["holdingRetur
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:4px; font-family:${FONT};">Rentabilidad por Posicion</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:4px; font-family:${FONT};">Rentabilidad por Posicion</div>
       ${basisNote}
       <table style="width:100%; border-collapse:collapse;">
         <tr style="border-bottom:1px solid #e2e8f0;">
@@ -335,7 +353,7 @@ function buildAttributionSection(attribution: SeguimientoEmailData["attribution"
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px; font-family:${FONT};">Atribucion</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:12px; font-family:${FONT};">Atribucion</div>
       <table style="width:100%; border-collapse:collapse;">
         <tr style="border-bottom:1px solid #e2e8f0;">
           <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-size:11px; font-family:${FONT};">Instrumento</th>
@@ -361,20 +379,20 @@ function buildNarrativeSection(narrative: string): string {
 
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
-      <div style="font-size:14px; font-weight:600; color:#1e293b; margin-bottom:12px; font-family:${FONT};">Explicacion de Resultados</div>
+      <div style="font-size:14px; font-weight:600; color:${BRAND.primary}; margin-bottom:12px; font-family:${FONT};">Explicacion de Resultados</div>
       ${paragraphs}
     </div>`;
 }
 
 function buildFooter(data: SeguimientoEmailData): string {
   return `
-    <div style="padding:20px 32px; background:#f8fafc;">
-      <div style="font-size:11px; color:#94a3b8; margin-bottom:8px; text-align:center; font-family:${FONT};">
+    <div style="padding:20px 32px; background:${BRAND.lightBg}; border-top:2px solid ${BRAND.border};">
+      <div style="font-size:11px; color:${BRAND.gray}; margin-bottom:8px; text-align:center; font-family:${FONT};">
         TC: USD $${data.exchangeRates.usd.toLocaleString("es-CL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} &middot; UF $${data.exchangeRates.uf.toLocaleString("es-CL", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
       </div>
-      <div style="font-size:11px; color:#94a3b8; text-align:center; font-family:${FONT};">
-        Global &mdash; Este reporte es informativo y no constituye recomendacion de inversion.
-        <br/>Para ver el seguimiento completo, <a href="${escapeHtml(data.platformUrl)}" style="color:#3b82f6; text-decoration:underline;">ingresa a la plataforma</a>.
+      <div style="font-size:11px; color:${BRAND.gray}; text-align:center; font-family:${FONT};">
+        Greybark &mdash; Este reporte es informativo y no constituye recomendacion de inversion.
+        <br/>Para ver el seguimiento completo, <a href="${escapeHtml(data.platformUrl)}" style="color:${BRAND.primary}; text-decoration:underline;">ingresa a la plataforma</a>.
       </div>
     </div>`;
 }
@@ -395,7 +413,7 @@ export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Seguimiento — ${escapeHtml(data.clientName)}</title>
+  <title>Greybark — Seguimiento ${escapeHtml(data.clientName)}</title>
 </head>
 <body style="margin:0; padding:0; background:#f1f5f9; font-family:${FONT};">
   <div style="max-width:600px; margin:0 auto; background:#ffffff;">

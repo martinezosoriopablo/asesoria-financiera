@@ -180,12 +180,12 @@ export async function POST(req: NextRequest) {
     let emailError: string | null = null;
 
     const { data: emailData, error: resendError } = await resend.emails.send({
-      from: `Global <${senderEmail}>`,
+      from: `Greybark <${senderEmail}>`,
       to: client.email,
       subject: emailSubject,
       html: `
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-          <img src="${appUrl}/logo-global.png" alt="Global" style="height: 40px; margin-bottom: 32px;" />
+          <img src="${appUrl}/logo-greybark.png" alt="Greybark" style="height: 40px; margin-bottom: 32px;" />
           <h1 style="font-size: 20px; color: #1a1a1a; margin-bottom: 16px;">
             Hola ${escapeHtml(client.nombre || '')},
           </h1>

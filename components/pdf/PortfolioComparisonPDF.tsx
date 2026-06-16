@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     marginBottom: 30,
-    borderBottom: "2 solid #1e293b",
+    borderBottom: "2 solid #0D9488",
     paddingBottom: 20,
   },
   title: {
