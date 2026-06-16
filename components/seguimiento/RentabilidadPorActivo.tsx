@@ -277,11 +277,22 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         }
 
         // Bonds return null from prices-at-date (no FINRA historical handler).
-        // Inject bond returns from holdingReturnsData (useBondCalculations).
+        // Inject bond returns from holdingReturnsData (useBondCalculations),
+        // prorated linearly for the selected month (devengo is ~linear).
         if (holdingReturnsData?.bondHoldings) {
+          const cartolaDate = snap?.snapshot_date;
+          const totalDays = cartolaDate
+            ? Math.max(1, (Date.now() - new Date(cartolaDate + "T00:00:00").getTime()) / 86400000)
+            : 1;
+          const monthStart = new Date(startDate + "T00:00:00").getTime();
+          const monthEndMs = new Date(endDate + "T00:00:00").getTime();
+          const monthDays = Math.max(1, (monthEndMs - monthStart) / 86400000);
+          const proRatio = monthDays / totalDays;
+
           for (const b of holdingReturnsData.bondHoldings) {
             if (coveredNames.has(b.fundName)) continue;
-            const ret = b.totalReturn ?? 0;
+            const accRet = b.totalReturn ?? 0;
+            const ret = accRet * proRatio; // prorate for the month
             const weight = b.marketValue || 0;
             if (weight <= 0) continue;
 
