@@ -186,60 +186,9 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
       return items;
     }
 
-    // === CURRENT MONTH ===
-    const now = new Date();
-    const [y, m] = selected.key.split("-").map(Number);
-    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
-
-    if (isCurrentMonth) {
-      // Use baseline snapshot → live prices from holdingReturnsData
-      const monthStart = `${y}-${String(m).padStart(2, "0")}-01`;
-      const baselineSnap = findCartolaNearest(monthStart);
-      if (!baselineSnap?.holdings) return null; // will trigger API fetch
-
-      const startMap = new Map<string, { value: number }>();
-      for (const h of baselineSnap.holdings as Holding[]) {
-        const val = (h.marketValueCLP || 0) > 0 ? h.marketValueCLP! : h.marketValue ?? 0;
-        if (val > 0) startMap.set(h.fundName, { value: val });
-      }
-
-      const { equityHoldings, fixedIncomeFundHoldings = [], bondHoldings, totalValue } = holdingReturnsData;
-      const items: ChartItem[] = [];
-
-      const processHolding = (fundName: string, currentValue: number, assetClass?: string) => {
-        const startEntry = startMap.get(fundName);
-        if (!startEntry || startEntry.value <= 0 || currentValue <= 0) return;
-        const ret = ((currentValue / startEntry.value) - 1) * 100;
-        items.push({
-          name: fundName.length > 30 ? fundName.slice(0, 28) + "…" : fundName,
-          fullName: fundName,
-          returnPct: ret,
-          assetClass,
-          color: getColor(assetClass),
-        });
-      };
-
-      for (const h of equityHoldings) processHolding(h.fundName, h.marketValue, h.assetClass);
-      for (const h of fixedIncomeFundHoldings) processHolding(h.fundName, h.marketValue, "fixedIncome");
-      for (const b of bondHoldings) processHolding(b.fundName, b.marketValue, "fixedIncome");
-
-      if (items.length === 0) return null; // fallback to API fetch
-
-      if (baselineSnap.total_value > 0 && totalValue > 0) {
-        items.push({
-          name: "PORTAFOLIO TOTAL",
-          fullName: "Portafolio Total",
-          returnPct: ((totalValue / baselineSnap.total_value) - 1) * 100,
-          assetClass: undefined,
-          color: "#1e293b",
-        });
-      }
-
-      items.sort((a, b) => b.returnPct - a.returnPct);
-      return items;
-    }
-
-    // Past month → return null to trigger API fetch
+    // All specific months (past and current) use API prices-at-date
+    // This ensures we use actual price series, not snapshot CLP comparisons
+    // which can mix FX effects and reference wrong base dates
     return null;
   }, [holdingReturnsData, selected, cartolas]);
 
