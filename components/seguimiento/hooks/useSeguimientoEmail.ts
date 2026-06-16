@@ -35,10 +35,16 @@ interface EmailSnapshot {
 
 interface SnapHolding {
   fundName: string;
+  securityId?: string;
+  serie?: string;
   marketValue: number;
   marketValueCLP?: number;
+  marketPrice?: number;
+  quantity?: number;
   assetClass?: string;
   assetType?: string;
+  currency?: string;
+  market?: string;
 }
 
 interface UseSeguimientoEmailProps {
@@ -260,6 +266,140 @@ function computeMonthlyDataWithSnaps(
   };
 }
 
+// ---------- API-based monthly computation (for clients with < 2 cartolas) ----------
+
+interface PriceAtDateResult {
+  fundName: string;
+  assetClass?: string;
+  startPrice: number | null;
+  endPrice: number | null;
+  returnPct: number | null;
+  synthetic?: boolean;
+}
+
+async function fetchMonthlyFromAPI(
+  reportMonth: string,
+  snapshots: EmailSnapshot[],
+  holdingReturnsData: HoldingReturnsData,
+): Promise<MonthlyResult | null> {
+  const [y, m] = reportMonth.split("-").map(Number);
+  const startDate = `${y}-${String(m).padStart(2, "0")}-01`;
+  const now = new Date();
+  const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
+  const monthEnd = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
+  const endDate = isCurrentMonth ? now.toISOString().split("T")[0] : monthEnd;
+
+  // Find the best cartola for holdings composition
+  const cartolas = snapshots
+    .filter(s => s.source !== "api-prices" && Array.isArray(s.holdings) && (s.holdings as unknown[]).length > 0)
+    .sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
+  if (cartolas.length === 0) return null;
+
+  // Nearest cartola to the month
+  let snap = cartolas[0];
+  for (const s of cartolas) {
+    if (s.snapshot_date <= monthEnd) snap = s;
+  }
+
+  const holdings = snap.holdings as SnapHolding[];
+
+  try {
+    const res = await fetch("/api/portfolio/prices-at-date", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        holdings: holdings.map(h => ({
+          fundName: h.fundName,
+          securityId: h.securityId || null,
+          serie: h.serie || null,
+          assetClass: h.assetClass,
+          currency: h.currency || null,
+          market: h.market || null,
+          cartolaPrice: (h.quantity && h.quantity > 0 ? h.marketValue / h.quantity : null) || h.marketPrice || null,
+        })),
+        startDate,
+        endDate,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success || !data.results) return null;
+
+    const results = data.results as PriceAtDateResult[];
+
+    // Classify holdings using holdingReturnsData
+    const classOf = new Map<string, "equity" | "fixedIncome" | "alternatives">();
+    const typeOf = new Map<string, string>();
+    for (const h of holdingReturnsData.equityHoldings) { classOf.set(h.fundName, "equity"); typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund"); }
+    for (const h of holdingReturnsData.fixedIncomeFundHoldings) { classOf.set(h.fundName, "fixedIncome"); typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund"); }
+    for (const h of holdingReturnsData.bondHoldings) { classOf.set(h.fundName, "fixedIncome"); typeOf.set(h.fundName, "bond"); }
+    for (const h of (holdingReturnsData.alternativesHoldings || [])) { classOf.set(h.fundName, "alternatives"); typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund"); }
+
+    // Build weighted returns using returnPct from API + CLP weight from snapshot
+    let totalWeight = 0;
+    let eqWeight = 0, fiWeight = 0, altWeight = 0;
+    let eqWeightedRet = 0, fiWeightedRet = 0, altWeightedRet = 0;
+
+    const holdingRets: SeguimientoEmailData["holdingReturns"] = [];
+    const attrRaw: Array<{ name: string; instrumentType: string; weight: number; returnPct: number }> = [];
+
+    for (const r of results) {
+      if (r.returnPct === null) continue;
+      const h = holdings.find(hh => hh.fundName === r.fundName);
+      const weight = (h?.marketValueCLP && h.marketValueCLP > 0) ? h.marketValueCLP : (h?.marketValue || 0);
+      if (weight <= 0) continue;
+
+      totalWeight += weight;
+      const cls = classOf.get(r.fundName);
+      if (cls === "equity") { eqWeight += weight; eqWeightedRet += (r.returnPct / 100) * weight; }
+      else if (cls === "fixedIncome") { fiWeight += weight; fiWeightedRet += (r.returnPct / 100) * weight; }
+      else if (cls === "alternatives") { altWeight += weight; altWeightedRet += (r.returnPct / 100) * weight; }
+      else { eqWeight += weight; eqWeightedRet += (r.returnPct / 100) * weight; }
+
+      holdingRets.push({ name: r.fundName, assetType: typeOf.get(r.fundName) || "Otro", returnPct: r.returnPct });
+      attrRaw.push({ name: r.fundName, instrumentType: typeOf.get(r.fundName) || "Otro", weight, returnPct: r.returnPct });
+    }
+
+    if (totalWeight <= 0) return null;
+
+    holdingRets.sort((a, b) => b.returnPct - a.returnPct);
+
+    // Attribution: contribution = returnPct × (weight / totalWeight)
+    const attrList: SeguimientoEmailData["attribution"] = attrRaw
+      .map(a => ({
+        name: a.name,
+        instrumentType: a.instrumentType,
+        contributionPp: (a.returnPct / 100) * (a.weight / totalWeight) * 100,
+      }))
+      .sort((a, b) => b.contributionPp - a.contributionPp);
+
+    // Composition: use snapshot values as "initial", compute "final" from returnPct
+    const eqInitial = eqWeight;
+    const fiInitial = fiWeight;
+    const altInitial = altWeight;
+    const cashValue = snap.cash_value || 0;
+
+    const comp: SeguimientoEmailData["composition"] = {
+      equity: { initial: eqInitial, final: eqInitial + eqWeightedRet, returnPct: eqWeight > 0 ? (eqWeightedRet / eqWeight) * 100 : 0 },
+      fixedIncome: { initial: fiInitial, final: fiInitial + fiWeightedRet, returnPct: fiWeight > 0 ? (fiWeightedRet / fiWeight) * 100 : 0 },
+      alternatives: { initial: altInitial, final: altInitial + altWeightedRet, returnPct: altWeight > 0 ? (altWeightedRet / altWeight) * 100 : 0 },
+      cash: { initial: cashValue, final: cashValue, returnPct: 0 },
+    };
+
+    const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
+
+    return {
+      comp,
+      holdingRets: holdingRets.slice(0, 20),
+      attrList,
+      returnsBasis: { fromDate: fmtDate(startDate), toDate: fmtDate(endDate) },
+      monthTotalValue: totalWeight + cashValue,
+    };
+  } catch (err) {
+    console.warn("[useSeguimientoEmail] prices-at-date API error:", err);
+    return null;
+  }
+}
+
 // ---------- Hook ----------
 
 export function useSeguimientoEmail({
@@ -280,6 +420,7 @@ export function useSeguimientoEmail({
   const [narrativeText, setNarrativeText] = useState<string | null>(null);
   const [loadingNarrative, setLoadingNarrative] = useState(false);
   const [reportMonth, setReportMonth] = useState<string | null>(null);
+  const [apiMonthlyResult, setApiMonthlyResult] = useState<MonthlyResult | null>(null);
 
   const assembleSeguimientoData = useCallback((): SeguimientoEmailData | null => {
     const metrics = data?.metrics;
@@ -291,9 +432,13 @@ export function useSeguimientoEmail({
 
     // --- Monthly computation: THIS IS THE CORE OF THE REPORT ---
     // A monthly closing report ALWAYS shows monthly data, never accumulated "desde inicio"
+    // Try snapshot-based computation first, fall back to API-fetched result
     let monthly: MonthlyResult | null = null;
     if (reportMonth && data.snapshots) {
       monthly = computeMonthlyData(reportMonth, data.snapshots, holdingReturnsData);
+    }
+    if (!monthly && apiMonthlyResult) {
+      monthly = apiMonthlyResult;
     }
 
     // --- Composition & returns basis ---
@@ -433,7 +578,7 @@ export function useSeguimientoEmail({
       returnsBasis,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
     };
-  }, [data, holdingReturnsData, periodReturns, benchmarkReturns, benchmarkLabel, currentExchangeRates, exchangeRates, livePortfolioValue, displayCurrency, narrativeText, clientId, accumulatedReturn, reportMonth]);
+  }, [data, holdingReturnsData, periodReturns, benchmarkReturns, benchmarkLabel, currentExchangeRates, exchangeRates, livePortfolioValue, displayCurrency, narrativeText, clientId, accumulatedReturn, reportMonth, apiMonthlyResult]);
 
   const openSendModal = useCallback(async () => {
     if (!clientEmail) {
@@ -468,15 +613,36 @@ export function useSeguimientoEmail({
         } catch { /* ignore */ }
       }
 
-      setReportMonth(foundMonth || prevMonth);
+      const selectedMonth = foundMonth || prevMonth;
+      setReportMonth(selectedMonth);
+
+      // If < 2 cartolas, fetch monthly data from prices-at-date API
+      if (data?.snapshots && holdingReturnsData) {
+        const cartolas = data.snapshots.filter(s => s.source !== "api-prices");
+        if (cartolas.length < 2) {
+          const apiResult = await fetchMonthlyFromAPI(selectedMonth, data.snapshots, holdingReturnsData);
+          setApiMonthlyResult(apiResult);
+        }
+      }
+
       setLoadingNarrative(false);
     } else if (!reportMonth) {
       // Narrative already set but no month — default to prevMonth
-      setReportMonth(prevMonth);
+      const selectedMonth = prevMonth;
+      setReportMonth(selectedMonth);
+
+      // Same API fallback check
+      if (data?.snapshots && holdingReturnsData) {
+        const cartolas = data.snapshots.filter(s => s.source !== "api-prices");
+        if (cartolas.length < 2) {
+          const apiResult = await fetchMonthlyFromAPI(selectedMonth, data.snapshots, holdingReturnsData);
+          setApiMonthlyResult(apiResult);
+        }
+      }
     }
 
     setShowSendModal(true);
-  }, [clientId, clientEmail, narrativeText, loadingNarrative, reportMonth]);
+  }, [clientId, clientEmail, narrativeText, loadingNarrative, reportMonth, data, holdingReturnsData]);
 
   return {
     showSendModal,
