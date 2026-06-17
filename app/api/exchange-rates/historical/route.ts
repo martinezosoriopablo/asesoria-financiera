@@ -1,6 +1,7 @@
 // app/api/exchange-rates/historical/route.ts
-// Historical UF/USD data from Banco Central de Chile (SI3 API)
-// Fallback: mindicador.cl
+// Historical UF/USD/EUR data
+// UF/USD: Banco Central de Chile (SI3 API), fallback mindicador.cl
+// EUR: mindicador.cl (BCCH doesn't publish EUR)
 
 import { NextRequest, NextResponse } from "next/server";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -22,8 +23,8 @@ export async function GET(request: NextRequest) {
   const indicator = request.nextUrl.searchParams.get("indicator"); // "uf" or "dolar"
   const year = request.nextUrl.searchParams.get("year");
 
-  if (!indicator || !year || !["uf", "dolar"].includes(indicator)) {
-    return NextResponse.json({ success: false, error: "indicator (uf|dolar) and year required" }, { status: 400 });
+  if (!indicator || !year || !["uf", "dolar", "euro"].includes(indicator)) {
+    return NextResponse.json({ success: false, error: "indicator (uf|dolar|euro) and year required" }, { status: 400 });
   }
 
   const cacheKey = `${indicator}-${year}`;
@@ -32,23 +33,25 @@ export async function GET(request: NextRequest) {
   }
 
   return handleApiError("exchange-rates-historical-get", async () => {
-    // Primary: Banco Central de Chile
-    try {
-      const serie = await fetchBcchSeries(
-        indicator as "dolar" | "uf",
-        `${year}-01-01`,
-        `${year}-12-31`,
-      );
+    // Primary: Banco Central de Chile for uf/dolar, mindicador.cl for euro
+    if (indicator !== "euro") {
+      try {
+        const serie = await fetchBcchSeries(
+          indicator as "dolar" | "uf",
+          `${year}-01-01`,
+          `${year}-12-31`,
+        );
 
-      cache[cacheKey] = { data: serie, expiry: Date.now() + CACHE_DURATION };
-      return NextResponse.json({ success: true, serie, source: "Banco Central de Chile" });
-    } catch (bcchError) {
-      console.warn(`[exchange-rates/historical] BCCH failed for ${indicator}/${year}:`, bcchError);
+        cache[cacheKey] = { data: serie, expiry: Date.now() + CACHE_DURATION };
+        return NextResponse.json({ success: true, serie, source: "Banco Central de Chile" });
+      } catch (bcchError) {
+        console.warn(`[exchange-rates/historical] BCCH failed for ${indicator}/${year}:`, bcchError);
+      }
     }
 
-    // Fallback: mindicador.cl
+    // Fallback: mindicador.cl (primary source for euro)
     try {
-      const minIndicator = indicator === "dolar" ? "dolar" : "uf";
+      const minIndicator = indicator === "dolar" ? "dolar" : indicator === "euro" ? "euro" : "uf";
       const res = await fetch(`https://mindicador.cl/api/${minIndicator}/${year}`, {
         next: { revalidate: 3600 },
       });

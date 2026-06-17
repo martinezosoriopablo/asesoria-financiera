@@ -6,23 +6,23 @@ interface UseExchangeRatesParams {
 }
 
 interface UseExchangeRatesReturn {
-  exchangeRates: { uf: number; usd: number } | null;
-  deflatorData: { uf: Map<string, number>; usd: Map<string, number> } | null;
-  cartolaExchangeRates: { uf: number; usd: number } | null;
-  currentExchangeRates: { uf: number; usd: number } | null;
+  exchangeRates: { uf: number; usd: number; eur: number } | null;
+  deflatorData: { uf: Map<string, number>; usd: Map<string, number>; eur: Map<string, number> } | null;
+  cartolaExchangeRates: { uf: number; usd: number; eur: number } | null;
+  currentExchangeRates: { uf: number; usd: number; eur: number } | null;
   findDeflatorValue: (map: Map<string, number> | undefined, date: string) => number | null;
   findDeflatorValueNext: (map: Map<string, number> | undefined, date: string) => number | null;
 }
 
 export function useExchangeRates({ snapshots, livePriceDate }: UseExchangeRatesParams): UseExchangeRatesReturn {
-  const [deflatorData, setDeflatorData] = useState<{ uf: Map<string, number>; usd: Map<string, number> } | null>(null);
-  const [exchangeRates, setExchangeRates] = useState<{ uf: number; usd: number } | null>(null);
+  const [deflatorData, setDeflatorData] = useState<{ uf: Map<string, number>; usd: Map<string, number>; eur: Map<string, number> } | null>(null);
+  const [exchangeRates, setExchangeRates] = useState<{ uf: number; usd: number; eur: number } | null>(null);
 
   // Fetch current exchange rates for UF/USD display
   useEffect(() => {
     fetch("/api/exchange-rates")
       .then(r => r.json())
-      .then(d => { if (d.success) setExchangeRates({ uf: d.uf, usd: d.usd }); })
+      .then(d => { if (d.success) setExchangeRates({ uf: d.uf, usd: d.usd, eur: d.eur || 0 }); })
       .catch(() => { /* fallback handled */ });
   }, []);
 
@@ -33,8 +33,9 @@ export function useExchangeRates({ snapshots, livePriceDate }: UseExchangeRatesP
       const years = [currentYear - 1, currentYear];
       const ufMap = new Map<string, number>();
       const usdMap = new Map<string, number>();
+      const eurMap = new Map<string, number>();
 
-      // Fetch sequentially to avoid rate-limit (4 calls + StrictMode double-mount = 8+)
+      // Fetch sequentially to avoid rate-limit (6 calls + StrictMode double-mount = 12+)
       for (const year of years) {
         try {
           const ufRes = await fetch(`/api/exchange-rates/historical?indicator=uf&year=${year}`);
@@ -50,10 +51,17 @@ export function useExchangeRates({ snapshots, livePriceDate }: UseExchangeRatesP
             usdMap.set(e.fecha, e.valor);
           }
         } catch { /* ignore */ }
+        try {
+          const eurRes = await fetch(`/api/exchange-rates/historical?indicator=euro&year=${year}`);
+          const eurData = await eurRes.json();
+          for (const e of (eurData.serie || []) as Array<{ fecha: string; valor: number }>) {
+            eurMap.set(e.fecha, e.valor);
+          }
+        } catch { /* ignore */ }
       }
 
       if (ufMap.size > 0 || usdMap.size > 0) {
-        setDeflatorData({ uf: ufMap, usd: usdMap });
+        setDeflatorData({ uf: ufMap, usd: usdMap, eur: eurMap });
       }
     };
 
@@ -101,8 +109,10 @@ export function useExchangeRates({ snapshots, livePriceDate }: UseExchangeRatesP
     nextDay.setDate(nextDay.getDate() + 1);
     const nextDayStr = nextDay.toISOString().split("T")[0];
     const usdVal = findDeflatorValueNext(deflatorData.usd, nextDayStr);
+    // EUR: same-day lookup (no T+1 offset like USD)
+    const eurVal = findDeflatorValue(deflatorData.eur, cartolaDate);
     if (!ufVal || !usdVal) return null;
-    return { uf: ufVal, usd: usdVal };
+    return { uf: ufVal, usd: usdVal, eur: eurVal || 0 };
   }, [deflatorData, snapshots, findDeflatorValue, findDeflatorValueNext]);
 
   // Exchange rates at current valuation date: same T+1 convention for USD
@@ -116,8 +126,10 @@ export function useExchangeRates({ snapshots, livePriceDate }: UseExchangeRatesP
     nextDay.setDate(nextDay.getDate() + 1);
     const nextDayStr = nextDay.toISOString().split("T")[0];
     const usdVal = findDeflatorValueNext(deflatorData.usd, nextDayStr);
+    // EUR: same-day lookup (no T+1 offset like USD)
+    const eurVal = findDeflatorValue(deflatorData.eur, valDate);
     if (!ufVal || !usdVal) return null;
-    return { uf: ufVal, usd: usdVal };
+    return { uf: ufVal, usd: usdVal, eur: eurVal || 0 };
   }, [deflatorData, livePriceDate, findDeflatorValue, findDeflatorValueNext]);
 
   return {
