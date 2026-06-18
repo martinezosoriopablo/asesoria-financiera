@@ -8,6 +8,44 @@ import { stripAccents } from "@/lib/text";
 import { handleApiError } from "@/lib/api-response";
 import { projectBondPrices } from "@/lib/bonds/price-projection";
 
+// EUR rate cache (module-scoped, survives within a single serverless invocation)
+const eurRateCache = new Map<string, number>();
+
+async function getEurRate(fecha: string): Promise<number> {
+  const cached = eurRateCache.get(fecha);
+  if (cached) return cached;
+
+  const year = fecha.split("-")[0];
+  const yearKey = `_year_${year}`;
+  if (!eurRateCache.has(yearKey)) {
+    try {
+      const res = await fetch(`https://mindicador.cl/api/euro/${year}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        for (const e of (data.serie || []) as Array<{ fecha: string; valor: number }>) {
+          const dateStr = e.fecha.split("T")[0];
+          eurRateCache.set(dateStr, e.valor);
+        }
+        eurRateCache.set(yearKey, 1); // mark year as loaded
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Find closest date <= fecha
+  let bestDate = "";
+  let bestVal = 0;
+  for (const [d, v] of eurRateCache) {
+    if (!d.startsWith("_") && d <= fecha && d > bestDate) {
+      bestDate = d;
+      bestVal = v;
+    }
+  }
+  if (bestVal > 0) return bestVal;
+  throw new Error(`No EUR rate for ${fecha}`);
+}
+
 // POST /api/portfolio/historical-prices
 // Producto punto: vector de cuotas × vector de precios por fecha
 // Para cada fecha t: valor_portafolio(t) = sum(cuotas_i × precio_i(t))
@@ -511,10 +549,11 @@ export async function POST(req: NextRequest) {
 
       const fechaMap = new Map<string, number>();
       if (!isCLP) {
+        const isEUR = (ih.currency || "USD").toUpperCase() === "EUR";
         for (const [fecha, price] of intPriceMap) {
           try {
-            const dolar = await getDolarObservado(fecha);
-            fechaMap.set(fecha, price * dolar);
+            const fxRate = isEUR ? await getEurRate(fecha) : await getDolarObservado(fecha);
+            fechaMap.set(fecha, price * fxRate);
           } catch {
             // Skip dates without FX rate
           }
@@ -560,6 +599,33 @@ export async function POST(req: NextRequest) {
 
       if (projected.length === 0) continue;
 
+      // Overlay real FINRA prices where available
+      const secId = (bh.securityId || "").trim();
+      if (/^[A-Z0-9]{9}$/i.test(secId)) {
+        const { data: finraPrices } = await supabase
+          .from("bond_prices")
+          .select("price_date, last_price")
+          .eq("cusip", secId)
+          .gte("price_date", bondFromDate)
+          .lte("price_date", toDate)
+          .order("price_date");
+
+        if (finraPrices && finraPrices.length > 0) {
+          const finraMap = new Map<string, number>();
+          for (const fp of finraPrices as Array<{ price_date: string; last_price: number | null }>) {
+            if (fp.last_price != null && fp.last_price > 0) {
+              finraMap.set(fp.price_date, fp.last_price / 100); // % of par → fraction
+            }
+          }
+          for (const p of projected) {
+            const actual = finraMap.get(p.date);
+            if (actual !== undefined) {
+              p.price = actual;
+            }
+          }
+        }
+      }
+
       const key = `bond-${bh.securityId || bh.fundName}`;
       const isCLP = (bh.currency || "USD") === "CLP";
 
@@ -573,6 +639,7 @@ export async function POST(req: NextRequest) {
       });
 
       const fechaMap = new Map<string, number>();
+      const isEUR = (bh.currency || "USD").toUpperCase() === "EUR";
       for (const p of projected) {
         // p.price is fraction of par (e.g. 0.985 for 98.5%)
         const usdValue = bh.quantity * p.price;
@@ -580,8 +647,8 @@ export async function POST(req: NextRequest) {
           fechaMap.set(p.date, usdValue);
         } else {
           try {
-            const dolar = await getDolarObservado(p.date);
-            fechaMap.set(p.date, usdValue * dolar);
+            const fxRate = isEUR ? await getEurRate(p.date) : await getDolarObservado(p.date);
+            fechaMap.set(p.date, usdValue * fxRate);
           } catch {
             // Skip dates without FX rate
           }
@@ -625,6 +692,7 @@ export async function POST(req: NextRequest) {
 
       // Generate daily entries with constant value
       const fechaMap = new Map<string, number>();
+      const isEUR = (fh.currency || "USD").toUpperCase() === "EUR";
       const start = new Date(flatFromDate + "T00:00:00");
       const end = new Date(toDate + "T00:00:00");
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -633,8 +701,8 @@ export async function POST(req: NextRequest) {
           fechaMap.set(dateStr, fh.marketValue);
         } else {
           try {
-            const dolar = await getDolarObservado(dateStr);
-            fechaMap.set(dateStr, fh.marketValue * dolar);
+            const fxRate = isEUR ? await getEurRate(dateStr) : await getDolarObservado(dateStr);
+            fechaMap.set(dateStr, fh.marketValue * fxRate);
           } catch {
             // Skip dates without FX rate
           }
