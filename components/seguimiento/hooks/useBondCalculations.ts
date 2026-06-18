@@ -39,6 +39,7 @@ interface UseBondCalculationsParams {
   ufRate?: number;
   ufRateInitial?: number;
   usdRate?: number;
+  eurRate?: number;
 }
 
 export function useBondCalculations({
@@ -49,6 +50,7 @@ export function useBondCalculations({
   ufRate,
   ufRateInitial,
   usdRate,
+  eurRate,
 }: UseBondCalculationsParams): BondHoldingRow[] {
   const bondHoldings: BondHoldingRow[] = useMemo(() => {
     const latestDate = snapshots
@@ -171,8 +173,13 @@ export function useBondCalculations({
           actualCostBasis *= (ufRateInitial || ufRate);
           devengoUSD *= ufRate;
           marketDeviationUSD *= ufRate;
+        } else if (!isChileanBond && h.currency === "EUR" && eurRate) {
+          marketValueCalc *= eurRate;
+          actualCostBasis *= eurRate;
+          devengoUSD *= eurRate;
+          marketDeviationUSD *= eurRate;
         } else if (!isChileanBond && usdRate) {
-          // International bonds are in USD
+          // USD and other currencies fallback
           marketValueCalc *= usdRate;
           actualCostBasis *= usdRate;
           devengoUSD *= usdRate;
@@ -198,10 +205,10 @@ export function useBondCalculations({
           totalReturn: totalReturnPct,
           contribution: h.weight > 0 ? (totalReturnPct * h.weight) / 100 : 0,
           marketValue: marketValueCalc,
-          currency: isChileanBond ? "UF" : "USD", // original denomination (value is CLP-converted)
+          currency: isChileanBond ? "UF" : (h.currency === "EUR" ? "EUR" : "USD"), // original denomination (value is CLP-converted)
         };
       });
-  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate, ufRateInitial, usdRate]);
+  }, [enrichedSummaries, previousSnapshotDate, snapshots, bondPrices, ufRate, ufRateInitial, usdRate, eurRate]);
 
   return bondHoldings;
 }

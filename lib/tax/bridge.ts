@@ -68,10 +68,10 @@ function normalizeCategoria(cat: string): string {
 }
 
 // Convert value to CLP based on currency
-function toCLP(value: number, currency: string | undefined, usdRate: number): number {
+function toCLP(value: number, currency: string | undefined, usdRate: number, eurRate?: number): number {
   if (!currency || currency === "CLP") return value;
   if (currency === "USD") return value * usdRate;
-  // EUR and others: for now treat as CLP (rare in Chilean fund context)
+  if (currency === "EUR" && eurRate) return value * eurRate;
   return value;
 }
 
@@ -121,6 +121,7 @@ export function convertToTaxHoldings(
   ufValue: number,
   options?: {
     usdRate?: number;
+    eurRate?: number;
     proposalMap?: Record<string, ProposalInfo>;
     quotes?: Record<string, HistoricalQuote>; // key: "run-serie"
     // UF at estimated purchase dates for holdings WITH costBasis
@@ -129,6 +130,7 @@ export function convertToTaxHoldings(
   },
 ): TaxableHolding[] {
   const usdRate = options?.usdRate ?? 0;
+  const eurRate = options?.eurRate;
   const proposalMap = options?.proposalMap;
   const quotes = options?.quotes;
   const purchaseUFs = options?.purchaseUFs;
@@ -142,7 +144,7 @@ export function convertToTaxHoldings(
     // Convert to CLP: use marketValueCLP if already converted, otherwise convert
     const valueCLP = raw.marketValueCLP && raw.marketValueCLP > 0
       ? raw.marketValueCLP
-      : toCLP(raw.marketValue, raw.currency, usdRate);
+      : toCLP(raw.marketValue, raw.currency, usdRate, eurRate);
     const currentValueUF = valueCLP / ufValue;
 
     const quantity = raw.quantity || 1;
@@ -161,7 +163,7 @@ export function convertToTaxHoldings(
 
     if (raw.costBasis != null && raw.costBasis > 0) {
       // costBasis is in the same currency as marketValue — this is real data from cartola
-      const costCLP = toCLP(raw.costBasis, raw.currency, usdRate);
+      const costCLP = toCLP(raw.costBasis, raw.currency, usdRate, eurRate);
 
       // Use UF at purchase date for corrección monetaria
       const purchaseInfo = purchaseUFs?.[quoteKey];

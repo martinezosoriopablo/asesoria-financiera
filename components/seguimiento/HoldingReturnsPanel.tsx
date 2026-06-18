@@ -36,11 +36,12 @@ interface Props {
   fundsMeta?: FundMeta[];
   usdRate?: number;
   ufRate?: number;
+  eurRate?: number;
   ufRateInitial?: number;
   pricesAtDateEndpoint?: string;
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, ufRateInitial, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, eurRate, ufRateInitial, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
   const [returnMode, setReturnMode] = useState<"cartola" | "compra">("cartola");
 
   const { holdingSummaries, enrichedSummaries, previousSnapshotDate, bondPrices, loadingPrices } = useHoldingSummaries({
@@ -49,6 +50,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     fundsMeta,
     usdRate,
     ufRate,
+    eurRate,
     pricesAtDateEndpoint,
   });
 
@@ -127,6 +129,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
     ufRate,
     ufRateInitial,
     usdRate,
+    eurRate,
   });
 
   // Cash holdings

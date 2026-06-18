@@ -45,6 +45,7 @@ interface UseHoldingSummariesParams {
   fundsMeta?: FundMeta[];
   usdRate?: number;
   ufRate?: number;
+  eurRate?: number;
   pricesAtDateEndpoint?: string;
 }
 
@@ -54,6 +55,7 @@ export function useHoldingSummaries({
   fundsMeta,
   usdRate,
   ufRate,
+  eurRate,
   pricesAtDateEndpoint = "/api/portfolio/prices-at-date",
 }: UseHoldingSummariesParams) {
   // Extract unique holdings and their returns over time from snapshots
@@ -275,7 +277,10 @@ export function useHoldingSummaries({
             newMarketValue = h.quantity * mp.price;
           } else if (priceIsUF && ufRate) {
             newMarketValue = h.quantity * mp.price * ufRate;
+          } else if (mp.currency === "EUR" && eurRate) {
+            newMarketValue = h.quantity * mp.price * eurRate;
           } else if (usdRate) {
+            // USD and other currencies fallback
             newMarketValue = h.quantity * mp.price * usdRate;
           }
         }
@@ -290,6 +295,9 @@ export function useHoldingSummaries({
       }
 
       // No market price update — convert non-CLP marketValue to CLP
+      if (enriched.currency === "EUR" && eurRate && enriched.marketValue > 0) {
+        return { ...enriched, marketValue: enriched.marketValue * eurRate };
+      }
       if (enriched.currency === "USD" && usdRate && enriched.marketValue > 0) {
         return { ...enriched, marketValue: enriched.marketValue * usdRate };
       }
@@ -300,7 +308,7 @@ export function useHoldingSummaries({
     });
     // Weights will be recalculated after totalValue is known (includes bonds)
     return mapped;
-  }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate, ufRate]);
+  }, [holdingSummaries, marketPrices, bondLookups, tacByFundName, usdRate, ufRate, eurRate]);
 
   return { holdingSummaries, latestRawHoldings, enrichedSummaries, previousSnapshotDate, bondPrices, loadingPrices };
 }

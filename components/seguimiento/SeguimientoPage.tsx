@@ -285,7 +285,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
 
         {/* Holding Returns Panel */}
         {snapshots.length > 0 && (
-          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={seg.setLivePortfolioValue} onPriceDateUpdate={seg.setLivePriceDate} onHoldingReturnsReady={seg.setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={(currentExchangeRates || exchangeRates)?.usd} ufRate={(currentExchangeRates || exchangeRates)?.uf} ufRateInitial={deflatorData ? findDeflatorValue(deflatorData.uf, snapshots[0]?.snapshot_date) ?? undefined : undefined} />
+          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={seg.setLivePortfolioValue} onPriceDateUpdate={seg.setLivePriceDate} onHoldingReturnsReady={seg.setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={(currentExchangeRates || exchangeRates)?.usd} ufRate={(currentExchangeRates || exchangeRates)?.uf} eurRate={(currentExchangeRates || exchangeRates)?.eur} ufRateInitial={deflatorData ? findDeflatorValue(deflatorData.uf, snapshots[0]?.snapshot_date) ?? undefined : undefined} />
         )}
 
         {/* Evolution chart */}
