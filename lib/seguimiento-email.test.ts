@@ -102,18 +102,19 @@ describe("buildSeguimientoHTML", () => {
     // 6M and 1Y have null values — should show mdash
     expect(html).toContain("6M");
     expect(html).toContain("1Y");
-    // Count mdash occurrences — 6M has 3 nulls, 1Y has 3 nulls = 6 dashes
+    // Count mdash occurrences — 6M has 2 nulls (nominal+usd), 1Y has 2 nulls = 4 dashes
+    // (real column is no longer rendered; footer adds 1 more)
     const mdashCount = (html.match(/&mdash;/g) || []).length;
-    expect(mdashCount).toBeGreaterThanOrEqual(6);
+    expect(mdashCount).toBeGreaterThanOrEqual(4);
   });
 
-  it("includes distribution tables", () => {
+  it("includes positions section with holdings and attribution merged", () => {
     const html = buildSeguimientoHTML(makeData());
-    expect(html).toContain("Distribucion");
-    expect(html).toContain("Por Tipo de Activo");
-    expect(html).toContain("Por Moneda");
-    expect(html).toContain("36.7%");
-    expect(html).toContain("55.0%");
+    expect(html).toContain("Detalle por Posicion");
+    expect(html).toContain("Instrumento");
+    expect(html).toContain("Retorno");
+    expect(html).toContain("Contribucion");
+    expect(html).toContain("TOTAL");
   });
 
   it("includes benchmark comparison with diff", () => {
@@ -133,7 +134,7 @@ describe("buildSeguimientoHTML", () => {
 
   it("includes holding returns sorted by return", () => {
     const html = buildSeguimientoHTML(makeData());
-    expect(html).toContain("Rentabilidad por Posicion");
+    expect(html).toContain("Detalle por Posicion");
     expect(html).toContain("Fondo BTG Chile Acciones");
     expect(html).toContain("+12.5%");
     // Check sort order: 12.5 should appear before -1.2
@@ -142,24 +143,25 @@ describe("buildSeguimientoHTML", () => {
     expect(idx125).toBeLessThan(idxNeg);
   });
 
-  it("includes attribution with contribution bars", () => {
+  it("includes attribution contributions in positions table", () => {
     const html = buildSeguimientoHTML(makeData());
-    expect(html).toContain("Atribucion");
     expect(html).toContain("+2.10pp");
     expect(html).toContain("-0.30pp");
-    expect(html).toContain("TOTAL");
+    // Total contribution row
+    const totalContrib = 2.1 + 1.5 + (-0.3) + 0.05; // 3.35
+    expect(html).toContain(`+${totalContrib.toFixed(2)}pp`);
   });
 
   it("includes narrative when provided", () => {
     const html = buildSeguimientoHTML(makeData());
-    expect(html).toContain("Explicacion de Resultados");
+    expect(html).toContain("Comentario");
     expect(html).toContain("buen desempeno en mayo");
     expect(html).toContain("rally del IPSA");
   });
 
   it("omits narrative section when null", () => {
     const html = buildSeguimientoHTML(makeData({ narrative: null }));
-    expect(html).not.toContain("Explicacion de Resultados");
+    expect(html).not.toContain("Comentario");
   });
 
   it("uses only inline styles (no style tags)", () => {
