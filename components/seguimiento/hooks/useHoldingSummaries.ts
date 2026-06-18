@@ -29,6 +29,7 @@ export interface HoldingData {
   creditRating?: string | null;
   purchaseDate?: string | null;
   marketYield?: number | null;
+  couponFrequency?: number | null;
 }
 
 interface FundMeta {
@@ -171,6 +172,7 @@ export function useHoldingSummaries({
             estAnnualIncome: h.estAnnualIncome,
             purchaseDate: h.purchaseDate,
             marketYield: h.marketYield,
+            couponFrequency: h.couponFrequency,
           });
         }
       }
@@ -212,6 +214,7 @@ export function useHoldingSummaries({
             estIncomeYield: merged.estIncomeYield || null,
             estAnnualIncome: merged.estAnnualIncome || null,
             marketYield: merged.marketYield ?? null,
+            couponFrequency: merged.couponFrequency || null,
           };
 
           // For bonds, extract coupon/maturity/rating from fundName if missing
