@@ -36,6 +36,7 @@ interface Stats {
   clientes_activos: number;
   prospectos: number;
   aum_total: number;
+  clientes_sin_cartola: number;
   reuniones_pendientes: number;
   reuniones_esta_semana: number;
 }
@@ -148,14 +149,36 @@ export default function AdvisorDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editingMeeting, setEditingMeeting] = useState<any>(null);
   const [showWeekView, setShowWeekView] = useState(false);
 
+  const fetchData = async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const [statsRes, meetingsRes] = await Promise.all([
+        fetch("/api/advisor/stats"),
+        fetch("/api/advisor/meetings?timeframe=week"),
+      ]);
+      const statsData = await statsRes.json();
+      const meetingsData = await meetingsRes.json();
+      if (statsData.success) setStats(statsData.stats);
+      else throw new Error(statsData.error || "Error cargando estadísticas");
+      if (meetingsData.success) setMeetings(meetingsData.meetings);
+      else throw new Error(meetingsData.error || "Error cargando reuniones");
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Error cargando datos del dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (advisor) fetchData();
-  }, [advisor]);
+  }, [advisor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading) {
     return (
@@ -166,23 +189,6 @@ export default function AdvisorDashboard() {
   }
 
   if (!advisor) return null;
-
-  const fetchData = async () => {
-    try {
-      const [statsRes, meetingsRes] = await Promise.all([
-        fetch("/api/advisor/stats"),
-        fetch("/api/advisor/meetings?timeframe=week"),
-      ]);
-      const statsData = await statsRes.json();
-      const meetingsData = await meetingsRes.json();
-      if (statsData.success) setStats(statsData.stats);
-      if (meetingsData.success) setMeetings(meetingsData.meetings);
-    } catch {
-      // Error silencioso
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const todayMeetings = meetings.filter((m) => {
     const d = new Date(m.fecha);
@@ -199,11 +205,12 @@ export default function AdvisorDashboard() {
     } catch { /* silencioso */ }
   };
 
+  const sinCartola = stats?.clientes_sin_cartola ?? 0;
   const STAT_CARDS = [
-    { label: "Total Clientes", value: stats?.total_clientes ?? 0, icon: Users, highlight: false },
-    { label: "Activos", value: stats?.clientes_activos ?? 0, icon: UserCheck, highlight: false },
-    { label: "Prospectos", value: stats?.prospectos ?? 0, icon: UserPlus, highlight: false },
-    { label: "AUM Total", value: formatCurrency(stats?.aum_total ?? 0), icon: DollarSign, highlight: true },
+    { label: "Total Clientes", value: stats?.total_clientes ?? 0, icon: Users, highlight: false, subtitle: null as string | null },
+    { label: "Activos", value: stats?.clientes_activos ?? 0, icon: UserCheck, highlight: false, subtitle: null as string | null },
+    { label: "Prospectos", value: stats?.prospectos ?? 0, icon: UserPlus, highlight: false, subtitle: null as string | null },
+    { label: "AUM Total", value: formatCurrency(stats?.aum_total ?? 0), icon: DollarSign, highlight: true, subtitle: sinCartola > 0 ? `+ ${sinCartola} sin cartola` : null },
   ];
 
   return (
@@ -215,6 +222,22 @@ export default function AdvisorDashboard() {
         </h1>
         <p className="text-sm text-gb-gray capitalize mt-0.5">{formatDate()}</p>
       </div>
+
+      {/* Error state */}
+      {fetchError && !loading && (
+        <div className="mb-8 flex items-center gap-3 px-5 py-4 bg-red-50 border border-red-200 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-800">{fetchError}</p>
+          </div>
+          <button
+            onClick={() => fetchData()}
+            className="shrink-0 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       {loading ? (
@@ -244,6 +267,11 @@ export default function AdvisorDashboard() {
                 <p className={`text-2xl font-bold ${s.highlight ? "text-white" : "text-gb-black"}`}>
                   {s.value}
                 </p>
+                {s.subtitle && (
+                  <p className={`text-[11px] mt-0.5 ${s.highlight ? "text-white/60" : "text-gb-gray"}`}>
+                    {s.subtitle}
+                  </p>
+                )}
               </div>
             );
           })}

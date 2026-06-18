@@ -59,8 +59,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (timeframe === "week") {
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
       startOfWeek.setHours(0, 0, 0, 0);
 
       const endOfWeek = new Date(startOfWeek);
