@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedClientIds } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -14,23 +14,34 @@ export async function GET(request: NextRequest) {
   return handleApiError("advisor-clients-overview-get", async () => {
 
     // Get all clients for this advisor (or subordinates if admin)
-    let advisorIds = [advisor!.id];
+    let advisorIds: string[] = [advisor!.id];
     if (advisor!.rol === "admin") {
-      const subIds = await getSubordinateAdvisorIds(advisor!.id);
-      advisorIds = [advisor!.id, ...subIds];
+      advisorIds = await getSubordinateAdvisorIds(advisor!.id);
     }
 
-    const { data: clients, error: clientsError } = await admin
-      .from("clients")
-      .select("id, nombre, apellido, email, status, perfil_riesgo, puntaje_riesgo, cartera_recomendada, portal_enabled, portal_last_seen, created_at, asesor_id")
-      .in("asesor_id", advisorIds)
-      .order("nombre", { ascending: true });
+    // Fetch own/subordinate + orphans + shared (same pattern as /api/clients)
+    const sharedClientIds = await getSharedClientIds(advisor!.id);
+    const selectFields = "id, nombre, apellido, email, status, perfil_riesgo, puntaje_riesgo, cartera_recomendada, portal_enabled, portal_last_seen, created_at, asesor_id";
 
-    if (clientsError) {
-      return NextResponse.json({ success: false, error: clientsError.message }, { status: 500 });
-    }
+    const [ownRes, orphanRes, sharedRes] = await Promise.all([
+      admin.from("clients").select(selectFields).in("asesor_id", advisorIds).order("nombre", { ascending: true }),
+      admin.from("clients").select(selectFields).is("asesor_id", null).order("nombre", { ascending: true }),
+      sharedClientIds.length > 0
+        ? admin.from("clients").select(selectFields).in("id", sharedClientIds).order("nombre", { ascending: true })
+        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
+    ]);
 
-    if (!clients || clients.length === 0) {
+    if (ownRes.error) return NextResponse.json({ success: false, error: ownRes.error.message }, { status: 500 });
+    if (orphanRes.error) return NextResponse.json({ success: false, error: orphanRes.error.message }, { status: 500 });
+    if (sharedRes.error) return NextResponse.json({ success: false, error: sharedRes.error.message }, { status: 500 });
+
+    // Merge and deduplicate
+    const seen = new Set<string>();
+    const clients = [...(ownRes.data || []), ...(orphanRes.data || []), ...(sharedRes.data || [])]
+      .filter((c) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; })
+      .sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+
+    if (clients.length === 0) {
       return NextResponse.json({ success: true, clients: [] });
     }
 
@@ -42,6 +53,7 @@ export async function GET(request: NextRequest) {
       .from("portfolio_snapshots")
       .select("client_id, snapshot_date, total_value, cumulative_return, equity_percent, fixed_income_percent, alternatives_percent, cash_percent")
       .in("client_id", clientIds)
+      .neq("source", "api-prices")
       .order("snapshot_date", { ascending: false });
 
     // Group by client: latest, and snapshots by date for period returns
@@ -187,11 +199,11 @@ export async function GET(request: NextRequest) {
         portalLastSeen: client.portal_last_seen || null,
         createdAt: client.created_at,
         // Portfolio
-        totalValue: snap?.total_value || null,
-        cumulativeReturn: snap?.cumulative_return || null,
-        lastSnapshotDate: snap?.snapshot_date || null,
-        equityPercent: snap?.equity_percent || null,
-        fixedIncomePercent: snap?.fixed_income_percent || null,
+        totalValue: snap?.total_value ?? null,
+        cumulativeReturn: snap?.cumulative_return ?? null,
+        lastSnapshotDate: snap?.snapshot_date ?? null,
+        equityPercent: snap?.equity_percent ?? null,
+        fixedIncomePercent: snap?.fixed_income_percent ?? null,
         // Period returns
         return1M: getPeriodReturn(client.id, 30),
         return2M: getPeriodReturn(client.id, 60),

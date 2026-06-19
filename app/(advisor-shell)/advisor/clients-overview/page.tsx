@@ -52,7 +52,7 @@ interface ClientOverview {
 type SortKey =
   | "nombre"
   | "totalValue"
-  | "cumulativeReturn"
+  | "return1M"
   | "drift"
   | "daysSinceContact"
   | "perfilRiesgo";
@@ -61,16 +61,14 @@ const PROFILE_ORDER: Record<string, number> = {
   defensivo: 1,
   conservador: 2,
   moderado: 3,
-  crecimiento: 4,
-  agresivo: 5,
-  muy_agresivo: 6,
+  agresivo: 4,
+  muy_agresivo: 5,
 };
 
 const PROFILE_COLORS: Record<string, string> = {
   defensivo: "bg-sky-100 text-sky-700",
   conservador: "bg-blue-100 text-blue-700",
   moderado: "bg-emerald-100 text-emerald-700",
-  crecimiento: "bg-amber-100 text-amber-700",
   agresivo: "bg-red-100 text-red-700",
   muy_agresivo: "bg-red-200 text-red-800",
 };
@@ -86,7 +84,7 @@ function formatDate(d: string): string {
 }
 
 export default function ClientsOverviewPage() {
-  const { advisor: _advisor, loading: authLoading } = useAdvisor();
+  const { loading: authLoading } = useAdvisor();
   const [clients, setClients] = useState<ClientOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,8 +195,8 @@ export default function ClientsOverviewPage() {
         case "totalValue":
           cmp = (a.totalValue || 0) - (b.totalValue || 0);
           break;
-        case "cumulativeReturn":
-          cmp = (a.cumulativeReturn || -999) - (b.cumulativeReturn || -999);
+        case "return1M":
+          cmp = (a.return1M ?? a.cumulativeReturn ?? -999) - (b.return1M ?? b.cumulativeReturn ?? -999);
           break;
         case "drift":
           cmp = (a.drift || 0) - (b.drift || 0);
@@ -247,22 +245,22 @@ export default function ClientsOverviewPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-5 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-gb-black">
-              Vista Consolidada de Clientes
-            </h1>
-            <p className="text-sm text-gb-gray">
-              Performance, drift y estado de todos tus clientes
-            </p>
-          </div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gb-black">
+            Vista Consolidada de Clientes
+          </h1>
+          <p className="text-sm text-gb-gray">
+            Performance, drift y estado de todos tus clientes
+          </p>
         </div>
+      </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
@@ -385,7 +383,6 @@ export default function ClientsOverviewPage() {
                 <option value="defensivo">Defensivo</option>
                 <option value="conservador">Conservador</option>
                 <option value="moderado">Moderado</option>
-                <option value="crecimiento">Crecimiento</option>
                 <option value="agresivo">Agresivo</option>
                 <option value="muy_agresivo">Muy Agresivo</option>
               </select>
@@ -452,10 +449,10 @@ export default function ClientsOverviewPage() {
                   </th>
                   <th
                     className="text-right py-3 px-3 font-medium text-gb-gray cursor-pointer hover:text-gb-black select-none hidden md:table-cell"
-                    onClick={() => toggleSort("cumulativeReturn")}
+                    onClick={() => toggleSort("return1M")}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      1M / 2M <SortIcon k="cumulativeReturn" />
+                      1M / 2M <SortIcon k="return1M" />
                     </div>
                   </th>
                   <th
