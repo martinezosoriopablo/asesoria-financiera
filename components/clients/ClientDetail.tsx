@@ -109,15 +109,15 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <Loader className="w-8 h-8 text-blue-600 animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gb-gray animate-spin" />
       </div>
     );
   }
 
   if (!client) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-gb-gray">Cliente no encontrado</p>
           <Link href="/clients" className="text-sm text-gb-accent hover:underline mt-2 inline-block">
@@ -129,7 +129,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-5 py-8">
         {/* Breadcrumb + actions */}
         <div className="flex items-center justify-between mb-6">

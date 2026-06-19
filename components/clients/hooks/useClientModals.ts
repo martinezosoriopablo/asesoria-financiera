@@ -185,9 +185,11 @@ export function useClientModals(clientId: string, client: Client | null, fetchCl
       const data = await res.json();
       if (data.success && data.url) {
         window.open(data.url, "_blank");
+      } else {
+        setContractError("No se pudo obtener el contrato");
       }
     } catch {
-      // silent
+      setContractError("Error de conexión al descargar contrato");
     }
   };
 
@@ -198,9 +200,11 @@ export function useClientModals(clientId: string, client: Client | null, fetchCl
       const data = await res.json();
       if (data.success) {
         fetchClient();
+      } else {
+        setContractError("No se pudo eliminar el contrato");
       }
     } catch {
-      // silent
+      setContractError("Error de conexión al eliminar contrato");
     }
   };
 

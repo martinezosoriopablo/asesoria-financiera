@@ -88,7 +88,7 @@ const REPORT_ROWS: ReportRowDef[] = [
 export default function ReportConfigPanel({ clientId }: Props) {
   const [config, setConfig] = useState<ReportConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [_saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [saved, setSaved] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
@@ -222,11 +222,15 @@ export default function ReportConfigPanel({ clientId }: Props) {
           <Send className="w-4 h-4 text-blue-500" />
           Reportes al Cliente
         </h3>
-        {saved && (
+        {saving ? (
+          <span className="text-xs text-gb-gray flex items-center gap-1">
+            <Loader className="w-3 h-3 animate-spin" /> Guardando...
+          </span>
+        ) : saved ? (
           <span className="text-xs text-green-600 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" /> Guardado
           </span>
-        )}
+        ) : null}
       </div>
 
       {/* Report rows */}

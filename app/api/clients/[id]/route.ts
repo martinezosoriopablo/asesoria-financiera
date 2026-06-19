@@ -221,18 +221,25 @@ export async function PUT(
     }
 
     // Registrar la actualización (fire-and-forget, no bloquea el response)
-    void supabase.from("client_interactions").insert([
-      {
-        client_id: id,
-        tipo: "otro",
-        titulo: "Información Actualizada",
-        descripcion: "Datos del cliente actualizados en el sistema",
-        resultado: "exitoso",
-        created_by: advisor!.email,
-      },
-    ]).then(({ error: intErr }) => {
-      if (intErr) console.error("Error logging interaction:", intErr.message);
-    });
+    // Skip interaction log for trivial single-field updates (status, frequency, etc.)
+    const silentFields = new Set(["status", "questionnaire_frequency", "fund_selection_mode", "servicios_adicionales", "asesor_id"]);
+    const updatedKeys = Object.keys(updateData);
+    const isSilentUpdate = updatedKeys.every(k => silentFields.has(k));
+
+    if (!isSilentUpdate) {
+      void supabase.from("client_interactions").insert([
+        {
+          client_id: id,
+          tipo: "otro",
+          titulo: "Información Actualizada",
+          descripcion: "Datos del cliente actualizados en el sistema",
+          resultado: "exitoso",
+          created_by: advisor!.email,
+        },
+      ]).then(({ error: intErr }) => {
+        if (intErr) console.error("Error logging interaction:", intErr.message);
+      });
+    }
 
     return successResponse({ client: updatedClient });
   });

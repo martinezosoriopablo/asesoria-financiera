@@ -10,6 +10,7 @@ import {
   Eye,
   Loader,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface Client {
@@ -33,17 +34,15 @@ interface Stats {
   total_clientes: number;
   clientes_activos: number;
   prospectos: number;
-  clientes_con_portfolio: number;
   patrimonio_total: number;
 }
 
 const PERFIL_LABELS: Record<string, string> = {
+  defensivo: "Defensivo",
   conservador: "Conservador",
   moderado: "Moderado",
   agresivo: "Agresivo",
   muy_agresivo: "Muy Agresivo",
-  defensivo: "Defensivo",
-  crecimiento: "Crecimiento",
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -62,14 +61,17 @@ export default function ClientsManager() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPerfil, setFilterPerfil] = useState("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchClients = useCallback(async () => {
+    setFetchError(false);
     try {
       const response = await fetch("/api/clients");
       const data = await response.json();
       if (data.success) setClients(data.clients);
-    } catch (error) {
-      console.error("Error fetching clients:", error);
+      else setFetchError(true);
+    } catch {
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -80,8 +82,8 @@ export default function ClientsManager() {
       const response = await fetch("/api/clients/stats");
       const data = await response.json();
       if (data.success) setStats(data.stats);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
+    } catch {
+      // stats failure is non-critical
     }
   }, []);
 
@@ -117,7 +119,7 @@ export default function ClientsManager() {
       const response = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
       const data = await response.json();
       if (data.success) {
-        setClients(prev => prev.filter(c => c.id !== clientId));
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, status: "inactivo" } : c));
       } else {
         alert("Error: " + (data.error || "No se pudo eliminar"));
       }
@@ -131,8 +133,11 @@ export default function ClientsManager() {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", minimumFractionDigits: 0 }).format(amount);
 
-  const getDaysSinceLastContact = (lastContact: string) => {
-    const diffTime = Math.abs(new Date().getTime() - new Date(lastContact).getTime());
+  const getDaysSinceLastContact = (lastContact: string | null) => {
+    if (!lastContact) return null;
+    const date = new Date(lastContact);
+    if (isNaN(date.getTime())) return null;
+    const diffTime = Math.abs(new Date().getTime() - date.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
@@ -172,13 +177,26 @@ export default function ClientsManager() {
               { label: "Total", value: stats.total_clientes },
               { label: "Activos", value: stats.clientes_activos },
               { label: "Prospectos", value: stats.prospectos },
-              { label: "Patrimonio Total", value: formatCurrency(stats.patrimonio_total) },
+              { label: "Patrimonio Estimado", value: formatCurrency(stats.patrimonio_total) },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-gb-border p-4">
                 <p className="text-xs font-medium text-gb-gray uppercase tracking-wide">{s.label}</p>
                 <p className="text-xl font-semibold text-gb-black mt-1">{s.value}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {fetchError && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+            <p className="text-sm text-red-700 flex-1">Error al cargar clientes.</p>
+            <button
+              onClick={() => { setLoading(true); fetchClients(); fetchStats(); }}
+              className="text-sm font-medium text-red-700 hover:text-red-900 underline"
+            >
+              Reintentar
+            </button>
           </div>
         )}
 
@@ -214,7 +232,6 @@ export default function ClientsManager() {
               <option value="defensivo">Defensivo</option>
               <option value="conservador">Conservador</option>
               <option value="moderado">Moderado</option>
-              <option value="crecimiento">Crecimiento</option>
               <option value="agresivo">Agresivo</option>
               <option value="muy_agresivo">Muy Agresivo</option>
             </select>
@@ -240,7 +257,7 @@ export default function ClientsManager() {
                 <tbody>
                   {filteredClients.map((client) => {
                     const days = getDaysSinceLastContact(client.ultima_interaccion);
-                    const needsFollowup = days > 30;
+                    const needsFollowup = days != null && days > 30;
                     return (
                       <tr key={client.id} className="border-b border-gb-border last:border-0 hover:bg-gray-50">
                         <td className="py-3 px-4">
@@ -277,9 +294,13 @@ export default function ClientsManager() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right hidden lg:table-cell">
-                          <span className={`text-xs ${needsFollowup ? "text-amber-600 font-medium" : "text-gb-gray"}`}>
-                            Hace {days}d
-                          </span>
+                          {days != null ? (
+                            <span className={`text-xs ${needsFollowup ? "text-amber-600 font-medium" : "text-gb-gray"}`}>
+                              Hace {days}d
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gb-gray">—</span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">

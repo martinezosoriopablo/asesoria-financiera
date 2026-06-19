@@ -20,14 +20,19 @@ export async function GET(request: NextRequest) {
     if (advisor!.rol === 'admin') {
       allowedAdvisorIds = await getSubordinateAdvisorIds(advisor!.id);
     }
-    const idsFilter = allowedAdvisorIds.map(id => `asesor_id.eq.${id}`).join(',');
 
-    const { data: clients, error } = await supabase
-      .from("clients")
-      .select("*")
-      .or(`${idsFilter},asesor_id.is.null`);
+    // Fetch own/subordinate + orphan clients separately (avoid string interpolation in .or())
+    const [ownRes, orphanRes] = await Promise.all([
+      supabase.from("clients").select("*").in("asesor_id", allowedAdvisorIds),
+      supabase.from("clients").select("*").is("asesor_id", null),
+    ]);
 
-    if (error) throw error;
+    if (ownRes.error) throw ownRes.error;
+    if (orphanRes.error) throw orphanRes.error;
+
+    const seen = new Set<string>();
+    const clients = [...(ownRes.data || []), ...(orphanRes.data || [])]
+      .filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
 
     const stats = {
       total_clientes: clients?.length || 0,
