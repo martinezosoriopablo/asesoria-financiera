@@ -4,7 +4,7 @@
 export type BenchmarkUniverse = "global" | "solo_chile";
 
 // Bandas de riesgo según el perfil
-export type RiskBand = "defensivo" | "moderado" | "crecimiento" | "agresivo";
+export type RiskBand = "defensivo" | "conservador" | "moderado" | "agresivo" | "muy_agresivo";
 
 // Asset allocation estratégico que consume la página modelo-cartera
 export interface AssetAllocation {
@@ -43,20 +43,22 @@ export interface AssetAllocation {
 //
 // Suma siempre 100%: equities + fixedIncome + alternatives + cash
 //
-// Defensivo   : 25 / 60 / 10 / 5
-// Moderado    : 45 / 45 / 10 / 0
-// Crecimiento : 65 / 25 / 10 / 0
-// Agresivo    : 85 / 10 /  5 / 0
+// Defensivo      : 20 / 65 / 10 / 5
+// Conservador    : 35 / 55 / 10 / 0
+// Moderado       : 50 / 40 / 10 / 0
+// Agresivo       : 70 / 20 / 10 / 0
+// Muy Agresivo   : 85 / 10 /  5 / 0
 //
 
 const RISK_BAND_WEIGHTS: Record<
   RiskBand,
   { equities: number; fixedIncome: number; alternatives: number; cash: number }
 > = {
-  defensivo: { equities: 25, fixedIncome: 60, alternatives: 10, cash: 5 },
-  moderado: { equities: 45, fixedIncome: 45, alternatives: 10, cash: 0 },
-  crecimiento: { equities: 65, fixedIncome: 25, alternatives: 10, cash: 0 },
-  agresivo: { equities: 85, fixedIncome: 10, alternatives: 5, cash: 0 },
+  defensivo:    { equities: 20, fixedIncome: 65, alternatives: 10, cash: 5 },
+  conservador:  { equities: 35, fixedIncome: 55, alternatives: 10, cash: 0 },
+  moderado:     { equities: 50, fixedIncome: 40, alternatives: 10, cash: 0 },
+  agresivo:     { equities: 70, fixedIncome: 20, alternatives: 10, cash: 0 },
+  muy_agresivo: { equities: 85, fixedIncome: 10, alternatives: 5,  cash: 0 },
 };
 
 // ----------------------------------------------------------
@@ -118,18 +120,20 @@ const ALT_BUCKETS_BASE = {
 // ----------------------------------------------------------
 //
 // Puedes ajustar los cortes, pero así queda bien razonable:
-//  0–30  : defensivo
-// 30–55  : moderado
-// 55–80  : crecimiento
-// 80–100 : agresivo
+//  0–20  : defensivo
+// 20–40  : conservador
+// 40–60  : moderado
+// 60–80  : agresivo
+// 80–100 : muy_agresivo
 //
 
 function riskBandFromScore(score: number | null): RiskBand {
   const s = score ?? 0;
-  if (s < 30) return "defensivo";
-  if (s < 55) return "moderado";
-  if (s < 80) return "crecimiento";
-  return "agresivo";
+  if (s < 20) return "defensivo";
+  if (s < 40) return "conservador";
+  if (s < 60) return "moderado";
+  if (s < 80) return "agresivo";
+  return "muy_agresivo";
 }
 
 // ----------------------------------------------------------

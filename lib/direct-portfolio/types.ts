@@ -3,7 +3,7 @@
 
 export type HoldingType = "stock_us" | "stock_cl" | "bond" | "etf";
 export type AssetClass = "renta_variable" | "renta_fija";
-export type RiskProfile = "defensivo" | "moderado" | "crecimiento" | "agresivo";
+export type RiskProfile = "defensivo" | "conservador" | "moderado" | "agresivo" | "muy_agresivo";
 
 export interface DirectPortfolioHolding {
   id: string;
@@ -85,15 +85,19 @@ export const RISK_BANDS: Record<RiskProfile, RiskBands> = {
     rentaFija: { min: 70, max: 90 },
     rentaVariable: { min: 10, max: 30 },
   },
+  conservador: {
+    rentaFija: { min: 50, max: 70 },
+    rentaVariable: { min: 25, max: 45 },
+  },
   moderado: {
-    rentaFija: { min: 40, max: 60 },
+    rentaFija: { min: 35, max: 55 },
     rentaVariable: { min: 40, max: 60 },
   },
-  crecimiento: {
-    rentaFija: { min: 20, max: 40 },
+  agresivo: {
+    rentaFija: { min: 15, max: 35 },
     rentaVariable: { min: 60, max: 80 },
   },
-  agresivo: {
+  muy_agresivo: {
     rentaFija: { min: 0, max: 20 },
     rentaVariable: { min: 80, max: 100 },
   },

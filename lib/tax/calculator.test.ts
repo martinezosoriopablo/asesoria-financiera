@@ -329,7 +329,7 @@ describe("calcularMitigacion", () => {
 // 8. calcularAlphaPorReasignacion
 // ---------------------------------------------------------------------------
 describe("calcularAlphaPorReasignacion", () => {
-  it("calculates positive alpha when rebalancing from RF-heavy to crecimiento", () => {
+  it("calculates positive alpha when rebalancing from RF-heavy to agresivo", () => {
     const result = calcularAlphaPorReasignacion({
       holdings: [
         { categoria: "Renta Fija Nacional", currentValueUF: 8000 },
@@ -344,7 +344,7 @@ describe("calcularAlphaPorReasignacion", () => {
   });
 
   it("returns near-zero alpha when already aligned", () => {
-    // Portfolio roughly matching crecimiento: 65% RV, 25% RF, 10% alt
+    // Portfolio roughly matching agresivo: 70% RV, 20% RF, 10% alt
     const result = calcularAlphaPorReasignacion({
       holdings: [
         { categoria: "Renta Variable Internacional", currentValueUF: 4550 },

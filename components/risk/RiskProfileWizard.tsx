@@ -170,8 +170,13 @@ export default function RiskProfileWizard() {
         setRetirementProjection(projection);
       }
 
-      if (!email) {
-        alert("Ingresa tu correo para poder guardar tu perfil.");
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert("Ingresa un correo válido para poder guardar tu perfil.");
+        return;
+      }
+
+      if (answers["goal_1_objetivo"] === "pension" && retirementAnswers.edadJubilacion <= retirementAnswers.edadActual) {
+        alert("La edad de jubilación debe ser mayor a la edad actual.");
         return;
       }
 

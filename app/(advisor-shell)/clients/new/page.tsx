@@ -446,7 +446,6 @@ export default function NewClientPage() {
                   <option value="defensivo">Defensivo</option>
                   <option value="conservador">Conservador</option>
                   <option value="moderado">Moderado</option>
-                  <option value="crecimiento">Crecimiento</option>
                   <option value="agresivo">Agresivo</option>
                   <option value="muy_agresivo">Muy Agresivo</option>
                 </select>

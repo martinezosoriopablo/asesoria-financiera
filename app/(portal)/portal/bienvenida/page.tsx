@@ -304,20 +304,22 @@ export default function BienvenidaPage() {
 
 function getGaugeColor(label: string): string {
   switch (label.toLowerCase()) {
+    case "defensivo": return "bg-sky-500";
     case "conservador": return "bg-blue-500";
     case "moderado": return "bg-emerald-500";
-    case "crecimiento": case "growth": return "bg-amber-500";
-    case "agresivo": case "aggressive": return "bg-red-500";
+    case "agresivo": return "bg-amber-500";
+    case "muy agresivo": case "muy_agresivo": return "bg-red-500";
     default: return "bg-gray-400";
   }
 }
 
 function getProfileBadge(label: string): string {
   switch (label.toLowerCase()) {
+    case "defensivo": return "bg-sky-50 text-sky-700";
     case "conservador": return "bg-blue-50 text-blue-700";
     case "moderado": return "bg-emerald-50 text-emerald-700";
-    case "crecimiento": case "growth": return "bg-amber-50 text-amber-700";
-    case "agresivo": case "aggressive": return "bg-red-50 text-red-700";
+    case "agresivo": return "bg-amber-50 text-amber-700";
+    case "muy agresivo": case "muy_agresivo": return "bg-red-50 text-red-700";
     default: return "bg-gray-100 text-gray-600";
   }
 }

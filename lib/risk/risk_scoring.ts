@@ -19,11 +19,10 @@ const avg = (arr: number[]): number =>
   arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
 function mapScoreToLabel(score: number): string {
-  if (score < 20) return "Ultra Conservador";
-  if (score < 35) return "Conservador";
-  if (score < 50) return "Moderado";
-  if (score < 70) return "Crecimiento";
-  if (score < 85) return "Agresivo";
+  if (score < 20) return "Defensivo";
+  if (score < 40) return "Conservador";
+  if (score < 60) return "Moderado";
+  if (score < 80) return "Agresivo";
   return "Muy Agresivo";
 }
 

@@ -47,7 +47,7 @@ function makeInputs(holdingOverrides: Partial<TaxableHolding>[] = [{}]): TaxSimu
       "Renta Fija Nacional": 0.03,
     },
     holdings: holdingOverrides.map(o => makeHolding(o)),
-    perfilRiesgo: "crecimiento",
+    perfilRiesgo: "agresivo",
     puntajeRiesgo: 70,
   };
 }

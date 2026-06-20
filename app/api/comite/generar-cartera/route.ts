@@ -400,9 +400,10 @@ El cliente ya tiene una cartera de inversiones que debemos analizar y comparar c
   // Mapeo de banda a descripción amigable
   const bandDescriptions: Record<string, string> = {
     defensivo: "defensivo, priorizando la preservación de capital",
+    conservador: "conservador, buscando estabilidad con crecimiento moderado",
     moderado: "moderado, buscando un balance entre crecimiento y seguridad",
-    crecimiento: "orientado al crecimiento, con mayor exposición a renta variable",
-    agresivo: "agresivo, maximizando el potencial de crecimiento a largo plazo",
+    agresivo: "agresivo, con mayor exposición a renta variable",
+    muy_agresivo: "muy agresivo, maximizando el potencial de crecimiento a largo plazo",
   };
   const bandaDescripcion = bandDescriptions[benchmark.band] || "moderado";
 

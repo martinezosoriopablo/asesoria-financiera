@@ -121,6 +121,14 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
 
 const COLORS = ["#6366f1", "#14b8a6", "#64748b", "#8b5cf6", "#0d9488", "#475569"];
 
+const BAND_LABELS: Record<string, string> = {
+  defensivo: "Defensivo",
+  conservador: "Conservador",
+  moderado: "Moderado",
+  agresivo: "Agresivo",
+  muy_agresivo: "Muy Agresivo",
+};
+
 function AnalisisCartolaContent() {
   const { advisor } = useAdvisor();
   const searchParams = useSearchParams();
@@ -380,8 +388,8 @@ function AnalisisCartolaContent() {
                 </p>
               </div>
               <div className="text-right">
-                <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm font-semibold capitalize">
-                  {recommendedAllocation.band}
+                <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm font-semibold">
+                  {BAND_LABELS[recommendedAllocation.band] || recommendedAllocation.band}
                 </span>
                 <p className="text-xs text-gb-gray mt-1">Puntaje: {clientProfile.puntaje_riesgo}/100</p>
               </div>

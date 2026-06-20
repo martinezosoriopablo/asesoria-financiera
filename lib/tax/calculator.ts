@@ -336,17 +336,19 @@ const BANDAS_RIESGO: Record<
   string,
   { equities: number; fixedIncome: number; alt: number; cash: number }
 > = {
-  defensivo:   { equities: 0.25, fixedIncome: 0.60, alt: 0.10, cash: 0.05 },
-  moderado:    { equities: 0.45, fixedIncome: 0.45, alt: 0.10, cash: 0.00 },
-  crecimiento: { equities: 0.65, fixedIncome: 0.25, alt: 0.10, cash: 0.00 },
-  agresivo:    { equities: 0.85, fixedIncome: 0.10, alt: 0.05, cash: 0.00 },
+  defensivo:    { equities: 0.20, fixedIncome: 0.65, alt: 0.10, cash: 0.05 },
+  conservador:  { equities: 0.35, fixedIncome: 0.55, alt: 0.10, cash: 0.00 },
+  moderado:     { equities: 0.50, fixedIncome: 0.40, alt: 0.10, cash: 0.00 },
+  agresivo:     { equities: 0.70, fixedIncome: 0.20, alt: 0.10, cash: 0.00 },
+  muy_agresivo: { equities: 0.85, fixedIncome: 0.10, alt: 0.05, cash: 0.00 },
 };
 
 function getBandaRiesgo(puntaje: number) {
-  if (puntaje < 30) return BANDAS_RIESGO.defensivo;
-  if (puntaje < 55) return BANDAS_RIESGO.moderado;
-  if (puntaje < 80) return BANDAS_RIESGO.crecimiento;
-  return BANDAS_RIESGO.agresivo;
+  if (puntaje < 20) return BANDAS_RIESGO.defensivo;
+  if (puntaje < 40) return BANDAS_RIESGO.conservador;
+  if (puntaje < 60) return BANDAS_RIESGO.moderado;
+  if (puntaje < 80) return BANDAS_RIESGO.agresivo;
+  return BANDAS_RIESGO.muy_agresivo;
 }
 
 function bandaToCategories(banda: {

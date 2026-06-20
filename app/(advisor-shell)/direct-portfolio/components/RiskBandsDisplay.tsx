@@ -16,16 +16,18 @@ interface RiskBandsDisplayProps {
 
 const PROFILE_LABELS: Record<RiskProfile, string> = {
   defensivo: "Defensivo",
+  conservador: "Conservador",
   moderado: "Moderado",
-  crecimiento: "Crecimiento",
   agresivo: "Agresivo",
+  muy_agresivo: "Muy Agresivo",
 };
 
 const PROFILE_DESCRIPTIONS: Record<RiskProfile, string> = {
   defensivo: "Prioriza la preservación del capital con baja volatilidad",
+  conservador: "Balance conservador entre estabilidad y crecimiento moderado",
   moderado: "Balance entre crecimiento y estabilidad",
-  crecimiento: "Busca mayor crecimiento aceptando más volatilidad",
-  agresivo: "Maximiza el crecimiento a largo plazo con alta volatilidad",
+  agresivo: "Busca mayor crecimiento aceptando más volatilidad",
+  muy_agresivo: "Maximiza el crecimiento a largo plazo con alta volatilidad",
 };
 
 export default function RiskBandsDisplay({
