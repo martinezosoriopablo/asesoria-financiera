@@ -74,7 +74,7 @@ export function useBenchmarkConfig({
           setBenchmarkLabel(d.data.label);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.warn("[useBenchmarkConfig] Error fetching benchmark returns:", err));
   }, [snapshots, benchmarkConfig]);
 
   // Fetch baseline evolution (portfolio inicial revalorizado)

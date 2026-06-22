@@ -161,7 +161,7 @@ export function usePerformanceCalculations({
   }, [cartolas]);
 
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(() => Math.max(0, monthOptions.length - 1));
-  const selectedMonth = monthOptions[Math.min(selectedMonthIdx, monthOptions.length - 1)];
+  const selectedMonth = monthOptions.length > 0 ? monthOptions[Math.min(selectedMonthIdx, monthOptions.length - 1)] : null;
 
   const [pastMonthAttribution, setPastMonthAttribution] = useState<PositionAttr[] | null>(null);
   const [loadingMonth, setLoadingMonth] = useState(false);
@@ -178,7 +178,7 @@ export function usePerformanceCalculations({
 
   // Fetch per-month attribution from API
   useEffect(() => {
-    if (selectedMonth.isAccumulated || !holdingReturnsData) {
+    if (!selectedMonth || selectedMonth.isAccumulated || !holdingReturnsData) {
       setPastMonthAttribution(null);
       return;
     }
@@ -301,8 +301,8 @@ export function usePerformanceCalculations({
   const canNextMonth = selectedMonthIdx < monthOptions.length - 1;
 
   // Use pastMonthAttribution when a specific month is selected, otherwise use accumulated positionAttribution
-  const activePositionData = selectedMonth.isAccumulated ? null : pastMonthAttribution;
-  const isMonthLoading = loadingMonth && !selectedMonth.isAccumulated && !pastMonthAttribution;
+  const activePositionData = !selectedMonth || selectedMonth.isAccumulated ? null : pastMonthAttribution;
+  const isMonthLoading = loadingMonth && selectedMonth && !selectedMonth.isAccumulated && !pastMonthAttribution;
 
   // Use only snapshots that have asset class values (cartola snapshots, not fill-prices intermediates)
   const snapshotsWithAssetData = useMemo(() =>

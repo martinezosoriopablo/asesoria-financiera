@@ -42,7 +42,7 @@ export default function CompositionBoxes({
   exchangeRates,
 }: Props) {
   const d = holdingReturnsData;
-  const cashVal = d.cashValue > 0 ? d.cashValue : (snapshots[snapshots.length - 1].cash_value || 0);
+  const cashVal = d.cashValue > 0 ? d.cashValue : (snapshots[snapshots.length - 1].cash_value ?? 0);
 
   // Base snapshot: "Desde inicio" = first snapshot, "Desde fecha" = nearest to selected date
   const useCustomBase = compositionBaseMode === "fecha" && compositionBaseDate;

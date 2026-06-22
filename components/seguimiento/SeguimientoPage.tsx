@@ -411,7 +411,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
           if (!latest.holdings) return null;
           const fallback = (latest.holdings as Array<{ fundName: string; marketValue: number; marketValueCLP?: number; assetClass?: string; currency?: string }>).map(h => ({
             fundName: h.fundName,
-            marketValue: h.marketValueCLP || h.marketValue,
+            marketValue: h.marketValueCLP ?? h.marketValue,
             assetClass: h.assetClass,
             currency: h.currency,
           }));

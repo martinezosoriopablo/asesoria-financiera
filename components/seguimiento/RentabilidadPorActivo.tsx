@@ -282,7 +282,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         if (holdingReturnsData?.bondHoldings) {
           const cartolaDate = snap?.snapshot_date;
           const totalDays = cartolaDate
-            ? Math.max(1, (Date.now() - new Date(cartolaDate + "T00:00:00").getTime()) / 86400000)
+            ? Math.max(1, (new Date(endDate + "T00:00:00").getTime() - new Date(cartolaDate + "T00:00:00").getTime()) / 86400000)
             : 1;
           const monthStart = new Date(startDate + "T00:00:00").getTime();
           const monthEndMs = new Date(endDate + "T00:00:00").getTime();

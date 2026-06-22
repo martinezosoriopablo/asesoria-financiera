@@ -52,13 +52,14 @@ export default function EditSnapshotModal({ snapshot, onClose, onSuccess }: Prop
   };
 
   // Calculate remaining percent
-  const usedPercent =
+  const usedPercent = Math.round((
     (parseFloat(formData.equity_percent) || 0) +
     (parseFloat(formData.fixed_income_percent) || 0) +
     (parseFloat(formData.alternatives_percent) || 0) +
-    (parseFloat(formData.cash_percent) || 0);
+    (parseFloat(formData.cash_percent) || 0)
+  ) * 100) / 100;
 
-  const remainingPercent = 100 - usedPercent;
+  const remainingPercent = Math.round((100 - usedPercent) * 100) / 100;
 
   const handleSubmit = async () => {
     // Validate

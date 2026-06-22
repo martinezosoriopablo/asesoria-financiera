@@ -43,6 +43,7 @@ export default function RecommendationHistory({ clientId }: Props) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [comparing, setComparing] = useState<[string, string] | null>(null);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     async function fetchVersions() {
@@ -53,7 +54,7 @@ export default function RecommendationHistory({ clientId }: Props) {
           setVersions(data.versions);
         }
       } catch {
-        // silent
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
@@ -68,6 +69,14 @@ export default function RecommendationHistory({ clientId }: Props) {
           <Loader className="w-4 h-4 animate-spin" />
           <span className="text-sm">Cargando historial...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="bg-white rounded-lg border border-gb-border shadow-sm p-6">
+        <p className="text-sm text-red-600">Error al cargar historial de recomendaciones.</p>
       </div>
     );
   }

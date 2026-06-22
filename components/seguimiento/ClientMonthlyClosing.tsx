@@ -37,6 +37,7 @@ export default function ClientMonthlyClosing({
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [hasReport, setHasReport] = useState(hasMonthlyReport ?? false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const fetchClosing = useCallback(async () => {
     if (!clientId || !month) return;
@@ -83,10 +84,10 @@ export default function ClientMonthlyClosing({
         setEditContent(d.closing.content);
         setEditing(true);
       } else {
-        alert(d.error || "Error al generar");
+        setErrorMsg(d.error || "Error al generar");
       }
     } catch {
-      alert("Error de conexión");
+      setErrorMsg("Error de conexión");
     } finally {
       setGenerating(false);
     }
@@ -111,7 +112,7 @@ export default function ClientMonthlyClosing({
         setEditing(false);
       }
     } catch {
-      alert("Error al guardar");
+      setErrorMsg("Error al guardar");
     } finally {
       setSaving(false);
     }
@@ -259,6 +260,9 @@ export default function ClientMonthlyClosing({
               <p className="text-xs text-amber-600">
                 Primero suba el reporte mensual de mercados para {monthLabel}.
               </p>
+            )}
+            {errorMsg && (
+              <p className="text-xs text-red-600 mt-3">{errorMsg}</p>
             )}
           </div>
         )}

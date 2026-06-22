@@ -43,7 +43,7 @@ export default function SendSeguimientoModal({ isOpen, onClose, clientId, client
         setError(result.error || "Error al enviar");
       }
     } catch {
-      setError("Error de conexion");
+      setError("Error de conexión");
     } finally {
       setSending(false);
     }

@@ -9,7 +9,7 @@ interface ExchangeRates {
 export function useSnapshotExchangeRates(fechaCartola: string) {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [loadingRates, setLoadingRates] = useState(true);
-  const [ratesError, _setRatesError] = useState<string | null>(null);
+  const [ratesError, setRatesError] = useState<string | null>(null);
   const [usingFallbackRates, setUsingFallbackRates] = useState(false);
 
   // Fetch exchange rates at cartola date (not today)
@@ -104,8 +104,10 @@ export function useSnapshotExchangeRates(fechaCartola: string) {
         if (!anyHistorical) {
           setUsingFallbackRates(true);
         }
-      } catch {
+      } catch (err) {
         if (!controller.signal.aborted) {
+          console.error("[useSnapshotExchangeRates] Error fetching rates:", err);
+          setRatesError("No se pudieron obtener los tipos de cambio históricos");
           setExchangeRates({ usd: 980, eur: 1060, uf: 38500 });
           setUsingFallbackRates(true);
         }

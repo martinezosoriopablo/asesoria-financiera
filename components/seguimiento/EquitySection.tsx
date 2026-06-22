@@ -47,10 +47,17 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
     ? holdings.reduce((s, h) => s + h.totalReturn * h.marketValue, 0) / subtotalValue
     : 0;
 
-  const accentBg = `bg-${sectionColor}-500`;
-  const badgeBg = `bg-${sectionColor}-50`;
-  const hoverBg = `hover:bg-${sectionColor}-50/50`;
-  const footerBg = `bg-${sectionColor}-50/50`;
+  const COLOR_MAP: Record<string, { accent: string; badge: string; hover: string; footer: string }> = {
+    blue:   { accent: "bg-blue-500",   badge: "bg-blue-50",   hover: "hover:bg-blue-50/50",   footer: "bg-blue-50/50" },
+    green:  { accent: "bg-green-500",  badge: "bg-green-50",  hover: "hover:bg-green-50/50",  footer: "bg-green-50/50" },
+    orange: { accent: "bg-orange-500", badge: "bg-orange-50", hover: "hover:bg-orange-50/50", footer: "bg-orange-50/50" },
+    purple: { accent: "bg-purple-500", badge: "bg-purple-50", hover: "hover:bg-purple-50/50", footer: "bg-purple-50/50" },
+  };
+  const colors = COLOR_MAP[sectionColor] || COLOR_MAP.blue;
+  const accentBg = colors.accent;
+  const badgeBg = colors.badge;
+  const hoverBg = colors.hover;
+  const footerBg = colors.footer;
 
   return (
     <div className="mb-6">

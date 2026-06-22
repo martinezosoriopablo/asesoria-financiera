@@ -97,7 +97,7 @@ export default function PerformanceAttribution(props: Props) {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="text-sm font-medium text-gb-black min-w-[200px] text-center">
-                {selectedMonth.label}
+                {selectedMonth?.label ?? "—"}
               </span>
               <button
                 onClick={() => setSelectedMonthIdx((i) => Math.min(monthOptions.length - 1, i + 1))}
@@ -124,17 +124,17 @@ export default function PerformanceAttribution(props: Props) {
 
       {/* 2. Attribution by Position */}
       <PositionSection
-        selectedMonth={selectedMonth}
+        selectedMonth={selectedMonth ?? { isAccumulated: true }}
         positionAttribution={positionAttribution}
         activePositionData={activePositionData}
-        isMonthLoading={isMonthLoading}
+        isMonthLoading={isMonthLoading ?? false}
         firstSnapshot={firstSnapshot}
         expandedSection={expandedSection}
         toggleSection={toggleSection}
       />
 
       {/* 3. Benchmark Comparison — hidden when viewing a specific month */}
-      {selectedMonth.isAccumulated && benchmarkAttribution && (
+      {selectedMonth?.isAccumulated && benchmarkAttribution && (
         <BenchmarkSection
           benchmarkAttribution={benchmarkAttribution}
           expandedSection={expandedSection}
@@ -143,7 +143,7 @@ export default function PerformanceAttribution(props: Props) {
       )}
 
       {/* 4. Previous Portfolio Comparison — hidden when viewing a specific month */}
-      {selectedMonth.isAccumulated && portfolioComparison && (
+      {selectedMonth?.isAccumulated && portfolioComparison && (
         <ComparisonSection
           portfolioComparison={portfolioComparison}
           expandedSection={expandedSection}

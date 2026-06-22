@@ -90,6 +90,7 @@ export default function ManualEntryForm({ clientId, onSuccess, onCancel }: Props
             deposits: parseFloat(formData.deposits) || 0,
             withdrawals: parseFloat(formData.withdrawals) || 0,
             netFlow: (parseFloat(formData.deposits) || 0) - (parseFloat(formData.withdrawals) || 0),
+            currency: "CLP",
           },
           source: "manual",
         }),
