@@ -149,6 +149,7 @@ export default function AdvisorFondosPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [viewingObjective, setViewingObjective] = useState<PreferredFund | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchFunds = useCallback(async () => {
     try {
@@ -159,6 +160,7 @@ export default function AdvisorFondosPage() {
       }
     } catch (error) {
       console.error("Error fetching preferred funds:", error);
+      setActionError("Error al cargar fondos preferidos");
     } finally {
       setLoading(false);
     }
@@ -184,17 +186,19 @@ export default function AdvisorFondosPage() {
         tipo: "FM" as const,
       }));
 
-      const fiResults: SearchResult[] = (fiData.success ? fiData.results || [] : []).map((r: { id: string; rut: string; nombre: string; administradora: string }) => ({
-        id: r.id,
-        fo_run: Number(r.rut),
-        fm_serie: "FI",
-        nombre_fondo: r.nombre,
-        nombre_agf: r.administradora || "",
-        moneda: "",
-        precio_actual: null,
-        fecha_precio: null,
-        tipo: "FI" as const,
-      }));
+      const fiResults: SearchResult[] = (fiData.success ? fiData.results || [] : [])
+        .filter((r: { rut: string }) => !isNaN(parseInt(r.rut, 10)))
+        .map((r: { id: string; rut: string; nombre: string; administradora: string }) => ({
+          id: r.id,
+          fo_run: parseInt(r.rut, 10),
+          fm_serie: "FI",
+          nombre_fondo: r.nombre,
+          nombre_agf: r.administradora || "",
+          moneda: "",
+          precio_actual: null,
+          fecha_precio: null,
+          tipo: "FI" as const,
+        }));
 
       setSearchResults([...fmResults, ...fiResults]);
     } catch (error) {
@@ -223,6 +227,7 @@ export default function AdvisorFondosPage() {
       }
     } catch (error) {
       console.error("Error adding fund:", error);
+      setActionError("Error al agregar fondo");
     } finally {
       setAdding(null);
     }
@@ -240,6 +245,7 @@ export default function AdvisorFondosPage() {
       }
     } catch (error) {
       console.error("Error deleting fund:", error);
+      setActionError("Error al eliminar fondo");
     } finally {
       setDeleting(null);
     }
@@ -261,6 +267,7 @@ export default function AdvisorFondosPage() {
       }
     } catch (error) {
       console.error("Error updating fund:", error);
+      setActionError("Error al actualizar fondo");
     } finally {
       setSaving(null);
     }
@@ -301,6 +308,14 @@ export default function AdvisorFondosPage() {
             Agregar Fondo
           </button>
         </div>
+
+        {/* Error banner */}
+        {actionError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+            <p className="text-sm text-red-700">{actionError}</p>
+            <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600 ml-2 text-xs">✕</button>
+          </div>
+        )}
 
         {/* Search Modal */}
         {showSearch && (
@@ -452,7 +467,7 @@ export default function AdvisorFondosPage() {
                       />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {fund.tac !== null && fund.tac !== undefined ? (
+                      {fund.tac != null && !isNaN(Number(fund.tac)) ? (
                         <span className="text-sm font-medium text-gb-black">{Number(fund.tac).toFixed(2)}%</span>
                       ) : (
                         <span className="text-xs text-gb-gray">-</span>
