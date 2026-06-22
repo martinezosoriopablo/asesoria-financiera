@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
           // Map FI to same format as FM
           const fiMapped = fiData.map(fi => ({
             id: fi.id,
-            fo_run: parseInt(fi.rut) || 0,
+            fo_run: parseInt(fi.rut) || -1,
             fm_serie: '-',
             nombre_fondo: fi.nombre,
             nombre_agf: fi.administradora,

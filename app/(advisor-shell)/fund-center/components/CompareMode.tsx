@@ -159,22 +159,31 @@ export default function CompareMode() {
     setLoading(true);
 
     try {
-      const updatedData = await Promise.all(
+      const results = await Promise.allSettled(
         etfsSeleccionados.map(async (ticker) => {
           const response = await fetch(`/api/etf/${ticker}?period=${newPeriod}`);
           const data = await response.json();
 
           const existingETF = etfData.find(e => e.ticker === ticker);
+          if (!existingETF) return null;
 
           return {
-            ...existingETF!,
+            ...existingETF,
             historicalData: data.historical,
           };
         })
       );
 
-      setEtfData(updatedData);
-    } catch {
+      const updatedData = results
+        .filter((r): r is PromiseFulfilledResult<ETFData | null> => r.status === "fulfilled" && r.value !== null)
+        .map(r => r.value as ETFData);
+
+      if (updatedData.length > 0) setEtfData(updatedData);
+      if (updatedData.length < etfsSeleccionados.length) {
+        setError("Algunos ETFs no pudieron actualizarse");
+      }
+    } catch (err) {
+      console.error("Error updating ETF data:", err);
       setError("Error al actualizar datos");
     } finally {
       setLoading(false);
@@ -201,8 +210,8 @@ export default function CompareMode() {
         const dataPoint = etf.historicalData.find(p => p.date === date);
         if (dataPoint) {
           // Normalizar a 100 en el punto inicial (permite comparar % de cambio)
-          const primerValor = etf.historicalData[0].value;
-          const valorNormalizado = (dataPoint.value / primerValor) * 100;
+          const primerValor = etf.historicalData[0]?.value;
+          const valorNormalizado = primerValor > 0 ? (dataPoint.value / primerValor) * 100 : 100;
           point[etf.ticker] = valorNormalizado;
         }
       });
@@ -286,7 +295,7 @@ export default function CompareMode() {
           {etfsSeleccionados.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gb-dark mb-2">
-                ETFs en comparacion ({etfsSeleccionados.length}/6):
+                ETFs en comparación ({etfsSeleccionados.length}/6):
               </p>
               <div className="flex flex-wrap gap-3">
                 {etfData.map((etf) => (
@@ -319,10 +328,10 @@ export default function CompareMode() {
               <p className="text-xs font-semibold text-gb-dark mb-2">Periodo:</p>
               <div className="flex gap-2">
                 {[
-                  { value: "1y", label: "1 Ano" },
-                  { value: "5y", label: "5 Anos" },
-                  { value: "10y", label: "10 Anos" },
-                  { value: "max", label: "Maximo" },
+                  { value: "1y", label: "1 Año" },
+                  { value: "5y", label: "5 Años" },
+                  { value: "10y", label: "10 Años" },
+                  { value: "max", label: "Máximo" },
                 ].map((p) => (
                   <button
                     key={p.value}
@@ -345,7 +354,7 @@ export default function CompareMode() {
         {datosGrafico.length > 0 && (
           <div className="bg-white border border-gb-border rounded-lg p-6 mb-6">
             <h2 className="text-lg font-bold text-gb-black mb-4">
-              Desempeno Historico (Normalizado)
+              Desempeño Histórico (Normalizado)
             </h2>
 
             <ResponsiveContainer width="100%" height={400}>
@@ -391,8 +400,8 @@ export default function CompareMode() {
             </ResponsiveContainer>
 
             <p className="text-xs text-gb-gray mt-4">
-              Grafico normalizado a 100: todos los ETFs comienzan en 100 al inicio del periodo,
-              permitiendo comparar el rendimiento relativo facilmente (ej: 150 = subio 50%).
+              Gráfico normalizado a 100: todos los ETFs comienzan en 100 al inicio del período,
+              permitiendo comparar el rendimiento relativo fácilmente (ej: 150 = subió 50%).
             </p>
           </div>
         )}
@@ -418,10 +427,10 @@ export default function CompareMode() {
                       Precio
                     </th>
                     <th className="text-right py-3 px-4 text-xs font-semibold text-gb-dark">
-                      1 Ano
+                      1 Año
                     </th>
                     <th className="text-right py-3 px-4 text-xs font-semibold text-gb-dark">
-                      5 Anos
+                      5 Años
                     </th>
                     <th className="text-right py-3 px-4 text-xs font-semibold text-gb-dark">
                       Expense Ratio
@@ -501,15 +510,15 @@ export default function CompareMode() {
           <div className="bg-white border border-gb-border rounded-lg p-6">
             <h2 className="text-lg font-bold text-gb-black mb-4 flex items-center gap-2">
               <Award className="w-5 h-5 text-yellow-500" />
-              Resumen: Mejor en Cada Categoria
+              Resumen: Mejor en Cada Categoría
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { campo: "change5Y" as keyof ETFData, label: "Rentabilidad 5 Anos", icon: TrendingUp },
+                { campo: "change5Y" as keyof ETFData, label: "Rentabilidad 5 Años", icon: TrendingUp },
                 { campo: "expenseRatio" as keyof ETFData, label: "Menor Costo", icon: DollarSign },
                 { campo: "dividendYield" as keyof ETFData, label: "Mejores Dividendos", icon: Percent },
-                { campo: "change1Y" as keyof ETFData, label: "Rentabilidad 1 Ano", icon: Clock },
+                { campo: "change1Y" as keyof ETFData, label: "Rentabilidad 1 Año", icon: Clock },
               ].map(({ campo, label, icon: Icon }) => {
                 const mejor = encontrarMejor(campo);
                 if (!mejor) return null;

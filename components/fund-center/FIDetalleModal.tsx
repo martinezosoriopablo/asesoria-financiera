@@ -38,6 +38,7 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
   const [ficha, setFicha] = useState<FIFichaData | null>(null);
   const [precios, setPrecios] = useState<FIPrecio[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [fondoId, setFondoId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -66,8 +67,10 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
             setPrecios(detailData.precios.slice(0, 10));
           }
         }
-      } catch { /* ignore */ }
-      finally { setLoading(false); }
+      } catch (err) {
+        console.error("Error loading FI detail:", err);
+        setLoadError("Error al cargar datos del fondo");
+      } finally { setLoading(false); }
     };
     loadData();
   }, [rut]);
@@ -99,7 +102,7 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
         setSyncResult({ success: false, message: data.error || 'Error al sincronizar' });
       }
     } catch {
-      setSyncResult({ success: false, message: 'Error de conexion' });
+      setSyncResult({ success: false, message: 'Error de conexión' });
     } finally {
       setSyncing(false);
     }
@@ -128,6 +131,8 @@ export default function FIDetalleModal({ rut, nombre, administradora, onClose }:
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="w-5 h-5 text-gb-gray animate-spin" />
             </div>
+          ) : loadError ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{loadError}</div>
           ) : (
             <>
               {/* Ficha data */}

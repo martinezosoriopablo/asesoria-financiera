@@ -135,20 +135,20 @@ export async function GET(request: NextRequest, context: RouteParams) {
       );
       
       if (recentData.length < 2) return 0;
-      
+
       const oldest = recentData[0].value;
       const newest = recentData[recentData.length - 1].value;
-      
-      return ((newest - oldest) / oldest) * 100;
+
+      return oldest > 0 ? ((newest - oldest) / oldest) * 100 : 0;
     };
 
     const calculate5YReturn = () => {
       if (filteredHistorical.length < 2) return 0;
-      
+
       const oldest = filteredHistorical[0].value;
       const newest = filteredHistorical[filteredHistorical.length - 1].value;
-      
-      return ((newest - oldest) / oldest) * 100;
+
+      return oldest > 0 ? ((newest - oldest) / oldest) * 100 : 0;
     };
 
     const return1Y = calculate1YReturn();

@@ -94,7 +94,7 @@ export default function BuscarTab() {
     fetch('/api/cmf/auto-sync')
       .then(r => r.json())
       .then(d => { if (d.success) setSyncStatus(d); })
-      .catch(() => {});
+      .catch((err) => console.warn("Sync status fetch failed:", err));
   }, []);
 
   const doSearch = useCallback(async (q: string, t: SubTab) => {
@@ -384,8 +384,9 @@ function FIDetailView({ fondo, precios, loading, onBack }: {
       } else {
         setSyncResult({ success: false, message: data.error || 'Error al sincronizar' });
       }
-    } catch {
-      setSyncResult({ success: false, message: 'Error de conexion' });
+    } catch (err) {
+      console.error("Sync error:", err);
+      setSyncResult({ success: false, message: 'Error de conexión' });
     } finally {
       setSyncing(false);
     }
