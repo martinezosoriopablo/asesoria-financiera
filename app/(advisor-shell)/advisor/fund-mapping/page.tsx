@@ -69,8 +69,8 @@ export default function FundMappingPage() {
 
       if (mappingsData.success) setMappings(mappingsData.mappings || []);
       if (fundsData.success) setFunds(fundsData.funds || []);
-    } catch {
-      /* silent */
+    } catch (err) {
+      console.error("Error loading fund mapping data:", err);
     }
     setLoading(false);
   }, []);
@@ -112,8 +112,8 @@ export default function FundMappingPage() {
         });
       }
       await fetchData();
-    } catch {
-      /* silent */
+    } catch (err) {
+      console.error("Error saving fund mapping:", err);
     }
     setSaving(null);
   };
@@ -140,11 +140,11 @@ export default function FundMappingPage() {
           Mapeo de Fondos
         </h1>
         <p className="text-sm text-gb-gray mt-1">
-          Asigna fondos preferidos a cada categoria del comite, por tipo de
+          Asigna fondos preferidos a cada categoría del comité, por tipo de
           custodio
           {reportDate && (
             <span className="ml-2 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-              Comite: {reportDate}
+              Comité: {reportDate}
             </span>
           )}
         </p>
@@ -154,7 +154,7 @@ export default function FundMappingPage() {
         <div className="text-center py-12 text-gb-gray">
           <p className="text-lg mb-2">No hay carteras modelo cargadas</p>
           <p className="text-sm">
-            Sube las carteras modelo desde el panel del Comite para empezar.
+            Sube las carteras modelo desde el panel del Comité para empezar.
           </p>
         </div>
       ) : (
@@ -163,7 +163,7 @@ export default function FundMappingPage() {
             <thead>
               <tr className="border-b-2 border-gb-border">
                 <th className="text-left py-3 px-3 text-gb-gray font-medium w-48">
-                  Categoria Comite
+                  Categoría Comité
                 </th>
                 <th className="text-center py-3 px-2 text-gb-gray font-medium w-16">
                   Peso

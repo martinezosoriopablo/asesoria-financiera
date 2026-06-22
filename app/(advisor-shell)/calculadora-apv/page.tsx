@@ -136,7 +136,7 @@ function calcularAPV_A(salarioAnual: number, aporteAnual: number, valorUF: numbe
   const impuestoConAPV = calcularImpuesto(salarioAnual - aporteElegible, valorUF);
 
   const ahorroAnual = impuestoSinAPV - impuestoConAPV;
-  const rentabilidadEquivalente = (ahorroAnual / aporteAnual) * 100;
+  const rentabilidadEquivalente = aporteAnual > 0 ? (ahorroAnual / aporteAnual) * 100 : 0;
 
   return { ahorroAnual, ahorroMensual: ahorroAnual / 12, rentabilidadEquivalente };
 }
@@ -153,7 +153,7 @@ function calcularValorFuturo(
   rentabilidadReal: number,
   años: number
 ): number {
-  if (años === 0) return 0;
+  if (años === 0 || rentabilidadReal === 0) return aporteAnual * años;
   const factor = Math.pow(1 + rentabilidadReal, años) - 1;
   return aporteAnual * (factor / rentabilidadReal);
 }
@@ -251,7 +251,7 @@ function calcularTodo(
     saldoFinalConAPV,
     saldoFinalSinAPV,
     diferenciaTotal,
-    multiplicador: saldoFinalConAPV / totalAportado,
+    multiplicador: totalAportado > 0 ? saldoFinalConAPV / totalAportado : 0,
     gananciaPorRentabilidad,
     gananciaPorBeneficio,
     evolucion,
@@ -334,7 +334,7 @@ export default function CalculadoraAPV() {
   };
 
   const formatearUF = (valorPesos: number) => {
-    const uf = valorPesos / valorUF;
+    const uf = valorUF > 0 ? valorPesos / valorUF : 0;
     return `${uf.toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} UF`;
   };
 
@@ -356,7 +356,7 @@ export default function CalculadoraAPV() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <h1 className="text-2xl font-semibold text-gb-black">Calculadora APV</h1>
           <p className="text-sm text-gb-gray mt-1">
-            Descubre cuanto ahorraras en impuestos y cuanto tendras al jubilar
+            Descubre cuánto ahorrarás en impuestos y cuánto tendrás al jubilar
           </p>
         </div>
       </div>
@@ -1058,10 +1058,12 @@ export default function CalculadoraAPV() {
                   {formatearPesos(resultado.ahorroAnualA - resultado.creditoAnualB)}
                 </span>{" "}
                 más al año (
-                {(
-                  ((resultado.ahorroAnualA - resultado.creditoAnualB) / resultado.creditoAnualB) *
-                  100
-                ).toFixed(0)}
+                {resultado.creditoAnualB > 0
+                  ? (
+                      ((resultado.ahorroAnualA - resultado.creditoAnualB) / resultado.creditoAnualB) *
+                      100
+                    ).toFixed(0)
+                  : 0}
                 % más beneficio)
               </p>
               <p className="text-sm text-slate-600">

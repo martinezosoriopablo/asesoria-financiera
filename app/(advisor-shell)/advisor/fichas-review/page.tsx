@@ -93,8 +93,9 @@ export default function FichasReviewPage() {
       } else {
         setUploadResult({ success: false, message: data.error || "Error al subir" });
       }
-    } catch {
-      setUploadResult({ success: false, message: "Error de conexion" });
+    } catch (err) {
+      console.error("Upload error:", err);
+      setUploadResult({ success: false, message: "Error de conexión" });
     } finally {
       setUploading(false);
     }
@@ -117,7 +118,7 @@ export default function FichasReviewPage() {
       if (data.success) {
         setFichas(prev => prev.filter(x => !(x.fo_run === f.fo_run && x.fm_serie === f.fm_serie && x.tipo === f.tipo)));
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("Delete error:", err); }
     finally { setDeleting(null); }
   };
 
@@ -149,7 +150,7 @@ export default function FichasReviewPage() {
           return x;
         }));
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("Save field error:", err); }
     finally { setSaving(false); setEditing(null); }
   };
 
@@ -287,8 +288,8 @@ export default function FichasReviewPage() {
     <div className="max-w-[1400px] mx-auto px-5 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-gb-black mb-1">Revision de Fichas</h1>
-            <p className="text-sm text-gb-gray">Datos extraidos de PDFs de CMF vs vista AAFM ({stats.total} fichas)</p>
+            <h1 className="text-2xl font-semibold text-gb-black mb-1">Revisión de Fichas</h1>
+            <p className="text-sm text-gb-gray">Datos extraídos de PDFs de CMF vs vista AAFM ({stats.total} fichas)</p>
           </div>
           <button
             onClick={() => { setShowUpload(true); setUploadResult(null); }}

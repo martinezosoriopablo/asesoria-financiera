@@ -24,6 +24,7 @@ import {
   Scatter,
   BarChart,
   Bar,
+  Cell,
 } from "recharts";
 
 // ============================================================
@@ -172,7 +173,7 @@ export default function EducacionFinanciera() {
       {/* Page Header */}
       <div className="bg-white border-b border-gb-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-2xl font-semibold text-gb-black">Educacion Financiera</h1>
+          <h1 className="text-2xl font-semibold text-gb-black">Educación Financiera</h1>
           <p className="text-sm text-gb-gray mt-1">
             Aprende los conceptos clave para invertir con confianza
           </p>
@@ -263,7 +264,7 @@ function ModuloRiesgoRetorno() {
       <div className="bg-white border border-gb-border rounded-lg p-8">
         <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
           <TrendingUp className="w-8 h-8 text-gb-accent" />
-          Riesgo y Retorno: La Relacion Clave
+          Riesgo y Retorno: La Relación Clave
         </h2>
 
         <div className="bg-gb-light border-2 border-gb-border rounded-lg p-6 mb-6">
@@ -271,14 +272,14 @@ function ModuloRiesgoRetorno() {
             Concepto Simple:
           </p>
           <div className="space-y-2 text-gb-dark">
-            <p>• Mas riesgo = Mas sube y baja tu inversion</p>
-            <p>• Pero tambien = Mas ganancia promedio a largo plazo</p>
+            <p>• Más riesgo = Más sube y baja tu inversión</p>
+            <p>• Pero también = Más ganancia promedio a largo plazo</p>
           </div>
         </div>
 
         <div className="mb-6">
           <h3 className="text-xl font-bold text-gb-black mb-4">
-            Grafico: Riesgo vs Retorno
+            Gráfico: Riesgo vs Retorno
           </h3>
 
           <ResponsiveContainer width="100%" height={400}>
@@ -345,8 +346,8 @@ function ModuloRiesgoRetorno() {
         <div className="p-6 bg-gb-light border-2 border-gb-border rounded-lg">
           <p className="text-lg font-semibold text-gb-black mb-2">Mensaje Clave:</p>
           <p className="text-gb-dark">
-            Si quieres mas ganancia, tienes que aceptar que tu inversion va a subir y
-            bajar mas. <strong>Pero a largo plazo, vale la pena.</strong> Es el precio
+            Si quieres más ganancia, tienes que aceptar que tu inversión va a subir y
+            bajar más. <strong>Pero a largo plazo, vale la pena.</strong> Es el precio
             que pagas por obtener mejores retornos.
           </p>
         </div>
@@ -365,30 +366,30 @@ function ModuloDiversificacion() {
       <div className="bg-white border border-gb-border rounded-lg p-8">
         <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
           <Shield className="w-8 h-8 text-gb-accent" />
-          Diversificacion: No Pongas Todos los Huevos en la Misma Canasta
+          Diversificación: No Pongas Todos los Huevos en la Misma Canasta
         </h2>
 
         {/* Analogía */}
         <div className="bg-gb-light border-2 border-gb-border rounded-lg p-6 mb-6">
-          <p className="text-lg font-semibold text-gb-black mb-3">Analogia Simple:</p>
+          <p className="text-lg font-semibold text-gb-black mb-3">Analogía Simple:</p>
           <p className="text-gb-dark mb-3">
             Imagina que tienes 3 negocios:
           </p>
           <ul className="space-y-2 text-gb-dark ml-6">
-            <li>• <strong>Heladeria:</strong> Va bien en verano</li>
-            <li>• <strong>Cafeteria:</strong> Va bien en invierno</li>
-            <li>• <strong>Panaderia:</strong> Va bien todo el año</li>
+            <li>• <strong>Heladería:</strong> Va bien en verano</li>
+            <li>• <strong>Cafetería:</strong> Va bien en invierno</li>
+            <li>• <strong>Panadería:</strong> Va bien todo el año</li>
           </ul>
           <p className="text-gb-dark mt-3">
-            Si solo tienes heladeria, en invierno pierdes. Pero con los 3 negocios,
-            siempre estas ganando. <strong>Eso es diversificacion.</strong>
+            Si solo tienes heladería, en invierno pierdes. Pero con los 3 negocios,
+            siempre estás ganando. <strong>Eso es diversificación.</strong>
           </p>
         </div>
 
         {/* Gráfico de Reducción de Volatilidad */}
         <div className="mb-6">
           <h3 className="text-xl font-bold text-gb-black mb-4">
-            Efecto de la Diversificacion
+            Efecto de la Diversificación
           </h3>
 
           <ResponsiveContainer width="100%" height={300}>
@@ -430,7 +431,7 @@ function ModuloDiversificacion() {
         <div className="p-6 bg-gb-light border-2 border-gb-border rounded-lg">
           <p className="text-lg font-semibold text-gb-black mb-2">Mensaje Clave:</p>
           <p className="text-gb-dark">
-            Con mas fondos, reduces el riesgo <strong>SIN sacrificar mucha
+            Con más fondos, reduces el riesgo <strong>SIN sacrificar mucha
             rentabilidad.</strong> Es como tener un seguro gratis. Un portafolio
             diversificado (10+ fondos) tiene la mitad del riesgo de un solo fondo.
           </p>
@@ -452,13 +453,13 @@ function ModuloCaidasHistoricas() {
       <div className="bg-white border border-gb-border rounded-lg p-8">
         <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
           <TrendingDown className="w-8 h-8 text-gb-accent" />
-          Analisis de Caidas Historicas del S&P 500
+          Análisis de Caídas Históricas del S&P 500
         </h2>
 
         <div className="bg-gb-light border-2 border-gb-border rounded-lg p-6 mb-6">
           <p className="text-lg text-gb-dark">
-            <strong>S&P 500:</strong> Indice que representa las 500 empresas mas grandes de
-            Estados Unidos. Es el mejor indicador de como le va al mercado de acciones
+            <strong>S&P 500:</strong> Índice que representa las 500 empresas más grandes de
+            Estados Unidos. Es el mejor indicador de cómo le va al mercado de acciones
             global.
           </p>
         </div>
@@ -466,7 +467,7 @@ function ModuloCaidasHistoricas() {
         {/* Tabla de Crashes */}
         <div className="mb-8">
           <h3 className="text-xl font-bold text-gb-black mb-4">
-            Crashes Historicos Principales
+            Crashes Históricos Principales
           </h3>
 
           <div className="overflow-x-auto">
@@ -480,10 +481,10 @@ function ModuloCaidasHistoricas() {
                     Año
                   </th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
-                    Caida
+                    Caída
                   </th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
-                    Recuperacion
+                    Recuperación
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gb-dark">
                     Contexto
@@ -527,7 +528,7 @@ function ModuloCaidasHistoricas() {
         {/* Estadísticas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="p-6 bg-red-50 rounded-lg border-2 border-red-200 text-center">
-            <p className="text-sm text-gb-gray mb-2">Peor Caida</p>
+            <p className="text-sm text-gb-gray mb-2">Peor Caída</p>
             <p className="text-4xl font-bold text-red-600">
               {estadisticasCrashes.peorCaida}%
             </p>
@@ -535,7 +536,7 @@ function ModuloCaidasHistoricas() {
           </div>
 
           <div className="p-6 bg-emerald-50 rounded-lg border-2 border-emerald-200 text-center">
-            <p className="text-sm text-gb-gray mb-2">Mejor Recuperacion</p>
+            <p className="text-sm text-gb-gray mb-2">Mejor Recuperación</p>
             <p className="text-4xl font-bold text-emerald-600">
               {estadisticasCrashes.mejorRecuperacion}
             </p>
@@ -543,14 +544,14 @@ function ModuloCaidasHistoricas() {
           </div>
 
           <div className="p-6 bg-gb-light rounded-lg border-2 border-gb-border text-center">
-            <p className="text-sm text-gb-gray mb-2">Caida Promedio</p>
+            <p className="text-sm text-gb-gray mb-2">Caída Promedio</p>
             <p className="text-4xl font-bold text-gb-dark">
               {estadisticasCrashes.promedioCaida}%
             </p>
           </div>
 
           <div className="p-6 bg-gb-light rounded-lg border-2 border-gb-border text-center">
-            <p className="text-sm text-gb-gray mb-2">Recuperacion Promedio</p>
+            <p className="text-sm text-gb-gray mb-2">Recuperación Promedio</p>
             <p className="text-4xl font-bold text-gb-accent">
               {estadisticasCrashes.promedioRecuperacion}
             </p>
@@ -561,7 +562,7 @@ function ModuloCaidasHistoricas() {
         {/* Gráfico Histórico */}
         <div className="mb-8">
           <h3 className="text-xl font-bold text-gb-black mb-4">
-            Evolucion del S&P 500 (1950-2024)
+            Evolución del S&P 500 (1950-2024)
           </h3>
 
           <ResponsiveContainer width="100%" height={400}>
@@ -596,7 +597,7 @@ function ModuloCaidasHistoricas() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
               <p className="text-sm font-semibold text-gb-black mb-1">
-                Caidas visibles:
+                Caídas visibles:
               </p>
               <p className="text-sm text-gb-dark">
                 1973, 1987, 2000-2002, 2008, 2020
@@ -626,7 +627,7 @@ function ModuloCaidasHistoricas() {
           <div className="text-center mb-6">
             <h3 className="text-3xl font-bold mb-4">EL MENSAJE CLAVE</h3>
             <p className="text-2xl font-bold mb-2">
-              &quot;Las caidas son TEMPORALES,
+              &quot;Las caídas son TEMPORALES,
             </p>
             <p className="text-2xl font-bold">
               el crecimiento es PERMANENTE.&quot;
@@ -637,10 +638,10 @@ function ModuloCaidasHistoricas() {
             <div className="flex items-start gap-3 bg-white/10 backdrop-blur rounded-lg p-4">
               <CheckCircle className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
-                <p className="font-semibold mb-1">Todas las caidas se recuperaron</p>
+                <p className="font-semibold mb-1">Todas las caídas se recuperaron</p>
                 <p className="text-sm text-white/70">
-                  En los ultimos 74 años, ha habido 15 caidas grandes ({">"} 20%). TODAS se
-                  recuperaron. Sin excepcion.
+                  En los últimos 74 años, ha habido 15 caídas grandes ({">"} 20%). TODAS se
+                  recuperaron. Sin excepción.
                 </p>
               </div>
             </div>
@@ -651,7 +652,7 @@ function ModuloCaidasHistoricas() {
                 <p className="font-semibold mb-1">La tendencia siempre es hacia arriba</p>
                 <p className="text-sm text-white/70">
                   A pesar de guerras, pandemias, crisis financieras, el mercado siempre
-                  termina mas alto que antes.
+                  termina más alto que antes.
                 </p>
               </div>
             </div>
@@ -662,7 +663,7 @@ function ModuloCaidasHistoricas() {
                 <p className="font-semibold mb-1">Solo necesitas TIEMPO</p>
                 <p className="text-sm text-white/70">
                   Si inviertes hoy y el mercado cae mañana 30%, tu dinero NO desaparece.
-                  Esta ahi, esperando a recuperarse. Historicamente, SIEMPRE se recupera.
+                  Está ahí, esperando a recuperarse. Históricamente, SIEMPRE se recupera.
                 </p>
               </div>
             </div>
@@ -670,9 +671,9 @@ function ModuloCaidasHistoricas() {
             <div className="flex items-start gap-3 bg-white/10 backdrop-blur rounded-lg p-4">
               <AlertCircle className="w-6 h-6 flex-shrink-0 mt-1" />
               <div>
-                <p className="font-semibold mb-1">Tu unica enemiga es el PANICO</p>
+                <p className="font-semibold mb-1">Tu única enemiga es el PÁNICO</p>
                 <p className="text-sm text-white/70">
-                  Si vendes en la caida, pierdes. Si esperas con paciencia, ganas. La
+                  Si vendes en la caída, pierdes. Si esperas con paciencia, ganas. La
                   historia lo ha demostrado una y otra vez.
                 </p>
               </div>
@@ -684,7 +685,7 @@ function ModuloCaidasHistoricas() {
               TIEMPO {">"} TIMING
             </p>
             <p className="text-sm mt-2 text-white/70">
-              Mas importante que el momento perfecto para entrar, es el tiempo que te quedas
+              Más importante que el momento perfecto para entrar, es el tiempo que te quedas
               invertido.
             </p>
           </div>
@@ -708,7 +709,7 @@ function ModuloComparacion() {
       <div className="bg-white border border-gb-border rounded-lg p-8">
         <h2 className="text-3xl font-bold text-gb-black mb-4 flex items-center gap-3">
           <BarChart3 className="w-8 h-8 text-gb-accent" />
-          Comparacion Final: Que Elegir?
+          Comparación Final: ¿Qué Elegir?
         </h2>
 
         {/* Tabla Comparativa */}
@@ -722,7 +723,7 @@ function ModuloComparacion() {
               <thead>
                 <tr className="border-b-2 border-gb-border bg-gb-light">
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gb-dark">
-                    Caracteristica
+                    Característica
                   </th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gb-dark">
                     Acciones (100%)
@@ -764,7 +765,7 @@ function ModuloComparacion() {
                 </tr>
                 <tr className="border-b border-gb-border">
                   <td className="py-3 px-4 font-semibold text-gb-black">
-                    Recuperacion Promedio
+                    Recuperación Promedio
                   </td>
                   <td className="py-3 px-4 text-center text-gb-gray">
                     {comparacionActivos.acciones.recuperacionPromedio} meses
@@ -784,7 +785,7 @@ function ModuloComparacion() {
         {/* Simulación 20 años */}
         <div className="mb-8">
           <h3 className="text-xl font-bold text-gb-black mb-4">
-            Simulacion: $10M invertidos por 20 años
+            Simulación: $10M invertidos por 20 años
           </h3>
 
           <ResponsiveContainer width="100%" height={300}>
@@ -845,7 +846,7 @@ function ModuloComparacion() {
                 Solo Bonos
               </p>
               <p className="text-sm text-gb-dark">
-                Mas seguro, menos volatilidad
+                Más seguro, menos volatilidad
               </p>
               <p className="text-sm text-gb-dark mt-2">
                 Crece poco, pierdes poder adquisitivo
@@ -858,10 +859,10 @@ function ModuloComparacion() {
                 Solo Acciones
               </p>
               <p className="text-sm text-gb-dark">
-                Maxima rentabilidad (2.5x mas que bonos)
+                Máxima rentabilidad (2.5x más que bonos)
               </p>
               <p className="text-sm text-gb-dark mt-2">
-                Mas volatilidad, requiere paciencia
+                Más volatilidad, requiere paciencia
               </p>
             </div>
 
@@ -881,13 +882,13 @@ function ModuloComparacion() {
 
           <div className="p-8 bg-gb-light border-2 border-gb-border rounded-lg">
             <p className="text-2xl font-bold text-gb-black mb-4 text-center">
-              Conclusion Final
+              Conclusión Final
             </p>
             <div className="space-y-3 text-gb-dark">
               <p className="flex items-start gap-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Si tienes <strong>TIEMPO</strong> (10+ años), vale la pena aceptar mas
+                  Si tienes <strong>TIEMPO</strong> (10+ años), vale la pena aceptar más
                   riesgo con acciones o balanceado.
                 </span>
               </p>
@@ -901,15 +902,15 @@ function ModuloComparacion() {
               <p className="flex items-start gap-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  El <strong>portafolio balanceado</strong> es ideal para la mayoria: buen
-                  retorno ($42M) sin tanto estres.
+                  El <strong>portafolio balanceado</strong> es ideal para la mayoría: buen
+                  retorno ($42M) sin tanto estrés.
                 </span>
               </p>
               <p className="flex items-start gap-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  Recuerda: Las caidas son temporales, el crecimiento es permanente. Solo
-                  necesitas <strong>no vender en panico.</strong>
+                  Recuerda: Las caídas son temporales, el crecimiento es permanente. Solo
+                  necesitas <strong>no vender en pánico.</strong>
                 </span>
               </p>
             </div>
@@ -920,22 +921,19 @@ function ModuloComparacion() {
       {/* Mensaje Final Motivacional */}
       <div className="bg-gb-black rounded-lg border border-gb-border p-8 text-white text-center">
         <Activity className="w-16 h-16 mx-auto mb-4" />
-        <h3 className="text-3xl font-bold mb-4">Felicitaciones!</h3>
+        <h3 className="text-3xl font-bold mb-4">¡Felicitaciones!</h3>
         <p className="text-xl mb-6">
           Ahora tienes las herramientas para invertir con confianza.
         </p>
         <div className="bg-white/10 backdrop-blur rounded-lg p-6">
           <p className="text-lg font-semibold mb-2">Recuerda los 3 pilares:</p>
           <div className="space-y-2 text-left">
-            <p>1. <strong>Riesgo-Retorno:</strong> Mas riesgo = Mas ganancia</p>
-            <p>2. <strong>Diversificacion:</strong> Reduce riesgo gratis</p>
-            <p>3. <strong>Tiempo:</strong> Las caidas se recuperan, siempre</p>
+            <p>1. <strong>Riesgo-Retorno:</strong> Más riesgo = Más ganancia</p>
+            <p>2. <strong>Diversificación:</strong> Reduce riesgo gratis</p>
+            <p>3. <strong>Tiempo:</strong> Las caídas se recuperan, siempre</p>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-// Agregar Cell component for recharts
-import { Cell } from "recharts";
