@@ -10,7 +10,6 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Fund } from "@/components/portfolio/FundSelector";
 import { supabaseBrowserClient } from "@/lib/supabase/supabaseClient";
-import { getBenchmarkFromScore, type AssetAllocation } from "@/lib/risk/benchmarks";
 import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
   CartesianGrid, Area, AreaChart,
@@ -161,13 +160,6 @@ interface HistoricalPoint {
   propuesto?: number;
 }
 
-interface CarteraIAData {
-  recomendacion?: {
-    cartera?: CarteraPosition[];
-  };
-  cartera?: CarteraPosition[];
-}
-
 interface HistoricalDataPoint {
   date: string;
   close: number;
@@ -189,11 +181,9 @@ export default function ComparisonModeV2() {
 
   // Portfolio state
   const [totalInvestment, setTotalInvestment] = useState(0);
-  const [, setBenchmark] = useState<AssetAllocation | null>(null);
 
   // Proposed portfolio (from AI)
   const [proposedPositions, setProposedPositions] = useState<ProposedPosition[]>([]);
-  const [, setLoadingProposed] = useState(false);
 
   // Current holdings (from cartola)
   const [currentHoldings, setCurrentHoldings] = useState<CurrentHolding[]>([]);
@@ -204,7 +194,6 @@ export default function ComparisonModeV2() {
 
   // AI Cartera modal
   const [showCarteraIA, setShowCarteraIA] = useState(false);
-  const [, setCarteraIA] = useState<CarteraIAData | null>(null);
   const [carteraLoadedFromDB, setCarteraLoadedFromDB] = useState(false);
   const [savingCartera, setSavingCartera] = useState(false);
   const [showRebalanceSummary, setShowRebalanceSummary] = useState(false);
@@ -218,8 +207,8 @@ export default function ComparisonModeV2() {
     diffPct: number;
   }>>([]);
 
-  // Currency
-  const [, setExchangeRates] = useState({ usd: 980, uf: 38500 });
+  // Upload error (replaces alert() calls)
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Sections expanded state
   const [proposedExpanded, setProposedExpanded] = useState(true);
@@ -402,22 +391,6 @@ export default function ComparisonModeV2() {
   // EFFECTS
   // ============================================================
 
-  // Fetch exchange rates
-  useEffect(() => {
-    const fetchRates = async () => {
-      try {
-        const res = await fetch("/api/exchange-rates");
-        const data = await res.json();
-        if (data.success) {
-          setExchangeRates({ usd: data.usd, uf: data.uf });
-        }
-      } catch (error) {
-        console.error("Error fetching exchange rates:", error);
-      }
-    };
-    fetchRates();
-  }, []);
-
   // Auto-search on load
   useEffect(() => {
     if (clientEmail.trim()) {
@@ -446,7 +419,6 @@ export default function ComparisonModeV2() {
       if (error || !clientData) {
         setClientNotFound(true);
         setClient(null);
-        setBenchmark(getBenchmarkFromScore(45, true, "global"));
         return;
       }
 
@@ -463,10 +435,8 @@ export default function ComparisonModeV2() {
 
       if (profileData) {
         setRiskProfile(profileData);
-        setBenchmark(getBenchmarkFromScore(profileData.global_score, true, "global"));
       } else {
         setRiskProfile(null);
-        setBenchmark(getBenchmarkFromScore(45, true, "global"));
       }
 
       // Extract current holdings from portfolio_data
@@ -480,10 +450,10 @@ export default function ComparisonModeV2() {
         securityId: h.securityId || h.ticker || "N/A",
         fundName: h.fundName || h.name || "Fondo",
         assetClass: h.assetClass || "Unknown",
-        marketValue: h.marketValue || 0,
-        costBasis: h.costBasis || 0,
-        unrealizedGainLoss: h.unrealizedGainLoss || 0,
-        percentOfPortfolio: h.percentOfPortfolio || (((h.marketValue ?? 0) / totalValue) * 100) || 0,
+        marketValue: h.marketValue ?? 0,
+        costBasis: h.costBasis ?? 0,
+        unrealizedGainLoss: h.unrealizedGainLoss ?? 0,
+        percentOfPortfolio: h.percentOfPortfolio ?? (totalValue > 0 ? ((h.marketValue ?? 0) / totalValue) * 100 : 0),
       }));
 
       setCurrentHoldings(mappedHoldings);
@@ -499,10 +469,10 @@ export default function ComparisonModeV2() {
               securityId: h.securityId || h.ticker || "N/A",
               fundName: h.fundName || h.name || h.nombre || "Fondo",
               assetClass: h.assetClass || h.tipo || "Unknown",
-              marketValue: h.marketValue || h.marketValueCLP || h.valor || 0,
-              costBasis: h.costBasis || 0,
-              unrealizedGainLoss: h.unrealizedGainLoss || 0,
-              percentOfPortfolio: h.percentOfPortfolio || ((h.marketValue || h.marketValueCLP || h.valor || 0) / latestSnap.total_value * 100),
+              marketValue: h.marketValue ?? h.marketValueCLP ?? h.valor ?? 0,
+              costBasis: h.costBasis ?? 0,
+              unrealizedGainLoss: h.unrealizedGainLoss ?? 0,
+              percentOfPortfolio: h.percentOfPortfolio ?? (latestSnap.total_value > 0 ? ((h.marketValue ?? h.marketValueCLP ?? h.valor ?? 0) / latestSnap.total_value * 100) : 0),
             }));
             setCurrentHoldings(snapHoldings);
             setTotalInvestment(latestSnap.total_value);
@@ -736,12 +706,13 @@ export default function ComparisonModeV2() {
             ));
           }
           setShowExcelModal(false);
+          setUploadError(null);
         } else {
-          alert("No se encontraron datos válidos en el archivo.");
+          setUploadError("No se encontraron datos válidos en el archivo.");
         }
       } catch (error) {
         console.error("Error parsing Excel:", error);
-        alert("Error al leer el archivo Excel");
+        setUploadError("Error al leer el archivo Excel.");
       }
     };
     reader.readAsArrayBuffer(file);
@@ -841,11 +812,11 @@ export default function ComparisonModeV2() {
             ));
           }
         } else {
-          alert("No se encontraron datos válidos en el archivo. Asegúrese de tener columnas de fecha y precio.");
+          setUploadError("No se encontraron datos válidos en el archivo. Asegúrese de tener columnas de fecha y precio.");
         }
       } catch (error) {
         console.error("Error parsing Excel:", error);
-        alert("Error al leer el archivo Excel");
+        setUploadError("Error al leer el archivo Excel.");
       } finally {
         setUploadingForIndex(null);
         setUploadingForPortfolio(null);
@@ -862,8 +833,6 @@ export default function ComparisonModeV2() {
   // ============================================================
 
   const applyCartera = async (cartera: CarteraPosition[]) => {
-    setLoadingProposed(true);
-
     try {
       const positions: ProposedPosition[] = cartera.map((pos) => ({
         ticker: pos.ticker,
@@ -931,8 +900,8 @@ export default function ComparisonModeV2() {
 
       // Fetch historical data for comparison chart
       await fetchHistoricalComparison();
-    } finally {
-      setLoadingProposed(false);
+    } catch (error) {
+      console.error("Error applying cartera:", error);
     }
   };
 
@@ -1199,6 +1168,16 @@ export default function ComparisonModeV2() {
         accept=".xlsx,.xls,.csv"
         className="hidden"
       />
+
+      {/* Upload error banner */}
+      {uploadError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center justify-between">
+          <p className="text-sm text-red-700">{uploadError}</p>
+          <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-600 ml-2">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* CLIENT SEARCH */}
@@ -2370,7 +2349,6 @@ export default function ComparisonModeV2() {
                   onCarteraGenerada={(data: { recomendacion?: { cartera?: CarteraPosition[]; generadoEn?: string }; cartera?: CarteraPosition[]; generadoEn?: string }) => {
                     // La cartera viene en data.recomendacion.cartera
                     const posiciones = data.recomendacion?.cartera || data.cartera || [];
-                    setCarteraIA(data);
                     setCarteraLoadedFromDB(false); // New cartera, not saved yet
                     if (posiciones.length > 0) {
                       applyCartera(posiciones);

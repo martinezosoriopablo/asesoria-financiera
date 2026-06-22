@@ -79,7 +79,7 @@ function TabNavigation({ activeTab, onTabChange }: { activeTab: string; onTabCha
 function PortfolioDesignerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { advisor: _advisor, loading: authLoading } = useAdvisor();
+  const { loading: authLoading } = useAdvisor();
 
   // Get mode from URL or default to "comparison"
   const activeTab = searchParams.get("mode") || "comparison";
