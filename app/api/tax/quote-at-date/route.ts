@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
     // Fetch UF at the historical date for corrección monetaria
     const actualDate = historical?.fecha ?? date;
     let ufAtDate = 0;
-    try { ufAtDate = await getUF(actualDate); } catch { /* 0 = unknown */ }
+    try { ufAtDate = await getUF(actualDate); } catch (err) { console.warn("[tax/quote-at-date] getUF failed for", actualDate, err); }
     let ufToday = 0;
-    try { ufToday = await getUF(new Date().toISOString().split("T")[0]); } catch { /* 0 */ }
+    try { ufToday = await getUF(new Date().toISOString().split("T")[0]); } catch (err) { console.warn("[tax/quote-at-date] getUF today failed:", err); }
 
     return successResponse({
       todayPrice: current.valor_cuota,

@@ -135,9 +135,9 @@ async function fetchYahooQuote(ticker: string): Promise<QuoteResponse | null> {
 
     const meta = data.chart.result[0].meta;
     const price = meta.regularMarketPrice;
-    const previousClose = meta.previousClose || price;
+    const previousClose = meta.previousClose ?? price;
     const change = price - previousClose;
-    const changePercent = (change / previousClose) * 100;
+    const changePercent = previousClose !== 0 ? (change / previousClose) * 100 : 0;
 
     // Determinar tipo basado en exchange
     let type = "stock_us";

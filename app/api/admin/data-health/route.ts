@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
         date: ratesData.timestamp || "",
       };
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.warn("[data-health] exchange rates fetch failed:", err); }
 
   return NextResponse.json({
     success: true,

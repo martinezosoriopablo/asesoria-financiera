@@ -106,15 +106,15 @@ export async function GET(request: NextRequest) {
 
     // Calcular promedios del mercado
     const marketAverage = {
-      avgCost:
-        providersArray.reduce((sum, p) => sum + p.avgCost * p.count, 0) /
-        funds.length,
-      avgReturn1y:
-        providersArray.reduce((sum, p) => sum + p.avgReturn1y * p.count, 0) /
-        funds.length,
-      avgReturn3y:
-        providersArray.reduce((sum, p) => sum + p.avgReturn3y * p.count, 0) /
-        funds.length,
+      avgCost: funds.length > 0
+        ? providersArray.reduce((sum, p) => sum + p.avgCost * p.count, 0) / funds.length
+        : 0,
+      avgReturn1y: funds.length > 0
+        ? providersArray.reduce((sum, p) => sum + p.avgReturn1y * p.count, 0) / funds.length
+        : 0,
+      avgReturn3y: funds.length > 0
+        ? providersArray.reduce((sum, p) => sum + p.avgReturn3y * p.count, 0) / funds.length
+        : 0,
       totalFunds: funds.length,
     };
 

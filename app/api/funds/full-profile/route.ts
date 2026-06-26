@@ -220,14 +220,14 @@ export async function GET(request: NextRequest) {
 
       // Retornos calculados desde datos históricos
       returns: {
-        "1m": calculatedReturns["1m"] || null,
-        "3m": calculatedReturns["3m"] || null,
-        "6m": calculatedReturns["6m"] || null,
-        ytd: calculatedReturns.ytd || null,
-        "1y": calculatedReturns["1y"] || null,
-        "3y": calculatedReturns["3y"] || null,
-        "5y": calculatedReturns["5y"] || null,
-        "10y": calculatedReturns["10y"] || null,
+        "1m": calculatedReturns["1m"] ?? null,
+        "3m": calculatedReturns["3m"] ?? null,
+        "6m": calculatedReturns["6m"] ?? null,
+        ytd: calculatedReturns.ytd ?? null,
+        "1y": calculatedReturns["1y"] ?? null,
+        "3y": calculatedReturns["3y"] ?? null,
+        "5y": calculatedReturns["5y"] ?? null,
+        "10y": calculatedReturns["10y"] ?? null,
       },
 
       // Datos adicionales

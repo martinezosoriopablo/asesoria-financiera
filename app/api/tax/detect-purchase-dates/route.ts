@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       let ufAtDate = 0;
       try {
         ufAtDate = await getUF(match.fecha);
-      } catch { /* 0 = unknown */ }
+      } catch (err) { console.warn("[tax/detect-purchase-dates] getUF failed:", err); }
 
       results[key] = {
         date: match.fecha,

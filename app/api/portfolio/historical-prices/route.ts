@@ -30,7 +30,7 @@ async function getEurRate(fecha: string): Promise<number> {
         }
         eurRateCache.set(yearKey, 1); // mark year as loaded
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.warn("[historical-prices] EUR year fetch failed:", err); }
   }
 
   // Find closest date <= fecha

@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
       entityType: "client",
       entityId: newClient?.id,
       details: { nombre: body.nombre, apellido: body.apellido, email: body.email },
-    }).catch(() => {});
+    }).catch((err) => console.warn("[clients] audit log failed:", err));
 
     return NextResponse.json({
       success: true,

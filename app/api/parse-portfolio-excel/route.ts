@@ -499,8 +499,8 @@ async function enrichSecurityIds(holdings: Holding[]): Promise<void> {
       // Replace securityId with the numeric RUN
       h.securityId = String(bestMatch.fo_run);
     }
-  } catch {
-    // Non-fatal: if enrichment fails, holdings keep original securityId
+  } catch (err) {
+    console.warn("[parse-excel] enrichSecurityIds failed:", err);
   }
 }
 

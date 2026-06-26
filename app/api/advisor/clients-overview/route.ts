@@ -173,8 +173,8 @@ export async function GET(request: NextRequest) {
           .filter((p) => p.clase === "Renta Fija")
           .reduce((s: number, p) => s + p.porcentaje, 0);
 
-        const actualEquity = snap.equity_percent || 0;
-        const actualFI = snap.fixed_income_percent || 0;
+        const actualEquity = snap.equity_percent ?? 0;
+        const actualFI = snap.fixed_income_percent ?? 0;
 
         drift = (Math.abs(actualEquity - recEquity) + Math.abs(actualFI - recFI)) / 2;
       }
@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
         email: client.email,
         status: client.status || "activo",
         perfilRiesgo: client.perfil_riesgo || null,
-        puntajeRiesgo: client.puntaje_riesgo || null,
+        puntajeRiesgo: client.puntaje_riesgo ?? null,
         portalEnabled: client.portal_enabled || false,
         portalLastSeen: client.portal_last_seen || null,
         createdAt: client.created_at,

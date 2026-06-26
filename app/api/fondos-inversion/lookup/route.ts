@@ -148,9 +148,9 @@ export async function GET(request: NextRequest) {
         moneda: f.moneda || "CLP",
         series_disponibles: f.series_detectadas || [],
         serie_mostrada: latest?.serie || null,
-        precio_actual: latest?.valor_libro || null,
+        precio_actual: latest?.valor_libro ?? null,
         fecha_precio: latest?.fecha || null,
-        variacion_diaria: latest?.rent_diaria || null,
+        variacion_diaria: latest?.rent_diaria ?? null,
         dias_desactualizado: latest ? daysSince(latest.fecha) : null,
       };
     });

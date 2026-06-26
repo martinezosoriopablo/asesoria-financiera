@@ -548,7 +548,7 @@ export async function POST(request: NextRequest) {
         ? fichasMap.get(`${bestMatch.fo_run}|${bestMatch.fm_serie}`)
         : undefined;
 
-      const tac = bestMatch?.tac_sintetica || null;
+      const tac = bestMatch?.tac_sintetica ?? null;
       const tacAnnual = tac && valueCLP ? (tac / 100) * valueCLP : null;
       // 10-year cost projection (compound effect of TAC on returns)
       const tac10Y = tacAnnual ? tacAnnual * 10 * 1.05 : null; // rough projection with growth

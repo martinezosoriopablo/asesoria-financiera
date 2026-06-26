@@ -128,7 +128,8 @@ export async function POST(request: NextRequest) {
           fm_serie,
           tac_sintetica
         });
-      } catch {
+      } catch (err) {
+        console.warn("[tac] row processing error:", err);
         errores++;
       }
     }

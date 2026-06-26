@@ -4,7 +4,7 @@
 // así la rentabilidad refleja correctamente el retorno total (precio + dividendos)
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -14,12 +14,10 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("dividends-post", async () => {
-    const supabase = await createSupabaseServerClient();
+    const { user, error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
-    }
+    const supabase = createAdminClient();
 
     const { clientId, date, amount, note } = await request.json();
 
@@ -45,7 +43,7 @@ export async function POST(request: NextRequest) {
         dividend_date: date,
         amount,
         note: note || null,
-        created_by: user.id,
+        created_by: user!.id,
       });
 
     if (insertError) {
@@ -87,12 +85,10 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("dividends-get", async () => {
-    const supabase = await createSupabaseServerClient();
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
-    }
+    const supabase = createAdminClient();
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");

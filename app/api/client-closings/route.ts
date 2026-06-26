@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     // 6. Portfolio and class-level change vs previous month
     let portfolioChange = "";
     if (latestSnap && previousSnap) {
-      const totalChg = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
+      const totalChg = previousSnap.total_value !== 0 ? ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2) : "0.00";
       portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%) | ${previousSnap.snapshot_date} → ${latestSnap.snapshot_date}`;
 
       // Per-class changes

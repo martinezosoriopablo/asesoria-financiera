@@ -29,14 +29,14 @@ export async function GET(request: NextRequest) {
       .single();
 
     const extracted = ficha?.tac_serie != null ? {
-      tac_serie: ficha.tac_serie ? Number(ficha.tac_serie) : null,
+      tac_serie: ficha.tac_serie != null ? Number(ficha.tac_serie) : null,
       nombre_fondo: ficha.nombre_fondo_pdf,
       serie_detectada: ficha.serie_detectada,
       rentabilidades: {
-        rent_1m: ficha.rent_1m ? Number(ficha.rent_1m) : null,
-        rent_3m: ficha.rent_3m ? Number(ficha.rent_3m) : null,
-        rent_6m: ficha.rent_6m ? Number(ficha.rent_6m) : null,
-        rent_12m: ficha.rent_12m ? Number(ficha.rent_12m) : null,
+        rent_1m: ficha.rent_1m != null ? Number(ficha.rent_1m) : null,
+        rent_3m: ficha.rent_3m != null ? Number(ficha.rent_3m) : null,
+        rent_6m: ficha.rent_6m != null ? Number(ficha.rent_6m) : null,
+        rent_12m: ficha.rent_12m != null ? Number(ficha.rent_12m) : null,
       },
       rescatable: ficha.rescatable,
       plazo_rescate: ficha.plazo_rescate,

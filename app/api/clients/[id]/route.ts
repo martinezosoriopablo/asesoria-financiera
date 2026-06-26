@@ -316,7 +316,7 @@ export async function DELETE(
       entityType: "client",
       entityId: id,
       details: { nombre: client.nombre, apellido: client.apellido },
-    }).catch(() => {});
+    }).catch((err) => console.warn("[clients/id] audit log failed:", err));
 
     return successResponse({ message: "Cliente marcado como inactivo", client });
   });

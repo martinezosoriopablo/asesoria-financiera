@@ -5,8 +5,7 @@
 // También acepta formato legacy con 3 columnas: security_id,date,price
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -147,12 +146,8 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-manual-prices-post", async () => {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
-    }
+    const { user, error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
     const { csv, securityId, note } = await request.json();
 
@@ -205,7 +200,7 @@ export async function POST(request: NextRequest) {
       price: r.price,
       currency: "USD",
       note: note || null,
-      created_by: user.id,
+      created_by: user!.id,
     }));
 
     // Use admin client for upsert to bypass RLS (auth already verified above)
@@ -248,12 +243,8 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-manual-prices-get", async () => {
-    const supabase = await createSupabaseServerClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
-    }
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
     const { searchParams } = new URL(request.url);
     const securityId = searchParams.get("securityId");

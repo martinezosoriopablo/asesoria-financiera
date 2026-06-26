@@ -211,7 +211,7 @@ function calculateReturns(historicalData: { date: string; close: number }[], cur
 
   const findPriceAtDate = (targetDate: Date): number | null => {
     const found = historicalData.find((d) => new Date(d.date) <= targetDate);
-    return found?.close || null;
+    return found?.close ?? null;
   };
 
   // 1 month

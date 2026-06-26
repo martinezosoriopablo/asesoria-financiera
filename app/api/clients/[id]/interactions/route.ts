@@ -125,7 +125,7 @@ export async function POST(
           titulo: body.titulo,
           descripcion: body.descripcion || null,
           resultado: body.resultado || "exitoso",
-          duracion_minutos: body.duracion_minutos || null,
+          duracion_minutos: body.duracion_minutos ?? null,
           archivo_adjunto: body.archivo_adjunto || null,
           created_by: advisor!.email, // Siempre el advisor autenticado
         },

@@ -395,7 +395,7 @@ export async function POST(request: NextRequest) {
                 if (quote) {
                   stockQuote = { name: quote.name, price: quote.price, currency: quote.currency, source: "Bolsa Santiago" };
                 }
-              } catch { /* fallback */ }
+              } catch (err) { console.warn("[match-holdings] Bolsa Santiago quote failed:", err); }
               if (!stockQuote) {
                 const yahooTicker = ticker.endsWith(".SN") ? ticker : `${ticker}.SN`;
                 stockQuote = await fetchStockQuote(yahooTicker);

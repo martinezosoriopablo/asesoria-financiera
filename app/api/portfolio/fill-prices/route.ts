@@ -92,7 +92,8 @@ async function fetchYahooHistorical(
       }
     }
     return prices;
-  } catch {
+  } catch (err) {
+    console.warn("[fill-prices] fetchYahooHistorical failed:", err);
     return [];
   }
 }
@@ -134,7 +135,8 @@ async function fetchAlphaVantageHistorical(
       }
     }
     return prices.sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
+  } catch (err) {
+    console.warn("[fill-prices] fetchAlphaVantageHistorical failed:", err);
     return [];
   }
 }
@@ -152,7 +154,8 @@ async function fetchBolsaSantiagoHistoricalPrices(
       date: d.date,
       price: d.close,
     }));
-  } catch {
+  } catch (err) {
+    console.warn("[fill-prices] fetchBolsaSantiagoHistoricalPrices failed:", err);
     return [];
   }
 }
@@ -169,7 +172,8 @@ async function fetchFintualHistorical(
       date: d.attributes.date,
       price: d.attributes.price,
     }));
-  } catch {
+  } catch (err) {
+    console.warn("[fill-prices] fetchFintualHistorical failed:", err);
     return [];
   }
 }
@@ -197,8 +201,8 @@ async function prefetchYahooMap(
         map.set(row.security_id, row);
       }
     }
-  } catch {
-    // Table may not exist yet — that's OK, we'll use CUSIP search fallback
+  } catch (err) {
+    console.warn("[fill-prices] prefetchYahooMap table query failed (may not exist):", err);
   }
   return map;
 }
@@ -218,7 +222,8 @@ async function searchYahooForCUSIP(cusip: string): Promise<string | null> {
       q.symbol && q.symbol.startsWith("0P")
     );
     return fund ? fund.symbol : null;
-  } catch {
+  } catch (err) {
+    console.warn("[fill-prices] searchYahooForCUSIP failed:", err);
     return null;
   }
 }
@@ -235,8 +240,8 @@ async function saveYahooMapping(
       { security_id: securityId, yahoo_ticker: yahooTicker, fund_name: fundName, updated_at: new Date().toISOString() },
       { onConflict: "security_id" }
     );
-  } catch {
-    // Table may not exist yet — silently ignore
+  } catch (err) {
+    console.warn("[fill-prices] saveYahooMapping table query failed (may not exist):", err);
   }
 }
 
@@ -261,8 +266,8 @@ async function prefetchManualPrices(
         dateMap.set(row.price_date, parseFloat(row.price));
       }
     }
-  } catch {
-    // Table may not exist yet
+  } catch (err) {
+    console.warn("[fill-prices] prefetchManualPrices table query failed (may not exist):", err);
   }
   return map;
 }

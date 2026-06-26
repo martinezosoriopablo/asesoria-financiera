@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 
         const actualDate = priceRow?.fecha ?? td.date;
         let ufAtDate = 0;
-        try { ufAtDate = await getUF(actualDate); } catch { /* 0 = unknown */ }
+        try { ufAtDate = await getUF(actualDate); } catch (err) { console.warn("[tax/historical-quotes] getUF failed for", actualDate, err); }
 
         prices.push({
           years: td.years,
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     }
 
     let ufToday = 0;
-    try { ufToday = await getUF(todayStr); } catch { /* 0 */ }
+    try { ufToday = await getUF(todayStr); } catch (err) { console.warn("[tax/historical-quotes] getUF today failed:", err); }
 
     return successResponse({ quotes: results, asOf: todayStr, ufToday });
   });

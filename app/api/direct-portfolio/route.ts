@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
         cantidad: h.cantidad,
         precio_compra: h.precio_compra || null,
         fecha_compra: h.fecha_compra || null,
-        cupon: h.cupon || null,
+        cupon: h.cupon ?? null,
         vencimiento: h.vencimiento || null,
         valor_nominal: h.valor_nominal || null,
         cusip: h.cusip || null,

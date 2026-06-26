@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
           const minData = await minRes.json();
           result.eur = minData.euro?.valor || 0;
         }
-      } catch { /* EUR is optional */ }
+      } catch (err) { console.warn("[exchange-rates] EUR fetch failed:", err); }
 
       cache = { data: result, expiry: Date.now() + CACHE_DURATION };
       return NextResponse.json({ success: true, ...result });

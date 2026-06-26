@@ -3,8 +3,7 @@
 // Lightweight endpoint — does NOT fetch or fill prices, just checks sources
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -13,12 +12,10 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("fill-prices-coverage-get", async () => {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
-    }
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
+    const supabase = createAdminClient();
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     if (!clientId) {

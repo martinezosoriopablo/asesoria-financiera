@@ -159,17 +159,19 @@ export async function GET(
     // Calcular algunas métricas
     const firstPrice = historical[0].close;
     const lastPrice = historical[historical.length - 1].close;
-    const totalReturn = ((lastPrice - firstPrice) / firstPrice) * 100;
+    const totalReturn = firstPrice !== 0 ? ((lastPrice - firstPrice) / firstPrice) * 100 : 0;
 
     // Calcular volatilidad (desviación estándar de retornos)
     const returns: number[] = [];
     for (let i = 1; i < historical.length; i++) {
-      const dailyReturn = (historical[i].close - historical[i - 1].close) / historical[i - 1].close;
-      returns.push(dailyReturn);
+      if (historical[i - 1].close !== 0) {
+        const dailyReturn = (historical[i].close - historical[i - 1].close) / historical[i - 1].close;
+        returns.push(dailyReturn);
+      }
     }
 
-    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
+    const variance = returns.length > 0 ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length : 0;
     const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // Anualizado
 
     return NextResponse.json({

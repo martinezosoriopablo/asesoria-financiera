@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
 
       cache[cacheKey] = { data: serie, expiry: Date.now() + CACHE_DURATION };
       return NextResponse.json({ success: true, serie, source: "mindicador.cl (fallback)" });
-    } catch {
+    } catch (err) {
+      console.warn("[exchange-rates/historical] mindicador fallback failed:", err);
       return NextResponse.json({ success: true, serie: [] });
     }
   });

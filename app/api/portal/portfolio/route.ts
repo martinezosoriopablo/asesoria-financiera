@@ -48,7 +48,7 @@ export async function GET() {
   let portalSnapshot = null;
   if (latestSnapshot) {
     const holdings = Array.isArray(latestSnapshot.holdings) ? latestSnapshot.holdings : [];
-    const totalVal = latestSnapshot.total_value || 1;
+    const totalVal = latestSnapshot.total_value ?? 0;
     portalSnapshot = {
       id: latestSnapshot.id,
       snapshot_date: latestSnapshot.snapshot_date,
@@ -61,12 +61,12 @@ export async function GET() {
       daily_return: latestSnapshot.daily_return,
       holdings: holdings.map((h: Record<string, unknown>) => {
         // Prefer marketValueCLP (already converted to CLP) over marketValue (may be in USD/UF)
-        const valorCLP = (h.marketValueCLP || h.marketValue || h.valor || 0) as number;
+        const valorCLP = (h.marketValueCLP ?? h.marketValue ?? h.valor ?? 0) as number;
         return {
           nombre: (h.fundName || h.nombre || h.name || "Sin nombre") as string,
           tipo: (h.assetClass || h.tipo || "—") as string,
           valor: valorCLP,
-          porcentaje: valorCLP / totalVal * 100,
+          porcentaje: totalVal !== 0 ? valorCLP / totalVal * 100 : 0,
         };
       }),
     };

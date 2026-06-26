@@ -149,7 +149,7 @@ export async function POST(
           cantidad: body.cantidad,
           precio_compra: body.precio_compra || null,
           fecha_compra: body.fecha_compra || null,
-          cupon: body.cupon || null,
+          cupon: body.cupon ?? null,
           vencimiento: body.vencimiento || null,
           valor_nominal: body.valor_nominal || null,
           cusip: body.cusip || null,

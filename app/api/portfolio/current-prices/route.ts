@@ -46,7 +46,7 @@ async function fetchDolarObservado(fecha: string): Promise<number> {
         return valor;
       }
     }
-  } catch { /* ignore */ }
+  } catch (err) { console.warn("[current-prices] dólar fallback failed:", err); }
 
   // Last resort fallback
   return 950;
@@ -287,7 +287,8 @@ async function fetchDailyPrice(
       serie: fondo.fm_serie,
       source: "daily_price",
     };
-  } catch {
+  } catch (err) {
+    console.warn("[current-prices] fetchDailyPrice failed:", err);
     return null;
   }
 }
@@ -354,7 +355,8 @@ async function fetchCMFPrice(
     if (!priceData || !priceData.valor_cuota) return null;
 
     return { price: priceData.valor_cuota, date: priceData.fecha };
-  } catch {
+  } catch (err) {
+    console.warn("[current-prices] fetchCMFPrice failed:", err);
     return null;
   }
 }
