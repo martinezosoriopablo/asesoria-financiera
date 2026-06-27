@@ -30,6 +30,7 @@
   --gl-mist:   #EEF3FA;
   --gl-line:   #DCE7F4;
   --gl-muted:  #5B6B82;
+  --gl-copper: #C17F3E;
 }
 
 @theme inline {
@@ -60,6 +61,7 @@
   --color-gl-mist: var(--gl-mist);
   --color-gl-line: var(--gl-line);
   --color-gl-muted: var(--gl-muted);
+  --color-gl-copper: var(--gl-copper);
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
