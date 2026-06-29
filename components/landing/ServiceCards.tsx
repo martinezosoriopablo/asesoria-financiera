@@ -1,33 +1,32 @@
 "use client";
 
-import { TrendingUp, Shield, FileText, Building2 } from "lucide-react";
 import Eyebrow from "./Eyebrow";
 import { useScrollReveal } from "./useScrollReveal";
 
 const services = [
   {
+    number: "01",
     title: "Global Wealth",
-    icon: TrendingUp,
     description:
-      "Asesoria de inversiones independiente, local e internacional. Gestion de portafolios personalizada sin conflictos de interes ni productos propios.",
+      "Asesoria de inversiones independiente, local e internacional. Portafolios personalizados segun tu perfil y objetivos.",
   },
   {
+    number: "02",
     title: "Global Planning",
-    icon: FileText,
     description:
-      "Planificacion patrimonial y tributaria integral. Optimizacion fiscal, sucesion y estructuracion de patrimonio.",
+      "Planificacion tributaria y patrimonial. Sociedades de inversion, optimizacion fiscal, sucesion y estructuracion.",
   },
   {
+    number: "03",
     title: "Global Properties",
-    icon: Building2,
     description:
-      "Soluciones de inversion inmobiliaria. Asesoria en compra, venta y gestion de activos inmobiliarios.",
+      "Inversion inmobiliaria. Asesoria en compra, venta y gestion de activos inmobiliarios.",
   },
   {
+    number: "04",
     title: "Global Insurance",
-    icon: Shield,
     description:
-      "Seguros internacionales con companias de primer nivel. Coberturas de vida, salud y proteccion patrimonial.",
+      "Seguros internacionales con companias de primer nivel. Vida, salud y proteccion patrimonial.",
   },
 ];
 
@@ -36,10 +35,9 @@ export default function ServiceCards() {
 
   return (
     <section id="servicios" className="relative py-28 px-4 bg-white overflow-hidden">
-      {/* Subtle top azure bar */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gl-azure/30 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gl-line to-transparent" />
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div
           ref={ref}
           className={`text-center mb-16 transition-all duration-700 ease-out ${
@@ -53,29 +51,24 @@ export default function ServiceCards() {
           >
             Cuatro areas de <em className="italic text-gl-azure">especialidad</em>
           </h2>
-          <p className="text-lg text-gl-muted" style={{ fontFamily: "var(--font-body)" }}>
-            Cobertura integral para todo tu patrimonio
-          </p>
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {services.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.title}
-                className="group relative bg-white border border-gl-line rounded-2xl p-6 hover:shadow-lg hover:shadow-gl-azure/5 hover:border-gl-azure/20 transition-all duration-300"
+        <div className="grid md:grid-cols-2 gap-x-12 gap-y-14">
+          {services.map((s) => (
+            <div key={s.number} className="group flex gap-6">
+              <span
+                className="text-5xl lg:text-6xl text-gl-copper/30 group-hover:text-gl-copper/60 transition-colors shrink-0 leading-none"
+                style={{ fontFamily: "var(--font-data)", fontWeight: 700 }}
               >
-                {/* Azure bar accent on hover */}
-                <div className="absolute top-0 left-6 right-6 h-[2px] bg-gl-azure rounded-b-full scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
-                <div className="w-12 h-12 bg-gl-mist rounded-xl flex items-center justify-center mb-5 group-hover:bg-gl-azure/10 transition-colors">
-                  <Icon className="w-6 h-6 text-gl-azure" />
-                </div>
+                {s.number}
+              </span>
+              <div>
                 <h3
-                  className="text-lg font-semibold text-gl-ink mb-2"
+                  className="text-xl font-semibold text-gl-ink mb-2"
                   style={{ fontFamily: "var(--font-body)" }}
                 >
                   {s.title}
                 </h3>
+                <div className="w-8 h-[2px] bg-gl-copper/40 rounded-full mb-3" />
                 <p
                   className="text-sm text-gl-muted leading-relaxed"
                   style={{ fontFamily: "var(--font-body)" }}
@@ -83,8 +76,8 @@ export default function ServiceCards() {
                   {s.description}
                 </p>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
     </section>
