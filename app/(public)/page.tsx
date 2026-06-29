@@ -1,5 +1,6 @@
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
+import StatsBar from "@/components/landing/StatsBar";
 import ServiceCards from "@/components/landing/ServiceCards";
 import Differentiators from "@/components/landing/Differentiators";
 import HowItWorks from "@/components/landing/HowItWorks";
@@ -11,6 +12,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-gl-paper text-gl-ink" style={{ fontFamily: "var(--font-body)" }}>
       <Navbar />
       <Hero />
+      <StatsBar />
       <ServiceCards />
       <Differentiators />
       <HowItWorks />

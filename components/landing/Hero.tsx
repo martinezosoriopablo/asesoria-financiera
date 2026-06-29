@@ -26,7 +26,7 @@ export default function Hero() {
           backgroundSize: "60px 60px",
         }}
       />
-      {/* Azure bar accent — bottom */}
+      {/* Bottom accent */}
       <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-gl-azure to-transparent" />
 
       <div className="relative max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-32 w-full">
@@ -37,14 +37,13 @@ export default function Hero() {
           }`}
         >
           <div className="flex items-center gap-3 mb-10">
-            <GlobalLogo variant="light" size={44} />
-            <div className="h-[2px] w-12 bg-gl-sky/40 rounded-full" />
+            <GlobalLogo variant="light" className="h-8 w-auto" />
           </div>
           <p
             className="text-xs tracking-[0.3em] text-gl-sky/60 uppercase mb-5"
             style={{ fontFamily: "var(--font-data)" }}
           >
-            Asesoria de inversiones independiente
+            Asesoria patrimonial integral
           </p>
           <h1
             className="text-5xl md:text-6xl lg:text-7xl text-white mb-8 leading-[1.08] tracking-tight"
@@ -54,10 +53,16 @@ export default function Hero() {
             <em className="italic text-gl-sky">experiencia</em> a tu servicio
           </h1>
           <p
-            className="text-lg md:text-xl text-white/50 mb-12 leading-relaxed max-w-xl"
+            className="text-lg md:text-xl text-white/50 mb-6 leading-relaxed max-w-xl"
             style={{ fontFamily: "var(--font-body)" }}
           >
-            Asesoria de inversiones internacionales y locales, independiente y sin conflictos de interes. Nuestro foco es construir relaciones duraderas y de largo plazo.
+            Inversiones, planificacion tributaria, seguros y propiedades. Un equipo senior que te acompana en cada decision patrimonial.
+          </p>
+          <p
+            className="text-sm text-gl-sky/40 mb-12"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            Equipo con trayectoria en Itau, Corpbanca, BanChile, Santander Investment y AFP Capital
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <a
