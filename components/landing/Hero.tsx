@@ -37,7 +37,7 @@ export default function Hero() {
           }`}
         >
           <div className="flex items-center gap-3 mb-10">
-            <GlobalLogo variant="light" className="h-8 w-auto" />
+            <GlobalLogo variant="light" className="h-20 w-auto" />
           </div>
           <p
             className="text-xs tracking-[0.3em] text-gl-sky/60 uppercase mb-5"

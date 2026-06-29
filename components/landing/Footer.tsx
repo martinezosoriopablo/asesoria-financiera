@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
           <div>
             <div className="mb-4">
-              <GlobalLogo variant="light" className="h-7 w-auto" />
+              <GlobalLogo variant="light" className="h-14 w-auto" />
             </div>
             <p className="text-sm text-white/40 leading-relaxed" style={{ fontFamily: "var(--font-body)" }}>
               Asesoria patrimonial integral. Siempre alineados a tus intereses.

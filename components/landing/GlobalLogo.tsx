@@ -3,18 +3,16 @@ import Image from "next/image";
 interface GlobalLogoProps {
   variant?: "dark" | "light";
   className?: string;
-  /** @deprecated ignored — kept for backward compat with callers */
-  size?: number;
 }
 
 export default function GlobalLogo({ variant = "dark", className = "" }: GlobalLogoProps) {
   return (
     <Image
-      src="/images/global1.jpeg"
+      src="/images/global2.jpeg"
       alt="Global Wealth"
-      width={220}
-      height={40}
-      className={`h-8 w-auto object-contain ${variant === "light" ? "brightness-0 invert" : ""} ${className}`}
+      width={200}
+      height={200}
+      className={`object-contain ${variant === "light" ? "invert mix-blend-screen" : ""} ${className}`}
       priority
     />
   );
