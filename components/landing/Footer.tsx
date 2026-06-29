@@ -3,21 +3,15 @@ import GlobalLogo from "./GlobalLogo";
 
 export default function Footer() {
   return (
-    <footer className="bg-gl-deep py-14 px-4">
+    <footer className="bg-gl-ink py-14 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <GlobalLogo variant="light" size={28} />
-              <span
-                className="text-lg tracking-[0.12em] text-white"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                GLOBAL
-              </span>
+            <div className="mb-4">
+              <GlobalLogo variant="light" className="h-7 w-auto" />
             </div>
             <p className="text-sm text-white/40 leading-relaxed" style={{ fontFamily: "var(--font-body)" }}>
-              Boutique de gestion patrimonial. Independientes y agnosticos — comparamos el mercado y recomendamos lo mejor para ti.
+              Asesoria patrimonial integral. Siempre alineados a tus intereses.
             </p>
           </div>
           <div>
@@ -91,7 +85,7 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-white/10 pt-6 text-center text-sm text-white/30" style={{ fontFamily: "var(--font-body)" }}>
-          <p>&copy; 2026 GLOBAL. Todos los derechos reservados.</p>
+          <p>&copy; 2026 Global Wealth. Todos los derechos reservados.</p>
         </div>
       </div>
     </footer>

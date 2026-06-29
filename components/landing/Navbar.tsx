@@ -12,14 +12,8 @@ export default function Navbar() {
     <nav className="fixed top-0 w-full bg-gl-paper/95 backdrop-blur-sm border-b border-gl-line z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          <Link href="/" className="flex items-center gap-2.5">
-            <GlobalLogo size={36} />
-            <span
-              className="text-xl tracking-[0.12em] text-gl-ink"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              GLOBAL
-            </span>
+          <Link href="/" className="flex items-center">
+            <GlobalLogo className="h-7 w-auto" />
           </Link>
 
           {/* Desktop */}

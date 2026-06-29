@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import GlobalLogo from "./GlobalLogo";
 import { useScrollReveal } from "./useScrollReveal";
 
 export default function CTASection() {
@@ -27,8 +25,7 @@ export default function CTASection() {
           backgroundSize: "60px 60px",
         }}
       />
-      {/* Top azure bar */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gl-azure/40 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gl-copper/30 to-transparent" />
 
       <div
         ref={ref}
@@ -36,37 +33,34 @@ export default function CTASection() {
           visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
         }`}
       >
-        <div className="flex justify-center mb-6">
-          <GlobalLogo variant="light" size={44} />
-        </div>
         <h2
           className="text-3xl md:text-4xl text-white mb-6"
           style={{ fontFamily: "var(--font-display)", fontWeight: 400 }}
         >
-          Empieza hoy
+          Conversemos sobre tu patrimonio
         </h2>
         <p
           className="text-lg text-white/50 mb-10"
           style={{ fontFamily: "var(--font-body)" }}
         >
-          Accede a tu portal o contacta a nuestro equipo para agendar una reunion.
+          Agenda una reunion sin compromiso con nuestro equipo.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            href="/portal/login"
-            className="px-8 py-3.5 border border-white/20 text-white font-semibold rounded-full hover:bg-white/5 transition-colors inline-flex items-center justify-center"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Portal Clientes
-          </Link>
-          <Link
-            href="/login"
+          <a
+            href="mailto:contacto@global.cl"
             className="px-8 py-3.5 bg-white text-gl-ink font-semibold rounded-full hover:bg-gl-mist transition-colors inline-flex items-center justify-center gap-2 shadow-lg shadow-white/10"
             style={{ fontFamily: "var(--font-body)" }}
           >
-            Acceso Asesores
+            Agenda una reunion
             <ArrowRight className="w-5 h-5" />
-          </Link>
+          </a>
+          <a
+            href="#servicios"
+            className="px-8 py-3.5 border border-white/20 text-white font-semibold rounded-full hover:bg-white/5 transition-colors inline-flex items-center justify-center"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            Conoce mas
+          </a>
         </div>
       </div>
     </section>
