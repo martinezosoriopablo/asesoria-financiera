@@ -20,17 +20,23 @@
   --gb-danger: #DC2626;
   --gb-info: #2563eb;
 
-  /* Global Landing brand (blue palette from landing.md) */
-  --gl-ink:    #0B2C5E;
-  --gl-deep:   #07203F;
+  /* Global Landing brand */
+  --gl-ink:    #0B2C5E;      /* dark text — advisor app uses this, keep */
+  --gl-ink-light: #EEF3FA;   /* light text on dark bg — landing */
+  --gl-deep:   #05162C;      /* navy-900 */
+  --gl-navy:   #0A2140;      /* navy-800 */
+  --gl-panel:  #0F2D54;      /* navy-700 */
   --gl-ring:   #14467E;
-  --gl-azure:  #2E86E0;
+  --gl-azure:  #5AA0E6;
   --gl-sky:    #6FB2EF;
   --gl-paper:  #FBFCFE;
   --gl-mist:   #EEF3FA;
-  --gl-line:   #DCE7F4;
-  --gl-muted:  #5B6B82;
-  --gl-copper: #C17F3E;
+  --gl-line:   rgba(255,255,255,0.09);
+  --gl-muted:  #5B6B82;      /* muted for light bg — advisor app */
+  --gl-muted-light: #9DB0CA; /* muted for dark bg — landing */
+  --gl-copper: #D0834C;
+  --gl-gold:   #C99A5E;
+  --gl-gold2:  #E3B877;
 }
 
 @theme inline {
@@ -62,6 +68,12 @@
   --color-gl-line: var(--gl-line);
   --color-gl-muted: var(--gl-muted);
   --color-gl-copper: var(--gl-copper);
+  --color-gl-navy: var(--gl-navy);
+  --color-gl-panel: var(--gl-panel);
+  --color-gl-gold: var(--gl-gold);
+  --color-gl-gold2: var(--gl-gold2);
+  --color-gl-ink-light: var(--gl-ink-light);
+  --color-gl-muted-light: var(--gl-muted-light);
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
