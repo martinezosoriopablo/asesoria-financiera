@@ -7,25 +7,25 @@ const steps = [
     n: "01",
     title: "Diagnóstico",
     desc: "Entendemos tu situación financiera, tu perfil de riesgo y tus objetivos de largo plazo.",
-    gradient: "linear-gradient(135deg, #0F2D54, #14467E)",
+    img: "/images/proceso-01.jpg",
   },
   {
     n: "02",
     title: "Estrategia",
     desc: "Diseñamos un plan que integra inversiones, planificación tributaria y protección.",
-    gradient: "linear-gradient(135deg, #14467E, #1a5090)",
+    img: "/images/proceso-02.jpg",
   },
   {
     n: "03",
     title: "Ejecución",
     desc: "Implementamos en tu custodia, seleccionando los instrumentos más eficientes.",
-    gradient: "linear-gradient(135deg, #0A2140, #0F2D54)",
+    img: "/images/proceso-03.jpg",
   },
   {
     n: "04",
     title: "Monitoreo",
     desc: "Seguimiento diario, con reportes transparentes, rebalanceo y ajustes.",
-    gradient: "linear-gradient(135deg, #0F2D54, #0A2140)",
+    img: "/images/proceso-04.jpg",
   },
 ];
 
@@ -63,7 +63,7 @@ export default function HowItWorks() {
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(201,154,94,.45)")}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,.09)")}
             >
-              <div className="relative" style={{ aspectRatio: "4/3", background: s.gradient }}>
+              <div className="relative" style={{ aspectRatio: "4/3", backgroundImage: `url(${s.img})`, backgroundSize: "cover", backgroundPosition: "center" }}>
                 <div
                   className="absolute inset-0"
                   style={{ background: "linear-gradient(180deg,transparent 55%,rgba(5,22,44,.35))" }}
