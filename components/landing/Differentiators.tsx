@@ -1,72 +1,52 @@
 "use client";
 
-import Eyebrow from "./Eyebrow";
 import { useScrollReveal } from "./useScrollReveal";
 
-const items = [
-  {
-    title: "Siempre alineados a tus intereses",
-    description:
-      "No representamos a ninguna gestora ni institucion. Nuestras recomendaciones responden solo a tus objetivos.",
-  },
-  {
-    title: "Asesoria 360",
-    description:
-      "Desde tu portafolio hasta la estructura societaria. Inversiones, planificacion tributaria, seguros y propiedades en un solo lugar.",
-  },
-  {
-    title: "Acceso global",
-    description:
-      "Mas de 200,000 instrumentos en +40 mercados. Infraestructura institucional para darte acceso al mundo.",
-  },
+const pillars = [
+  { n: "01", title: "Fee-only", desc: "Cobramos solo de ti. Sin retrocesiones ni comisiones de productos. Independencia real." },
+  { n: "02", title: "Departamento de estudios con IA", desc: "Analizamos mercados, noticias e instrumentos, todos los días." },
+  { n: "03", title: "Acceso institucional", desc: "+40 mercados vía StoneX y +200.000 fondos vía Allfunds." },
+  { n: "04", title: "Asesoría 360", desc: "Inversiones, tributario, seguros y propiedades, bajo una sola estrategia." },
 ];
 
 export default function Differentiators() {
   const { ref, visible } = useScrollReveal();
 
   return (
-    <section id="nosotros" className="relative py-28 px-4 bg-gl-deep overflow-hidden">
-      {/* Subtle mesh gradient */}
-      <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 50% at 80% 30%, #14467E 0%, transparent 60%)",
-        }}
-      />
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gl-copper/30 to-transparent" />
-
-      <div className="relative max-w-6xl mx-auto">
+    <section id="dif" className="py-[100px]" style={{ background: "#05162C" }}>
+      <div className="max-w-[1180px] mx-auto px-8">
         <div
           ref={ref}
-          className={`text-center mb-16 transition-all duration-700 ease-out ${
+          className={`max-w-[720px] mb-[52px] transition-all duration-700 ease-out ${
             visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <Eyebrow variant="dark">Por que Global</Eyebrow>
+          <span className="text-xs tracking-[0.3em] uppercase font-semibold" style={{ color: "#C99A5E" }}>
+            Por qué Global
+          </span>
           <h2
-            className="text-3xl md:text-4xl text-white mb-4"
-            style={{ fontFamily: "var(--font-display)", fontWeight: 400 }}
+            className="text-[clamp(30px,3.7vw,48px)] leading-[1.07] mt-4 mb-3.5"
+            style={{ fontFamily: "var(--font-display)", fontWeight: 400, color: "#EEF3FA" }}
           >
-            Lo que nos <em className="italic text-gl-sky">diferencia</em>
+            Cuatro razones que nos hacen distintos
           </h2>
         </div>
-        <div className="grid md:grid-cols-3 gap-10">
-          {items.map((d) => (
-            <div key={d.title} className="text-center md:text-left">
-              <div className="w-8 h-[2px] bg-gl-copper/60 rounded-full mb-5 mx-auto md:mx-0" />
-              <h3
-                className="text-lg font-semibold text-white mb-3"
-                style={{ fontFamily: "var(--font-body)" }}
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
+          style={{ gap: "1px", background: "rgba(255,255,255,.09)", border: "1px solid rgba(255,255,255,.09)" }}
+        >
+          {pillars.map((p) => (
+            <div key={p.n} className="p-[34px_30px]" style={{ background: "#05162C" }}>
+              <span
+                className="block text-[46px] leading-[.9] mb-2"
+                style={{ fontFamily: "var(--font-display)", color: "#D0834C" }}
               >
-                {d.title}
+                {p.n}
+              </span>
+              <h3 className="text-[19px] font-bold my-[12px_0_9px] text-white" style={{ margin: "12px 0 9px" }}>
+                {p.title}
               </h3>
-              <p
-                className="text-sm text-white/50 leading-relaxed"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                {d.description}
-              </p>
+              <p className="text-sm" style={{ color: "#9DB0CA" }}>{p.desc}</p>
             </div>
           ))}
         </div>
