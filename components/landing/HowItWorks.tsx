@@ -1,28 +1,31 @@
 "use client";
 
-import Eyebrow from "./Eyebrow";
 import { useScrollReveal } from "./useScrollReveal";
 
 const steps = [
   {
-    number: "01",
-    title: "Diagnostico",
-    description: "Entendemos tu situacion financiera, perfil de riesgo y objetivos.",
+    n: "01",
+    title: "Diagnóstico",
+    desc: "Entendemos tu situación financiera, tu perfil de riesgo y tus objetivos de largo plazo.",
+    gradient: "linear-gradient(135deg, #0F2D54, #14467E)",
   },
   {
-    number: "02",
+    n: "02",
     title: "Estrategia",
-    description: "Disenamos un plan personalizado que integra inversiones, planificacion y proteccion.",
+    desc: "Diseñamos un plan que integra inversiones, planificación tributaria y protección.",
+    gradient: "linear-gradient(135deg, #14467E, #1a5090)",
   },
   {
-    number: "03",
-    title: "Ejecucion",
-    description: "Tu ejecutas en tu custodia. Nosotros te guiamos en cada paso.",
+    n: "03",
+    title: "Ejecución",
+    desc: "Implementamos en tu custodia, seleccionando los instrumentos más eficientes.",
+    gradient: "linear-gradient(135deg, #0A2140, #0F2D54)",
   },
   {
-    number: "04",
+    n: "04",
     title: "Monitoreo",
-    description: "Seguimiento continuo con reportes, rebalanceo y ajustes.",
+    desc: "Seguimiento diario, con reportes transparentes, rebalanceo y ajustes.",
+    gradient: "linear-gradient(135deg, #0F2D54, #0A2140)",
   },
 ];
 
@@ -30,48 +33,52 @@ export default function HowItWorks() {
   const { ref, visible } = useScrollReveal();
 
   return (
-    <section id="proceso" className="relative py-28 px-4 bg-gl-mist overflow-hidden">
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gl-line to-transparent" />
-
-      <div className="max-w-6xl mx-auto">
+    <section id="proceso" className="py-[100px]" style={{ background: "#0A2140" }}>
+      <div className="max-w-[1180px] mx-auto px-8">
         <div
           ref={ref}
-          className={`text-center mb-16 transition-all duration-700 ease-out ${
+          className={`max-w-[720px] mb-[52px] transition-all duration-700 ease-out ${
             visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <Eyebrow>Proceso</Eyebrow>
+          <span className="text-xs tracking-[0.3em] uppercase font-semibold" style={{ color: "#C99A5E" }}>
+            Nuestro proceso de inversión
+          </span>
           <h2
-            className="text-3xl md:text-4xl text-gl-ink mb-4"
-            style={{ fontFamily: "var(--font-display)", fontWeight: 400 }}
+            className="text-[clamp(30px,3.7vw,48px)] leading-[1.07] mt-4 mb-3.5"
+            style={{ fontFamily: "var(--font-display)", fontWeight: 400, color: "#EEF3FA" }}
           >
-            Como trabajamos
+            Cuatro etapas que estructuran cada decisión
           </h2>
+          <p className="text-[17px]" style={{ color: "#9DB0CA" }}>
+            Disciplina en cada paso: del diagnóstico al monitoreo continuo, con el departamento de estudios y el criterio del equipo trabajando juntos.
+          </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
-          {/* Connector line — copper */}
-          <div className="hidden md:block absolute top-7 left-[15%] right-[15%] h-[2px] bg-gradient-to-r from-gl-copper/10 via-gl-copper/30 to-gl-copper/10" />
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-[22px] mt-2">
           {steps.map((s) => (
-            <div key={s.number} className="text-center relative">
-              <div
-                className="w-14 h-14 border-2 border-gl-copper/40 text-gl-copper rounded-full flex items-center justify-center mx-auto mb-5 relative z-10 bg-gl-mist"
-                style={{ fontFamily: "var(--font-data)", fontSize: "1rem", fontWeight: 600 }}
-              >
-                {s.number}
+            <div
+              key={s.n}
+              className="rounded-[14px] overflow-hidden border transition-all duration-300 hover:-translate-y-[5px]"
+              style={{ borderColor: "rgba(255,255,255,.09)", background: "#05162C" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(201,154,94,.45)")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,.09)")}
+            >
+              <div className="relative" style={{ aspectRatio: "4/3", background: s.gradient }}>
+                <div
+                  className="absolute inset-0"
+                  style={{ background: "linear-gradient(180deg,transparent 55%,rgba(5,22,44,.35))" }}
+                />
+                <span
+                  className="absolute top-3.5 left-4 z-[2] w-[34px] h-[34px] rounded-full grid place-items-center text-[15px] text-white"
+                  style={{ fontFamily: "var(--font-display)", background: "#D0834C" }}
+                >
+                  {s.n}
+                </span>
               </div>
-              <h3
-                className="text-lg font-semibold text-gl-ink mb-2"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                {s.title}
-              </h3>
-              <p
-                className="text-sm text-gl-muted leading-relaxed"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                {s.description}
-              </p>
+              <div className="p-[22px_22px_26px]">
+                <h4 className="text-[19px] font-bold mb-2 text-white">{s.title}</h4>
+                <p className="text-sm" style={{ color: "#9DB0CA" }}>{s.desc}</p>
+              </div>
             </div>
           ))}
         </div>
