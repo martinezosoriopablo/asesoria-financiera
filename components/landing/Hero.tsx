@@ -1,88 +1,71 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
-import GlobalLogo from "./GlobalLogo";
 import { useScrollReveal } from "./useScrollReveal";
+import Globe from "./Globe";
 
 export default function Hero() {
   const { ref, visible } = useScrollReveal(0.1);
 
   return (
-    <section className="relative min-h-[90vh] flex items-center overflow-hidden bg-gl-deep">
-      {/* Mesh gradient background */}
+    <header className="relative overflow-hidden" style={{ background: "linear-gradient(180deg,#0A2140,#05162C)" }}>
       <div
-        className="absolute inset-0 opacity-40"
+        className="absolute inset-0 z-0"
         style={{
-          background:
-            "radial-gradient(ellipse 80% 60% at 70% 40%, #14467E 0%, transparent 70%), radial-gradient(ellipse 60% 50% at 20% 80%, #2E86E0 0%, transparent 60%)",
+          background: "radial-gradient(130% 90% at 80% 25%, rgba(90,160,230,.18), transparent 55%)",
         }}
       />
-      {/* Subtle grid pattern */}
       <div
-        className="absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}
-      />
-      {/* Bottom accent */}
-      <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-gl-azure to-transparent" />
-
-      <div className="relative max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 py-32 w-full">
-        <div
-          ref={ref}
-          className={`max-w-3xl transition-all duration-700 ease-out ${
-            visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          <div className="flex items-center gap-3 mb-10">
-            <GlobalLogo variant="light" className="h-20 w-auto" />
-          </div>
-          <p
-            className="text-xs tracking-[0.3em] text-gl-sky/60 uppercase mb-5"
-            style={{ fontFamily: "var(--font-data)" }}
+        ref={ref}
+        className={`relative z-[2] max-w-[1180px] mx-auto px-8 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-10 items-center min-h-[80vh] py-[84px] transition-all duration-700 ease-out ${
+          visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+        }`}
+      >
+        <div>
+          <span
+            className="text-xs tracking-[0.3em] uppercase font-semibold"
+            style={{ color: "#C99A5E", fontFamily: "var(--font-data)" }}
           >
-            Asesoria patrimonial integral
-          </p>
+            Asesoría patrimonial integral · Fee-only
+          </span>
           <h1
-            className="text-5xl md:text-6xl lg:text-7xl text-white mb-8 leading-[1.08] tracking-tight"
-            style={{ fontFamily: "var(--font-display)", fontWeight: 400 }}
+            className="text-[clamp(42px,5.6vw,78px)] leading-[1.0] tracking-[-0.015em] text-white my-[22px_0_26px]"
+            style={{ fontFamily: "var(--font-display)", fontWeight: 400, margin: "22px 0 26px" }}
           >
-            Mas de 25 anos de{" "}
-            <em className="italic text-gl-sky">experiencia</em> a tu servicio
+            Más de 20 años de <em className="italic" style={{ color: "#5AA0E6" }}>experiencia</em> a tu servicio
           </h1>
-          <p
-            className="text-lg md:text-xl text-white/50 mb-6 leading-relaxed max-w-xl"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Inversiones, planificacion tributaria, seguros y propiedades. Un equipo senior que te acompana en cada decision patrimonial.
+          <p className="text-[19px] leading-relaxed max-w-[31em]" style={{ color: "#CFDAEA" }}>
+            Inversiones, planificación tributaria, seguros y propiedades. Asesoría independiente, sin conflictos de interés.
           </p>
-          <p
-            className="text-sm text-gl-sky/40 mb-12"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Equipo con trayectoria en Itau, Corpbanca, BanChile, Santander Investment y AFP Capital
+          <p className="text-[13.5px] mt-[22px] mb-8" style={{ color: "#9DB0CA" }}>
+            Asesores acreditados ante la CMF. Trayectoria en Itaú, Corpbanca, BanChile, Santander Investment y AFP Capital.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex gap-3.5 flex-wrap">
             <a
               href="#servicios"
-              className="px-8 py-3.5 bg-white text-gl-ink font-semibold rounded-full hover:bg-gl-mist transition-colors inline-flex items-center justify-center gap-2 shadow-lg shadow-white/10"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="px-[22px] py-[11px] text-sm font-bold rounded-full bg-gl-azure border border-gl-azure text-[#05162C] no-underline inline-flex items-center gap-2 transition-colors hover:bg-[#7ab4ee]"
             >
-              Conoce nuestros servicios
-              <ArrowRight className="w-5 h-5" />
+              Conoce nuestros servicios →
             </a>
             <a
               href="#contacto"
-              className="px-8 py-3.5 border border-white/20 text-white font-semibold rounded-full hover:bg-white/5 transition-colors inline-flex items-center justify-center"
-              style={{ fontFamily: "var(--font-body)" }}
+              className="px-[22px] py-[11px] text-sm rounded-full border text-gl-ink-light no-underline inline-flex items-center gap-2 transition-colors hover:border-gl-gold hover:text-gl-gold2"
+              style={{ borderColor: "rgba(255,255,255,.09)" }}
             >
-              Agenda una reunion
+              Agenda una reunión
             </a>
           </div>
         </div>
+        <div className="flex justify-center items-center relative order-first lg:order-last">
+          <div
+            className="absolute w-[74%] aspect-square rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(90,160,230,.18), transparent 65%)",
+              filter: "blur(6px)",
+            }}
+          />
+          <Globe />
+        </div>
       </div>
-    </section>
+    </header>
   );
 }
