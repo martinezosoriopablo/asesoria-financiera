@@ -4,8 +4,8 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { preloadYear, getDolarObservado } from "@/lib/bcch";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
 import { detectSerieCode } from "@/lib/fund-utils";
-import { stripAccents } from "@/lib/text";
 import { handleApiError } from "@/lib/api-response";
+import { tokenizeFundName, scoreFundMatch } from "@/lib/fund-matching";
 import { projectBondPrices } from "@/lib/bonds/price-projection";
 
 // EUR rate cache (module-scoped, survives within a single serverless invocation)
@@ -220,35 +220,15 @@ export async function POST(req: NextRequest) {
     for (const h of holdingsByName) {
       if (!h.fundName || h.quantity <= 0) continue;
 
-      const targetSerie = h.serie || detectSerieCode(h.fundName) || null;
-
-      // Strip serie suffix from fund name before tokenizing
-      let cleanName = h.fundName;
-      if (targetSerie) {
-        const serieIdx = cleanName.search(/\bSERIE?\b/i);
-        if (serieIdx > 0) cleanName = cleanName.slice(0, serieIdx).trim();
-      }
-
-      const nameNorm = stripAccents(cleanName.toLowerCase());
-      const words = nameNorm.split(/\s+/).filter(
-        (w) => w.length > 2 && !/^(fondo|mutuo|de|del|la|los|las|el|en|con|por|serie?|tipo|inv)$/i.test(w)
-      );
-      if (words.length < 2) continue;
-
-      // Sort by length descending (most distinctive first)
-      const sortedWords = [...words].sort((a, b) => b.length - a.length);
-
-      // Serie alias mapping (BCI convention)
-      const SERIE_ALIASES: Record<string, string[]> = {
-        BANCA: ["BPRIV", "BP"], ALTO: ["ALPAT", "ALTOP", "AP"],
-        CLASICA: ["CLASI"], FAMILIAR: ["FAMIL"],
-      };
+      const { tokens, detectedSerie } = tokenizeFundName(h.fundName);
+      const targetSerie = h.serie || detectedSerie;
+      if (tokens.length < 2) continue;
 
       // Progressive search: 3→2→1 terms
       let fondos: Array<{ id: string; fo_run: number; fm_serie: string; nombre_fondo: string; moneda_funcional: string }> | null = null;
-      for (let termCount = Math.min(sortedWords.length, 3); termCount >= 1; termCount--) {
+      for (let termCount = Math.min(tokens.length, 3); termCount >= 1; termCount--) {
         let q = supabase.from("fondos_mutuos").select("id, fo_run, fm_serie, nombre_fondo, moneda_funcional");
-        for (const term of sortedWords.slice(0, termCount)) {
+        for (const term of tokens.slice(0, termCount)) {
           q = q.ilike("nombre_fondo", `%${term}%`);
         }
         const { data } = await q.limit(30);
@@ -264,16 +244,8 @@ export async function POST(req: NextRequest) {
       let bestFondo = fondos[0];
       let bestScore = 0;
       for (const f of fondos) {
-        const fNorm = stripAccents(f.nombre_fondo.toLowerCase());
-        let score = 0;
-        for (const w of words) { if (fNorm.includes(w)) score++; }
-        if (targetSerie && f.fm_serie) {
-          const dbSerie = f.fm_serie.toUpperCase();
-          if (dbSerie === targetSerie) score += 5;
-          else if (SERIE_ALIASES[targetSerie]?.includes(dbSerie)) score += 5;
-          else score -= 1;
-        }
-        if (score > bestScore) { bestScore = score; bestFondo = f; }
+        const s = scoreFundMatch(f.nombre_fondo, f.fm_serie, tokens, targetSerie);
+        if (s > bestScore) { bestScore = s; bestFondo = f; }
       }
 
       if (bestScore < 2) continue;

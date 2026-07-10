@@ -6,9 +6,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
-import { detectSerieCode } from "@/lib/fund-utils";
 import { stripAccents } from "@/lib/text";
+import { detectSerieCode } from "@/lib/fund-utils";
 import { handleApiError } from "@/lib/api-response";
+import { tokenizeFundName, scoreFundMatch } from "@/lib/fund-matching";
 
 interface HoldingInput {
   fundName: string;
@@ -114,33 +115,16 @@ async function getChileanFundPriceByName(
   targetDate: string,
   supabase: ReturnType<typeof createAdminClient>
 ): Promise<{ price: number; date: string } | null> {
-  const targetSerie = detectSerieCode(fundName);
+  const { tokens, detectedSerie } = tokenizeFundName(fundName);
+  if (tokens.length < 2) return null;
 
-  // Strip the serie suffix from the fund name before tokenizing
-  // e.g. "FM BCI AMERICA LATINA SERIE ALTO PATRIMONIO" → "FM BCI AMERICA LATINA"
-  let cleanName = fundName;
-  if (targetSerie) {
-    const serieIdx = cleanName.search(/\bSERIE?\b/i);
-    if (serieIdx > 0) cleanName = cleanName.slice(0, serieIdx).trim();
-  }
-
-  const nameNorm = stripAccents(cleanName.toLowerCase());
-  const words = nameNorm.split(/\s+/).filter(
-    (w) => w.length > 2 && !/^(fondo|mutuo|de|del|la|los|las|el|en|con|por|serie?|tipo|inv)$/i.test(w)
-  );
-  if (words.length < 2) return null;
-
-  // Sort words by length descending (longer words are more distinctive)
-  const sortedWords = [...words].sort((a, b) => b.length - a.length);
-
-  // Try progressively fewer search terms (3→2→1) to handle abbreviated DB names
-  // Use most distinctive (longest) words for each attempt
+  // Progressive search: try 3→2→1 terms to handle abbreviated DB names
   let fondos: Array<{ id: string; fo_run: number; fm_serie: string; nombre_fondo: string }> | null = null;
-  for (let termCount = Math.min(sortedWords.length, 3); termCount >= 1; termCount--) {
+  for (let termCount = Math.min(tokens.length, 3); termCount >= 1; termCount--) {
     let q = supabase
       .from("fondos_mutuos")
       .select("id, fo_run, fm_serie, nombre_fondo");
-    for (const term of sortedWords.slice(0, termCount)) {
+    for (const term of tokens.slice(0, termCount)) {
       q = q.ilike("nombre_fondo", `%${term}%`);
     }
     const { data } = await q.limit(30);
@@ -152,37 +136,13 @@ async function getChileanFundPriceByName(
 
   if (!fondos || fondos.length === 0) return null;
 
-  // Serie alias mapping (BCI convention: BANCA PRIVADA→BPRIV, ALTO PATRIMONIO→ALPAT, etc.)
-  const SERIE_ALIASES: Record<string, string[]> = {
-    BANCA: ["BPRIV", "BP"],
-    ALTO: ["ALPAT", "ALTOP", "AP"],
-    CLASICA: ["CLASI"],
-    FAMILIAR: ["FAMIL"],
-    INSTITUCIONAL: ["INSTI"],
-    COLABORADOR: ["COLAB"],
-  };
-
   // Score and pick best match
   let bestFondo = fondos[0];
   let bestScore = 0;
   for (const f of fondos) {
-    const fNorm = stripAccents(f.nombre_fondo.toLowerCase());
-    let score = 0;
-    for (const w of words) {
-      if (fNorm.includes(w)) score++;
-    }
-    if (targetSerie && f.fm_serie) {
-      const dbSerie = f.fm_serie.toUpperCase();
-      if (dbSerie === targetSerie) {
-        score += 5;
-      } else if (SERIE_ALIASES[targetSerie]?.includes(dbSerie)) {
-        score += 5;
-      } else {
-        score -= 1;
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
+    const s = scoreFundMatch(f.nombre_fondo, f.fm_serie, tokens, detectedSerie);
+    if (s > bestScore) {
+      bestScore = s;
       bestFondo = f;
     }
   }
@@ -222,25 +182,18 @@ async function getFondoInversionPrice(
   const nemoUpper = nemo.toUpperCase().replace(/^CFI/, "");
   const serieFromNemo = serie || nemoUpper.match(/([A-Z]{1,2})$/)?.[1] || null;
 
-  // Tokenize fund name for search (same approach as getChileanFundPriceByName)
-  const nameNorm = stripAccents(fundName.toLowerCase());
-  const words = nameNorm.split(/\s+/).filter(
-    (w) => w.length > 2 && !/^(fondo|inversion|de|del|la|los|las|el|en|con|por|serie?|tipo|inv|fi)$/i.test(w)
-  );
-
-  if (words.length === 0) return null;
-
-  // Sort by length descending (most distinctive first)
-  const sortedWords = [...words].sort((a, b) => b.length - a.length);
+  // Tokenize fund name for search
+  const { tokens } = tokenizeFundName(fundName);
+  if (tokens.length === 0) return null;
 
   // Progressive search: try 3→2→1 terms
   let fondos: Array<{ id: string; rut: string; nombre: string }> | null = null;
-  for (let termCount = Math.min(sortedWords.length, 3); termCount >= 1; termCount--) {
+  for (let termCount = Math.min(tokens.length, 3); termCount >= 1; termCount--) {
     let q = supabase
       .from("fondos_inversion")
       .select("id, rut, nombre")
       .eq("activo", true);
-    for (const term of sortedWords.slice(0, termCount)) {
+    for (const term of tokens.slice(0, termCount)) {
       q = q.ilike("nombre", `%${term}%`);
     }
     const { data } = await q.limit(10);
@@ -252,17 +205,13 @@ async function getFondoInversionPrice(
 
   if (!fondos || fondos.length === 0) return null;
 
-  // Score matches
+  // Score matches (no serie for FI)
   let bestFondo = fondos[0];
   let bestScore = 0;
   for (const f of fondos) {
-    const fNorm = stripAccents(f.nombre.toLowerCase());
-    let score = 0;
-    for (const w of words) {
-      if (fNorm.includes(w)) score++;
-    }
-    if (score > bestScore) {
-      bestScore = score;
+    const s = scoreFundMatch(f.nombre, null, tokens, null);
+    if (s > bestScore) {
+      bestScore = s;
       bestFondo = f;
     }
   }
