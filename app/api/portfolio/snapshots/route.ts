@@ -2,8 +2,7 @@
 // API para gestionar snapshots de portfolio y calcular métricas
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requireAuth } from "@/lib/auth/api-auth";
+import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
 import { handleApiError } from "@/lib/api-response";
@@ -44,10 +43,10 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-snapshots-get", async () => {
-    const { user, error: authError } = await requireAuth();
+    const { error: authError } = await requireAuth();
     if (authError) return authError;
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = createAdminClient();
 
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
@@ -119,10 +118,10 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-snapshots-post", async () => {
-    const { user, error: authError } = await requireAuth();
+    const { error: authError } = await requireAuth();
     if (authError) return authError;
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = createAdminClient();
 
     const body: SnapshotData = await request.json();
     const {
