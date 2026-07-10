@@ -7,6 +7,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { stripAccents } from "@/lib/text";
 import { mapClientProfile } from "@/lib/comite-categories";
 import { handleApiError } from "@/lib/api-response";
+import { tokenizeFundName, scoreFundMatch } from "@/lib/fund-matching";
 
 export const maxDuration = 60;
 
@@ -446,10 +447,7 @@ export async function POST(request: NextRequest) {
     const analyzeHolding = (holding: HoldingInput): HoldingAnalysis => {
       const valueCLP = holding.marketValueCLP || holding.marketValue || 0;
       const weight = totalValue > 0 ? (valueCLP / totalValue) * 100 : 0;
-      const nameNorm = stripAccents(holding.fundName.toLowerCase());
-      const words = nameNorm
-        .split(/\s+/)
-        .filter((w) => w.length > 3 && !/^(fondo|mutuo|de|del|la|los|las|el|en|con|por|serie?)$/i.test(w));
+      const { tokens, detectedSerie } = tokenizeFundName(holding.fundName, { minLength: 4 });
 
       // Find best matching fondo
       let bestMatch: FondoMatch | null = null;
@@ -472,23 +470,14 @@ export async function POST(request: NextRequest) {
 
       // 2) Fallback: fuzzy name matching
       if (!bestMatch) {
-        let bestScore = 0;
+        const holdingSerie = holding.serie?.toUpperCase() || detectedSerie;
         // For short fund names (1 unique word like "Gold"), accept score >= 1
-        const minScore = words.length <= 1 ? 1 : 2;
+        const minScore = tokens.length <= 1 ? 1 : 2;
+        let bestScore = 0;
         for (const f of fondosIndex) {
-          const fNorm = stripAccents(f.nombre_fondo.toLowerCase());
-          let score = 0;
-          for (const w of words) {
-            if (fNorm.includes(w)) score++;
-          }
-          // Serie matching (from holding.serie or name pattern like " - B")
-          const holdingSerie = holding.serie?.toUpperCase() ||
-            (holding.fundName.match(/\s-\s*([A-Z]+)\s*$/i) ? RegExp.$1.toUpperCase() : null);
-          if (holdingSerie && f.fm_serie && f.fm_serie.toUpperCase() === holdingSerie) {
-            score += 3;
-          }
-          if (score > bestScore && score >= minScore) {
-            bestScore = score;
+          const s = scoreFundMatch(f.nombre_fondo, f.fm_serie, tokens, holdingSerie);
+          if (s > bestScore && s >= minScore) {
+            bestScore = s;
             bestMatch = f;
           }
         }
@@ -516,11 +505,7 @@ export async function POST(request: NextRequest) {
       // Also try matching FI by name if no RUT match
       if (!bestMatch && !fiMatch) {
         for (const fi of fiIndex) {
-          const fiNorm = stripAccents(fi.nombre.toLowerCase());
-          let score = 0;
-          for (const w of words) {
-            if (fiNorm.includes(w)) score++;
-          }
+          const score = scoreFundMatch(fi.nombre, null, tokens, null);
           if (score >= 2) {
             fiMatch = fi;
             fiPrice = fiLatestPrices[fi.id] || null;
