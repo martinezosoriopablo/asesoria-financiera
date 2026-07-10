@@ -348,7 +348,6 @@ export async function syncMeetingToGoogle(
 ): Promise<string | null> {
   const accessToken = await getValidAccessToken(advisorId);
   if (!accessToken) {
-    console.log("No hay token de Google Calendar para el advisor:", advisorId);
     return null;
   }
 

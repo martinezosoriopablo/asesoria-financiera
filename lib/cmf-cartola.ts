@@ -180,7 +180,6 @@ export function leerCartolaTxt(filepath: string): CMFCartolaRow[] {
     }
   }
 
-  console.log(`CMF cartola: parsed ${rows.length} valid rows from ${lines.length - 1} data lines`)
   return rows
 }
 

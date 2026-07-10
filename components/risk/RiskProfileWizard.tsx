@@ -201,7 +201,6 @@ export default function RiskProfileWizard() {
         return;
       }
 
-      console.log("Perfil guardado correctamente.");
     } catch (error) {
       console.error("Error guardando perfil:", error);
       alert("Hubo un problema guardando tus datos.");

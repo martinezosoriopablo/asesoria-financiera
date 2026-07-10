@@ -439,7 +439,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (usdCount > 0) {
-      console.log(`[historical-prices] ${info?.fundName}: ${usdCount}/${prices.length} prices converted USD→CLP (source: ${isUsdFund ? "moneda_funcional" : "ratio heuristic"})`);
     }
 
     normalizedPrices.set(key, fechaMap);

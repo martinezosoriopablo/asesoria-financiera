@@ -95,7 +95,6 @@ async function extractWithGemini(buffer: ArrayBuffer): Promise<{ data: Extracted
 
   try {
     const parsed = JSON.parse(text);
-    console.log("[GEMINI RAW]", JSON.stringify(parsed, null, 2));
     const ben = (parsed.beneficio_tributario || "").toUpperCase();
     return {
       exhausted: false,

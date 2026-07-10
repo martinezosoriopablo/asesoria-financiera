@@ -65,7 +65,6 @@ export function useSnapshotExchangeRates(fechaCartola: string) {
               const nextDayStr = nextDay.toISOString().split("T")[0];
               const val = findClosestNext(data.serie, nextDayStr);
               if (val) { usdRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] Dólar observado T+1 (>=${nextDayStr}): $${usdRate}`);
             }
           } catch { /* use fallback */ }
         }
@@ -77,7 +76,6 @@ export function useSnapshotExchangeRates(fechaCartola: string) {
             if (data.success && data.serie?.length > 0) {
               const val = findClosest(data.serie, fechaCartola);
               if (val) { ufRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] UF ${fechaCartola}: $${ufRate}`);
             }
           } catch { /* use fallback */ }
         }
@@ -93,7 +91,6 @@ export function useSnapshotExchangeRates(fechaCartola: string) {
               }));
               const val = findClosest(serie, fechaCartola);
               if (val) { eurRate = val; anyHistorical = true; }
-              console.log(`[ReviewSnapshot] EUR ${fechaCartola}: $${eurRate}`);
             }
           } catch { /* use fallback */ }
         }

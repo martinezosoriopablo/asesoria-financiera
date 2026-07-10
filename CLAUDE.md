@@ -4,7 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Greybark Advisors — financial advisory platform for Chilean independent advisors. Manages clients, risk profiling, portfolio analysis (fondos mutuos, FI, ETFs, stocks, bonds), and periodic reporting. Non-transactional: advisors recommend, clients execute at their own custodian.
+Global Advisors — financial advisory platform for Chilean independent advisors. Manages clients, risk profiling, portfolio analysis (fondos mutuos, FI, ETFs, stocks, bonds), and periodic reporting. Non-transactional: advisors recommend, clients execute at their own custodian.
+
+## Brand (Global Advisors)
+
+Canonical palette — keep UI, emails, and reports consistent with the marketing site:
+
+- Navy (bg/header) `#05162C` · Navy-2 `#0A2140` · Panels `#0F2D54`
+- Ink (text on dark) `#EEF3FA` · Muted (secondary) `#9DB0CA`
+- Azure (links/data/CTA) `#5AA0E6`
+- Gold `#C99A5E` · Gold-2 `#E3B877` · **Copper `#D0834C`** (accent: logo bars, rules, key figures)
+- Up `#2ECC8F` / Down `#EF5B5B`
+
+Rule: navy dominates; copper/gold are accents (never large fills); azure for actions/data; green/red only for market variations.
+
+Fonts: **Fraunces** (serif display/numbers), **Hanken Grotesk** (UI/body), **IBM Plex Mono** (data). In email/HTML where webfonts may not load, fall back to Georgia / Arial / Consolas.
+
+Logo: recolorable SVG (`global-logo.svg` / `global-icono.svg`) — ink uses `currentColor` (white on dark, dark on light), bars fixed copper. Master brand = **Global Advisors**; Wealth / Planning / Properties / Insurance are the four service lines (Global Wealth is the investments line, not the company name).
+
+Compliance (CMF): no invented returns or track records (illustrative figures must be labeled); "IA" never "AGI"; mandatory risk disclaimer on public-facing reports.
 
 ## Commands
 
@@ -49,7 +67,7 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 
 **Composition boxes (RV/RF/Alt/Caja):** "Desde inicio" uses `initFromReturn` pattern: `marketValue / (1 + totalReturn/100)` per holding. "Desde fecha" looks up each holding's CLP value in the selected base snapshot by `fundName`, grouped by CURRENT classification from holdingReturnsData (avoids classification mismatch with old snapshots). Final values from live holdingReturnsData directly.
 
-**Email report (useSeguimientoEmail):** Tries monthly computation first (`computeMonthlyData`), falls back to `fetchMonthlyFromAPI()` (calls `prices-at-date` API for price-based returns when < 2 cartola snapshots), then falls back to "desde inicio". Monthly: finds two cartola snapshots (endSnap <= monthEnd, startSnap = previous cartola), builds CLP maps from holdings, classifies by current holdingReturnsData, computes composition/returns/attribution for the period. `reportMonth` auto-detected from client closings. Template in `lib/seguimiento-email.ts` with Global branding (navy #0B2C5E header with inline SVG logo, azure #2E86E0 accents, sky #6FB2EF labels, mist #EEF3FA footer — BRAND constant from brochure spec). Contextual disclaimer (`isMonthly` flag toggles "Periodo: X al Y" vs "Desde inicio del seguimiento (X)").
+**Email report (useSeguimientoEmail):** Tries monthly computation first (`computeMonthlyData`), falls back to `fetchMonthlyFromAPI()` (calls `prices-at-date` API for price-based returns when < 2 cartola snapshots), then falls back to "desde inicio". Monthly: finds two cartola snapshots (endSnap <= monthEnd, startSnap = previous cartola), builds CLP maps from holdings, classifies by current holdingReturnsData, computes composition/returns/attribution for the period. `reportMonth` auto-detected from client closings. Template in `lib/seguimiento-email.ts` with Global Advisors branding (navy #05162C header with inline SVG logo, copper #D0834C accents/rules, azure #5AA0E6 links/data, ink #EEF3FA footer — `BRAND` constant). Contextual disclaimer (`isMonthly` flag toggles "Periodo: X al Y" vs "Desde inicio del seguimiento (X)").
 
 **Snapshot data note:** `exchangeRates` is sent from ReviewSnapshotModal but NOT persisted as a DB column. Only `marketValueCLP` per holding (in JSONB) is saved. To reconstruct historical CLP values, use `marketValueCLP` or derive from proportion × `total_value`.
 

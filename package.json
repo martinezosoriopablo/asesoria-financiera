@@ -19,7 +19,6 @@
     "@upstash/redis": "^1.37.0",
     "2captcha-ts": "^2.4.1",
     "csv-parse": "^6.1.0",
-    "dotenv": "^17.2.3",
     "lucide-react": "^0.554.0",
     "next": "^16.1.6",
     "react": "19.2.0",
@@ -27,24 +26,21 @@
     "recharts": "^3.6.0",
     "resend": "^6.9.1",
     "unpdf": "^1.6.1",
-    "xlsx": "^0.18.5",
-    "yahoo-finance2": "^3.10.2"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.19.25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
     "jsdom": "^27.4.0",
-    "md-to-pdf": "^5.2.5",
     "playwright": "^1.60.0",
     "tailwindcss": "^4",
-    "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

@@ -350,7 +350,6 @@ export default function ReviewSnapshotModal({
               const filled = fillResult.result?.filled || 0;
               const matched = fillResult.result?.holdingMatches?.filter((m: { source: string }) => m.source !== "none").length || 0;
               const total = fillResult.result?.holdingMatches?.length || 0;
-              console.log(`Fill prices: ${filled} snapshots creados, ${matched}/${total} holdings con fuente de precios`);
               if (filled === 0 && matched === 0) {
                 console.warn("Fill prices: ningún holding matcheó con una fuente de precios", fillResult.result?.holdingMatches);
               }
@@ -373,7 +372,6 @@ export default function ReviewSnapshotModal({
           )
         );
         if (uniqueRuns.length > 0) {
-          console.log(`[backfill-cmf] Triggering CMF backfill for ${uniqueRuns.length} fondos: ${uniqueRuns.join(", ")}`);
           fetch("/api/portfolio/backfill-cmf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -382,7 +380,6 @@ export default function ReviewSnapshotModal({
             .then((r) => r.json())
             .then((r) => {
               if (r.success) {
-                console.log(`[backfill-cmf] OK: ${r.totalImported} precios importados en ${r.ranges?.length} rangos`);
               } else {
                 console.warn("[backfill-cmf] Error:", r.error || r);
               }

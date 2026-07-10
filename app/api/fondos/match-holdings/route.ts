@@ -260,7 +260,6 @@ export async function POST(request: NextRequest) {
       }, null);
     const agfSearchPatterns = detectedAgfKey ? AGF_NAME_MAP[detectedAgfKey] : null;
 
-    console.log("[match-holdings] sources:", sourceNames, "detectedAgf:", detectedAgfKey, "patterns:", agfSearchPatterns);
 
     // Pre-fetch ALL funds from the cartola's AGF (one query for all holdings)
     // Search in BOTH vw_fondos_completo (CMF) and fintual_funds
@@ -314,7 +313,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log("[match-holdings] AGF funds found:", agfFunds.length, "sample:", agfFunds.slice(0, 3).map(f => f.nombre_fondo));
     }
 
     // Pre-fetch prices for ALL AGF funds at cartola date (one bulk query)
@@ -360,10 +358,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log("[match-holdings] priceMap size:", priceMap.size, "of", fondoIds.length, "funds");
-      console.log("[match-holdings] cartolaDate:", cartolaDate, "windowStart:", windowStartStr);
       // Log holdings prices for comparison
-      console.log("[match-holdings] holding prices:", holdings.map(h => ({ name: h.fundName?.substring(0, 20), price: h.marketPrice })));
     }
 
     const results: MatchResult[] = [];

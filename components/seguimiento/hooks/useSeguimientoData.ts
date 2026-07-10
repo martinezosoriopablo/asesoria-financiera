@@ -197,7 +197,6 @@ export function useSeguimientoData({ clientId, portalMode }: UseSeguimientoDataP
         const warnings = result.result.warnings || [];
         let msg = `${result.result.filled} snapshots creados (${matched}/${matches.length} holdings con precios)`;
         if (errors.length > 0) msg += ` — ${errors.length} errores`;
-        if (warnings.length > 0) console.log(`Fill-prices: ${warnings.length} price warnings (normal)`, warnings.slice(0, 5));
         if (matched === 0 && matches.length > 0) {
           msg = `Error: Ningún holding tiene fuente de precios. Sube precios manuales o verifica los nombres de fondos.`;
         } else if (result.result.filled === 0 && matched > 0) {

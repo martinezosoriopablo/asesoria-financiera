@@ -324,7 +324,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     let extracted: ExtractedFichaData | null = null;
     try {
       extracted = await extractFromPdf(arrayBuffer);
-      console.log("PDF extraction result:", JSON.stringify(extracted, null, 2));
     } catch (e) {
       console.error("PDF extraction failed (non-blocking):", e);
     }

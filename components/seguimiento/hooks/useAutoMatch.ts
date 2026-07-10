@@ -98,18 +98,6 @@ export function useAutoMatch(options: UseAutoMatchOptions) {
         if (controller.signal.aborted) return;
 
         const data = await res.json();
-        console.log("[auto-match] API response:", JSON.stringify({
-          success: data.success,
-          matchCount: data.matches?.length,
-          matches: data.matches?.map((m: MatchSuggestion) => ({
-            idx: m.index,
-            matched: m.matched,
-            confidence: m.confidence,
-            name: m.matchedName?.substring(0, 30),
-            price: m.price,
-            assetClass: m.assetClass,
-          })),
-        }));
 
         if (controller.signal.aborted) return;
 
@@ -182,14 +170,6 @@ export function useAutoMatch(options: UseAutoMatchOptions) {
             const unmatchedArr = Array.from(unmatched).sort((a, b) => a - b);
             setPendingSearchIndex(unmatchedArr[0]);
           }
-
-          console.log("[auto-match] Results:", {
-            total: allMatches.length,
-            matched: relevantMatches.length,
-            autoApplied: appliedCount,
-            unmatched: unmatched.size,
-            pendingReview: suggestionsWithStatus.filter(s => !s.applied).length,
-          });
         }
       } catch (err) {
         if (!controller.signal.aborted) {

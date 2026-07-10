@@ -207,7 +207,6 @@ export async function POST(req: NextRequest) {
       emailError = resendError.message;
     } else {
       emailSent = true;
-      console.log("Email enviado:", emailData?.id);
     }
 
     if (!emailSent) {
