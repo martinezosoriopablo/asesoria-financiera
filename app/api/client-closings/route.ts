@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     // Previous snapshot (before this month) for comparison
     const { data: prevSnaps } = await sb
       .from("portfolio_snapshots")
-      .select("snapshot_date, total_value, equity_value, fixed_income_value, alternatives_value, cash_value")
+      .select("snapshot_date, total_value, equity_value, fixed_income_value, alternatives_value, cash_value, holdings")
       .eq("client_id", clientId)
       .neq("source", "api-prices")
       .lt("snapshot_date", monthStart)
@@ -202,37 +202,50 @@ export async function POST(req: NextRequest) {
       .trim()
       .slice(0, 8000); // Limit to ~8K chars
 
-    // 7. Build prompt
-    const prompt = `Eres un asesor financiero chileno redactando la explicación de resultados del mes para un cliente.
+    // 7. Per-holding price changes (more granular than class-level totals)
+    let holdingsChangeList = "";
+    if (latestSnap?.holdings && previousSnap?.holdings && Array.isArray(latestSnap.holdings) && Array.isArray(previousSnap.holdings)) {
+      const prevMap = new Map<string, number>();
+      for (const h of previousSnap.holdings as Array<{ fundName?: string; marketValueCLP?: number; marketValue?: number }>) {
+        if (!h.fundName) continue;
+        prevMap.set(h.fundName, h.marketValueCLP || h.marketValue || 0);
+      }
+      const changes: string[] = [];
+      for (const h of (latestSnap.holdings as Array<{ fundName?: string; marketValueCLP?: number; marketValue?: number; assetClass?: string }>)) {
+        if (!h.fundName) continue;
+        const currCLP = h.marketValueCLP || h.marketValue || 0;
+        const prevCLP = prevMap.get(h.fundName) || 0;
+        if (currCLP <= 0 && prevCLP <= 0) continue;
+        const chg = prevCLP > 0 ? (((currCLP - prevCLP) / prevCLP) * 100).toFixed(1) : "nuevo";
+        changes.push(`- ${h.fundName} (${h.assetClass || "?"}): ${fmtM(prevCLP)} → ${fmtM(currCLP)} (${chg}${typeof chg === "number" ? "%" : ""})`);
+      }
+      if (changes.length > 0) holdingsChangeList = changes.join("\n");
+    }
 
-REPORTE MENSUAL DE MERCADOS (${month}):
+    // 8. Build prompt — concise (3 short paragraphs)
+    const prompt = `Eres un asesor financiero chileno. Redacta la explicación de resultados del mes para un cliente. Sé conciso: máximo 3 párrafos cortos.
+
+REPORTE DE MERCADOS (${month}):
 ${reportText}
 
-CLIENTE: ${client.nombre} ${client.apellido}
-PERFIL DE RIESGO: ${client.perfil_riesgo || "No definido"} (puntaje: ${client.puntaje_riesgo || "N/A"})
+CLIENTE: ${client.nombre} ${client.apellido} | Perfil: ${client.perfil_riesgo || "No definido"}
 
-COMPOSICIÓN ACTUAL DEL PORTAFOLIO:
+PORTAFOLIO:
 ${compositionSummary}
 
 CAMBIO VS MES ANTERIOR:
 ${portfolioChange}
+${holdingsChangeList ? `\nDETALLE POR HOLDING:\n${holdingsChangeList}` : ""}
 
-HOLDINGS INDIVIDUALES:
-${holdingsSummary}
+REGLAS:
+- 3 párrafos cortos en markdown. Sin título.
+- Párrafo 1: qué pasó en los mercados relevantes para este cliente.
+- Párrafo 2: cómo impactó sus posiciones (menciona instrumentos por nombre, usa las cifras de CAMBIO y DETALLE POR HOLDING).
+- Párrafo 3: perspectiva breve para el próximo mes.
+- Tutéalo, tono profesional. NO inventes cifras. NO des recomendaciones de compra/venta.
+- Usa **negritas** para instrumentos y cifras clave.`;
 
-INSTRUCCIONES:
-1. Escribe una explicación de resultados de 4-6 párrafos en formato markdown
-2. Comienza con un resumen del mes: qué pasó en los mercados relevantes para ESTE cliente
-3. Explica cómo los movimientos de mercado impactaron SUS posiciones específicas (menciona nombres de instrumentos que tiene)
-4. Usa los datos de COMPOSICIÓN y CAMBIO VS MES ANTERIOR para hablar de la variación por clase de activo (RV, RF, Alt). NO inventes cifras que no estén en los datos.
-5. Relaciona los eventos del reporte mensual con el performance de sus instrumentos
-6. Cierra con perspectiva para el próximo mes basada en la sección "Lo Que Viene" del reporte
-7. Tono profesional pero cercano, tutéalo, español chileno
-8. NO des recomendaciones de compra/venta. NO inventes retornos o valores que no aparezcan en los datos.
-9. Usa **negritas** para nombres de instrumentos y cifras importantes
-10. Escribe SOLO la explicación, sin título (el título lo pone la plataforma)`;
-
-    // 8. Call Claude
+    // 9. Call Claude
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return errorResponse("API key de Anthropic no configurada", 500);
@@ -248,7 +261,7 @@ INSTRUCCIONES:
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2000,
+        max_tokens: 800,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -272,7 +285,7 @@ INSTRUCCIONES:
       });
     }
 
-    // 9. Save generated closing
+    // 10. Save generated closing
     const { data, error: dbErr } = await sb
       .from("client_monthly_closings")
       .upsert(

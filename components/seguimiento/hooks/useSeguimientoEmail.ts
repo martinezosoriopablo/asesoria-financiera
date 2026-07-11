@@ -600,7 +600,7 @@ export function useSeguimientoEmail({
       benchmarkComparison: bmComp,
       holdingReturns: holdingRetList,
       attribution: attrList,
-      monthlyReturn: monthlyTotalRet,
+      monthlyReturn: monthlyTotalRet ?? pr["1M"]?.nominal ?? holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? null,
       narrative,
       returnsBasis,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
