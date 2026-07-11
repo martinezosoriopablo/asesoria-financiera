@@ -548,18 +548,19 @@ export function useSeguimientoEmail({
     const holdingRetList: SeguimientoEmailData["holdingReturns"] = monthly?.holdingRets || [];
     const attrList: SeguimientoEmailData["attribution"] = monthly?.attrList || [];
 
+    // --- Monthly total return (used in summary card + narrative) ---
+    let monthlyTotalRet: number | null = null;
+    if (monthly) {
+      const totalStart = (comp.equity.initial + comp.fixedIncome.initial + comp.alternatives.initial + comp.cash.initial);
+      const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
+      monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
+    }
+
     // --- Narrative ---
     let narrative = narrativeText;
     if (!narrative) {
       const parts: string[] = [];
       const clientFirst = data.client.nombre;
-      // For monthly report, compute total monthly return from composition data
-      let monthlyTotalRet: number | null = null;
-      if (monthly) {
-        const totalStart = (comp.equity.initial + comp.fixedIncome.initial + comp.alternatives.initial + comp.cash.initial);
-        const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
-        monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
-      }
       const totalRet = monthlyTotalRet ?? pr["1M"]?.nominal ?? holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? metrics.totalReturn;
       if (totalRet !== null && totalRet !== undefined) {
         const sign = totalRet >= 0 ? "positivo" : "negativo";
@@ -599,6 +600,7 @@ export function useSeguimientoEmail({
       benchmarkComparison: bmComp,
       holdingReturns: holdingRetList,
       attribution: attrList,
+      monthlyReturn: monthlyTotalRet,
       narrative,
       returnsBasis,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",

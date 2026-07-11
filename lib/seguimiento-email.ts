@@ -22,6 +22,7 @@ export interface SeguimientoEmailData {
   } | null;
   holdingReturns: Array<{ name: string; assetType: string; returnPct: number }>;
   attribution: Array<{ name: string; instrumentType: string; contributionPp: number }>;
+  monthlyReturn: number | null; // total portfolio return for the report month
   narrative: string | null;
   platformUrl: string;
   returnsBasis?: { fromDate: string; toDate: string; isMonthly?: boolean }; // dates for disclaimer
@@ -37,16 +38,17 @@ const PROFILE_LABELS: Record<string, string> = {
   agresivo: "Agresivo",
 };
 
-// Global brand colors (from brochure spec)
+// Global Advisors brand colors
 const BRAND = {
-  navy: "#0B2C5E",
-  ring: "#14467E",
-  azure: "#2E86E0",
-  sky: "#6FB2EF",
-  paper: "#FBFCFE",
-  mist: "#EEF3FA",
-  line: "#DCE7F4",
-  textSecondary: "#5B6B82",
+  navy: "#0B2140",
+  ring: "#0F2D54",
+  copper: "#EB7838",
+  azure: "#5AA0E6",
+  mist: "#F7F6F2",
+  line: "#E7E4DD",
+  textSecondary: "#9DB0CA",
+  up: "#2ECC8F",
+  down: "#EF5B5B",
 };
 
 const CLASS_COLORS: Record<string, string> = {
@@ -96,8 +98,8 @@ function returnCell(val: number | null): string {
   return `<td style="padding:8px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:${color}; background:${bg};">${sign}${val.toFixed(1)}%</td>`;
 }
 
-// Inline SVG logo for email (matches GlobalLogo component, white variant on navy)
-const LOGO_SVG = `<svg viewBox="0 0 100 100" width="32" height="32" style="vertical-align:middle;"><path d="M82.34 39.5 A34 34 0 1 0 82.34 60.5" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/><path d="M53 50 L85 50" fill="none" stroke="${BRAND.sky}" stroke-width="13" stroke-linecap="round"/></svg>`;
+// Inline SVG logo for email (white ring, copper bars)
+const LOGO_SVG = `<svg viewBox="0 0 100 100" width="32" height="32" style="vertical-align:middle;"><path d="M82.34 39.5 A34 34 0 1 0 82.34 60.5" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/><path d="M53 50 L85 50" fill="none" stroke="${BRAND.copper}" stroke-width="13" stroke-linecap="round"/></svg>`;
 
 function buildHeader(data: SeguimientoEmailData): string {
   const profileLabel = PROFILE_LABELS[data.perfilCliente] || data.perfilCliente;
@@ -109,25 +111,54 @@ function buildHeader(data: SeguimientoEmailData): string {
         <tr>
           <td style="vertical-align:middle;">
             <div style="margin-bottom:6px;">${LOGO_SVG} <span style="font-size:16px; font-weight:700; letter-spacing:1px; color:white; vertical-align:middle; font-family:${FONT}; margin-left:4px;">Global</span></div>
-            <div style="font-size:16px; font-weight:600; color:${BRAND.sky}; font-family:${FONT};">Reporte de Seguimiento</div>
+            <div style="font-size:16px; font-weight:600; color:${BRAND.copper}; font-family:${FONT};">Reporte de Seguimiento</div>
           </td>
           <td style="text-align:right; vertical-align:middle;">
             <div style="font-size:14px; font-weight:600; color:white; font-family:${FONT};">${escapeHtml(data.clientName)}</div>
-            <div style="font-size:12px; color:${BRAND.sky}; font-family:${FONT};">${escapeHtml(data.reportDate)}</div>
+            <div style="font-size:12px; color:${BRAND.textSecondary}; font-family:${FONT};">${escapeHtml(data.reportDate)}</div>
           </td>
         </tr>
       </table>
       <table cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:12px;">
         <tr>
           <td style="background:${BRAND.ring}; padding:5px 12px; border-radius:6px; font-size:12px; font-family:${FONT}; color:white;">
-            <span style="color:${BRAND.sky};">Perfil:</span> ${escapeHtml(profileLabel)}
+            <span style="color:${BRAND.copper};">Perfil:</span> ${escapeHtml(profileLabel)}
           </td>
           <td style="width:8px;"></td>
           <td style="background:${BRAND.ring}; padding:5px 12px; border-radius:6px; font-size:12px; font-family:${FONT}; color:white;">
-            <span style="color:${BRAND.sky};">Valor:</span> ${displayValue}
+            <span style="color:${BRAND.copper};">Valor:</span> ${displayValue}
           </td>
         </tr>
       </table>
+    </div>`;
+}
+
+function buildMonthlySummary(data: SeguimientoEmailData): string {
+  if (data.monthlyReturn === null) return "";
+
+  const ret = data.monthlyReturn;
+  const color = ret >= 0 ? BRAND.up : BRAND.down;
+  const sign = ret > 0 ? "+" : "";
+  const displayValue = formatValue(data.totalValueCLP, data.displayCurrency, data.exchangeRates);
+  const basisLabel = data.returnsBasis
+    ? `${data.returnsBasis.fromDate} — ${data.returnsBasis.toDate}`
+    : "";
+
+  return `
+    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr>
+          <td style="vertical-align:top;">
+            <div style="font-size:12px; color:#94a3b8; font-weight:500; font-family:${FONT}; margin-bottom:4px;">Valor del Portafolio</div>
+            <div style="font-size:22px; font-weight:700; color:${BRAND.navy}; font-family:${FONT};">${displayValue}</div>
+          </td>
+          <td style="text-align:right; vertical-align:top;">
+            <div style="font-size:12px; color:#94a3b8; font-weight:500; font-family:${FONT}; margin-bottom:4px;">Variacion del Mes</div>
+            <div style="font-size:22px; font-weight:700; color:${color}; font-family:${FONT};">${sign}${ret.toFixed(2)}%</div>
+          </td>
+        </tr>
+      </table>
+      ${basisLabel ? `<div style="font-size:11px; color:#94a3b8; margin-top:8px; font-family:${FONT};">${escapeHtml(basisLabel)}</div>` : ""}
     </div>`;
 }
 
@@ -327,6 +358,7 @@ function buildFooter(data: SeguimientoEmailData): string {
 
 export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
   const header = buildHeader(data);
+  const summary = buildMonthlySummary(data);
   const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates, data.returnsBasis);
   const periodReturns = buildPeriodReturnsSection(data.periodReturns);
   const benchmark = data.benchmarkComparison ? buildBenchmarkSection(data.benchmarkComparison) : "";
@@ -344,6 +376,7 @@ export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
 <body style="margin:0; padding:0; background:#f1f5f9; font-family:${FONT};">
   <div style="max-width:600px; margin:0 auto; background:#ffffff;">
     ${header}
+    ${summary}
     ${composition}
     ${periodReturns}
     ${benchmark}

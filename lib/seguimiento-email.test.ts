@@ -55,6 +55,7 @@ function makeData(overrides: Partial<SeguimientoEmailData> = {}): SeguimientoEma
       { name: "Bono Tesoro US 2028", instrumentType: "Bono", contributionPp: -0.3 },
       { name: "Deposito a Plazo BCI", instrumentType: "DAP", contributionPp: 0.05 },
     ],
+    monthlyReturn: 3.8,
     narrative: "El portafolio tuvo un buen desempeno en mayo.\n\nLa renta variable chilena lidero los retornos gracias al rally del IPSA.",
     platformUrl: "https://app.global.cl/seguimiento",
     ...overrides,
