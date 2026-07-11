@@ -13,14 +13,16 @@ Canonical palette — keep UI, emails, and reports consistent with the marketing
 - Navy (bg/header) `#05162C` · Navy-2 `#0A2140` · Panels `#0F2D54`
 - Ink (text on dark) `#EEF3FA` · Muted (secondary) `#9DB0CA`
 - Azure (links/data/CTA) `#5AA0E6`
-- Gold `#C99A5E` · Gold-2 `#E3B877` · **Copper `#D0834C`** (accent: logo bars, rules, key figures)
+- Gold `#C99A5E` · Gold-2 `#E3B877` · **Copper `#EB7838`** (accent: logo bars, rules, key figures)
 - Up `#2ECC8F` / Down `#EF5B5B`
 
 Rule: navy dominates; copper/gold are accents (never large fills); azure for actions/data; green/red only for market variations.
 
 Fonts: **Fraunces** (serif display/numbers), **Hanken Grotesk** (UI/body), **IBM Plex Mono** (data). In email/HTML where webfonts may not load, fall back to Georgia / Arial / Consolas.
 
-Logo: recolorable SVG (`global-logo.svg` / `global-icono.svg`) — ink uses `currentColor` (white on dark, dark on light), bars fixed copper. Master brand = **Global Advisors**; Wealth / Planning / Properties / Insurance are the four service lines (Global Wealth is the investments line, not the company name).
+Logo: inline SVG in `components/landing/GlobalLogo.tsx` — G icon with copper `#EB7838` bars, `currentColor` paths (white on dark via `variant="light"`, navy `#0B2140` on light via `variant="dark"`). `GBrandMark.tsx` is a simplified G+bars mark. Master brand = **Global Companies**; Wealth / Planning / Properties are the three service lines.
+
+**Marketing site:** 4 static HTML pages in `public/` (autocontenidos: CSS inline, images base64, JS inline). `app/page.tsx` redirects `/` → `/global-companies.html`. Middleware excludes `.html` from auth. Nav has "Portal Clientes" (`/portal/login`) and "Acceso Asesores" (`/login`) buttons.
 
 Compliance (CMF): no invented returns or track records (illustrative figures must be labeled); "IA" never "AGI"; mandatory risk disclaimer on public-facing reports.
 

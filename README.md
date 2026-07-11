@@ -1,4 +1,4 @@
-# Greybark Advisors
+# Global Advisors
 
 Plataforma de asesoria financiera para asesores independientes en Chile. Permite gestionar clientes, perfilar riesgo, analizar cartolas, diseñar portafolios y generar reportes profesionales.
 
@@ -26,8 +26,10 @@ npm run test:run     # Tests (Vitest)
 
 ```
 app/                 # Next.js App Router (pages + API routes)
-app/api/             # ~112 API route handlers
+app/api/             # ~149 API route handlers
+app/(advisor-shell)/ # Rutas del asesor (route group con sidebar)
 app/(portal)/        # Portal del cliente
+public/              # Sitio web estatico (4 HTML autocontenidos)
 components/          # React components por dominio
 lib/                 # Utilidades, logica de negocio, integraciones
 lib/auth/            # Autenticacion (API routes + portal)
@@ -47,7 +49,7 @@ docs/                # Documentacion del proyecto
 ## Documentacion
 
 - `CLAUDE.md` — Guia tecnica para desarrollo
-- `docs/GREYBARK-ARCHITECTURE.md` — Arquitectura completa del sistema
+- `docs/GLOBAL-ARCHITECTURE.md` — Arquitectura completa del sistema
 - `docs/ARQUITECTURA.md` — Mapa de rutas, APIs y componentes
 - `docs/INSTRUCTIVO_PLATAFORMA.md` — Manual de uso para asesores
 - `docs/INTENCION.md` — Documento de intencion del producto

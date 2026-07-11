@@ -1,4 +1,4 @@
-# Greybark Advisors — Arquitectura de Plataforma
+# Global Advisors — Arquitectura de Plataforma
 
 > Documento tecnico para evaluacion de plataforma. Actualizado: Junio 2026.
 
@@ -6,7 +6,7 @@
 
 ## 1. Vision General
 
-**Greybark Advisors** es una plataforma SaaS de asesoria financiera para asesores independientes en Chile. Permite gestionar clientes, perfilar riesgo, analizar carteras (fondos mutuos, fondos de inversion, ETFs, acciones, bonos), generar recomendaciones con IA, y producir reportes periodicos automaticos.
+**Global Advisors** es una plataforma SaaS de asesoria financiera para asesores independientes en Chile. Permite gestionar clientes, perfilar riesgo, analizar carteras (fondos mutuos, fondos de inversion, ETFs, acciones, bonos), generar recomendaciones con IA, y producir reportes periodicos automaticos.
 
 **Modelo**: No transaccional — el asesor recomienda, el cliente ejecuta en su propia corredora/custodio.
 
@@ -381,6 +381,9 @@ Esto reduce los componentes principales (SeguimientoPage, ReviewSnapshotModal, C
 - Servicios adicionales por cliente
 - Duracion y accrued interest de bonos
 - Landing page y login rediseñados
+- Sitio web estatico (4 paginas HTML autocontenidas en `public/`): Companies, Wealth, Planning, Properties
+- Logo SVG inline reemplaza JPEG antiguo (G con barras copper #EB7838, variant dark/light)
+- Botones "Portal Clientes" y "Acceso Asesores" en navbar del sitio web
 
 ### Oportunidades de expansion
 - **Multi-tenant**: Soporte para multiples firmas de asesoria
@@ -393,4 +396,4 @@ Esto reduce los componentes principales (SeguimientoPage, ReviewSnapshotModal, C
 
 ---
 
-*Documento generado para evaluacion de plataforma. Greybark Advisors © 2026.*
+*Documento generado para evaluacion de plataforma. Global Advisors © 2026.*

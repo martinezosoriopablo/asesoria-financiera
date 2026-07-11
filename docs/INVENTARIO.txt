@@ -6,7 +6,10 @@
 ./.vercel/project.json
 ./.vercel/README.txt
 ./app/(portal)/layout.tsx
-./app/(public)/page.tsx
+./public/global-companies.html
+./public/global-wealth.html
+./public/global-planning.html
+./public/global-properties.html
 ./app/advisor/.env.local
 ./app/advisor/page.tsx
 ./app/analisis-cartola/page.tsx
@@ -152,7 +155,7 @@
 ./public/file.svg
 ./public/foto-jp-velasco.jpg
 ./public/globe.svg
-./public/logo-greybark.png
+./public/images/global2.jpeg
 ./public/logo-waop.jpeg
 ./public/next.svg
 ./public/vercel.svg
