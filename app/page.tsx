@@ -1,5 +1,5 @@
-// app/page.tsx — Re-exports the (public) landing page
-// This file exists because app/(public)/page.tsx doesn't take priority
-// when app/page.tsx exists. We re-export to avoid the conflict.
+import { redirect } from "next/navigation";
 
-export { default } from "./(public)/page";
+export default function RootPage() {
+  redirect("/global-companies.html");
+}
