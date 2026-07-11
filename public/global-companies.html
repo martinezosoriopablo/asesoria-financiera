@@ -55,8 +55,11 @@
   .nav-links a:hover{color:#fff}
   .nav-box{border:1px solid rgba(255,255,255,.36);color:#fff;border-radius:2px;padding:9.6px 19.2px;font-size:11.6px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;transition:.2s}
   .nav-box:hover{background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.75)}
+  .nav-right{justify-self:end;display:flex;gap:10px;align-items:center}
   .nav-cta{border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:2px;padding:10px 20px;font-size:14px;font-weight:600;text-decoration:none;transition:.2s}
   .nav-cta:hover{background:#fff;color:var(--navy);border-color:#fff}
+  .nav-cta-fill{background:var(--copper);border:1px solid var(--copper);color:#fff;border-radius:2px;padding:10px 20px;font-size:14px;font-weight:600;text-decoration:none;transition:.2s}
+  .nav-cta-fill:hover{background:#b8692e;border-color:#b8692e}
 
   /* Hero */
   .hero{border-top:none;padding:0}
@@ -283,7 +286,7 @@
   .mobile-menu a:last-child{border-bottom:0}
   @media(max-width:900px){
     nav .wrap{display:flex;justify-content:space-between;align-items:center;height:64px}
-    .nav-center,.nav-cta{display:none}
+    .nav-center,.nav-cta,.nav-right{display:none}
     .hamb{display:flex}
     nav.open .mobile-menu{display:flex}
   }
@@ -311,12 +314,18 @@
     <a class="nav-box" href="global-planning.html">Planning</a>
     <a class="nav-box" href="global-properties.html">Properties</a>
   </div>
+  <div class="nav-right">
+    <a class="nav-cta" href="/portal/login">Portal Clientes</a>
+    <a class="nav-cta-fill" href="/login">Acceso Asesores</a>
+  </div>
   <button class="hamb" aria-label="Abrir menú"><span></span><span></span><span></span></button>
   </div>
   <div class="mobile-menu">
     <a href="global-wealth.html">Wealth</a>
     <a href="global-planning.html">Planning</a>
     <a href="global-properties.html">Properties</a>
+    <a href="/portal/login">Portal Clientes</a>
+    <a href="/login">Acceso Asesores</a>
   </div>
 </nav>
 
