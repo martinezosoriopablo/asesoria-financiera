@@ -380,22 +380,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Build portfolio change text from real returns
-    // Compute actual end-of-month value ONLY from holdings with real end prices (quantity × price)
-    const holdingsWithEndValue = holdingReturns.filter(h => h.endValueCLP !== null);
-    const totalEndValueCLP = holdingsWithEndValue.reduce((s, h) => s + h.endValueCLP!, 0);
-    const coveragePct = totalWeightCLP > 0 ? (holdingsWithEndValue.reduce((s, h) => s + h.weightCLP, 0) / totalWeightCLP * 100) : 0;
+    // Total value: use real endValueCLP where available, fallback to weightCLP (snapshot value) for the rest
+    const totalEndValueCLP = holdingReturns.reduce((s, h) => s + (h.endValueCLP ?? h.weightCLP), 0);
 
     let portfolioChange = "";
-    if (holdingsWithEndValue.length > 0 && coveragePct >= 50) {
-      // We have real prices for enough of the portfolio to report a value
-      const sign = portfolioReturnPct !== null ? (portfolioReturnPct >= 0 ? "+" : "") : "";
-      const retStr = portfolioReturnPct !== null ? ` | Retorno junio: ${sign}${portfolioReturnPct.toFixed(2)}%` : "";
-      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtM(totalEndValueCLP)}${retStr}`;
-    } else if (portfolioReturnPct !== null) {
+    if (portfolioReturnPct !== null) {
       const sign = portfolioReturnPct >= 0 ? "+" : "";
-      portfolioChange = `Retorno del portafolio en ${month}: ${sign}${portfolioReturnPct.toFixed(2)}%`;
+      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtM(totalEndValueCLP)} | Retorno del mes: ${sign}${portfolioReturnPct.toFixed(2)}%`;
     } else if (latestSnap) {
-      portfolioChange = `Última cartola registrada (${latestSnap.snapshot_date}): ${fmtM(latestSnap.total_value)}.`;
+      portfolioChange = `Valor del portafolio: ${fmtM(totalEndValueCLP)}`;
     }
 
     // Per-holding returns detail
