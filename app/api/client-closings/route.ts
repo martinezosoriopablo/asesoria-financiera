@@ -142,11 +142,11 @@ export async function POST(req: NextRequest) {
       const rf = latestSnap.fixed_income_value || 0;
       const alt = latestSnap.alternatives_value || 0;
       const cash = latestSnap.cash_value || 0;
-      compositionSummary = `Valor cartola al ${latestSnap.snapshot_date}: ${fmtM(tv)}
-- Renta Variable: ${fmtM(rv)} (${fmtPct(rv, tv)})
-- Renta Fija: ${fmtM(rf)} (${fmtPct(rf, tv)})
-- Alternativos: ${fmtM(alt)} (${fmtPct(alt, tv)})
-- Caja: ${fmtM(cash)} (${fmtPct(cash, tv)})`;
+      compositionSummary = `Composición (referencia):
+- Renta Variable: ${fmtPct(rv, tv)}
+- Renta Fija: ${fmtPct(rf, tv)}
+- Alternativos: ${fmtPct(alt, tv)}
+- Caja: ${fmtPct(cash, tv)}`;
     }
 
     // 6. Compute REAL per-holding returns using market prices (valor_cuota)
@@ -161,6 +161,7 @@ export async function POST(req: NextRequest) {
       fundName: string;
       assetClass: string;
       weightCLP: number;
+      endValueCLP: number | null;
       returnPct: number | null;
     }
     const holdingReturns: HoldingReturn[] = [];
@@ -238,15 +239,18 @@ export async function POST(req: NextRequest) {
             const retPct = startPrice && endPrice && startPrice > 0
               ? ((endPrice - startPrice) / startPrice) * 100
               : null;
+            // Real end value = quantity × endPrice (valor_cuota is CLP for Chilean funds)
+            const endVal = (endPrice && h.quantity) ? h.quantity * endPrice : null;
 
             holdingReturns.push({
               fundName: h.fundName,
               assetClass: h.assetClass || "?",
               weightCLP: clpValue,
+              endValueCLP: endVal,
               returnPct: retPct,
             });
           } else {
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: null, returnPct: null });
           }
         } else {
           // International holding — resolve ticker via price-service, then look up in international_prices
@@ -288,7 +292,7 @@ export async function POST(req: NextRequest) {
               ? ((endP - startP) / startP) * 100
               : null;
 
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: retPct });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: retPct !== null ? clpValue * (1 + retPct / 100) : null, returnPct: retPct });
           } else if (resolution.source === "finra") {
             // Bonds → bond_prices table (last_price is % of par)
             const cusip = h.securityId || resolution.symbol;
@@ -317,9 +321,9 @@ export async function POST(req: NextRequest) {
               ? ((endP - startP) / startP) * 100
               : null;
 
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: retPct });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: retPct !== null ? clpValue * (1 + retPct / 100) : null, returnPct: retPct });
           } else {
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: null, returnPct: null });
           }
         }
       }
@@ -336,12 +340,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Build portfolio change text from real returns
+    // Compute actual end-of-month value from holdings with known end prices
+    const totalEndValueCLP = holdingReturns.reduce((s, h) => s + (h.endValueCLP || h.weightCLP), 0);
     let portfolioChange = "";
     if (portfolioReturnPct !== null && latestSnap) {
       const sign = portfolioReturnPct >= 0 ? "+" : "";
-      const baseValue = latestSnap.total_value || totalWeightCLP;
-      const estimatedEndValue = baseValue * (1 + portfolioReturnPct / 100);
-      portfolioChange = `Retorno del portafolio en ${month}: ${sign}${portfolioReturnPct.toFixed(2)}%\nValor estimado al cierre del mes: ${fmtM(estimatedEndValue)} (valor base cartola ${latestSnap.snapshot_date}: ${fmtM(baseValue)})`;
+      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtM(totalEndValueCLP)} (retorno del mes: ${sign}${portfolioReturnPct.toFixed(2)}%)`;
     } else if (latestSnap && previousSnap && previousSnap.total_value > 0) {
       const totalChg = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
       portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%)`;
@@ -354,7 +358,8 @@ export async function POST(req: NextRequest) {
       .sort((a, b) => b.weightCLP - a.weightCLP)
       .map(h => {
         const retStr = h.returnPct !== null ? `${h.returnPct >= 0 ? "+" : ""}${h.returnPct.toFixed(1)}%` : "sin datos";
-        return `- ${h.fundName} (${h.assetClass}): ${fmtM(h.weightCLP)} | Retorno mes: ${retStr}`;
+        const valStr = h.endValueCLP ? fmtM(h.endValueCLP) : fmtM(h.weightCLP);
+        return `- ${h.fundName} (${h.assetClass}): ${valStr} | Retorno mes: ${retStr}`;
       })
       .join("\n");
 
