@@ -129,10 +129,11 @@ export async function POST(req: NextRequest) {
     const latestSnap = currentSnaps?.[0];
     const previousSnap = prevSnaps?.[0];
 
-    // 4. Build composition summary from snapshot class-level values (already in CLP)
+    // 4. Helpers
     const fmtM = (v: number) => `$${Math.round(v / 1e6)}M`;
     const fmtPct = (v: number, total: number) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "0%";
 
+    // 5. Build composition summary from snapshot class-level values
     let compositionSummary = "Sin datos de composición.";
     if (latestSnap) {
       const tv = latestSnap.total_value || 0;
@@ -147,80 +148,150 @@ export async function POST(req: NextRequest) {
 - Caja: ${fmtM(cash)} (${fmtPct(cash, tv)})`;
     }
 
-    // 5. Build holdings list (names, weights, classes — NO return calc to avoid currency issues)
-    let holdingsSummary = "Sin datos de holdings disponibles.";
+    // 6. Compute REAL per-holding returns using market prices (valor_cuota)
+    // This is the key fix: instead of comparing frozen snapshot values,
+    // we look up actual fund prices at month start and end dates.
+    const [y, mo] = month.split("-").map(Number);
+    const lastDayOfMonth = new Date(y, mo, 0).getDate();
+    const priceStartDate = `${month}-01`;
+    const priceEndDate = `${month}-${String(lastDayOfMonth).padStart(2, "0")}`;
+
+    interface HoldingReturn {
+      fundName: string;
+      assetClass: string;
+      weightCLP: number;
+      returnPct: number | null;
+    }
+    const holdingReturns: HoldingReturn[] = [];
+
     if (latestSnap?.holdings && Array.isArray(latestSnap.holdings)) {
       const holdings = latestSnap.holdings as Array<{
         fundName: string;
         securityId?: string;
+        serie?: string;
         marketValue: number;
         marketValueCLP?: number;
+        marketPrice?: number;
+        quantity?: number;
         assetClass?: string;
         currency?: string;
       }>;
 
-      const totalMV = holdings.reduce((s, h) => s + (h.marketValueCLP || h.marketValue || 0), 0);
+      // Look up prices for each holding with a numeric RUN (Chilean funds)
+      for (const h of holdings) {
+        if (!h.fundName) continue;
+        const clpValue = h.marketValueCLP || h.marketValue || 0;
+        const run = h.securityId ? parseInt(h.securityId, 10) : NaN;
 
-      holdingsSummary = holdings
-        .sort((a, b) => (b.marketValueCLP || b.marketValue || 0) - (a.marketValueCLP || a.marketValue || 0))
-        .map((h) => {
-          const mv = h.marketValueCLP || h.marketValue || 0;
-          const weight = totalMV > 0 ? ((mv / totalMV) * 100).toFixed(1) : "0";
-          return `- ${h.fundName} | ${h.assetClass || "?"} | ${h.currency || "CLP"} | Peso: ${weight}%`;
-        })
-        .join("\n");
+        if (!isNaN(run) && run > 0) {
+          // Chilean fund — look up real prices at start and end of month
+          const cartolaPrice = (h.quantity && h.quantity > 0) ? h.marketValue / h.quantity : h.marketPrice || null;
+
+          // Find the fondo_id (with serie resolution)
+          let fondoQuery = sb.from("fondos_mutuos").select("id, fm_serie").eq("fo_run", run);
+          if (h.serie) fondoQuery = fondoQuery.eq("fm_serie", h.serie);
+          const { data: fondos } = await fondoQuery.limit(10);
+
+          if (fondos && fondos.length > 0) {
+            let fondoId = fondos[0].id;
+
+            // If multiple series and we have a cartolaPrice, match by closest valor_cuota
+            if (fondos.length > 1 && !h.serie && cartolaPrice && cartolaPrice > 0) {
+              let bestDiff = Infinity;
+              for (const f of fondos) {
+                const { data: latest } = await sb
+                  .from("fondos_rentabilidades_diarias")
+                  .select("valor_cuota")
+                  .eq("fondo_id", f.id)
+                  .order("fecha", { ascending: false })
+                  .limit(1)
+                  .single();
+                if (latest) {
+                  const diff = Math.abs(latest.valor_cuota - cartolaPrice);
+                  if (diff < bestDiff) { bestDiff = diff; fondoId = f.id; }
+                }
+              }
+            }
+
+            // Get prices at start and end of month (7-day lookback)
+            const getPrice = async (date: string) => {
+              const minDate = new Date(date);
+              minDate.setDate(minDate.getDate() - 7);
+              const { data: row } = await sb
+                .from("fondos_rentabilidades_diarias")
+                .select("valor_cuota")
+                .eq("fondo_id", fondoId)
+                .gte("fecha", minDate.toISOString().split("T")[0])
+                .lte("fecha", date)
+                .order("fecha", { ascending: false })
+                .limit(1)
+                .single();
+              return row?.valor_cuota ?? null;
+            };
+
+            const [startPrice, endPrice] = await Promise.all([
+              getPrice(priceStartDate),
+              getPrice(priceEndDate),
+            ]);
+
+            const retPct = startPrice && endPrice && startPrice > 0
+              ? ((endPrice - startPrice) / startPrice) * 100
+              : null;
+
+            holdingReturns.push({
+              fundName: h.fundName,
+              assetClass: h.assetClass || "?",
+              weightCLP: clpValue,
+              returnPct: retPct,
+            });
+          } else {
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
+          }
+        } else {
+          // International or non-fund holding — no price lookup available server-side
+          holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
+        }
+      }
     }
 
-    // 6. Portfolio and class-level change vs previous month
-    let portfolioChange = "";
-    if (latestSnap && previousSnap) {
-      const totalChg = previousSnap.total_value !== 0 ? ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2) : "0.00";
-      portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%) | ${previousSnap.snapshot_date} → ${latestSnap.snapshot_date}`;
+    // Compute weighted portfolio return from real prices
+    const totalWeightCLP = holdingReturns.reduce((s, h) => s + h.weightCLP, 0);
+    const holdingsWithReturn = holdingReturns.filter(h => h.returnPct !== null);
+    let portfolioReturnPct: number | null = null;
+    if (holdingsWithReturn.length > 0 && totalWeightCLP > 0) {
+      const weightedSum = holdingsWithReturn.reduce((s, h) => s + (h.returnPct! / 100) * h.weightCLP, 0);
+      const coveredWeight = holdingsWithReturn.reduce((s, h) => s + h.weightCLP, 0);
+      portfolioReturnPct = (weightedSum / coveredWeight) * 100;
+    }
 
-      // Per-class changes
-      const classChange = (label: string, prev: number, curr: number) => {
-        if (prev <= 0 && curr <= 0) return null;
-        const chg = prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : "nuevo";
-        return `  ${label}: ${fmtM(prev)} → ${fmtM(curr)} (${typeof chg === "string" ? chg : chg + "%"})`;
-      };
-      const changes = [
-        classChange("RV", previousSnap.equity_value || 0, latestSnap.equity_value || 0),
-        classChange("RF", previousSnap.fixed_income_value || 0, latestSnap.fixed_income_value || 0),
-        classChange("Alt", previousSnap.alternatives_value || 0, latestSnap.alternatives_value || 0),
-        classChange("Caja", previousSnap.cash_value || 0, latestSnap.cash_value || 0),
-      ].filter(Boolean);
-      if (changes.length > 0) portfolioChange += "\n" + changes.join("\n");
+    // Build portfolio change text from real returns
+    let portfolioChange = "";
+    if (portfolioReturnPct !== null) {
+      const sign = portfolioReturnPct >= 0 ? "+" : "";
+      portfolioChange = `Retorno del portafolio en ${month}: ${sign}${portfolioReturnPct.toFixed(2)}% (basado en precios de mercado)`;
+    } else if (latestSnap && previousSnap && previousSnap.total_value > 0) {
+      const totalChg = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
+      portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%)`;
     } else if (latestSnap) {
       portfolioChange = `Valor portafolio actual: ${fmtM(latestSnap.total_value)} al ${latestSnap.snapshot_date}.`;
     }
 
-    // 6. Strip HTML tags from monthly report for prompt
+    // Per-holding returns detail
+    const holdingsChangeList = holdingReturns
+      .sort((a, b) => b.weightCLP - a.weightCLP)
+      .map(h => {
+        const retStr = h.returnPct !== null ? `${h.returnPct >= 0 ? "+" : ""}${h.returnPct.toFixed(1)}%` : "sin datos";
+        return `- ${h.fundName} (${h.assetClass}): ${fmtM(h.weightCLP)} | Retorno mes: ${retStr}`;
+      })
+      .join("\n");
+
+    // 7. Strip HTML tags from monthly report for prompt
     const reportText = report.html_content
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 8000); // Limit to ~8K chars
-
-    // 7. Per-holding price changes (more granular than class-level totals)
-    let holdingsChangeList = "";
-    if (latestSnap?.holdings && previousSnap?.holdings && Array.isArray(latestSnap.holdings) && Array.isArray(previousSnap.holdings)) {
-      const prevMap = new Map<string, number>();
-      for (const h of previousSnap.holdings as Array<{ fundName?: string; marketValueCLP?: number; marketValue?: number }>) {
-        if (!h.fundName) continue;
-        prevMap.set(h.fundName, h.marketValueCLP || h.marketValue || 0);
-      }
-      const changes: string[] = [];
-      for (const h of (latestSnap.holdings as Array<{ fundName?: string; marketValueCLP?: number; marketValue?: number; assetClass?: string }>)) {
-        if (!h.fundName) continue;
-        const currCLP = h.marketValueCLP || h.marketValue || 0;
-        const prevCLP = prevMap.get(h.fundName) || 0;
-        if (currCLP <= 0 && prevCLP <= 0) continue;
-        const chg = prevCLP > 0 ? (((currCLP - prevCLP) / prevCLP) * 100).toFixed(1) : "nuevo";
-        changes.push(`- ${h.fundName} (${h.assetClass || "?"}): ${fmtM(prevCLP)} → ${fmtM(currCLP)} (${chg}${typeof chg === "number" ? "%" : ""})`);
-      }
-      if (changes.length > 0) holdingsChangeList = changes.join("\n");
-    }
+      .slice(0, 8000);
 
     // 8. Build prompt — concise (3 short paragraphs)
     const prompt = `Eres un asesor financiero chileno. Redacta la explicación de resultados del mes para un cliente. Sé conciso: máximo 3 párrafos cortos.
@@ -233,9 +304,11 @@ CLIENTE: ${client.nombre} ${client.apellido} | Perfil: ${client.perfil_riesgo ||
 PORTAFOLIO:
 ${compositionSummary}
 
-CAMBIO VS MES ANTERIOR:
+VARIACIÓN DEL MES (precios de mercado reales):
 ${portfolioChange}
-${holdingsChangeList ? `\nDETALLE POR HOLDING:\n${holdingsChangeList}` : ""}
+
+DETALLE POR HOLDING:
+${holdingsChangeList || "Sin datos de holdings."}
 
 REGLAS:
 - 3 párrafos cortos en markdown. Sin título.
