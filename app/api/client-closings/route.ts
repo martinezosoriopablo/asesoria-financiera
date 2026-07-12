@@ -179,6 +179,35 @@ export async function POST(req: NextRequest) {
         currency?: string;
       }>;
 
+      // Fetch USD/CLP rate at month end (dólar observado from BCCH)
+      let usdRateEndMonth: number | null = null;
+      try {
+        const bcchUser = process.env.BCCH_API_USER;
+        const bcchPass = process.env.BCCH_API_PASSWORD;
+        if (bcchUser && bcchPass) {
+          const bcchUrl = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?user=${bcchUser}&pass=${bcchPass}&firstdate=${priceStartDate}&lastdate=${priceEndDate}&timeseries=F073.TCO.PRE.Z.D&function=GetSeries`;
+          const bcchRes = await fetch(bcchUrl, { signal: AbortSignal.timeout(10000) });
+          if (bcchRes.ok) {
+            const bcchData = await bcchRes.json();
+            const obs = bcchData?.Series?.Obs;
+            if (Array.isArray(obs) && obs.length > 0) {
+              // Last observation in the range = closest to month end
+              const last = obs[obs.length - 1];
+              const val = parseFloat(String(last.value).replace(",", "."));
+              if (isFinite(val) && val > 0) usdRateEndMonth = val;
+            }
+          }
+        }
+      } catch { /* BCCH unavailable, use fallback */ }
+      // Fallback: derive from snapshot's USD holding ratio
+      if (!usdRateEndMonth) {
+        const usdHolding = holdings.find(hh => hh.currency === "USD" && hh.marketValueCLP && hh.marketValue && hh.marketValue > 0);
+        if (usdHolding) {
+          usdRateEndMonth = usdHolding.marketValueCLP! / usdHolding.marketValue;
+        }
+      }
+      if (!usdRateEndMonth) usdRateEndMonth = 920;
+
       // Look up prices for each holding with a numeric RUN (Chilean funds)
       for (const h of holdings) {
         if (!h.fundName) continue;
@@ -239,8 +268,19 @@ export async function POST(req: NextRequest) {
             const retPct = startPrice && endPrice && startPrice > 0
               ? ((endPrice - startPrice) / startPrice) * 100
               : null;
-            // Real end value = quantity × endPrice (valor_cuota is CLP for Chilean funds)
-            const endVal = (endPrice && h.quantity) ? h.quantity * endPrice : null;
+            // Real end value = quantity × endPrice.
+            // If holding is USD, check if valor_cuota is in USD or CLP:
+            // Compare endPrice vs cartolaPrice (native currency). If ratio < 5, same currency → multiply by USD rate.
+            // If ratio > 100, CMF published in CLP already → no conversion.
+            let endVal = (endPrice && h.quantity) ? h.quantity * endPrice : null;
+            if (endVal && h.currency === "USD" && usdRateEndMonth && cartolaPrice && cartolaPrice > 0) {
+              const ratio = endPrice / cartolaPrice;
+              if (ratio < 5) {
+                // valor_cuota is in USD (same scale as cartolaPrice) → convert to CLP
+                endVal = endVal * usdRateEndMonth;
+              }
+              // else: valor_cuota already in CLP, no conversion needed
+            }
 
             holdingReturns.push({
               fundName: h.fundName,
