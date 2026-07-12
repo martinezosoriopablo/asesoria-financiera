@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
       const rf = latestSnap.fixed_income_value || 0;
       const alt = latestSnap.alternatives_value || 0;
       const cash = latestSnap.cash_value || 0;
-      compositionSummary = `Valor Total: ${fmtM(tv)}
+      compositionSummary = `Valor cartola al ${latestSnap.snapshot_date}: ${fmtM(tv)}
 - Renta Variable: ${fmtM(rv)} (${fmtPct(rv, tv)})
 - Renta Fija: ${fmtM(rf)} (${fmtPct(rf, tv)})
 - Alternativos: ${fmtM(alt)} (${fmtPct(alt, tv)})
@@ -337,9 +337,11 @@ export async function POST(req: NextRequest) {
 
     // Build portfolio change text from real returns
     let portfolioChange = "";
-    if (portfolioReturnPct !== null) {
+    if (portfolioReturnPct !== null && latestSnap) {
       const sign = portfolioReturnPct >= 0 ? "+" : "";
-      portfolioChange = `Retorno del portafolio en ${month}: ${sign}${portfolioReturnPct.toFixed(2)}% (basado en precios de mercado)`;
+      const baseValue = latestSnap.total_value || totalWeightCLP;
+      const estimatedEndValue = baseValue * (1 + portfolioReturnPct / 100);
+      portfolioChange = `Retorno del portafolio en ${month}: ${sign}${portfolioReturnPct.toFixed(2)}%\nValor estimado al cierre del mes: ${fmtM(estimatedEndValue)} (valor base cartola ${latestSnap.snapshot_date}: ${fmtM(baseValue)})`;
     } else if (latestSnap && previousSnap && previousSnap.total_value > 0) {
       const totalChg = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
       portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%)`;
