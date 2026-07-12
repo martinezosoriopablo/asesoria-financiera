@@ -6,6 +6,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
 import { trackAIUsage } from "@/lib/ai-usage";
+import { resolveSource } from "@/lib/prices/price-service";
 
 export const maxDuration = 60;
 
@@ -248,8 +249,48 @@ export async function POST(req: NextRequest) {
             holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
           }
         } else {
-          // International or non-fund holding — no price lookup available server-side
-          holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
+          // International holding — resolve ticker via price-service, then look up in international_prices
+          const mkt = ((h as { market?: string }).market || null) as "CL" | "INT" | "US" | null;
+          const resolution = resolveSource({
+            fundName: h.fundName,
+            securityId: h.securityId || null,
+            market: mkt,
+            marketValue: h.marketValue || 0,
+          });
+
+          // Only look up sources that store in international_prices
+          const intlSources = ["yahoo", "alphavantage", "eodhd"];
+          if (intlSources.includes(resolution.source)) {
+            const ticker = resolution.symbol;
+
+            const getIntlPrice = async (date: string) => {
+              const minDate = new Date(date);
+              minDate.setDate(minDate.getDate() - 7);
+              const { data: row } = await (sb as any)
+                .from("international_prices")
+                .select("close_price")
+                .eq("ticker", ticker)
+                .gte("price_date", minDate.toISOString().split("T")[0])
+                .lte("price_date", date)
+                .order("price_date", { ascending: false })
+                .limit(1)
+                .single();
+              return row?.close_price ?? null;
+            };
+
+            const [startP, endP] = await Promise.all([
+              getIntlPrice(priceStartDate),
+              getIntlPrice(priceEndDate),
+            ]);
+
+            const retPct = startP && endP && startP > 0
+              ? ((endP - startP) / startP) * 100
+              : null;
+
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: retPct });
+          } else {
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: null });
+          }
         }
       }
     }
