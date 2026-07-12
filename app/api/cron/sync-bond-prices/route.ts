@@ -55,8 +55,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, message: "No CUSIPs found", cusips: 0 });
     }
 
-    // Fetch last 30 days (cron runs daily, 30 gives buffer)
-    const results = await fetchHistoricalPrices(cusips, 30);
+    // Fetch last 10 days (cron runs daily weekdays, 10 gives weekend+holiday buffer)
+    const results = await fetchHistoricalPrices(cusips, 10);
 
     let totalInserted = 0;
     let catalogUpdated = 0;

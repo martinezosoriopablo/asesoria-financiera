@@ -258,9 +258,10 @@ export async function POST(req: NextRequest) {
             marketValue: h.marketValue || 0,
           });
 
-          // Only look up sources that store in international_prices
+          // Look up prices from the correct table based on source
           const intlSources = ["yahoo", "alphavantage", "eodhd"];
           if (intlSources.includes(resolution.source)) {
+            // ETFs, stocks, UCITS funds → international_prices table
             const ticker = resolution.symbol;
 
             const getIntlPrice = async (date: string) => {
@@ -281,6 +282,35 @@ export async function POST(req: NextRequest) {
             const [startP, endP] = await Promise.all([
               getIntlPrice(priceStartDate),
               getIntlPrice(priceEndDate),
+            ]);
+
+            const retPct = startP && endP && startP > 0
+              ? ((endP - startP) / startP) * 100
+              : null;
+
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, returnPct: retPct });
+          } else if (resolution.source === "finra") {
+            // Bonds → bond_prices table (last_price is % of par)
+            const cusip = h.securityId || resolution.symbol;
+
+            const getBondPrice = async (date: string) => {
+              const minDate = new Date(date);
+              minDate.setDate(minDate.getDate() - 7);
+              const { data: row } = await sb
+                .from("bond_prices")
+                .select("last_price")
+                .eq("cusip", cusip)
+                .gte("price_date", minDate.toISOString().split("T")[0])
+                .lte("price_date", date)
+                .order("price_date", { ascending: false })
+                .limit(1)
+                .single();
+              return row?.last_price ?? null;
+            };
+
+            const [startP, endP] = await Promise.all([
+              getBondPrice(priceStartDate),
+              getBondPrice(priceEndDate),
             ]);
 
             const retPct = startP && endP && startP > 0

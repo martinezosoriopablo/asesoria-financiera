@@ -12,7 +12,7 @@
 const BASE =
   "https://services-dynarep.ddwa.finra.org/public/reporting/v2/data/group/FixedIncomeMarket/name";
 
-const DELAY_MS = 3000;
+const DELAY_MS = 1500;
 
 export function makeHeaders(): Record<string, string> {
   const token = crypto.randomUUID();
@@ -212,10 +212,10 @@ function aggregateDailyPrices(
       count: 0,
     };
 
-    const vol = t.reportedTradeVolume || 1;
-    existing.totalPriceVol += t.lastSalePrice * vol;
+    const vol = Number(t.reportedTradeVolume) || 1;
+    existing.totalPriceVol += Number(t.lastSalePrice) * vol;
     existing.totalVol += vol;
-    if (t.lastSaleYield != null) existing.yields.push(t.lastSaleYield);
+    if (t.lastSaleYield != null) existing.yields.push(Number(t.lastSaleYield));
     existing.count++;
 
     byDate.set(date, existing);
