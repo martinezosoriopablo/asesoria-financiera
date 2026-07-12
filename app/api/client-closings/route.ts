@@ -340,17 +340,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Build portfolio change text from real returns
-    // Compute actual end-of-month value from holdings with known end prices
-    const totalEndValueCLP = holdingReturns.reduce((s, h) => s + (h.endValueCLP || h.weightCLP), 0);
+    // Compute actual end-of-month value ONLY from holdings with real end prices (quantity × price)
+    const holdingsWithEndValue = holdingReturns.filter(h => h.endValueCLP !== null);
+    const totalEndValueCLP = holdingsWithEndValue.reduce((s, h) => s + h.endValueCLP!, 0);
+    const coveragePct = totalWeightCLP > 0 ? (holdingsWithEndValue.reduce((s, h) => s + h.weightCLP, 0) / totalWeightCLP * 100) : 0;
+
     let portfolioChange = "";
-    if (portfolioReturnPct !== null && latestSnap) {
+    if (holdingsWithEndValue.length > 0 && coveragePct >= 50) {
+      // We have real prices for enough of the portfolio to report a value
+      const sign = portfolioReturnPct !== null ? (portfolioReturnPct >= 0 ? "+" : "") : "";
+      const retStr = portfolioReturnPct !== null ? ` | Retorno junio: ${sign}${portfolioReturnPct.toFixed(2)}%` : "";
+      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtM(totalEndValueCLP)}${retStr}`;
+    } else if (portfolioReturnPct !== null) {
       const sign = portfolioReturnPct >= 0 ? "+" : "";
-      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtM(totalEndValueCLP)} (retorno del mes: ${sign}${portfolioReturnPct.toFixed(2)}%)`;
-    } else if (latestSnap && previousSnap && previousSnap.total_value > 0) {
-      const totalChg = ((latestSnap.total_value - previousSnap.total_value) / previousSnap.total_value * 100).toFixed(2);
-      portfolioChange = `Portafolio: ${fmtM(previousSnap.total_value)} → ${fmtM(latestSnap.total_value)} (${totalChg}%)`;
+      portfolioChange = `Retorno del portafolio en ${month}: ${sign}${portfolioReturnPct.toFixed(2)}%`;
     } else if (latestSnap) {
-      portfolioChange = `Valor portafolio actual: ${fmtM(latestSnap.total_value)} al ${latestSnap.snapshot_date}.`;
+      portfolioChange = `Última cartola registrada (${latestSnap.snapshot_date}): ${fmtM(latestSnap.total_value)}.`;
     }
 
     // Per-holding returns detail
