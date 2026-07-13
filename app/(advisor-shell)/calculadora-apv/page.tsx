@@ -23,6 +23,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { calcularAhorroAPV_A_UF, calcularCreditoAPV_B_UF } from "@/lib/tax/apv";
 
 // ============================================================
 // TIPOS
@@ -90,63 +91,11 @@ interface CostoPostergar {
 }
 
 // ============================================================
-// CONSTANTES
-// ============================================================
-
-const tramosImpuesto2024 = [
-  { desde: 0, hasta: 13.5, tasa: 0 },
-  { desde: 13.5, hasta: 30, tasa: 0.04 },
-  { desde: 30, hasta: 50, tasa: 0.08 },
-  { desde: 50, hasta: 70, tasa: 0.135 },
-  { desde: 70, hasta: 90, tasa: 0.23 },
-  { desde: 90, hasta: 120, tasa: 0.304 },
-  { desde: 120, hasta: 310, tasa: 0.355 },
-  { desde: 310, hasta: Infinity, tasa: 0.40 },
-];
-
-// ============================================================
 // FUNCIONES DE CÁLCULO
 // ============================================================
-
-function calcularImpuesto(baseImponible: number, valorUF: number): number {
-  const baseEnUF = baseImponible / valorUF;
-  let impuesto = 0;
-
-  for (let i = 0; i < tramosImpuesto2024.length; i++) {
-    const tramo = tramosImpuesto2024[i];
-    if (baseEnUF <= tramo.desde) break;
-
-    const limiteInferior = tramo.desde;
-    const limiteSuperior = Math.min(baseEnUF, tramo.hasta);
-    const baseGravable = limiteSuperior - limiteInferior;
-
-    impuesto += baseGravable * valorUF * tramo.tasa;
-  }
-
-  return impuesto;
-}
-
-function calcularAPV_A(salarioAnual: number, aporteAnual: number, valorUF: number) {
-  const tope600UF = 600 * valorUF;
-  const tope30Porciento = salarioAnual * 0.3;
-  const topeAPV = Math.min(tope600UF, tope30Porciento);
-  const aporteElegible = Math.min(aporteAnual, topeAPV);
-
-  const impuestoSinAPV = calcularImpuesto(salarioAnual, valorUF);
-  const impuestoConAPV = calcularImpuesto(salarioAnual - aporteElegible, valorUF);
-
-  const ahorroAnual = impuestoSinAPV - impuestoConAPV;
-  const rentabilidadEquivalente = aporteAnual > 0 ? (ahorroAnual / aporteAnual) * 100 : 0;
-
-  return { ahorroAnual, ahorroMensual: ahorroAnual / 12, rentabilidadEquivalente };
-}
-
-function calcularAPV_B(aporteAnual: number, valorUF: number) {
-  const tope = 600 * valorUF;
-  const aporteElegible = Math.min(aporteAnual, tope);
-  const creditoAnual = aporteElegible * 0.15;
-  return { creditoAnual, creditoMensual: creditoAnual / 12 };
-}
+// Nota: el beneficio tributario APV (Régimen A y B) vive en lib/tax/apv.ts,
+// que reutiliza la lógica canónica de impuesto progresivo (lib/tax/calculator.ts).
+// Aquí solo se hace la conversión CLP<->UF para la UI.
 
 function calcularValorFuturo(
   aporteAnual: number,
@@ -219,11 +168,24 @@ function calcularTodo(
   valorUF: number,
   rentabilidadesPersonalizadas: Record<string, number>
 ): ResultadoAPV {
-  const salarioAnual = datos.salarioBrutoMensual * 12;
   const aporteAnual = datos.montoAPVMensual * 12;
 
-  const resultadoA = calcularAPV_A(salarioAnual, aporteAnual, valorUF);
-  const resultadoB = calcularAPV_B(aporteAnual, valorUF);
+  // La lógica tributaria trabaja en UF; convertimos entrada CLP -> UF y salida UF -> CLP.
+  const salarioAnualUF = valorUF > 0 ? (datos.salarioBrutoMensual * 12) / valorUF : 0;
+  const aporteAnualUF = valorUF > 0 ? aporteAnual / valorUF : 0;
+
+  const apvA = calcularAhorroAPV_A_UF(salarioAnualUF, aporteAnualUF);
+  const apvB = calcularCreditoAPV_B_UF(aporteAnualUF);
+
+  const resultadoA = {
+    ahorroAnual: apvA.ahorroAnualUF * valorUF,
+    ahorroMensual: (apvA.ahorroAnualUF * valorUF) / 12,
+    rentabilidadEquivalente: apvA.rentabilidadEquivalente,
+  };
+  const resultadoB = {
+    creditoAnual: apvB.creditoAnualUF * valorUF,
+    creditoMensual: (apvB.creditoAnualUF * valorUF) / 12,
+  };
 
   const rentabilidadReal = rentabilidadesPersonalizadas[datos.perfilInversion] / 100;
   const aniosHastaRetiro = datos.edadRetiro - datos.edad;

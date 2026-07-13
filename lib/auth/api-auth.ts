@@ -247,3 +247,84 @@ export async function getSharedClientIds(advisorId: string): Promise<string[]> {
 export function createAdminClient() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
+
+/**
+ * Verifica que el usuario sea un advisor válido Y tenga acceso al cliente indicado.
+ * Acceso = cliente propio, huérfano (sin asesor), de un subordinado (si es admin),
+ * o compartido vía client_advisors.
+ *
+ * Helper canónico para rutas que reciben un clientId del request y usan
+ * createAdminClient() (que bypassa RLS). Evita el patrón IDOR de filtrar por
+ * clientId sin comprobar tenencia.
+ *
+ * @example
+ * ```ts
+ * const { advisor, error } = await requireClientAccess(clientId);
+ * if (error) return error;
+ * // advisor garantizado y clientId verificado como accesible
+ * ```
+ */
+export async function requireClientAccess(clientId: string | null | undefined): Promise<{
+  user: AuthenticatedUser | null;
+  advisor: AdvisorProfile | null;
+  error: NextResponse | null;
+}> {
+  const { user, advisor, error } = await requireAdvisor();
+  if (error) return { user, advisor, error };
+
+  if (!clientId) {
+    return {
+      user,
+      advisor,
+      error: NextResponse.json(
+        { success: false, error: "clientId requerido" },
+        { status: 400 }
+      ),
+    };
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  const { data: client, error: clientError } = await supabaseAdmin
+    .from("clients")
+    .select("id, asesor_id")
+    .eq("id", clientId)
+    .single();
+
+  if (clientError || !client) {
+    return {
+      user,
+      advisor,
+      error: NextResponse.json(
+        { success: false, error: "Cliente no encontrado" },
+        { status: 404 }
+      ),
+    };
+  }
+
+  const isOrphan = client.asesor_id === null;
+  const isOwned = client.asesor_id === advisor!.id;
+  let canAccess = isOrphan || isOwned;
+
+  if (!canAccess && advisor!.rol === "admin") {
+    const allowedIds = await getSubordinateAdvisorIds(advisor!.id);
+    canAccess = allowedIds.includes(client.asesor_id);
+  }
+
+  if (!canAccess) {
+    const sharedIds = await getSharedClientIds(advisor!.id);
+    canAccess = sharedIds.includes(clientId);
+  }
+
+  if (!canAccess) {
+    return {
+      user,
+      advisor,
+      error: NextResponse.json(
+        { success: false, error: "No autorizado para acceder a este cliente" },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { user, advisor, error: null };
+}

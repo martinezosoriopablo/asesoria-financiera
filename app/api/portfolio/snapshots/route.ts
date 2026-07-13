@@ -2,7 +2,7 @@
 // API para gestionar snapshots de portfolio y calcular métricas
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
 import { handleApiError } from "@/lib/api-response";
@@ -43,11 +43,6 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-snapshots-get", async () => {
-    const { error: authError } = await requireAuth();
-    if (authError) return authError;
-
-    const supabase = createAdminClient();
-
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const period = searchParams.get("period") || "1Y"; // 1M, 3M, 6M, 1Y, ALL
@@ -55,6 +50,12 @@ export async function GET(request: NextRequest) {
     if (!clientId) {
       return NextResponse.json({ success: false, error: "clientId requerido" }, { status: 400 });
     }
+
+    // Verifica advisor + tenencia del cliente antes de tocar datos (evita IDOR)
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     // Calcular fecha de inicio según periodo
     const endDate = new Date();
@@ -118,9 +119,6 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-snapshots-post", async () => {
-    const { error: authError } = await requireAuth();
-    if (authError) return authError;
-
     const supabase = createAdminClient();
 
     const body: SnapshotData = await request.json();
@@ -145,6 +143,10 @@ export async function POST(request: NextRequest) {
     if (!composition) {
       return NextResponse.json({ success: false, error: "composition requerida" }, { status: 400 });
     }
+
+    // Verifica advisor + tenencia del cliente antes de escribir (evita IDOR)
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
 
     const date = snapshotDate || new Date().toISOString().split("T")[0];
 

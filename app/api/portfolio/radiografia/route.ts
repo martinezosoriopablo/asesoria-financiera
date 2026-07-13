@@ -3,7 +3,7 @@
 // al sistema de 14 categorías del comité, compara vs modelo, genera deviaciones.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 
@@ -113,11 +113,7 @@ export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "radiografia", { limit: 10, windowSeconds: 60 });
   if (blocked) return blocked;
 
-  const { error: authError } = await requireAuth();
-  if (authError) return authError;
-
   return handleApiError("radiografia", async () => {
-    const supabase = createAdminClient();
     const body = await request.json();
     const { clientId, perfilOverride } = body as {
       clientId?: string;
@@ -128,6 +124,12 @@ export async function POST(request: NextRequest) {
     if (!clientId) {
       return errorResponse("clientId es requerido", 400);
     }
+
+    // Verifica advisor + tenencia del cliente antes de exponer cartera/trades (evita IDOR)
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     // ── 2. Load client ───────────────────────────────────────────────────
     const { data: client, error: clientError } = await supabase

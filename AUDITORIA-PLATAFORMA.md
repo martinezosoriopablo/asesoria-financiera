@@ -1,405 +1,140 @@
-# Auditoría Completa — Greybark Advisors
-## Plataforma de Asesoría Financiera
+# Auditoría Completa — Global Advisors
 
-**Fecha:** 23 de marzo 2026 (actualizado 14 de abril 2026)
-**Stack:** Next.js 16 + React 19 + Supabase + TypeScript + Tailwind CSS v4
-**Deployment:** Vercel (asesoria-financiera.vercel.app)
-**Marca:** Greybark Advisors
+**Fecha:** 13 de julio 2026
+**Alcance:** Coherencia de cálculos · Seguridad · Funcionalidades · Rediseño (pestaña por pestaña)
+**Stack:** Next.js 16 (App Router) + React 19 + Supabase (Postgres + RLS) + Tailwind v4 + Vercel
+**Método:** Auditoría técnica multi-agente (12 dominios + verificación adversarial de cada hallazgo) + revisión de producto interactiva.
 
----
-
-## 1. MAPA COMPLETO DE FUNCIONALIDADES
-
-### 1.1 Gestión de Clientes (CRM)
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Lista de clientes con búsqueda y filtros | ✅ Funciona | `/clients` |
-| Crear nuevo cliente | ✅ Funciona | `/clients/new` |
-| Detalle de cliente | ✅ Funciona | `/clients/[id]` |
-| Editar cliente | ✅ Funciona | `/clients/[id]/edit` |
-| Eliminar cliente | ✅ Funciona | API DELETE |
-| Filtro por estado (prospecto/activo/inactivo) | ✅ Funciona | `/clients` |
-| Filtro por perfil de riesgo | ✅ Funciona | `/clients` |
-| Estadísticas de clientes (AUM, total, activos) | ✅ Funciona | `/api/clients/stats` |
-| Jerarquía de asesores (admin ve subordinados) | ✅ Funciona | RLS + API |
-
-### 1.2 Perfil de Riesgo
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Cuestionario 7 pasos (wizard) | ✅ Funciona | `/(public)/risk-profile` |
-| Scoring multi-dimensional (capacidad, tolerancia, percepción, compostura) | ✅ Funciona | `lib/risk/` |
-| Generación de benchmark ideal | ✅ Funciona | Automático |
-| Envío de cuestionario por email | ✅ Funciona | `/api/send-questionnaire` |
-| Gauge visual del perfil | ✅ Funciona | `ProfileGauge` |
-| Resumen de jubilación | ✅ Funciona | `RetirementSummary` |
-
-### 1.3 Análisis de Cartolas (Portafolio)
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Parseo de cartolas PDF | ✅ Funciona | `/api/parse-portfolio-statement` |
-| Parseo de cartolas Excel | ✅ Funciona | `/api/parse-portfolio-excel` |
-| Precios manuales (CSV/Excel import) | ✅ Funciona | `/api/portfolio/manual-prices` |
-| Dividendos en portafolio | ✅ Funciona | `/api/portfolio/dividends` |
-| Snapshots de portafolio | ✅ Funciona | `portfolio_snapshots` |
-| Clasificación automática RV/RF/Alt/Cash | ✅ Funciona | `lib/funds/` |
-| Comparación actual vs ideal | ✅ Funciona | Portfolio Designer |
-| Cálculo TWR (Time-Weighted Return) | ✅ Funciona | Fill prices |
-| Llenado de precios intermedios (multi-fuente) | ✅ Funciona | `/api/portfolio/fill-prices` |
-
-### 1.4 Diseñador de Portafolios
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Modo Comparación (actual vs ideal) | ✅ Funciona | `/portfolio-designer` tab 1 |
-| Modo Modelo (crear plantillas) | ✅ Funciona | Tab 2 |
-| Modo Quick Build (carteras prediseñadas) | ✅ Funciona | Tab 3 |
-| Modo Análisis (comparar fondos) | ✅ Funciona | Tab 4 |
-| Modo Directo (acciones y bonos) | ✅ Funciona | Tab 5 |
-| Guardar modelos de portafolio | ✅ Funciona | `portfolio_models` |
-
-### 1.5 Centro de Fondos
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Búsqueda de fondos por nombre/ticker | ✅ Funciona | `/fund-center` tab 1 |
-| Comparación side-by-side de ETFs (hasta 6) | ✅ Funciona | Tab 2 |
-| Análisis de factsheets PDF | ✅ Funciona | Tab 3 |
-
-### 1.6 Dashboard de Mercado (Fondos Chilenos)
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Lista de fondos mutuos chilenos | ✅ Funciona | `/market-dashboard` |
-| Filtros por categoría, administradora | ✅ Funciona | Filtros inline |
-| Sync catálogo Fintual | ✅ Funciona | Admin only |
-| Sync precios AAFM | ✅ Funciona | Admin only |
-| Upload rentabilidades diarias | ✅ Funciona | Modal |
-| Upload TAC (gastos) | ✅ Funciona | Modal |
-| Detalle de fondo individual | ✅ Funciona | Modal |
-
-### 1.7 Seguimiento de Clientes
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Timeline de snapshots | ✅ Funciona | `/clients/[id]/seguimiento` |
-| Gráficos de evolución de cartera (TWR + Valor) | ✅ Funciona | Recharts |
-| Panel de retornos por holding | ✅ Funciona | `HoldingReturnsPanel` |
-| Tabla de rebalanceo por holding | ✅ Funciona | Comprar/Vender/Mantener |
-| Registro de ejecuciones (buy/sell) | ✅ Funciona | `rebalance_executions` |
-| Comparación baseline vs actual | ✅ Funciona | `BaselineComparison` |
-| Historial de recomendaciones | ✅ Funciona | `RecommendationHistory` |
-
-### 1.8 Herramientas del Asesor
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Dashboard principal del asesor | ✅ Funciona | `/advisor` |
-| Integración Google Calendar | ✅ Funciona | OAuth 2.0 |
-| Calendario semanal | ✅ Funciona | `WeeklyCalendar` |
-| Crear reuniones | ✅ Funciona | `NewMeetingForm` |
-| Acciones rápidas | ✅ Funciona | Links directos |
-
-### 1.9 Comité de Inversiones
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Generar cartera recomendada | ✅ Funciona | `/api/comite/generar-cartera` |
-| Upload datos de comité | ✅ Funciona | `/api/comite/upload` |
-| Aplicar cartera a clientes | ✅ Funciona | `/api/comite/aplicar-cartera` |
-| Exportar PDF del comité | ✅ Funciona | `CarteraComitePDF` |
-
-### 1.10 Portal del Cliente
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Login email/password + "Olvidé mi contraseña" | ✅ Funciona | `/portal/login` |
-| Setup de contraseña (invitación) | ✅ Funciona | `/portal/setup-password` |
-| Cambiar contraseña | ✅ Funciona | `/portal/cambiar-password` |
-| Dashboard (valor, evolución, composición) | ✅ Funciona | `/portal/dashboard` |
-| Cartera recomendada vs actual | ✅ Funciona | `/portal/dashboard` |
-| Bienvenida con onboarding steps | ✅ Funciona | `/portal/bienvenida` |
-| Subir cartolas | ✅ Funciona | `/portal/subir-cartola` |
-| Historial de cartolas (propias + asesor) | ✅ Funciona | `/portal/mis-cartolas` |
-| Reportes del asesor | ✅ Funciona | `/portal/reportes` |
-| Mensajes con el asesor | ✅ Funciona | `/portal/mensajes` |
-| Completar cuestionario de riesgo | ✅ Funciona | Link HMAC |
-
-### 1.11 Sistema Dual-Role
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Switch role (advisor ↔ client) | ✅ Funciona | `/api/auth/switch-role` |
-| Botón "Ir a mi Portal Cliente" (asesor) | ✅ Funciona | AdvisorHeader |
-| Botón "Vista Asesor" (cliente) | ✅ Funciona | PortalTopbar |
-| Invitación a usuario existente | ✅ Funciona | No sobreescribe roles |
-| Middleware routing por active_role | ✅ Funciona | middleware.ts |
-
-### 1.12 Notificaciones y Cron Jobs
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| NotificationBell con polling 30s | ✅ Funciona | AdvisorHeader |
-| Tipos: cartola, cuestionario, rebalanceo, reporte | ✅ Funciona | `advisor_notifications` |
-| Cron reportes L-V 12pm | ✅ Funciona | `/api/cron/send-reports` |
-| Cron check-drift L-V 1pm | ✅ Funciona | `/api/cron/check-drift` |
-| Cron sync Fintual L-V 10am | ✅ Funciona | `/api/cron/sync-fintual` |
-| Sync FI CMF diario 21:00 (local) | ✅ Funciona | Task Scheduler + `scripts/sync-fi-diario.bat` |
-
-### 1.13 Otras Herramientas
-| Funcionalidad | Estado | Ruta |
-|---|---|---|
-| Calculadora APV | ✅ Funciona | `/calculadora-apv` |
-| Educación financiera | ✅ Funciona | `/educacion-financiera` |
-| Generación de reportes PDF | ✅ Funciona | `@react-pdf/renderer` |
-| Admin: gestión de asesores | ✅ Funciona | `/admin/advisors` |
-| Admin: sincronización de datos | ✅ Funciona | `/admin/data-sync` |
-| Vista general de clientes | ✅ Funciona | `/advisor/clients-overview` |
+> **Nota:** Este documento reemplaza la auditoría de marzo/abril 2026 (que quedó obsoleta: hablaba de TWR —ya eliminado—, AAFM como fuente activa —hoy local-only—, y rutas que cambiaron). Los hallazgos técnicos de abajo fueron confirmados leyendo el código real.
 
 ---
 
-## 2. INTEGRACIONES EXTERNAS
+## 0. RESUMEN EJECUTIVO
 
-| Servicio | Propósito | Estado |
-|---|---|---|
-| **Fintual API** | Catálogo de fondos mutuos chilenos + precios | ✅ Activo |
-| **AAFM** | Precios diarios, rentabilidades, patrimonio | ✅ Activo |
-| **CMF** | Fondos de inversión FIRES (152 fondos, precios diarios via scraping + 2captcha) | ✅ Activo |
-| **Yahoo Finance** | Precios internacionales (acciones, ETFs) | ✅ Activo |
-| **Alpha Vantage** | Fallback de precios cuando Yahoo no disponible | ✅ Activo |
-| **Bolsa de Santiago** | Precios en tiempo real acciones chilenas | ✅ Activo |
-| **Banco Central Chile** | Tipo de cambio (UF, USD/CLP) | ✅ Activo |
-| **Google Calendar** | Sincronización de reuniones | ✅ Activo |
-| **Resend** | Envío de emails (cuestionarios) | ✅ Activo |
-| **OpenFIGI** | Identificadores de securities (ISIN/CUSIP) | ⚠️ Opcional |
-| **Finnhub** | Datos de bonos | ⚠️ Opcional |
-| **Supabase** | BD PostgreSQL + Auth + RLS | ✅ Core |
+La plataforma es sólida en arquitectura (auth helpers, RLS, servicio unificado de precios, tipado fuerte). Pero la auditoría técnica encontró **35 hallazgos confirmados**: **3 críticos, 7 altos, 12 medios, 13 bajos**, concentrados en dos ejes:
 
-### Resolución de precios multi-fuente (cascada):
-1. Fintual (fondos chilenos)
-2. Bolsa de Santiago (acciones chilenas)
-3. Yahoo Finance (internacional + .SN)
-4. Alpha Vantage (fallback)
-5. Manual prices (Excel/CSV upload)
-6. Yahoo CUSIP search (auto-discovery)
+1. **Fuga de datos entre clientes/asesores (IDOR).** 11 rutas API usan `requireAuth()`/`requireAdvisor()` pero **nunca verifican que el `clientId` pertenezca al asesor**. Cualquier usuario autenticado puede leer —y en varios casos **escribir**— datos de cualquier cliente cambiando un UUID. Existe un helper canónico (`verifyClientAccess` / `checkSnapshotOwnership`) que estas rutas simplemente no invocan.
 
----
+2. **Cálculos duplicados y divergentes.** El mismo concepto (retorno de bono, conversión a CLP, clasificación de activo, contribución por posición, impuesto progresivo) está reimplementado en múltiples sitios con fórmulas que **no coinciden**. El caso más grave: la **Calculadora APV** sobreestima el ahorro tributario hasta ~10× por aplicar tramos mensuales a renta anual.
 
-## 3. ARQUITECTURA DE SEGURIDAD
-
-| Aspecto | Implementación | Evaluación |
-|---|---|---|
-| Autenticación | Supabase Auth (email/password) | ✅ Sólido |
-| Middleware de sesión | `updateSession` en middleware.ts | ✅ Correcto |
-| Roles | admin / advisor / client con dual-role support | ✅ Funciona |
-| Dual-role | `user_metadata.roles[]` + `active_role`, switch vía API | ✅ Implementado |
-| RLS en Supabase | Habilitado en tablas sensibles | ✅ Bien |
-| API auth helpers | `requireAuth()`, `requireAdvisor()`, `requireAdmin()`, `requireClient()` | ✅ Consistente |
-| Rate limiting | Upstash Redis (prod) + in-memory fallback (dev), 68 endpoints | ✅ Robusto |
-| Error tracking | Sentry client/server/edge, global-error.tsx | ✅ Activo |
-| Tokens Google | RLS estricto por advisor_id | ✅ Seguro |
-| Service role key | Solo en server-side para operaciones privilegiadas | ✅ Correcto |
-
----
-
-## 4. LO QUE FUNCIONA BIEN
-
-### Fortalezas Técnicas
-1. **Stack moderno y coherente** — Next.js 16 + React 19 + TypeScript estricto. Buena elección tecnológica.
-2. **Multi-source price resolution** — La cascada de 5 fuentes para precios es robusta y bien diseñada.
-3. **Seguridad bien implementada** — Auth, RLS, rate limiting, separación de roles. Pasó auditoría de seguridad reciente.
-4. **Tipado fuerte** — TypeScript con tipos de Supabase bien definidos.
-5. **Separación de concerns** — API routes claros, componentes separados por dominio, lib/ bien organizada.
-6. **Cálculos financieros sólidos** — TWR, scoring de riesgo multi-dimensional, clasificación de activos.
-
-### Fortalezas de Producto
-1. **Cuestionario de riesgo completo** — 7 pasos, multi-dimensional, genera benchmark automático.
-2. **Parseo de cartolas inteligente** — Acepta PDF y Excel, clasifica automáticamente.
-3. **Dashboard de mercado chileno** — Integración nativa con Fintual + AAFM, datos locales relevantes.
-4. **Portfolio Designer versátil** — 5 modos cubren distintos flujos de trabajo del asesor.
-5. **Comité de inversiones** — Workflow completo desde generación hasta aplicación a clientes.
-6. **Google Calendar sync** — Reduce fricción para gestión de agenda.
-
----
-
-## 5. ÁREAS DE MEJORA
-
-### 5.1 Mejoras Técnicas Prioritarias
-
-| Área | Problema | Impacto | Sugerencia |
+### 🚨 Acción inmediata (los 3 críticos) — ✅ RESUELTOS (13-jul-2026)
+| # | Hallazgo | Por qué urgía | Estado |
 |---|---|---|---|
-| **Loading states** | No hay skeleton loaders consistentes | UX pobre en cargas | Implementar Suspense boundaries con skeletons |
-| **Error handling UI** | Errores genéricos sin guía al usuario | Frustración | Error boundaries con mensajes accionables |
-| **Offline/slow network** | Sin manejo de estado offline | Pérdida de datos | Optimistic updates + queue de acciones |
-| **Caché de datos** | Sin SWR/React Query, fetch directo | Re-fetching innecesario | Implementar React Query o SWR |
-| **Tests** | Vitest configurado pero cobertura desconocida | Riesgo de regresiones | Ampliar tests, especialmente en cálculos financieros |
-| **Cron jobs** | Solo sync Fintual programado | Datos desactualizados | Agregar crons para AAFM, precios, exchange rates |
-| **Mobile responsive** | No evaluado exhaustivamente | Asesores usan tablets | Auditar responsive en tablets y móviles |
-| **Internacionalización** | Mezcla español/inglés en código | Inconsistencia | Definir idioma único para UI |
-| ~~**Logging/monitoring**~~ | ✅ RESUELTO — Sentry client/server/edge | — | — |
+| C1 | **Calculadora APV** calcula mal el impuesto | Herramienta de cara a cliente que muestra un beneficio falso (hasta 10×) | ✅ Corregido |
+| C2 | **`/api/portfolio/snapshots`** sin control de tenencia | Leer/escribir cartola de cualquier cliente; corrompe retornos | ✅ Corregido |
+| C3 | **`/api/portfolio/radiografia`** sin control de tenencia | Expone cartera + trades sugeridos de cualquier cliente (incl. desde el portal) | ✅ Corregido |
 
-### 5.2 Mejoras de Producto
-
-| Área | Oportunidad | Valor |
-|---|---|---|
-| ~~**Notificaciones**~~ | ✅ RESUELTO — NotificationBell + triggers automáticos | — |
-| ~~**Dashboard de rendimiento**~~ | ✅ RESUELTO — Vista consolidada `/advisor/clients-overview` | — |
-| ~~**Reportes periódicos**~~ | ✅ RESUELTO — Cron L-V, email Resend, config por cliente | — |
-| ~~**Alertas de rebalanceo**~~ | ✅ RESUELTO — Cron check-drift + tracking ejecuciones | — |
-| **Historial de interacciones** | Seguimiento básico, sin notas enriquecidas | Medio — memoria institucional |
-| **Onboarding flow** | Sin flujo guiado para nuevos asesores | Medio — adopción |
-| **Multi-moneda** | Manejo parcial de USD/CLP/UF | Medio — clientes con inversiones mixtas |
-| **Comparación temporal** | No compara rendimiento entre períodos fácilmente | Medio — análisis de tendencias |
-| **Export masivo** | Sin export CSV/Excel de clientes/portafolios | Bajo — compliance y reportería |
-| **Dark mode** | No implementado | Bajo — preferencia visual |
-
-### 5.3 Deuda Técnica Identificada
-
-1. **Archivos sin commitear en git** — Hay muchos archivos untracked (scripts de test, componentes nuevos, API routes, migraciones) que necesitan commit.
-2. **Scripts sueltos** — Varios scripts de sync/test en `/scripts/` que podrían consolidarse.
-3. **Google Fonts cargado externamente** — El `<link>` a Google Fonts en layout.tsx podría usar `next/font` para mejor performance.
-4. ~~**Sin rate limiting global**~~ ✅ RESUELTO — Upstash Redis en 68 endpoints.
-5. ~~**Sin CLAUDE.md**~~ ✅ RESUELTO — Memory system + CONTEXTO-CLAUDE-CHAT.md + MEJORAS.md proveen contexto completo.
+**Cambios aplicados:**
+- **C1:** nueva librería pura `lib/tax/apv.ts` (usa `calcularImpuestoProgresivo` canónico); eliminada la tabla de tramos y las funciones duplicadas de `calculadora-apv/page.tsx`; la página ahora convierte CLP↔UF y delega el cálculo. Cubierto por `lib/tax/apv.test.ts` (7 tests). Resultado por defecto: 40% → 35,6% real; sueldos bajos 40% → 4%.
+- **C2/C3:** nuevo helper canónico **`requireClientAccess(clientId)`** en `lib/auth/api-auth.ts` (advisor válido + tenencia: propio/huérfano/subordinado/compartido). Aplicado en `snapshots` (GET+POST) y `radiografia` (POST). **Este helper es el que deben reusar las 9 rutas IDOR restantes en el Sprint 2.**
 
 ---
 
-## 6. EXPERIENCIA DEL CLIENTE (UX FLOW)
+## PARTE A — AUDITORÍA TÉCNICA
 
-### 6.1 Journey del Asesor (usuario principal)
+### A.1 Seguridad (15 hallazgos)
 
-```
-LOGIN → DASHBOARD ASESOR → [elegir acción]
-  │
-  ├── Gestión de clientes
-  │     ├── Ver lista → Buscar/Filtrar → Ver detalle
-  │     ├── Crear nuevo → Completar datos → Enviar cuestionario riesgo
-  │     └── Editar → Actualizar info
-  │
-  ├── Análisis de portafolio
-  │     ├── Subir cartola (PDF/Excel) → Parseo automático → Ver composición
-  │     ├── Comparar vs benchmark → Ver gaps → Proponer ajustes
-  │     └── Seguimiento temporal → Ver evolución → Calcular TWR
-  │
-  ├── Diseño de portafolio
-  │     ├── Quick Build (plantilla rápida)
-  │     ├── Modelo (crear/guardar modelo personalizado)
-  │     ├── Análisis (comparar fondos)
-  │     └── Directo (agregar acciones/bonos individuales)
-  │
-  ├── Investigación de fondos
-  │     ├── Buscar por nombre/ticker
-  │     ├── Comparar hasta 6 ETFs
-  │     └── Analizar factsheet PDF
-  │
-  ├── Agenda
-  │     ├── Ver calendario semanal
-  │     ├── Crear reunión
-  │     └── Sync con Google Calendar
-  │
-  └── Market Dashboard
-        ├── Ver fondos mutuos chilenos
-        ├── Filtrar por categoría/administradora
-        └── [Admin] Sincronizar datos Fintual/AAFM
-```
+**Patrón raíz (IDOR):** ruta usa `createAdminClient()` (que **bypassa RLS**) con un `clientId` que llega del request, sin llamar a `verifyClientAccess()`. La corrección es la misma en casi todas: **verificar tenencia** (propio / huérfano / subordinado vía `getSubordinateAdvisorIds` / compartido vía `getSharedClientIds`) antes de leer o escribir.
 
-### 6.2 Journey del Cliente (usuario final)
+#### CRÍTICOS
+- **C2 — `GET/POST /api/portfolio/snapshots`** (`app/api/portfolio/snapshots/route.ts:45,120`). Solo `requireAuth()` (ni siquiera distingue advisor/client) + admin client. Cualquiera lee todos los snapshots (holdings, valores, composición) de cualquier cliente enumerando UUIDs; el POST permite **insertar un snapshot fabricado** para un cliente ajeno, corrompiendo sus retornos y reportes. La ruta hermana `snapshots/[id]/route.ts` **sí** valida con `checkSnapshotOwnership` — replicar ese patrón.
+- **C3 — `POST /api/portfolio/radiografia`** (`radiografia/route.ts:112`). Solo `requireAuth()`. Devuelve holdings consolidados + desviaciones vs modelo + trades sugeridos de cualquier cliente. Como no exige rol advisor, **un cliente logueado en el portal** puede pedir la radiografía de otro cliente cambiando el `clientId` del body. Fix: `requireAdvisor()` + `verifyClientAccess`, con rama explícita para portal (`clientId === client.id`).
 
-```
-RECIBE EMAIL INVITACIÓN → Configura contraseña (nuevo) o Login directo (existente)
-  → LOGIN PORTAL (email/password, "¿Olvidaste tu contraseña?")
-  → BIENVENIDA (onboarding steps contextuales)
-  ├── Completar perfil de riesgo (7 pasos, detecta si ya completado)
-  ├── Subir cartolas (PDF/Excel)
-  ├── Ver dashboard (valor, evolución, composición, cartera recomendada)
-  ├── Leer reportes del asesor
-  ├── Mensajes con el asesor
-  ├── Historial de cartolas (propias + asesor con badge)
-  ├── Cambiar contraseña
-  └── [Si dual-role] Cambiar a Vista Asesor
-```
+#### ALTOS (IDOR)
+- **A-S1 — `POST /api/portfolio/baseline-evolution`** (`:7`): lee snapshot baseline completo de cualquier cliente.
+- **A-S2 — `POST /api/comite/aplicar-cartera`** (`:52`): `requireAdvisor()` pero no compara `clientId` con el asesor → **sobrescribe la cartera recomendada de clientes de otro asesor**.
+- **A-S3 — `GET /api/clients/[id]/rebalance-executions`** (`:8`): expone historial de trades (montos, tickers, fechas). Además el POST valida distinto (más débil) que el patrón canónico → criterio inconsistente entre GET y POST del mismo recurso.
+- **A-S4 — `GET/PUT /api/clients/[id]/benchmark`** (`:14`): leer y **sobrescribir** `benchmark_config` de cualquier cliente, afectando su rentabilidad comparada.
 
-### 6.3 Puntos de Fricción Identificados
+#### MEDIOS / BAJOS
+- **M-S1** — `GET/POST/PUT /api/client-closings` sin verificación de tenencia (`client-closings/route.ts:13,48,500`).
+- **M-S2** — `GET/POST /api/portfolio/dividends` sin verificación de tenencia (`:83,12`).
+- **M-S3** — `GET /api/portfolio/fill-prices/coverage` sin verificación de tenencia (`:10`).
+- **M-S4** — `POST /api/client-closings` (generación IA de cierre mensual) **sin rate limiting** → abuso de coste IA (`:48,438`).
+- **L-S1** — `POST /api/prices/backfill` sin verificación de tenencia (`:13`).
+- **L-S2** — `POST /api/monthly-reports` acepta HTML arbitrario sin límite de tamaño ni rate limit (`:41`).
+- **L-S3** — Tokens de archivos subidos interpolados en filtros `ILIKE` sin escapar, inconsistente con `sanitizeSearchInput` ya existente (`parse-portfolio-excel:453`, `upload-nav-history:206`, `current-prices:84`).
+- **L-S4** — `/api/clients/[id]/contract` no usa el validador compartido `lib/upload-validation.ts` (`:96`).
+- **L-S5** — Verificación de `CRON_SECRET` con comparación no-constante (`!==`), divergente del patrón HMAC del repo (`check-drift:13`, `sync-fintual:34`, `send-reports:44`, `sync-bond-prices:17`).
 
-1. ~~**Sin portal de cliente**~~ ✅ RESUELTO — Portal completo
-2. ~~**Sin notificaciones**~~ ✅ RESUELTO — NotificationBell + triggers automáticos
-3. **Navegación densa** — Muchas herramientas pero sin guía de flujo de trabajo recomendado.
-4. **Sin onboarding** — Un asesor nuevo no sabe por dónde empezar.
-5. **Cartola manual** — El cliente o asesor debe subir la cartola manualmente, no hay conexión directa con bancos/corredoras.
-6. ~~**Sin chat/mensajería**~~ ✅ RESUELTO — Sistema de mensajes integrado
+**Remediación sugerida:** crear un único `requireClientAccess(clientId)` en `lib/auth/api-auth.ts` (advisor válido + tenencia) y aplicarlo en las 11 rutas. Test de regresión: un asesor A no puede tocar un cliente de asesor B.
 
 ---
 
-## 7. BASE DE DATOS — ESQUEMA PRINCIPAL
+### A.2 Coherencia de cálculos (20 hallazgos)
 
-### Tablas Core
-- `advisors` — Perfil del asesor (rol, empresa, logo, jerarquía)
-- `clients` — Datos del cliente (perfil riesgo, patrimonio, status)
-- `risk_profiles` — Resultados del cuestionario (4 dimensiones + score global)
-- `portfolio_snapshots` — Cartolas parseadas (holdings JSONB, valores, retornos)
-- `portfolio_models` — Plantillas de portafolio guardadas
+**Principio:** un mismo cálculo debe tener **una sola implementación canónica** en `lib/` y todos los consumidores deben importarla.
 
-### Tablas de Fondos Mutuos
-- `fintual_providers` — AGFs (administradoras)
-- `fintual_funds` — Catálogo de fondos/series
-- `fintual_prices` — Precios históricos diarios
+#### CRÍTICO
+- **C1 — Calculadora APV: impuesto progresivo mal calculado** (`calculadora-apv/page.tsx:96-142`). Duplica la tabla de tramos (`tramosImpuesto2024`) y compara **renta anual en UF contra tramos que son mensuales**, sin dividir/multiplicar por 12. Resultado: casi cualquier sueldo (incluso 1.000.000 CLP/mes → ~317 UF anuales > techo 310) cae en el tramo marginal **40%**, sobreestimando el ahorro APV Tipo A hasta ~10×.
+  **Fix:** eliminar la copia local e importar `TRAMOS_IMPUESTO`, `APV_TOPE_ANUAL_UF`, `APV_CREDITO_REGIMEN_A` de `lib/constants/chilean-tax.ts` + `calcularImpuestoProgresivo` de `lib/tax/calculator.ts` (que ya maneja el /12 correctamente, como hace `TaxBreakdown.tsx`).
 
-### Tablas de Fondos de Inversión (CMF)
-- `fondos_inversion` — Catálogo de 152 fondos FIRES (rut, nombre, administradora, tipo, series_detectadas, sync status)
-- `fondos_inversion_precios` — Precios diarios por serie (valor_libro, valor_economico, patrimonio_neto, n_aportantes, rent_diaria)
+#### ALTOS
+- **A-C1 — Prorrateo mensual de retorno de bonos, 3 fórmulas divergentes** (`usePerformanceCalculations.ts:249`, `useSeguimientoEmail.ts:364`, `RentabilidadPorActivo.tsx:279`). Dos usan `totalDays = hoy − cartola`; una usa `endDate del mes − cartola`. Para el mismo bono/mes dan retornos distintos entre la Atribución/email y el gráfico; sin cap puede dar `proRatio > 1` (retorno mensual > acumulado total). **Fix:** función compartida `lib/bonds/prorate-period-return.ts` con `referenceDate` único y cap `≤1`.
+- **A-C2 — Simulador Tributario ignora UF al convertir a CLP** (`lib/tax/bridge.ts:71`, `TaxSimulator.tsx:172`). `toCLP` local solo maneja USD/EUR; para **UF** cae al `return value` → trata UF (~38.500 CLP) como si ya fuera CLP. Subestima groseramente ganancias/exención Art. 107 en holdings UF. **Fix:** usar `lib/portfolio/currency.ts` (sí maneja UF) y pasar `ufRate`.
+- **A-C3 — Atribución del email mensual infla holdings nuevos/liquidados** (`useSeguimientoEmail.ts:243`, `seguimiento-email.ts:274`). Cuenta el 100% del valor de una compra nueva como "contribución" (y −100% de una venta). El email al cliente muestra contribuciones engañosas → **riesgo compliance CMF**. `usePerformanceCalculations` ya evita esto; alinear.
 
-### Tablas de Inversión Directa
-- `direct_portfolios` — Portafolios de acciones/bonos
-- `direct_portfolio_holdings` — Posiciones individuales
-- `security_prices_cache` — Caché de precios
+#### MEDIOS
+- **M-C1** — Regla de anualización (`<365d simple / ≥365d anualizado`) existe en `lib/returns/calculator.ts` pero es **dead code** en el flujo principal de Seguimiento (`useHistoricalSeries.ts`, `SeguimientoPage.tsx:426`). Verificar si el retorno mostrado respeta la regla.
+- **M-C2** — `client-closings/route.ts` reimplementa fetch a BCCH **sin la convención T+1** y con fallbacks distintos al resto (`:183,271` vs `historical-prices:391`, `useExchangeRates:98`).
+- **M-C3** — **Tres normalizadores de `assetClass`** divergentes en el fallback (`useSnapshotForm.ts:55`, `fill-prices:1215`, `usePerformanceCalculations.ts:64`). (Bug recurrente conocido.)
+- **M-C4** — `parse-portfolio-excel` clasifica *money market* como **Renta Fija**; el canónico `classifyFund` lo clasifica como **Cash** (`parse-portfolio-excel:165,636` vs `classify.ts:38`).
+- **M-C5** — Mapeo `familia_estudios → categoría` duplicado **6 veces** en `app/api/fondos/route.ts` sin función compartida.
+- **M-C6** — Fórmula de contribución por posición diverge entre `HoldingReturnsPanel` y `usePerformanceCalculations` (`HoldingReturnsPanel.tsx:147`, `EquitySection.tsx:144`, `usePerformanceCalculations.ts:685`).
+- **M-C7** — TIR/Duración mostradas usan un motor de yield **distinto** al que calcula devengo/retorno del mismo bono (`useBondCalculations.ts:112-122`).
+- **M-C8** — Gráfico histórico de bonos usa motor YTM antiguo sin distinguir bono chileno vs internacional (`historical-prices:561`, `price-projection.ts:32`).
 
-### Tablas de Precios y Seguimiento
-- `manual_prices` — Precios subidos manualmente por el asesor (Excel/CSV)
-- `security_yahoo_map` — Mapeo CUSIP/ISIN → Yahoo ticker para fondos internacionales
-- `portfolio_dividends` — Registro de dividendos recibidos por cliente
-
-### Tablas de Reportes y Notificaciones
-- `client_report_config` — Configuración de reportes por cliente
-- `client_reports` — Reportes generados/enviados
-- `advisor_notifications` — Notificaciones in-app del asesor
-- `recommendation_versions` — Historial de recomendaciones
-
-### Tablas de Ejecución y Seguimiento
-- `rebalance_executions` — Operaciones buy/sell ejecutadas post-recomendación
-- `fondos_rentabilidades_agregadas` — Rentabilidades históricas AAFM
-
-### Tablas de Soporte
-- `advisor_google_tokens` — OAuth tokens (RLS estricto)
-- `advisor_meetings` — Reuniones
-- `client_contracts` — Contratos de prestación de servicios
-- `audit_logs` — Registro de auditoría
+#### BAJOS
+- **L-C1** — Retorno simple por clase reimplementado en ≥4 sitios (`useSeguimientoEmail`, `usePerformanceCalculations`, `CompositionBoxes`).
+- **L-C2** — `toCLP/fromCLP` duplicado en 3 sitios en vez de reusar `lib/portfolio/currency.ts`.
+- **L-C3** — `days30_360` duplicado byte-a-byte (`accrued-interest.ts:27`, `period-return.ts:29`).
+- **L-C4** — `calcBondPeriodReturn` (modelo legacy) exportado y testeado pero sin uso en producción.
+- **L-C5** — Constantes tributarias declaradas y nunca usadas (`ART104_TASA_UNICA`, etc.); régimen 104 inalcanzable.
+- **L-C6** — Bandas de riesgo perfil→RV/RF duplicadas (`lib/risk/benchmarks.ts:53` vs `lib/direct-portfolio/types.ts:83`).
+- **L-C7** — Cortes score→banda (20/40/60/80) duplicados como literales (`risk_scoring.ts:21` vs `benchmarks.ts:130`).
+- **L-C8** — `classifyTilt()` usa umbrales distintos a la "regla acordada" documentada (`lib/risk/tilt.ts:26`).
 
 ---
 
-## 8. MÉTRICAS CLAVE DE LA PLATAFORMA
+## PARTE B — REVISIÓN DE PRODUCTO (pestaña por pestaña)
 
-| Métrica | Valor |
-|---|---|
-| Rutas de página | ~20 |
-| API endpoints | ~70+ |
-| Componentes React | ~55+ |
-| Tablas en BD | ~27 |
-| Integraciones externas | 11 |
-| Dependencias (prod) | 15+ |
-| Dependencias (dev) | 12 |
-| Líneas de código estimadas | ~20,000-25,000 |
+> Decisiones acordadas: **consolidación agresiva** del menú (hoy 14 items) + rediseño hacia **densidad y accionabilidad**.
 
----
+### ① Dashboard del asesor (`/advisor`) — revisado
+- **Quitar/mover:** `ComiteReportsPanel` (no es "mi día" → llevar a Radiografía); "Flujo de Asesoría" (decorativo, duplica el sidebar).
+- **Añadir:** **Centro de acción** arriba con las alertas que la plataforma ya calcula (cuestionarios vencidos, drift, sin cartola, cartolas nuevas) → deep-link a Clientes filtrado. AUM con Δ mensual.
+- **Bugs UX:** `confirm()` nativo + catch silencioso al borrar reunión (`page.tsx:200,205`).
 
-## 9. RESUMEN EJECUTIVO
+### ②+③ Clientes (`/clients`) + Vista General (`/advisor/clients-overview`) — revisado
+- **Fusionar en una sola pestaña "Clientes"** con toggle Lista / Radar. Elimina 1 item del menú.
+- **🔴 Coherencia AUM:** hay **3 valores de AUM distintos** (Dashboard `/api/advisor/stats`, Clientes `patrimonio_estimado`, Vista General suma de snapshots reales). Unificar en una sola definición.
+- `formatCurrency` divergente (compacto vs largo) → unificar en `lib/format.ts`. `confirm()/alert()` nativos.
 
-**Greybark Advisors** es una plataforma de asesoría financiera robusta y bien construida, enfocada en el mercado chileno con capacidad internacional. Cubre el ciclo completo: captación de clientes → evaluación de riesgo → análisis de portafolio → diseño de cartera → seguimiento.
-
-### Lo mejor:
-- Integración profunda con el ecosistema financiero chileno (Fintual, AAFM, Bolsa de Santiago, Banco Central)
-- Resolución de precios multi-fuente con fallback inteligente
-- Cuestionario de riesgo multi-dimensional sofisticado
-- Seguridad bien implementada (auth, RLS, rate limiting)
-- Stack técnico moderno y mantenible
-
-### Lo que más impacto tendría mejorar:
-1. ~~**Portal de cliente**~~ ✅ RESUELTO — Portal completo con dashboard, reportes, cartolas, mensajes, dual-role
-2. ~~**Notificaciones automáticas**~~ ✅ RESUELTO — Alertas de rebalanceo, reportes periódicos, cuestionario completado
-3. ~~**Reportes automáticos**~~ ✅ RESUELTO — Cron L-V, email con Resend, configuración por cliente
-4. **Mejor UX de carga** — Skeleton loaders, optimistic updates, caché con SWR/React Query
-5. ~~**Monitoring en producción**~~ ✅ RESUELTO — Sentry + Upstash Redis rate limiting
-6. **Onboarding de asesor** — Flujo guiado para primer uso de la plataforma
-7. **Firma electrónica** — Integración con servicio de firma para contratos
+### ④ Cartola & Riesgo — *pendiente*
+### ⑤ Seguimiento — *pendiente* (núcleo de cálculos; ver A.2)
+### ⑥ Radiografía — *pendiente* (ver C3 seguridad)
+### ⑦ Portfolio Designer — *pendiente*
+### ⑧–⑭ Herramientas (Centro de Fondos, Mis Fondos, Mapeo, Fichas CMF, Calculadora APV, Simulador Tributario, Educación) — *pendiente* (APV: ver C1; Simulador: ver A-C2)
+### Portal del cliente (13 rutas) — *pendiente*
+### Admin — *pendiente*
 
 ---
 
-*Este documento fue generado como auditoría completa de la plataforma Greybark Advisors para su revisión y planificación estratégica.*
+## PARTE C — PLAN DE REMEDIACIÓN PRIORIZADO
+
+**Sprint 1 (crítico) — ✅ COMPLETADO 13-jul-2026**
+1. ✅ Fix Calculadora APV (C1) — extraído a `lib/tax/apv.ts` con lógica canónica + 7 tests.
+2. ✅ Helper `requireClientAccess(clientId)` creado + aplicado en snapshots (GET/POST) y radiografía (POST).
+
+**Sprint 2 (alto) — PENDIENTE**
+3. Aplicar `requireClientAccess` a las 9 rutas IDOR restantes (A-S1..4, M-S1..3, L-S1). El helper ya existe.
+4. Rate limit en `client-closings` y `monthly-reports` (M-S4, L-S2).
+5. Función compartida de prorrateo de bonos (A-C1) + fix UF en simulador (A-C2) + atribución email (A-C3).
+
+**Sprint 3 (medio)** — normalizadores de assetClass, clasificación money-market, motor de bonos unificado, convención T+1 en closings.
+
+**Continuo (bajo/producto)** — deduplicar utils, consolidar menú, rediseño densidad+accionabilidad pestaña por pestaña.
+
+---
+
+*Auditoría generada el 13-jul-2026. Hallazgos técnicos verificados contra el código fuente. La Parte B se completará pestaña por pestaña.*
