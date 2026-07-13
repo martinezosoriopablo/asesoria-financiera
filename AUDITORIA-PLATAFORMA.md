@@ -36,6 +36,8 @@ La plataforma es sólida en arquitectura (auth helpers, RLS, servicio unificado 
 
 **Patrón raíz (IDOR):** ruta usa `createAdminClient()` (que **bypassa RLS**) con un `clientId` que llega del request, sin llamar a `verifyClientAccess()`. La corrección es la misma en casi todas: **verificar tenencia** (propio / huérfano / subordinado vía `getSubordinateAdvisorIds` / compartido vía `getSharedClientIds`) antes de leer o escribir.
 
+> ✅ **ESTADO 13-jul-2026:** Las 11 rutas IDOR (C2, C3, A-S1..4, M-S1..3, L-S1) están **corregidas** con el helper `requireClientAccess(clientId)`. Verificado: tsc limpio, 353/353 tests. Pendientes de seguridad: M-S4 (rate limit closings), L-S2..5 (validación/HMAC).
+
 #### CRÍTICOS
 - **C2 — `GET/POST /api/portfolio/snapshots`** (`app/api/portfolio/snapshots/route.ts:45,120`). Solo `requireAuth()` (ni siquiera distingue advisor/client) + admin client. Cualquiera lee todos los snapshots (holdings, valores, composición) de cualquier cliente enumerando UUIDs; el POST permite **insertar un snapshot fabricado** para un cliente ajeno, corrompiendo sus retornos y reportes. La ruta hermana `snapshots/[id]/route.ts` **sí** valida con `checkSnapshotOwnership` — replicar ese patrón.
 - **C3 — `POST /api/portfolio/radiografia`** (`radiografia/route.ts:112`). Solo `requireAuth()`. Devuelve holdings consolidados + desviaciones vs modelo + trades sugeridos de cualquier cliente. Como no exige rol advisor, **un cliente logueado en el portal** puede pedir la radiografía de otro cliente cambiando el `clientId` del body. Fix: `requireAdvisor()` + `verifyClientAccess`, con rama explícita para portal (`clientId === client.id`).
@@ -126,8 +128,8 @@ La plataforma es sólida en arquitectura (auth helpers, RLS, servicio unificado 
 1. ✅ Fix Calculadora APV (C1) — extraído a `lib/tax/apv.ts` con lógica canónica + 7 tests.
 2. ✅ Helper `requireClientAccess(clientId)` creado + aplicado en snapshots (GET/POST) y radiografía (POST).
 
-**Sprint 2 (alto) — PENDIENTE**
-3. Aplicar `requireClientAccess` a las 9 rutas IDOR restantes (A-S1..4, M-S1..3, L-S1). El helper ya existe.
+**Sprint 2 (alto) — ✅ COMPLETADO 13-jul-2026**
+3. ✅ Aplicado `requireClientAccess` a las 8 rutas IDOR restantes: baseline-evolution, comite/aplicar-cartera, clients/[id]/rebalance-executions (GET+POST unificado), clients/[id]/benchmark, client-closings (GET/POST/PUT), portfolio/dividends, fill-prices/coverage, prices/backfill. **Fuga de datos cross-tenant cerrada.**
 4. Rate limit en `client-closings` y `monthly-reports` (M-S4, L-S2).
 5. Función compartida de prorrateo de bonos (A-C1) + fix UF en simulador (A-C2) + atribución email (A-C3).
 

@@ -4,7 +4,7 @@
 // así la rentabilidad refleja correctamente el retorno total (precio + dividendos)
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -14,11 +14,6 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("dividends-post", async () => {
-    const { user, error: authError } = await requireAdvisor();
-    if (authError) return authError;
-
-    const supabase = createAdminClient();
-
     const { clientId, date, amount, note } = await request.json();
 
     if (!clientId || !date || !amount) {
@@ -34,6 +29,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const { user, error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     // 1. Registrar el dividendo en la tabla de dividendos
     const { error: insertError } = await supabase
@@ -85,17 +85,17 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("dividends-get", async () => {
-    const { error: authError } = await requireAdvisor();
-    if (authError) return authError;
-
-    const supabase = createAdminClient();
-
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
 
     if (!clientId) {
       return NextResponse.json({ success: false, error: "clientId requerido" }, { status: 400 });
     }
+
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     const { data: dividends, error } = await supabase
       .from("portfolio_dividends")

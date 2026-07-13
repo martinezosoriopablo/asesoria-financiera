@@ -2,17 +2,17 @@
 // Track actual trades executed for a client's rebalancing
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { handleApiError } from "@/lib/api-response";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdvisor();
+  const { id: clientId } = await params;
+  const { error } = await requireClientAccess(clientId);
   if (error) return error;
 
-  const { id: clientId } = await params;
   const admin = createAdminClient();
   return handleApiError("clients-id-rebalance-executions-get", async () => {
 
@@ -36,24 +36,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { advisor, error } = await requireAdvisor();
+  const { id: clientId } = await params;
+  const { advisor, error } = await requireClientAccess(clientId);
   if (error) return error;
 
-  const { id: clientId } = await params;
   const body = await request.json();
   const admin = createAdminClient();
   return handleApiError("clients-id-rebalance-executions-post", async () => {
-
-    // Validate client belongs to advisor
-    const { data: client } = await admin
-      .from("clients")
-      .select("id, asesor_id")
-      .eq("id", clientId)
-      .maybeSingle();
-
-    if (!client || client.asesor_id !== advisor!.id) {
-      return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
-    }
 
     // Accept single execution or batch
     interface ExecutionInput {

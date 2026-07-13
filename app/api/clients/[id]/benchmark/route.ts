@@ -1,7 +1,7 @@
 // app/api/clients/[id]/benchmark/route.ts
 
 import { NextRequest } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
 import type { BenchmarkComponent } from "@/lib/prices/types";
@@ -16,10 +16,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return handleApiError("benchmark-get", async () => {
-    const { error } = await requireAdvisor();
+    const { id: clientId } = await params;
+    const { error } = await requireClientAccess(clientId);
     if (error) return error;
 
-    const { id: clientId } = await params;
     const supabase = createAdminClient();
 
     const { data, error: dbError } = await supabase
@@ -41,10 +41,10 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return handleApiError("benchmark-put", async () => {
-    const { error } = await requireAdvisor();
+    const { id: clientId } = await params;
+    const { error } = await requireClientAccess(clientId);
     if (error) return error;
 
-    const { id: clientId } = await params;
     const body = await request.json();
     const { benchmark } = body as { benchmark: BenchmarkComponent[] };
 

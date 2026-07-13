@@ -2,7 +2,7 @@
 //      POST /api/client-closings  — generate or save closing
 //      PUT  /api/client-closings  — update content/status
 import { NextRequest } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireAdvisor, requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
 import { trackAIUsage } from "@/lib/ai-usage";
@@ -12,13 +12,13 @@ export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   return handleApiError("client-closings-get", async () => {
-    const { error } = await requireAdvisor();
-    if (error) return error;
-
     const clientId = req.nextUrl.searchParams.get("clientId");
     const month = req.nextUrl.searchParams.get("month");
 
     if (!clientId) return errorResponse("clientId requerido", 400);
+
+    const { error } = await requireClientAccess(clientId);
+    if (error) return error;
 
     const sb = createAdminClient();
 
@@ -47,14 +47,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return handleApiError("client-closings-generate", async () => {
-    const { advisor, error } = await requireAdvisor();
-    if (error) return error;
-
     const { clientId, month, content } = await req.json();
 
     if (!clientId || !month) {
       return errorResponse("clientId y month requeridos", 400);
     }
+
+    const { advisor, error } = await requireClientAccess(clientId);
+    if (error) return error;
 
     const sb = createAdminClient();
 
@@ -499,13 +499,26 @@ REGLAS:
 
 export async function PUT(req: NextRequest) {
   return handleApiError("client-closings-update", async () => {
-    const { error } = await requireAdvisor();
-    if (error) return error;
+    // Auth gate antes de leer nada; la tenencia se verifica tras resolver el client_id del cierre
+    const { error: authError } = await requireAdvisor();
+    if (authError) return authError;
 
     const { id, content, status } = await req.json();
     if (!id) return errorResponse("id requerido", 400);
 
     const sb = createAdminClient();
+
+    // El PUT opera por id de cierre: resolvemos su cliente y verificamos tenencia (evita IDOR)
+    const { data: existing } = await sb
+      .from("client_monthly_closings")
+      .select("client_id")
+      .eq("id", id)
+      .single();
+    if (!existing) return errorResponse("Cierre no encontrado", 404);
+
+    const { error: accessError } = await requireClientAccess(existing.client_id);
+    if (accessError) return accessError;
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (content !== undefined) updates.content = content;
     if (status) updates.status = status;
