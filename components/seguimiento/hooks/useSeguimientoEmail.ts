@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
+import { proratePeriodReturn } from "@/lib/bonds/prorate-period-return";
 import type { HoldingReturnsData } from "../HoldingReturnsPanel";
 
 interface Metrics {
@@ -364,16 +365,15 @@ async function fetchMonthlyFromAPI(
     // Bonds return null from prices-at-date (no FINRA historical handler).
     // Inject bond returns prorated linearly for the report month.
     const cartolaDate = snap.snapshot_date;
-    const totalDays = Math.max(1, (Date.now() - new Date(cartolaDate + "T00:00:00").getTime()) / 86400000);
-    const monthStartMs = new Date(startDate + "T00:00:00").getTime();
-    const monthEndMs = new Date(endDate + "T00:00:00").getTime();
-    const monthDays = Math.max(1, (monthEndMs - monthStartMs) / 86400000);
-    const proRatio = monthDays / totalDays;
-
     for (const b of holdingReturnsData.bondHoldings) {
       if (coveredNames.has(b.fundName)) continue;
-      const accRet = b.totalReturn ?? 0;
-      const ret = accRet * proRatio;
+      const ret = proratePeriodReturn({
+        accumulatedReturnPct: b.totalReturn ?? 0,
+        cartolaDate,
+        referenceDateMs: Date.now(),
+        periodStart: startDate,
+        periodEnd: endDate,
+      });
       const weight = b.marketValue || 0;
       if (weight <= 0) continue;
 

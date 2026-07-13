@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { BarChart3, ChevronLeft, ChevronRight, Loader } from "lucide-react";
 import { formatNumber } from "@/lib/format";
+import { proratePeriodReturn } from "@/lib/bonds/prorate-period-return";
 import type { Snapshot } from "./SeguimientoPage";
 import type { HoldingReturnsData } from "./HoldingReturnsPanel";
 
@@ -281,18 +282,15 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         // prorated linearly for the selected month (devengo is ~linear).
         if (holdingReturnsData?.bondHoldings) {
           const cartolaDate = snap?.snapshot_date;
-          const totalDays = cartolaDate
-            ? Math.max(1, (new Date(endDate + "T00:00:00").getTime() - new Date(cartolaDate + "T00:00:00").getTime()) / 86400000)
-            : 1;
-          const monthStart = new Date(startDate + "T00:00:00").getTime();
-          const monthEndMs = new Date(endDate + "T00:00:00").getTime();
-          const monthDays = Math.max(1, (monthEndMs - monthStart) / 86400000);
-          const proRatio = monthDays / totalDays;
-
           for (const b of holdingReturnsData.bondHoldings) {
             if (coveredNames.has(b.fundName)) continue;
-            const accRet = b.totalReturn ?? 0;
-            const ret = accRet * proRatio; // prorate for the month
+            const ret = proratePeriodReturn({
+              accumulatedReturnPct: b.totalReturn ?? 0,
+              cartolaDate,
+              referenceDateMs: Date.now(),
+              periodStart: startDate,
+              periodEnd: endDate,
+            });
             const weight = b.marketValue || 0;
             if (weight <= 0) continue;
 
