@@ -152,7 +152,6 @@ export default function TaxSimulator({ initialClientId }: Props) {
 
             const h = rawHoldings[i];
             const qty = h.quantity || 1;
-            const isUsd = (h.currency || "").toUpperCase() === "USD";
 
             // current-prices API returns price in the fund's native currency
             // For USD funds without moneda_funcional, it comes back in USD
@@ -170,10 +169,13 @@ export default function TaxSimulator({ initialClientId }: Props) {
 
             // Update marketValue in native currency
             h.marketValue = newNativeValue;
-            // Update CLP value: convert USD if needed
-            h.marketValueCLP = isUsd && usdRate > 0
-              ? newNativeValue * usdRate
-              : newNativeValue;
+            // Update CLP value según la moneda (USD/UF con las tasas obtenidas;
+            // resto se asume nativo/CLP). Antes la UF se trataba como CLP.
+            const cur = (h.currency || "").toUpperCase();
+            h.marketValueCLP =
+              cur === "USD" && usdRate > 0 ? newNativeValue * usdRate :
+              cur === "UF" && ufValue > 0 ? newNativeValue * ufValue :
+              newNativeValue;
           }
         }
       } catch {
