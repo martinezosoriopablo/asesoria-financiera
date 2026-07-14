@@ -5,7 +5,7 @@
 // la función SQL calculate_snapshot_returns.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeSnapshotReturns } from "./twr";
+import { computeSnapshotReturnsHybrid } from "./unit-return";
 
 // DECIMAL(10,4) admite ±999999.9999; se usa ±9999.99 como cota razonable de %.
 const clamp = (v: number) => Math.max(-9999.99, Math.min(9999.99, Math.round(v * 100) / 100));
@@ -21,17 +21,30 @@ export async function recomputeClientReturns(
 ): Promise<void> {
   const { data: snaps } = await supabase
     .from("portfolio_snapshots")
-    .select("id, total_value, net_cash_flow")
+    .select("id, total_value, net_cash_flow, holdings")
     .eq("client_id", clientId)
     .order("snapshot_date", { ascending: true });
 
   if (!snaps || snaps.length === 0) return;
 
-  const results = computeSnapshotReturns(
-    (snaps as Array<{ id: string; total_value: number | null; net_cash_flow: number | null }>).map((s) => ({
+  type RawHolding = { fundName?: string; securityId?: string | null; serie?: string | null; quantity?: number; marketValue?: number; marketValueCLP?: number };
+  const results = computeSnapshotReturnsHybrid(
+    (snaps as Array<{ id: string; total_value: number | null; net_cash_flow: number | null; holdings: unknown }>).map((s) => ({
       id: s.id,
       value: s.total_value ?? 0,
       netCashFlow: s.net_cash_flow ?? 0,
+      // Valor cuota en CLP (marketValueCLP) para que el retorno incluya el efecto FX
+      holdings: Array.isArray(s.holdings)
+        ? (s.holdings as RawHolding[])
+            .filter((h) => h && h.fundName)
+            .map((h) => ({
+              fundName: h.fundName!,
+              securityId: h.securityId,
+              serie: h.serie,
+              quantity: h.quantity,
+              marketValue: (h.marketValueCLP && h.marketValueCLP > 0) ? h.marketValueCLP : (h.marketValue ?? 0),
+            }))
+        : undefined,
     })),
   );
 

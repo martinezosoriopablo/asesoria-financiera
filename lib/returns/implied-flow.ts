@@ -18,13 +18,13 @@ export interface FlowHolding {
   marketValue: number;
 }
 
-function keyOf(h: FlowHolding): string {
+export function keyOf(h: FlowHolding): string {
   const sid = (h.securityId ?? "").toString().trim();
   if (sid) return `${sid}|${(h.serie ?? "").toString().trim()}`;
   return `name:${h.fundName.trim().toLowerCase()}`;
 }
 
-function unitPrice(h: FlowHolding): number | null {
+export function unitPrice(h: FlowHolding): number | null {
   const q = h.quantity ?? 0;
   if (q > 0) return h.marketValue / q;
   return null;
