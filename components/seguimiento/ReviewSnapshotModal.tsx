@@ -394,6 +394,10 @@ export default function ReviewSnapshotModal({
           body: JSON.stringify({ display_currency: consolidationCurrency }),
         }).catch(() => {});
 
+        // Alerta si el sistema detectó un aporte/retiro no registrado
+        if (result.flowWarning?.message) {
+          alert(`⚠️ ${result.flowWarning.message}`);
+        }
         onSuccess();
       } else {
         setError(result.error || "Error al guardar snapshot");
@@ -585,6 +589,10 @@ export default function ReviewSnapshotModal({
             </div>
           </div>
         </div>
+
+        <p className="text-xs text-slate-500 mb-3">
+          Registra la plata que el cliente <strong>aportó o retiró</strong> en el período (no incluye dividendos ni traspasos entre fondos). Es clave para que la rentabilidad no se distorsione.
+        </p>
 
         {/* Net Cash Flow indicator */}
         {(deposits > 0 || withdrawals > 0) && (

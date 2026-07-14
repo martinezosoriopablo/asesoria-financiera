@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { recomputeClientReturns } from "@/lib/returns/persist";
+import { estimateImpliedFlow, type FlowHolding } from "@/lib/returns/implied-flow";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
 import { handleApiError } from "@/lib/api-response";
@@ -314,6 +315,26 @@ export async function POST(request: NextRequest) {
       snapshot.is_baseline = true;
     }
 
+    // Detección de aportes/retiros NO registrados: si el cambio de valor vs la
+    // cartola anterior no se explica por el mercado ni por el flujo registrado,
+    // avisar al asesor (evita que un aporte/retiro se vea como rentabilidad).
+    let flowWarning: { impliedFlow: number; registeredFlow: number; message: string } | null = null;
+    if (prevSnapshot?.holdings && Array.isArray(prevSnapshot.holdings) && enrichedHoldings && enrichedHoldings.length > 0) {
+      const implied = estimateImpliedFlow(
+        prevSnapshot.holdings as unknown as FlowHolding[],
+        enrichedHoldings as unknown as FlowHolding[],
+      );
+      const unexplained = implied - estimatedNetFlow;
+      const threshold = Math.max(Math.abs(totalValue) * 0.01, 50000); // 1% del portafolio o $50.000
+      if (Math.abs(unexplained) > threshold) {
+        flowWarning = {
+          impliedFlow: Math.round(implied),
+          registeredFlow: Math.round(estimatedNetFlow),
+          message: `El cambio de valor sugiere un ${unexplained >= 0 ? "aporte" : "retiro"} de ~$${Math.abs(Math.round(unexplained)).toLocaleString("es-CL")} que no fue registrado. Revisa los campos de Aportes/Retiros del período para que la rentabilidad sea correcta.`,
+        };
+      }
+    }
+
     // Recalcula el TWR encadenado de toda la serie (flow-independiente).
     // Reemplaza el cumulative_return ingenuo calculado inline arriba.
     await recomputeClientReturns(supabase, clientId);
@@ -328,6 +349,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: refreshed || snapshot,
+      flowWarning,
       // Signal to frontend that fill-prices should be triggered
       shouldFillPrices: !!(holdings && holdings.length > 0 && (source === "statement" || source === "manual" || source === "excel")),
     });
