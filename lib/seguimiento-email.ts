@@ -23,6 +23,7 @@ export interface SeguimientoEmailData {
   holdingReturns: Array<{ name: string; assetType: string; returnPct: number }>;
   attribution: Array<{ name: string; instrumentType: string; contributionPp: number }>;
   monthlyReturn: number | null; // total portfolio return for the report month
+  netCashFlowCLP?: number | null; // aportes(+)/retiros(-) netos del periodo (no es rentabilidad)
   narrative: string | null;
   platformUrl: string;
   returnsBasis?: { fromDate: string; toDate: string; isMonthly?: boolean }; // dates for disclaimer
@@ -162,7 +163,7 @@ function buildMonthlySummary(data: SeguimientoEmailData): string {
     </div>`;
 }
 
-function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, rates: { usd: number; uf: number }, returnsBasis?: { fromDate: string; toDate: string }): string {
+function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, rates: { usd: number; uf: number }, returnsBasis?: { fromDate: string; toDate: string }, netCashFlowCLP?: number | null): string {
   const classes = ["equity", "fixedIncome", "alternatives", "cash"] as const;
 
   const rows = classes
@@ -187,6 +188,11 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
     ? `<div style="font-size:11px; color:#94a3b8; margin-bottom:12px; font-family:${FONT};">Retornos del periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}</div>`
     : "";
 
+  // Aportes/retiros netos: cambio de valor no explicado por rentabilidad.
+  const flowNote = (netCashFlowCLP != null && Math.abs(netCashFlowCLP) > 1)
+    ? `<div style="font-size:11px; color:#64748b; margin-top:10px; font-family:${FONT};">${netCashFlowCLP >= 0 ? "Aportes" : "Retiros"} netos del periodo: ${formatValue(Math.abs(netCashFlowCLP), currency, rates)} <span style="color:#94a3b8;">(no se contabilizan como rentabilidad)</span></div>`
+    : "";
+
   return `
     <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
       <div style="font-size:14px; font-weight:600; color:${BRAND.navy}; margin-bottom:4px; font-family:${FONT};">Composicion</div>
@@ -200,6 +206,7 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
         </tr>
         ${rows}
       </table>
+      ${flowNote}
     </div>`;
 }
 
@@ -359,7 +366,7 @@ function buildFooter(data: SeguimientoEmailData): string {
 export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
   const header = buildHeader(data);
   const summary = buildMonthlySummary(data);
-  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates, data.returnsBasis);
+  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates, data.returnsBasis, data.netCashFlowCLP);
   const periodReturns = buildPeriodReturnsSection(data.periodReturns);
   const benchmark = data.benchmarkComparison ? buildBenchmarkSection(data.benchmarkComparison) : "";
   const positions = buildPositionsSection(data.holdingReturns, data.attribution, data.returnsBasis);

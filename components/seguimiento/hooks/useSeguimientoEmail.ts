@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { SeguimientoEmailData } from "@/lib/seguimiento-email";
 import { proratePeriodReturn } from "@/lib/bonds/prorate-period-return";
+import { computeMonthlyReturn, type MonthlyHoldingInput, type AssetClassKey } from "@/lib/seguimiento/monthly-return";
 import type { HoldingReturnsData } from "../HoldingReturnsPanel";
 
 interface Metrics {
@@ -70,6 +71,8 @@ interface MonthlyResult {
   attrList: SeguimientoEmailData["attribution"];
   returnsBasis: { fromDate: string; toDate: string };
   monthTotalValue: number;
+  netCashFlowCLP?: number;
+  monthlyReturnPct?: number;
 }
 
 function computeMonthlyData(
@@ -158,100 +161,93 @@ function computeMonthlyDataWithSnaps(
   endSnap: EmailSnapshot,
   holdingReturnsData: HoldingReturnsData,
 ): MonthlyResult {
-  // Build CLP value maps from snapshot holdings
-  const buildValueMap = (snap: EmailSnapshot): Map<string, number> => {
-    const map = new Map<string, number>();
-    const holdings = snap.holdings as SnapHolding[];
-    for (const h of holdings) {
+  // Mapas {clp, qty} por holding (qty para calcular valor cuota = clp/qty)
+  const buildMap = (snap: EmailSnapshot): Map<string, { clp: number; qty: number }> => {
+    const map = new Map<string, { clp: number; qty: number }>();
+    for (const h of (snap.holdings as SnapHolding[])) {
       if (!h.fundName) continue;
       const clp = (h.marketValueCLP && h.marketValueCLP > 0) ? h.marketValueCLP : (h.marketValue || 0);
-      map.set(h.fundName, (map.get(h.fundName) || 0) + clp);
+      const prev = map.get(h.fundName) || { clp: 0, qty: 0 };
+      prev.clp += clp;
+      prev.qty += h.quantity || 0;
+      map.set(h.fundName, prev);
     }
     return map;
   };
+  const startMap = buildMap(startSnap);
+  const endMap = buildMap(endSnap);
 
-  const startValues = buildValueMap(startSnap);
-  const endValues = buildValueMap(endSnap);
-
-  // Classify holdings using current holdingReturnsData grouping (avoids classification mismatch)
-  const classOf = new Map<string, "equity" | "fixedIncome" | "alternatives">();
+  // Clasificación + tipo + retorno externo (para entrantes/salientes) desde holdingReturnsData
+  const classOf = new Map<string, AssetClassKey>();
   const typeOf = new Map<string, string>();
-  for (const h of holdingReturnsData.equityHoldings) {
-    classOf.set(h.fundName, "equity");
-    typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund");
-  }
-  for (const h of holdingReturnsData.fixedIncomeFundHoldings) {
-    classOf.set(h.fundName, "fixedIncome");
-    typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund");
-  }
-  for (const h of holdingReturnsData.bondHoldings) {
-    classOf.set(h.fundName, "fixedIncome");
-    typeOf.set(h.fundName, "bond");
-  }
-  for (const h of (holdingReturnsData.alternativesHoldings || [])) {
-    classOf.set(h.fundName, "alternatives");
-    typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund");
-  }
+  const externalRet = new Map<string, number>();
+  const register = (
+    arr: ReadonlyArray<{ fundName: string; totalReturn?: number; assetType?: string }> | undefined,
+    cls: AssetClassKey,
+    typeDefault: string,
+  ) => {
+    for (const h of (arr || [])) {
+      classOf.set(h.fundName, cls);
+      typeOf.set(h.fundName, h.assetType || typeDefault);
+      if (typeof h.totalReturn === "number") externalRet.set(h.fundName, h.totalReturn);
+    }
+  };
+  register(holdingReturnsData.equityHoldings, "equity", "fund");
+  register(holdingReturnsData.fixedIncomeFundHoldings, "fixedIncome", "fund");
+  register(holdingReturnsData.bondHoldings, "fixedIncome", "bond");
+  register(holdingReturnsData.alternativesHoldings, "alternatives", "fund");
 
-  // Compute per-class and per-holding data
-  let eqStart = 0, eqEnd = 0, fiStart = 0, fiEnd = 0, altStart = 0, altEnd = 0;
-  const holdingResults: Array<{ name: string; assetType: string; startCLP: number; endCLP: number }> = [];
-
-  const allNames = Array.from(new Set([...Array.from(startValues.keys()), ...Array.from(endValues.keys())]));
+  // Construir inputs para el cálculo por valor cuota
+  const allNames = Array.from(new Set([...Array.from(startMap.keys()), ...Array.from(endMap.keys())]));
+  const inputs: MonthlyHoldingInput[] = [];
   for (const name of allNames) {
-    const sCLP = startValues.get(name) || 0;
-    const eCLP = endValues.get(name) || 0;
-    if (sCLP === 0 && eCLP === 0) continue;
+    const s = startMap.get(name) || { clp: 0, qty: 0 };
+    const e = endMap.get(name) || { clp: 0, qty: 0 };
+    if (s.clp === 0 && e.clp === 0) continue;
 
-    const cls = classOf.get(name);
-    if (cls === "equity") { eqStart += sCLP; eqEnd += eCLP; }
-    else if (cls === "fixedIncome") { fiStart += sCLP; fiEnd += eCLP; }
-    else if (cls === "alternatives") { altStart += sCLP; altEnd += eCLP; }
-    else {
-      // Unknown holding (not in current holdingReturnsData) — try snapshot assetClass
+    let cls = classOf.get(name);
+    if (!cls) {
+      // No está en holdingReturnsData: usar assetClass del snapshot
       const endH = (endSnap.holdings as SnapHolding[]).find(h => h.fundName === name);
       const ac = (endH?.assetClass || "").toLowerCase();
-      if (ac.includes("fixed") || ac.includes("fija")) { fiStart += sCLP; fiEnd += eCLP; }
-      else if (ac.includes("alter")) { altStart += sCLP; altEnd += eCLP; }
-      else { eqStart += sCLP; eqEnd += eCLP; }
+      cls = (ac.includes("fixed") || ac.includes("fija")) ? "fixedIncome"
+        : ac.includes("alter") ? "alternatives"
+        : "equity";
     }
-
-    holdingResults.push({ name, assetType: typeOf.get(name) || "Otro", startCLP: sCLP, endCLP: eCLP });
+    inputs.push({
+      name,
+      assetClass: cls,
+      assetType: typeOf.get(name) || "Otro",
+      startCLP: s.clp, startQty: s.qty,
+      endCLP: e.clp, endQty: e.qty,
+      externalReturnPct: externalRet.has(name) ? externalRet.get(name)! : null,
+    });
   }
 
   const cashStart = startSnap.cash_value || 0;
   const cashEnd = endSnap.cash_value || 0;
 
-  // Composition
+  const result = computeMonthlyReturn(inputs, cashStart, cashEnd);
+
   const comp: SeguimientoEmailData["composition"] = {
-    equity: { initial: eqStart, final: eqEnd, returnPct: eqStart > 0 ? ((eqEnd / eqStart) - 1) * 100 : 0 },
-    fixedIncome: { initial: fiStart, final: fiEnd, returnPct: fiStart > 0 ? ((fiEnd / fiStart) - 1) * 100 : 0 },
-    alternatives: { initial: altStart, final: altEnd, returnPct: altStart > 0 ? ((altEnd / altStart) - 1) * 100 : 0 },
+    equity: result.byClass.equity,
+    fixedIncome: result.byClass.fixedIncome,
+    alternatives: result.byClass.alternatives,
     cash: { initial: cashStart, final: cashEnd, returnPct: 0 },
   };
 
-  // Holding returns
-  const holdingRets = holdingResults
-    .filter(h => h.endCLP > 0)
-    .map(h => ({
-      name: h.name,
-      assetType: h.assetType,
-      returnPct: h.startCLP > 0 ? ((h.endCLP / h.startCLP) - 1) * 100 : 0,
-    }))
+  // Retorno por posición (solo las que tienen retorno conocido)
+  const holdingRets = result.holdings
+    .filter(h => h.returnPct != null)
+    .map(h => ({ name: h.name, assetType: h.assetType, returnPct: h.returnPct as number }))
     .sort((a, b) => b.returnPct - a.returnPct)
     .slice(0, 20);
 
-  // Attribution (contribution)
-  const totalStartCLP = eqStart + fiStart + altStart + cashStart;
-  const rawAttr = holdingResults
-    .filter(h => h.endCLP > 0 || h.startCLP > 0)
-    .map(h => ({
-      name: h.name,
-      instrumentType: h.assetType,
-      contributionPp: totalStartCLP > 0 ? ((h.endCLP - h.startCLP) / totalStartCLP) * 100 : 0,
-    }))
+  // Atribución = contribución por valor cuota × peso (compras/ventas no inflan)
+  const rawAttr = result.holdings
+    .filter(h => h.contributionPp !== 0)
+    .map(h => ({ name: h.name, instrumentType: h.assetType, contributionPp: h.contributionPp }))
     .sort((a, b) => b.contributionPp - a.contributionPp);
-
   const positives = rawAttr.filter(a => a.contributionPp >= 0);
   const negatives = rawAttr.filter(a => a.contributionPp < 0);
   const attrList = [...positives.slice(0, 10), ...negatives.slice(0, 10)];
@@ -264,6 +260,8 @@ function computeMonthlyDataWithSnaps(
     attrList,
     returnsBasis: { fromDate: fmtDate(startSnap.snapshot_date), toDate: fmtDate(endSnap.snapshot_date) },
     monthTotalValue: endSnap.total_value,
+    netCashFlowCLP: result.netCashFlowCLP,
+    monthlyReturnPct: result.portfolioReturnPct,
   };
 }
 
@@ -551,9 +549,15 @@ export function useSeguimientoEmail({
     // --- Monthly total return (used in summary card + narrative) ---
     let monthlyTotalRet: number | null = null;
     if (monthly) {
-      const totalStart = (comp.equity.initial + comp.fixedIncome.initial + comp.alternatives.initial + comp.cash.initial);
-      const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
-      monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
+      if (typeof monthly.monthlyReturnPct === "number") {
+        // Retorno por valor cuota ponderado (no distorsionado por aportes/retiros)
+        monthlyTotalRet = monthly.monthlyReturnPct;
+      } else {
+        // Fallback (paths sin detalle por holding): variación de valor por clase
+        const totalStart = (comp.equity.initial + comp.fixedIncome.initial + comp.alternatives.initial + comp.cash.initial);
+        const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
+        monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
+      }
     }
 
     // --- Narrative ---
@@ -601,6 +605,7 @@ export function useSeguimientoEmail({
       holdingReturns: holdingRetList,
       attribution: attrList,
       monthlyReturn: monthlyTotalRet ?? pr["1M"]?.nominal ?? holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? null,
+      netCashFlowCLP: monthly?.netCashFlowCLP ?? null,
       narrative,
       returnsBasis,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
