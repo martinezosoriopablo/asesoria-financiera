@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
+import { recomputeClientReturns } from "@/lib/returns/persist";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
 import { handleApiError } from "@/lib/api-response";
@@ -313,9 +314,20 @@ export async function POST(request: NextRequest) {
       snapshot.is_baseline = true;
     }
 
+    // Recalcula el TWR encadenado de toda la serie (flow-independiente).
+    // Reemplaza el cumulative_return ingenuo calculado inline arriba.
+    await recomputeClientReturns(supabase, clientId);
+
+    // Re-fetch para devolver el cumulative_return ya recomputado
+    const { data: refreshed } = await supabase
+      .from("portfolio_snapshots")
+      .select("*")
+      .eq("id", snapshot.id)
+      .single();
+
     return NextResponse.json({
       success: true,
-      data: snapshot,
+      data: refreshed || snapshot,
       // Signal to frontend that fill-prices should be triggered
       shouldFillPrices: !!(holdings && holdings.length > 0 && (source === "statement" || source === "manual" || source === "excel")),
     });

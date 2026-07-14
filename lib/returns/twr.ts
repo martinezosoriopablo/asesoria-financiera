@@ -29,6 +29,31 @@ export interface TWRResult {
   cumulativeSeries: number[];
 }
 
+export interface SnapshotReturnInput {
+  id: string;
+  value: number;
+  netCashFlow?: number;
+}
+
+export interface SnapshotReturnOutput {
+  id: string;
+  dailyReturn: number | null; // TWR del período (null en el primero)
+  cumulativeReturn: number; // TWR acumulado hasta ese snapshot
+}
+
+/**
+ * Calcula daily_return (TWR del período) y cumulative_return (TWR acumulado) para
+ * una serie ORDENADA de snapshots. Reemplaza el cálculo ingenuo valor/valor.
+ */
+export function computeSnapshotReturns(ordered: SnapshotReturnInput[]): SnapshotReturnOutput[] {
+  const twr = computeTWR(ordered.map((s) => ({ value: s.value, netCashFlow: s.netCashFlow })));
+  return ordered.map((s, i) => ({
+    id: s.id,
+    dailyReturn: i === 0 ? null : twr.periodReturns[i - 1],
+    cumulativeReturn: twr.cumulativeSeries[i],
+  }));
+}
+
 export function computeTWR(points: TWRPoint[]): TWRResult {
   const periodReturns: number[] = [];
   const cumulativeSeries: number[] = points.length > 0 ? [0] : [];

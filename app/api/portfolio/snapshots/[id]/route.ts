@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds } from "@/lib/auth/api-auth";
+import { recomputeClientReturns } from "@/lib/returns/persist";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -191,33 +192,22 @@ export async function PUT(
       );
     }
 
-    // Atomically recalculate returns if total_value changed
+    // Recalcula el TWR encadenado de toda la serie si cambió el valor
     if (body.totalValue !== undefined) {
-      const { error: rpcError } = await supabase.rpc(
-        "calculate_snapshot_returns",
-        {
-          p_snapshot_id: snapshotId,
-          p_total_value: body.totalValue,
-        }
-      );
+      await recomputeClientReturns(supabase, existingSnapshot.client_id);
 
-      if (rpcError) {
-        console.error("Error calculating snapshot returns:", rpcError);
-        // Non-fatal: the snapshot was saved, returns just weren't updated
-      } else {
-        // Re-fetch the snapshot to include the updated returns
-        const { data: refreshed } = await supabase
-          .from("portfolio_snapshots")
-          .select("*")
-          .eq("id", snapshotId)
-          .single();
+      // Re-fetch the snapshot to include the updated returns
+      const { data: refreshed } = await supabase
+        .from("portfolio_snapshots")
+        .select("*")
+        .eq("id", snapshotId)
+        .single();
 
-        if (refreshed) {
-          return NextResponse.json({
-            success: true,
-            data: refreshed,
-          });
-        }
+      if (refreshed) {
+        return NextResponse.json({
+          success: true,
+          data: refreshed,
+        });
       }
     }
 
@@ -374,6 +364,9 @@ export async function DELETE(
         { status: 500 }
       );
     }
+
+    // Recalcula el TWR tras eliminar (cambia la cadena de la serie)
+    await recomputeClientReturns(supabase, existingSnapshot.client_id);
 
     return NextResponse.json({
       success: true,

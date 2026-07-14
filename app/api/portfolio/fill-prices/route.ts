@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { recomputeClientReturns } from "@/lib/returns/persist";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getSeriesPrices } from "@/lib/fintual-api";
 import { getHistoricalPrices as getBolsaSantiagoHistorical } from "@/lib/bolsa-santiago/client";
@@ -1313,6 +1314,9 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // Recalcula el TWR encadenado de toda la serie (incluye los interpolados)
+    await recomputeClientReturns(supabase, clientId);
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeTWR } from "./twr";
+import { computeTWR, computeSnapshotReturns } from "./twr";
 
 // Retorno Time-Weighted encadenado: r_i = (V_i - V_{i-1} - flujoNeto_i) / V_{i-1},
 // cumulativo = Π(1 + r_i) - 1. Inmune a flujos externos (aportes/retiros) y a
@@ -75,5 +75,22 @@ describe("computeTWR", () => {
     ]);
     // primer período se salta (V_ini=0); segundo = +10%
     expect(r.cumulative).toBeCloseTo(10, 6);
+  });
+});
+
+describe("computeSnapshotReturns", () => {
+  it("asigna daily_return y cumulative_return TWR por snapshot", () => {
+    const out = computeSnapshotReturns([
+      { id: "a", value: 1000 },
+      { id: "b", value: 1030 },
+      { id: "c", value: 1015, netCashFlow: -15 },
+      { id: "d", value: 1045 },
+    ]);
+    expect(out.map((o) => o.id)).toEqual(["a", "b", "c", "d"]);
+    expect(out[0].dailyReturn).toBeNull();
+    expect(out[0].cumulativeReturn).toBe(0);
+    expect(out[1].dailyReturn).toBeCloseTo(3, 4);
+    expect(out[2].dailyReturn).toBeCloseTo(0, 4); // retiro no es pérdida
+    expect(out[3].cumulativeReturn).toBeCloseTo(6.044, 2);
   });
 });
