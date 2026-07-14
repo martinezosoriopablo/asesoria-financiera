@@ -11,13 +11,15 @@ describe("computePeriodUnitReturn", () => {
     // A: 100 cuotas@$1 -> 200 cuotas@$1.1 (compró más Y subió 10%)
     const prev = [{ fundName: "A", quantity: 100, marketValue: 100 }];
     const curr = [{ fundName: "A", quantity: 200, marketValue: 220 }];
-    expect(computePeriodUnitReturn(prev, curr)).toBeCloseTo(10, 6);
+    const r = computePeriodUnitReturn(prev, curr);
+    expect(r.returnPct).toBeCloseTo(10, 6);
+    expect(r.coverage).toBeCloseTo(1, 6);
   });
 
   it("es inmune a un retiro (vender cuotas)", () => {
     const prev = [{ fundName: "A", quantity: 100, marketValue: 100 }];
     const curr = [{ fundName: "A", quantity: 50, marketValue: 55 }]; // vendió mitad, subió 10%
-    expect(computePeriodUnitReturn(prev, curr)).toBeCloseTo(10, 6);
+    expect(computePeriodUnitReturn(prev, curr).returnPct).toBeCloseTo(10, 6);
   });
 
   it("pondera por valor de inicio entre varias posiciones", () => {
@@ -30,18 +32,35 @@ describe("computePeriodUnitReturn", () => {
       { fundName: "B", quantity: 40, marketValue: 38 }, // -5%
     ];
     // 0.6*10 + 0.4*(-5) = 4%
-    expect(computePeriodUnitReturn(prev, curr)).toBeCloseTo(4, 6);
+    expect(computePeriodUnitReturn(prev, curr).returnPct).toBeCloseTo(4, 6);
   });
 
-  it("devuelve null si no hay posiciones matched (rebalanceo total)", () => {
+  it("reporta cobertura parcial cuando solo matchea parte del valor", () => {
+    // A (60% del valor previo) se mantiene; B (40%) se vende y entra C nuevo
+    const prev = [
+      { fundName: "A", quantity: 60, marketValue: 60 },
+      { fundName: "B", quantity: 40, marketValue: 40 },
+    ];
+    const curr = [
+      { fundName: "A", quantity: 60, marketValue: 66 }, // +10%
+      { fundName: "C", quantity: 40, marketValue: 40 },
+    ];
+    const r = computePeriodUnitReturn(prev, curr);
+    expect(r.returnPct).toBeCloseTo(10, 6); // solo A
+    expect(r.coverage).toBeCloseTo(0.6, 6); // 60% del valor previo matcheó
+  });
+
+  it("devuelve returnPct null y coverage 0 si no hay matched (rebalanceo total)", () => {
     const prev = [{ fundName: "A", quantity: 100, marketValue: 100 }];
     const curr = [{ fundName: "B", quantity: 100, marketValue: 100 }];
-    expect(computePeriodUnitReturn(prev, curr)).toBeNull();
+    const r = computePeriodUnitReturn(prev, curr);
+    expect(r.returnPct).toBeNull();
+    expect(r.coverage).toBe(0);
   });
 
   it("devuelve null si faltan holdings", () => {
-    expect(computePeriodUnitReturn(undefined, [{ fundName: "A", quantity: 1, marketValue: 1 }])).toBeNull();
-    expect(computePeriodUnitReturn([], [])).toBeNull();
+    expect(computePeriodUnitReturn(undefined, [{ fundName: "A", quantity: 1, marketValue: 1 }]).returnPct).toBeNull();
+    expect(computePeriodUnitReturn([], []).returnPct).toBeNull();
   });
 });
 
@@ -66,5 +85,46 @@ describe("computeSnapshotReturnsHybrid", () => {
       { id: "b", value: 2000, netCashFlow: 1000, holdings: [{ fundName: "A", quantity: 200, marketValue: 2000 }] },
     ]);
     expect(out[1].cumulativeReturn).toBeCloseTo(0, 6);
+    expect(out[1].confidence).toBe("high"); // 100% cobertura
+  });
+
+  it("marca confidence 'low' cuando la cobertura es baja y no hay flujo registrado", () => {
+    const out = computeSnapshotReturnsHybrid([
+      {
+        id: "a", value: 100,
+        holdings: [
+          { fundName: "A", quantity: 60, marketValue: 60 },
+          { fundName: "B", quantity: 40, marketValue: 40 },
+        ],
+      },
+      {
+        // rebalanceo grande: solo A (60%) matchea, sin flujo registrado
+        id: "b", value: 106,
+        holdings: [
+          { fundName: "A", quantity: 60, marketValue: 66 },
+          { fundName: "C", quantity: 40, marketValue: 40 },
+        ],
+      },
+    ]);
+    expect(out[1].confidence).toBe("low");
+  });
+
+  it("una cobertura baja PERO con flujo registrado se considera confiable", () => {
+    const out = computeSnapshotReturnsHybrid([
+      { id: "a", value: 1000, holdings: [{ fundName: "A", quantity: 100, marketValue: 1000 }] },
+      // rebalanceo total (0% matched) pero el asesor registró el flujo
+      { id: "b", value: 1100, netCashFlow: 50, holdings: [{ fundName: "Z", quantity: 10, marketValue: 1100 }] },
+    ]);
+    expect(out[1].confidence).toBe("high");
+  });
+
+  it("la baja confianza se propaga a los períodos siguientes de la cadena", () => {
+    const out = computeSnapshotReturnsHybrid([
+      { id: "a", value: 100, holdings: [{ fundName: "A", quantity: 60, marketValue: 60 }, { fundName: "B", quantity: 40, marketValue: 40 }] },
+      { id: "b", value: 106, holdings: [{ fundName: "A", quantity: 60, marketValue: 66 }, { fundName: "C", quantity: 40, marketValue: 40 }] }, // low
+      { id: "c", value: 110, holdings: [{ fundName: "A", quantity: 60, marketValue: 70 }, { fundName: "C", quantity: 40, marketValue: 40 }] }, // 100% match pero cadena ya es low
+    ]);
+    expect(out[1].confidence).toBe("low");
+    expect(out[2].confidence).toBe("low");
   });
 });

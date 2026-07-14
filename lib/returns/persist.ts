@@ -53,15 +53,20 @@ export async function recomputeClientReturns(
   for (let i = 0; i < results.length; i += CHUNK) {
     const chunk = results.slice(i, i + CHUNK);
     await Promise.all(
-      chunk.map((r) =>
-        supabase
+      chunk.map(async (r) => {
+        const core = {
+          daily_return: r.dailyReturn == null ? null : clamp(r.dailyReturn),
+          cumulative_return: clamp(r.cumulativeReturn),
+        };
+        // Incluye returns_confidence; si la columna aún no está migrada, reintenta sin ella
+        const { error } = await supabase
           .from("portfolio_snapshots")
-          .update({
-            daily_return: r.dailyReturn == null ? null : clamp(r.dailyReturn),
-            cumulative_return: clamp(r.cumulativeReturn),
-          })
-          .eq("id", r.id),
-      ),
+          .update({ ...core, returns_confidence: r.confidence })
+          .eq("id", r.id);
+        if (error) {
+          await supabase.from("portfolio_snapshots").update(core).eq("id", r.id);
+        }
+      }),
     );
   }
 }

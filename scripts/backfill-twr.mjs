@@ -22,9 +22,11 @@ function unitPrice(h) {
   const q = h.quantity || 0;
   return q > 0 ? h.__mv / q : null;
 }
-// Retorno del período por valor cuota (posiciones en ambas cartolas); null si no hay matched.
+const COVERAGE_THRESHOLD = 0.8;
+// Retorno del período por valor cuota + cobertura (fracción del valor previo matcheada).
 function periodUnitReturn(prev, curr) {
-  if (!prev || !curr || !prev.length || !curr.length) return null;
+  if (!prev || !curr || !prev.length || !curr.length) return { returnPct: null, coverage: 0 };
+  const totalPrev = prev.reduce((a, h) => a + (h.__mv || 0), 0);
   const m = new Map();
   for (const h of curr) m.set(keyOf(h), h);
   let base = 0, weighted = 0, matched = 0;
@@ -37,21 +39,27 @@ function periodUnitReturn(prev, curr) {
     weighted += p.__mv * (uc / up - 1);
     matched++;
   }
-  if (matched === 0 || base <= 0) return null;
-  return (weighted / base) * 100;
+  if (matched === 0 || base <= 0) return { returnPct: null, coverage: 0 };
+  return { returnPct: (weighted / base) * 100, coverage: totalPrev > 0 ? base / totalPrev : 0 };
 }
 function computeSnapshotReturns(ordered) {
   let factor = 1;
+  let chainConf = "high";
   return ordered.map((s, i) => {
-    if (i === 0) return { id: s.id, dailyReturn: null, cumulativeReturn: 0 };
-    let r = periodUnitReturn(ordered[i - 1].holdings, s.holdings);
-    if (r == null) {
+    if (i === 0) return { id: s.id, dailyReturn: null, cumulativeReturn: 0, confidence: "high" };
+    const { returnPct, coverage } = periodUnitReturn(ordered[i - 1].holdings, s.holdings);
+    let r, conf;
+    if (returnPct != null && coverage >= COVERAGE_THRESHOLD) {
+      r = returnPct; conf = "high";
+    } else {
       const prev = ordered[i - 1].value;
       const flow = s.netCashFlow || 0;
       r = prev > 0 ? ((s.value - flow - prev) / prev) * 100 : 0;
+      conf = Math.abs(flow) > 0 ? "high" : "low";
     }
+    if (conf === "low") chainConf = "low";
     factor *= 1 + r / 100;
-    return { id: s.id, dailyReturn: r, cumulativeReturn: (factor - 1) * 100 };
+    return { id: s.id, dailyReturn: r, cumulativeReturn: (factor - 1) * 100, confidence: chainConf };
   });
 }
 
@@ -87,18 +95,24 @@ async function main() {
     const results = computeSnapshotReturns(ordered);
 
     for (const r of results) {
+      const core = {
+        daily_return: r.dailyReturn == null ? null : clamp(r.dailyReturn),
+        cumulative_return: clamp(r.cumulativeReturn),
+      };
       const { error: upErr } = await sb
         .from("portfolio_snapshots")
-        .update({
-          daily_return: r.dailyReturn == null ? null : clamp(r.dailyReturn),
-          cumulative_return: clamp(r.cumulativeReturn),
-        })
+        .update({ ...core, returns_confidence: r.confidence })
         .eq("id", r.id);
-      if (upErr) console.error(`  error snapshot ${r.id}: ${upErr.message}`);
+      if (upErr) {
+        // Columna returns_confidence quizás no migrada -> reintentar sin ella
+        const { error: e2 } = await sb.from("portfolio_snapshots").update(core).eq("id", r.id);
+        if (e2) console.error(`  error snapshot ${r.id}: ${e2.message}`);
+      }
     }
     totalSnaps += results.length;
-    const finalRet = results.length ? results[results.length - 1].cumulativeReturn.toFixed(2) : "0";
-    console.log(`  cliente ${c.id}: ${results.length} snapshots, retorno acumulado ${finalRet}%`);
+    const last = results[results.length - 1];
+    const finalRet = last ? last.cumulativeReturn.toFixed(2) : "0";
+    console.log(`  cliente ${c.id}: ${results.length} snapshots, retorno ${finalRet}% (${last ? last.confidence : "-"})`);
   }
   console.log(`Listo. ${totalSnaps} snapshots recalculados en ${clientsWithData} clientes con datos.`);
 }
