@@ -32,14 +32,21 @@ export async function fetchYahooHistorical(
     const result = data.chart.result[0];
     const timestamps: number[] = result.timestamp || [];
     const closes: (number | null)[] = result.indicators?.quote?.[0]?.close || [];
+    // adjclose = precio ajustado por dividendos y splits (total return). Se prefiere
+    // para que el retorno incluya los dividendos en efectivo (Yahoo entrega close crudo,
+    // que los pierde). Fallback a close crudo cuando adjclose no está disponible.
+    const adjCloses: (number | null)[] = result.indicators?.adjclose?.[0]?.adjclose || [];
 
     const prices: DailyPrice[] = [];
     for (let i = 0; i < timestamps.length; i++) {
-      if (closes[i] != null && isFinite(closes[i]!) && closes[i]! > 0) {
+      const adj = adjCloses[i];
+      const raw = closes[i];
+      const px = (adj != null && isFinite(adj) && adj > 0) ? adj : raw;
+      if (px != null && isFinite(px) && px > 0) {
         const date = new Date(timestamps[i] * 1000)
           .toISOString()
           .split("T")[0];
-        prices.push({ date, price: closes[i]! });
+        prices.push({ date, price: px });
       }
     }
     return prices.sort((a, b) => a.date.localeCompare(b.date));
