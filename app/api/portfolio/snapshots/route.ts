@@ -7,6 +7,7 @@ import { recomputeClientReturns } from "@/lib/returns/persist";
 import { estimateImpliedFlow, type FlowHolding } from "@/lib/returns/implied-flow";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
+import { enrichPurchaseDates } from "@/lib/tax/enrich-purchase-dates";
 import { handleApiError } from "@/lib/api-response";
 
 interface HoldingData {
@@ -249,6 +250,23 @@ export async function POST(request: NextRequest) {
         previousHoldings,
         date
       );
+    }
+
+    // Inferir fecha de compra (match unitCost <-> valor cuota) para uso tributario
+    if (enrichedHoldings && enrichedHoldings.length > 0) {
+      try {
+        await enrichPurchaseDates(
+          enrichedHoldings as unknown as Array<{
+            securityId?: string | null;
+            serie?: string | null;
+            unitCost?: number | null;
+            purchaseDate?: string | null;
+          }>,
+          supabase
+        );
+      } catch (e) {
+        console.warn("enrichPurchaseDates fallo (no fatal):", e);
+      }
     }
 
     // Prepare data with clamped values
