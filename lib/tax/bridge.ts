@@ -13,6 +13,7 @@ interface RawHolding {
   quantity?: number;
   costBasis?: number;
   unitCost?: number;
+  purchaseDate?: string | null; // fecha de compra inferida (match unitCost <-> valor cuota)
   marketPrice?: number;
   marketValue: number;
   marketValueCLP?: number; // already converted to CLP (if present)
@@ -169,7 +170,19 @@ export function convertToTaxHoldings(
 
       // Use UF at purchase date for corrección monetaria
       const purchaseInfo = purchaseUFs?.[quoteKey];
-      if (purchaseInfo && purchaseInfo.uf > 0) {
+      if (raw.purchaseDate) {
+        // Fecha de adquisición inferida (purchaseDate) — preferida sobre la estimada
+        acquisitionDate = raw.purchaseDate;
+        if (purchaseInfo && purchaseInfo.date === raw.purchaseDate && purchaseInfo.uf > 0) {
+          ufAtPurchase = purchaseInfo.uf;
+          acquisitionCostUF = costCLP / purchaseInfo.uf;
+        } else {
+          // No tenemos la UF exacta de esa fecha; el costo CLP es firme,
+          // la corrección monetaria queda aproximada con la UF actual
+          ufAtPurchase = ufValue;
+          acquisitionCostUF = costCLP / ufValue;
+        }
+      } else if (purchaseInfo && purchaseInfo.uf > 0) {
         ufAtPurchase = purchaseInfo.uf;
         acquisitionDate = purchaseInfo.date;
         acquisitionCostUF = costCLP / purchaseInfo.uf;
