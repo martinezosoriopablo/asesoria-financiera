@@ -64,18 +64,18 @@ const styles = StyleSheet.create({
   // Header
   header: {
     marginBottom: 30,
-    borderBottom: "2 solid #2E86E0",
+    borderBottom: "2 solid #EB7838",
     paddingBottom: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#1e293b",
+    color: "#0B2140",
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#6E7787",
     marginBottom: 5,
   },
   
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   clientInfo: {
     marginBottom: 20,
     padding: 15,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#F7F6F2",
     borderRadius: 8,
   },
   clientRow: {
@@ -92,12 +92,12 @@ const styles = StyleSheet.create({
   },
   clientLabel: {
     fontSize: 10,
-    color: "#64748b",
+    color: "#6E7787",
     width: 100,
   },
   clientValue: {
     fontSize: 10,
-    color: "#1e293b",
+    color: "#0B2140",
     fontWeight: "bold",
   },
   
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   assetClassHeader: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#F7F6F2",
     padding: 10,
     marginBottom: 10,
     borderRadius: 4,
@@ -154,11 +154,11 @@ const styles = StyleSheet.create({
   assetClassName: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#1e293b",
+    color: "#0B2140",
   },
   assetClassPercent: {
     fontSize: 10,
-    color: "#64748b",
+    color: "#6E7787",
     marginTop: 2,
   },
   
@@ -168,17 +168,17 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: "#ffffff",
     borderRadius: 4,
-    border: "1 solid #e2e8f0",
+    border: "1 solid #E7E4DD",
   },
   regionTitle: {
     fontSize: 11,
     fontWeight: "bold",
-    color: "#1e293b",
+    color: "#0B2140",
     marginBottom: 8,
   },
   regionSubtitle: {
     fontSize: 9,
-    color: "#64748b",
+    color: "#6E7787",
     marginBottom: 10,
   },
   
@@ -192,24 +192,24 @@ const styles = StyleSheet.create({
   fundColumnHeader: {
     fontSize: 8,
     fontWeight: "bold",
-    color: "#64748b",
+    color: "#6E7787",
     marginBottom: 5,
     textTransform: "uppercase",
   },
   fundName: {
     fontSize: 9,
     fontWeight: "bold",
-    color: "#1e293b",
+    color: "#0B2140",
     marginBottom: 3,
   },
   fundProvider: {
     fontSize: 8,
-    color: "#64748b",
+    color: "#6E7787",
     marginBottom: 5,
   },
   fundMetric: {
     fontSize: 8,
-    color: "#475569",
+    color: "#6E7787",
     marginBottom: 2,
   },
   
@@ -269,14 +269,14 @@ const styles = StyleSheet.create({
     bottom: 30,
     left: 40,
     right: 40,
-    borderTop: "1 solid #e2e8f0",
+    borderTop: "1 solid #E7E4DD",
     paddingTop: 10,
     flexDirection: "row",
     justifyContent: "space-between",
   },
   footerText: {
     fontSize: 8,
-    color: "#94a3b8",
+    color: "#a9a49c",
   },
 });
 

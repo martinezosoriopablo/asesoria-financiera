@@ -92,7 +92,7 @@ function formatValue(clp: number, currency: string, rates: { usd: number; uf: nu
 }
 
 function returnCell(val: number | null): string {
-  if (val === null) return `<td style="padding:8px 12px; text-align:right; font-family:monospace; font-size:12px; color:#94a3b8;">&mdash;</td>`;
+  if (val === null) return `<td style="padding:8px 12px; text-align:right; font-family:monospace; font-size:12px; color:#a9a49c;">&mdash;</td>`;
   const color = val >= 0 ? "#166534" : "#991b1b";
   const bg = val >= 0 ? "#f0fdf4" : "#fef2f2";
   const sign = val > 0 ? "+" : "";
@@ -146,20 +146,20 @@ function buildMonthlySummary(data: SeguimientoEmailData): string {
     : "";
 
   return `
-    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+    <div style="padding:24px 32px; border-bottom:1px solid #E7E4DD;">
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
         <tr>
           <td style="vertical-align:top;">
-            <div style="font-size:12px; color:#94a3b8; font-weight:500; font-family:${FONT}; margin-bottom:4px;">Valor del Portafolio</div>
+            <div style="font-size:12px; color:#a9a49c; font-weight:500; font-family:${FONT}; margin-bottom:4px;">Valor del Portafolio</div>
             <div style="font-size:22px; font-weight:700; color:${BRAND.navy}; font-family:${FONT};">${displayValue}</div>
           </td>
           <td style="text-align:right; vertical-align:top;">
-            <div style="font-size:12px; color:#94a3b8; font-weight:500; font-family:${FONT}; margin-bottom:4px;">Variacion del Mes</div>
+            <div style="font-size:12px; color:#a9a49c; font-weight:500; font-family:${FONT}; margin-bottom:4px;">Variacion del Mes</div>
             <div style="font-size:22px; font-weight:700; color:${color}; font-family:${FONT};">${sign}${ret.toFixed(2)}%</div>
           </td>
         </tr>
       </table>
-      ${basisLabel ? `<div style="font-size:11px; color:#94a3b8; margin-top:8px; font-family:${FONT};">${escapeHtml(basisLabel)}</div>` : ""}
+      ${basisLabel ? `<div style="font-size:11px; color:#a9a49c; margin-top:8px; font-family:${FONT};">${escapeHtml(basisLabel)}</div>` : ""}
     </div>`;
 }
 
@@ -175,34 +175,34 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
       const retBg = c.returnPct >= 0 ? "#f0fdf4" : "#fef2f2";
       const sign = c.returnPct > 0 ? "+" : "";
       return `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:10px 12px; border-left:4px solid ${color}; font-weight:500; font-size:13px; color:#1e293b; font-family:${FONT};">${label}</td>
-          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; color:#475569;">${formatValue(c.initial, currency, rates)}</td>
-          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:#1e293b;">${formatValue(c.final, currency, rates)}</td>
+        <tr style="border-bottom:1px solid #F7F6F2;">
+          <td style="padding:10px 12px; border-left:4px solid ${color}; font-weight:500; font-size:13px; color:#0B2140; font-family:${FONT};">${label}</td>
+          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; color:#6E7787;">${formatValue(c.initial, currency, rates)}</td>
+          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:#0B2140;">${formatValue(c.final, currency, rates)}</td>
           <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:${retColor}; background:${retBg};">${sign}${c.returnPct.toFixed(1)}%</td>
         </tr>`;
     })
     .join("");
 
   const basisNote = returnsBasis
-    ? `<div style="font-size:11px; color:#94a3b8; margin-bottom:12px; font-family:${FONT};">Retornos del periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}</div>`
+    ? `<div style="font-size:11px; color:#a9a49c; margin-bottom:12px; font-family:${FONT};">Retornos del periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}</div>`
     : "";
 
   // Aportes/retiros netos: cambio de valor no explicado por rentabilidad.
   const flowNote = (netCashFlowCLP != null && Math.abs(netCashFlowCLP) > 1)
-    ? `<div style="font-size:11px; color:#64748b; margin-top:10px; font-family:${FONT};">${netCashFlowCLP >= 0 ? "Aportes" : "Retiros"} netos del periodo: ${formatValue(Math.abs(netCashFlowCLP), currency, rates)} <span style="color:#94a3b8;">(no se contabilizan como rentabilidad)</span></div>`
+    ? `<div style="font-size:11px; color:#6E7787; margin-top:10px; font-family:${FONT};">${netCashFlowCLP >= 0 ? "Aportes" : "Retiros"} netos del periodo: ${formatValue(Math.abs(netCashFlowCLP), currency, rates)} <span style="color:#a9a49c;">(no se contabilizan como rentabilidad)</span></div>`
     : "";
 
   return `
-    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+    <div style="padding:24px 32px; border-bottom:1px solid #E7E4DD;">
       <div style="font-size:14px; font-weight:600; color:${BRAND.navy}; margin-bottom:4px; font-family:${FONT};">Composicion</div>
       ${basisNote}
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Clase</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Inicio</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Final</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Retorno</th>
+        <tr style="border-bottom:1px solid #E7E4DD;">
+          <th style="text-align:left; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Clase</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Inicio</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Final</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Retorno</th>
         </tr>
         ${rows}
       </table>
@@ -221,8 +221,8 @@ function buildPeriodReturnsSection(periodReturns: SeguimientoEmailData["periodRe
     .map((p) => {
       const r = periodReturns[p];
       return `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:8px 12px; font-weight:500; font-size:13px; color:#1e293b; font-family:${FONT};">${escapeHtml(p)}</td>
+        <tr style="border-bottom:1px solid #F7F6F2;">
+          <td style="padding:8px 12px; font-weight:500; font-size:13px; color:#0B2140; font-family:${FONT};">${escapeHtml(p)}</td>
           ${returnCell(r.nominal)}
           ${hasUsd ? returnCell(r.usd) : ""}
         </tr>`;
@@ -230,13 +230,13 @@ function buildPeriodReturnsSection(periodReturns: SeguimientoEmailData["periodRe
     .join("");
 
   return `
-    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+    <div style="padding:24px 32px; border-bottom:1px solid #E7E4DD;">
       <div style="font-size:14px; font-weight:600; color:${BRAND.navy}; margin-bottom:12px; font-family:${FONT};">Rentabilidad por Periodo</div>
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Periodo</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Nominal</th>
-          ${hasUsd ? `<th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">USD</th>` : ""}
+        <tr style="border-bottom:1px solid #E7E4DD;">
+          <th style="text-align:left; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Periodo</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Nominal</th>
+          ${hasUsd ? `<th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">USD</th>` : ""}
         </tr>
         ${rows}
       </table>
@@ -252,8 +252,8 @@ function buildBenchmarkSection(bm: NonNullable<SeguimientoEmailData["benchmarkCo
     .map((p) => {
       const d = bm.periods[p];
       return `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:8px 12px; font-weight:500; font-size:13px; color:#1e293b; font-family:${FONT};">${escapeHtml(p)}</td>
+        <tr style="border-bottom:1px solid #F7F6F2;">
+          <td style="padding:8px 12px; font-weight:500; font-size:13px; color:#0B2140; font-family:${FONT};">${escapeHtml(p)}</td>
           ${returnCell(d.portfolio)}
           ${returnCell(d.benchmark)}
           ${returnCell(d.diff)}
@@ -262,15 +262,15 @@ function buildBenchmarkSection(bm: NonNullable<SeguimientoEmailData["benchmarkCo
     .join("");
 
   return `
-    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+    <div style="padding:24px 32px; border-bottom:1px solid #E7E4DD;">
       <div style="font-size:14px; font-weight:600; color:${BRAND.navy}; margin-bottom:4px; font-family:${FONT};">Benchmark</div>
-      <div style="font-size:12px; color:#64748b; margin-bottom:12px; font-family:${FONT};">${escapeHtml(bm.label)}</div>
+      <div style="font-size:12px; color:#6E7787; margin-bottom:12px; font-family:${FONT};">${escapeHtml(bm.label)}</div>
       <table style="width:100%; border-collapse:collapse; font-size:12px;">
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Periodo</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Portafolio</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Benchmark</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-family:${FONT};">Diferencia</th>
+        <tr style="border-bottom:1px solid #E7E4DD;">
+          <th style="text-align:left; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Periodo</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Portafolio</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Benchmark</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-family:${FONT};">Diferencia</th>
         </tr>
         ${rows}
       </table>
@@ -299,8 +299,8 @@ function buildPositionsSection(
       const cColor = contrib >= 0 ? "#166534" : "#991b1b";
       const cSign = contrib > 0 ? "+" : "";
       return `
-        <tr style="border-bottom:1px solid #f1f5f9;">
-          <td style="padding:6px 12px; font-size:12px; font-weight:500; color:#1e293b; font-family:${FONT}; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(h.name)}</td>
+        <tr style="border-bottom:1px solid #F7F6F2;">
+          <td style="padding:6px 12px; font-size:12px; font-weight:500; color:#0B2140; font-family:${FONT}; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(h.name)}</td>
           <td style="padding:6px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:${retColor}; background:${retBg};">${retSign}${h.returnPct.toFixed(1)}%</td>
           <td style="padding:6px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:${cColor};">${cSign}${contrib.toFixed(2)}pp</td>
         </tr>`;
@@ -312,22 +312,22 @@ function buildPositionsSection(
   const totalSign = totalContrib > 0 ? "+" : "";
 
   const basisNote = returnsBasis
-    ? `<div style="font-size:11px; color:#94a3b8; margin-bottom:8px; font-family:${FONT};">${returnsBasis.isMonthly ? `Periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}` : `Desde inicio del seguimiento (${escapeHtml(returnsBasis.fromDate)})`}</div>`
+    ? `<div style="font-size:11px; color:#a9a49c; margin-bottom:8px; font-family:${FONT};">${returnsBasis.isMonthly ? `Periodo: ${escapeHtml(returnsBasis.fromDate)} al ${escapeHtml(returnsBasis.toDate)}` : `Desde inicio del seguimiento (${escapeHtml(returnsBasis.fromDate)})`}</div>`
     : "";
 
   return `
-    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+    <div style="padding:24px 32px; border-bottom:1px solid #E7E4DD;">
       <div style="font-size:14px; font-weight:600; color:${BRAND.navy}; margin-bottom:4px; font-family:${FONT};">Detalle por Posicion</div>
       ${basisNote}
       <table style="width:100%; border-collapse:collapse;">
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <th style="text-align:left; padding:6px 12px; color:#94a3b8; font-weight:500; font-size:11px; font-family:${FONT};">Instrumento</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-size:11px; font-family:${FONT};">Retorno</th>
-          <th style="text-align:right; padding:6px 12px; color:#94a3b8; font-weight:500; font-size:11px; font-family:${FONT};">Contribucion</th>
+        <tr style="border-bottom:1px solid #E7E4DD;">
+          <th style="text-align:left; padding:6px 12px; color:#a9a49c; font-weight:500; font-size:11px; font-family:${FONT};">Instrumento</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-size:11px; font-family:${FONT};">Retorno</th>
+          <th style="text-align:right; padding:6px 12px; color:#a9a49c; font-weight:500; font-size:11px; font-family:${FONT};">Contribucion</th>
         </tr>
         ${rows}
-        <tr style="border-top:2px solid #e2e8f0;">
-          <td style="padding:8px 12px; font-size:12px; font-weight:700; color:#1e293b; font-family:${FONT};">TOTAL</td>
+        <tr style="border-top:2px solid #E7E4DD;">
+          <td style="padding:8px 12px; font-size:12px; font-weight:700; color:#0B2140; font-family:${FONT};">TOTAL</td>
           <td style="padding:8px 12px;"></td>
           <td style="padding:8px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:700; color:${totalColor}; background:${totalBg};">${totalSign}${totalContrib.toFixed(2)}pp</td>
         </tr>
@@ -340,11 +340,11 @@ function buildNarrativeSection(narrative: string): string {
     .split("\n\n")
     .filter((p) => p.trim())
     .slice(0, 3) // max 3 paragraphs to keep it concise
-    .map((p) => `<div style="font-size:13px; color:#475569; line-height:1.6; margin-bottom:8px; font-family:${FONT};">${escapeHtml(p)}</div>`)
+    .map((p) => `<div style="font-size:13px; color:#6E7787; line-height:1.6; margin-bottom:8px; font-family:${FONT};">${escapeHtml(p)}</div>`)
     .join("");
 
   return `
-    <div style="padding:24px 32px; border-bottom:1px solid #e2e8f0;">
+    <div style="padding:24px 32px; border-bottom:1px solid #E7E4DD;">
       <div style="font-size:14px; font-weight:600; color:${BRAND.navy}; margin-bottom:8px; font-family:${FONT};">Comentario</div>
       ${paragraphs}
     </div>`;
@@ -380,7 +380,7 @@ export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Global — Seguimiento ${escapeHtml(data.clientName)}</title>
 </head>
-<body style="margin:0; padding:0; background:#f1f5f9; font-family:${FONT};">
+<body style="margin:0; padding:0; background:#F7F6F2; font-family:${FONT};">
   <div style="max-width:600px; margin:0 auto; background:#ffffff;">
     ${header}
     ${summary}

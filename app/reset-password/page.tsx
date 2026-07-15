@@ -111,7 +111,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <div className="flex justify-center mb-6">
-            <GlobalLogo size={48} />
+            <GlobalLogo className="h-12 w-auto" />
           </div>
           <h1 className="text-xl font-semibold text-gb-black">
             Nueva contraseña

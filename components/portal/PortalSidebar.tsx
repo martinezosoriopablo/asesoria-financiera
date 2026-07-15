@@ -117,7 +117,7 @@ export default function PortalSidebar({
       {/* Logo + Client info */}
       <div className={`border-b border-white/10 shrink-0 ${collapsed ? "px-2 py-4" : "px-5 py-4"}`}>
         <Link href="/portal/bienvenida" className="flex items-center gap-2.5 overflow-hidden">
-          <GlobalLogo variant="light" size={collapsed ? 28 : 30} />
+          <GlobalLogo variant="light" className={collapsed ? "h-7 w-auto" : "h-8 w-auto"} />
           {!collapsed && (
             <span className="text-lg text-white tracking-[0.1em] font-medium">
               GLOBAL

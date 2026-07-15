@@ -55,13 +55,13 @@ interface PDFProps {
 // ============================================================
 
 const colors = {
-  primary: "#0B2C5E",
-  accent: "#2E86E0",
-  gray: "#5B6B82",
-  lightGray: "#EEF3FA",
+  primary: "#0B2140",
+  accent: "#EB7838",
+  gray: "#6E7787",
+  lightGray: "#F7F6F2",
   white: "#ffffff",
-  green: "#16a34a",
-  red: "#dc2626",
+  green: "#2ECC8F",
+  red: "#EF5B5B",
   amber: "#d97706",
 };
 
@@ -461,10 +461,10 @@ export default function CarteraComitePDF({ cliente, recomendacion, generadoEn }:
                                    cambio.tipo === "reducir" ? "#ffedd5" :
                                    cambio.tipo === "comprar" ? "#d1fae5" :
                                    cambio.tipo === "aumentar" ? "#dcfce7" : "#f3f4f6",
-                  color: cambio.tipo === "vender" ? "#dc2626" :
+                  color: cambio.tipo === "vender" ? "#EF5B5B" :
                          cambio.tipo === "reducir" ? "#ea580c" :
-                         cambio.tipo === "comprar" ? "#059669" :
-                         cambio.tipo === "aumentar" ? "#16a34a" : "#4b5563",
+                         cambio.tipo === "comprar" ? "#2ECC8F" :
+                         cambio.tipo === "aumentar" ? "#2ECC8F" : "#6E7787",
                 }}>
                   {cambio.tipo}
                 </Text>

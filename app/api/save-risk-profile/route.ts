@@ -269,16 +269,16 @@ export async function POST(req: NextRequest) {
           subject: `Cuestionario completado: ${clientName} — Perfil ${scores.profileLabel}`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h2 style="color: #1e293b;">Nuevo cuestionario completado</h2>
-              <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+              <h2 style="color: #0B2140;">Nuevo cuestionario completado</h2>
+              <p style="color: #6E7787; font-size: 16px; line-height: 1.6;">
                 El cliente <strong>${clientName}</strong> (${email}) ha completado su cuestionario de perfil de inversor.
               </p>
-              <div style="background-color: #f1f5f9; border-radius: 12px; padding: 20px; margin: 24px 0;">
-                <h3 style="color: #334155; margin-top: 0;">Resultado</h3>
-                <p style="font-size: 24px; font-weight: bold; color: #2563eb; margin: 8px 0;">
+              <div style="background-color: #F7F6F2; border-radius: 12px; padding: 20px; margin: 24px 0;">
+                <h3 style="color: #6E7787; margin-top: 0;">Resultado</h3>
+                <p style="font-size: 24px; font-weight: bold; color: #5AA0E6; margin: 8px 0;">
                   ${scores.profileLabel} (${Math.round(scores.global)}/100)
                 </p>
-                <table style="width: 100%; font-size: 14px; color: #475569;">
+                <table style="width: 100%; font-size: 14px; color: #6E7787;">
                   <tr><td style="padding: 4px 0;">Capacidad</td><td style="text-align: right; font-weight: 600;">${Math.round(scores.capacity)}/100</td></tr>
                   <tr><td style="padding: 4px 0;">Tolerancia</td><td style="text-align: right; font-weight: 600;">${Math.round(scores.tolerance)}/100</td></tr>
                   <tr><td style="padding: 4px 0;">Percepción</td><td style="text-align: right; font-weight: 600;">${Math.round(scores.perception)}/100</td></tr>
@@ -287,7 +287,7 @@ export async function POST(req: NextRequest) {
               </div>
               <div style="text-align: center; margin: 32px 0;">
                 <a href="${appUrl}/clients"
-                   style="background-color: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
+                   style="background-color: #5AA0E6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
                   Ver clientes
                 </a>
               </div>

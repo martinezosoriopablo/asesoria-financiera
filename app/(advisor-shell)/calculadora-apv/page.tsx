@@ -625,22 +625,22 @@ export default function CalculadoraAPV() {
               <AreaChart data={resultado.evolucionCompleta}>
                 <defs>
                   <linearGradient id="colorConAPV" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#5AA0E6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#5AA0E6" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorSinAPV" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#64748b" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#64748b" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#6E7787" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6E7787" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
                   dataKey="edad"
-                  stroke="#64748b"
+                  stroke="#6E7787"
                   label={{ value: "Edad", position: "insideBottom", offset: -5 }}
                 />
                 <YAxis
-                  stroke="#64748b"
+                  stroke="#6E7787"
                   tickFormatter={(value) => `$${(value / 1000000).toFixed(0)}M`}
                   label={{ value: "Saldo (Millones $)", angle: -90, position: "insideLeft" }}
                 />
@@ -657,7 +657,7 @@ export default function CalculadoraAPV() {
                 <Area
                   type="monotone"
                   dataKey="saldoConAPV"
-                  stroke="#2563eb"
+                  stroke="#5AA0E6"
                   strokeWidth={3}
                   fillOpacity={1}
                   fill="url(#colorConAPV)"
@@ -666,7 +666,7 @@ export default function CalculadoraAPV() {
                 <Area
                   type="monotone"
                   dataKey="saldoSinAPV"
-                  stroke="#64748b"
+                  stroke="#6E7787"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorSinAPV)"

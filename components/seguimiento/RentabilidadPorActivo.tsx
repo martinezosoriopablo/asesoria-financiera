@@ -180,7 +180,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         fullName: "Portafolio Total",
         returnPct: historicalAccumulatedReturn ?? portfolioReturn,
         assetClass: undefined,
-        color: "#1e293b",
+        color: "#0B2140",
       });
 
       items.sort((a, b) => b.returnPct - a.returnPct);
@@ -313,7 +313,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
             fullName: "Portafolio Total",
             returnPct: (weightedRetSum / totalWeight) * 100,
             assetClass: undefined,
-            color: "#1e293b",
+            color: "#0B2140",
           });
         }
 

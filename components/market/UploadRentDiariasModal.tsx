@@ -202,7 +202,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
           <label style={{
             display: 'block',
             padding: '15px',
-            border: '2px dashed #ddd',
+            border: '2px dashed #ccc8bf',
             borderRadius: '8px',
             textAlign: 'center',
             cursor: 'pointer',
@@ -254,7 +254,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
               gap: '6px',
               padding: '10px 16px',
               borderRadius: '6px',
-              border: `2px solid ${modo === 'reemplazar' ? '#2563eb' : '#ddd'}`,
+              border: `2px solid ${modo === 'reemplazar' ? '#5AA0E6' : '#ccc8bf'}`,
               backgroundColor: modo === 'reemplazar' ? '#f0f9ff' : 'white',
               cursor: 'pointer',
               transition: 'all 0.2s'
@@ -283,7 +283,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
               gap: '6px',
               padding: '10px 16px',
               borderRadius: '6px',
-              border: `2px solid ${modo === 'agregar' ? '#2563eb' : '#ddd'}`,
+              border: `2px solid ${modo === 'agregar' ? '#5AA0E6' : '#ccc8bf'}`,
               backgroundColor: modo === 'agregar' ? '#f0f9ff' : 'white',
               cursor: 'pointer',
               transition: 'all 0.2s'
@@ -366,7 +366,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
             style={{
               padding: '10px 20px',
               borderRadius: '6px',
-              border: '1px solid #ddd',
+              border: '1px solid #ccc8bf',
               backgroundColor: 'white',
               color: '#666',
               fontSize: '14px',
@@ -385,7 +385,7 @@ export default function UploadRentDiariasModal({ fondo, onClose }: UploadRentDia
               padding: '10px 20px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: !file || loading ? '#ddd' : '#3b82f6',
+              backgroundColor: !file || loading ? '#ccc8bf' : '#5AA0E6',
               color: 'white',
               fontSize: '14px',
               fontWeight: '600',

@@ -18,6 +18,14 @@ Canonical palette — keep UI, emails, and reports consistent with the marketing
 
 Rule: navy dominates; copper/gold are accents (never large fills); azure for actions/data; green/red only for market variations.
 
+**Platform (app) palette — `app/globals.css` tokens (light scheme, aligned with the globalcompanies site).** The advisor app + client portal use a warm off-white surface, not the dark marketing navy. This is the canonical source for `--gb-*`/`--gl-*` tokens (use the tokens/Tailwind classes, don't hardcode hex):
+- Surface `#F7F6F2` (`--background`/`--gb-light`) · Border `#E7E4DD` (`--gb-border`)
+- Navy `#0B2140` (`--gb-black`/`--gb-sidebar`; canonical app navy) · Navy-dark `#1A3558` (`--gb-dark`) · Sidebar-hover `#132D52`
+- Text `#2C3A4E` (`--foreground`) · Gray `#6E7787` (`--gb-gray`) · Light-gray `#a9a49c`
+- Copper primary `#EB7838` (`--gb-primary`/`--gb-accent`) · Copper-dark `#D0682E` · Copper-light `#FEF3EC`
+- Azure `#5AA0E6` (`--gb-info`; links/CTA/single-series chart lines) · Up `#2ECC8F` (`--gb-success`) · Down `#EF5B5B` (`--gb-danger`)
+- Emails/PDFs (no CSS vars) hardcode these hex directly. Chart **categorical** palettes (per-asset-class color maps, multi-series arrays) are data colors — NOT brand chrome — leave them.
+
 Fonts: **Fraunces** (serif display/numbers), **Hanken Grotesk** (UI/body), **IBM Plex Mono** (data). In email/HTML where webfonts may not load, fall back to Georgia / Arial / Consolas.
 
 Logo: inline SVG in `components/landing/GlobalLogo.tsx` — G icon with copper `#EB7838` bars, `currentColor` paths (white on dark via `variant="light"`, navy `#0B2140` on light via `variant="dark"`). `GBrandMark.tsx` is a simplified G+bars mark. Master brand = **Global Companies**; Wealth / Planning / Properties are the three service lines.

@@ -359,17 +359,17 @@ export default function CompareMode() {
 
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={datosGrafico}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#E7E4DD" />
                 <XAxis
                   dataKey="date"
-                  stroke="#64748b"
+                  stroke="#6E7787"
                   tickFormatter={(value) => {
                     const date = new Date(value);
                     return `${date.getMonth() + 1}/${date.getFullYear()}`;
                   }}
                 />
                 <YAxis
-                  stroke="#64748b"
+                  stroke="#6E7787"
                   label={{ value: "Retorno (%)", angle: -90, position: "insideLeft" }}
                 />
                 <Tooltip
@@ -380,7 +380,7 @@ export default function CompareMode() {
                   }}
                   contentStyle={{
                     backgroundColor: "white",
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid #E7E4DD",
                     borderRadius: "8px",
                   }}
                 />

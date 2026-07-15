@@ -70,22 +70,22 @@ export async function POST(req: NextRequest) {
             <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName || 'Logo')}" style="max-height: 60px; max-width: 200px;" />
           </div>
           ` : ""}
-          <h2 style="color: #1e293b;">Hola ${escapeHtml(displayName)},</h2>
-          <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+          <h2 style="color: #0B2140;">Hola ${escapeHtml(displayName)},</h2>
+          <p style="color: #6E7787; font-size: 16px; line-height: 1.6;">
             <strong>${escapeHtml(advisorName)}</strong>${companyName ? ` de <strong>${escapeHtml(companyName)}</strong>` : ""} te ha enviado un cuestionario para determinar tu perfil de inversor.
             Este cuestionario nos ayudará a entender tu capacidad, tolerancia y comportamiento frente
             al riesgo, para recomendarte una estrategia de inversión alineada con tus objetivos.
           </p>
-          <p style="color: #475569; font-size: 16px; line-height: 1.6;">
+          <p style="color: #6E7787; font-size: 16px; line-height: 1.6;">
             Toma aproximadamente 5-10 minutos completarlo.
           </p>
           <div style="text-align: center; margin: 32px 0;">
             <a href="${questionnaireLink}"
-               style="background-color: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
+               style="background-color: #5AA0E6; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
               Completar cuestionario
             </a>
           </div>
-          <p style="color: #94a3b8; font-size: 13px;">
+          <p style="color: #a9a49c; font-size: 13px;">
             Si tienes dudas, puedes responder directamente a este correo para contactar a ${escapeHtml(advisorName)}${companyName ? ` (${escapeHtml(companyName)})` : ""}.
           </p>
         </div>

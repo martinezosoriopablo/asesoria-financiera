@@ -718,12 +718,12 @@ export default function PortfolioEvolution({
                 <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorReturn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#2ECC8F" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#2ECC8F" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#5AA0E6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#5AA0E6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
@@ -768,7 +768,7 @@ export default function PortfolioEvolution({
                   <Area
                     type="monotone"
                     dataKey={chartMode === "return" ? "returnPct" : "value"}
-                    stroke={chartMode === "return" ? "#16a34a" : "#2563eb"}
+                    stroke={chartMode === "return" ? "#2ECC8F" : "#5AA0E6"}
                     strokeWidth={2}
                     fillOpacity={1}
                     fill={chartMode === "return" ? "url(#colorReturn)" : "url(#colorValue)"}

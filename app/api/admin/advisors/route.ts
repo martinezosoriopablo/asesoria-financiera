@@ -346,7 +346,7 @@ export async function PATCH(request: NextRequest) {
             <h2>Hola ${targetAdvisor.nombre},</h2>
             <p>Se te ha enviado un nuevo enlace de acceso a la plataforma Global.</p>
             <p style="margin: 24px 0;">
-              <a href="${actionLink}" style="background: #0B2C5E; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+              <a href="${actionLink}" style="background: #0B2140; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
                 Acceder a la plataforma
               </a>
             </p>

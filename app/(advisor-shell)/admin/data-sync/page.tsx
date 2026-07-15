@@ -313,7 +313,7 @@ export default function DataSyncPage() {
           <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
             Sincronización de Datos
           </h1>
-          <p style={{ fontSize: '14px', color: '#666' }}>
+          <p style={{ fontSize: '14px', color: '#6E7787' }}>
             Panel de administración para actualizar precios, catálogos y rentabilidades.
             Ejecutar desde computador local para fuentes que requieren IP residencial (AAFM).
           </p>
@@ -357,21 +357,21 @@ export default function DataSyncPage() {
                 <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#374151', marginBottom: '12px' }}>Precios de Fondos</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Último precio CMF</span>
+                    <span style={{ color: '#6E7787' }}>Último precio CMF</span>
                     <span style={{ fontWeight: '600' }}>{health.prices.latestPriceDate || '—'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Con precio reciente (3d)</span>
-                    <span style={{ fontWeight: '600', color: '#10b981' }}>{health.prices.fondosWithRecentPrice}</span>
+                    <span style={{ color: '#6E7787' }}>Con precio reciente (3d)</span>
+                    <span style={{ fontWeight: '600', color: '#2ECC8F' }}>{health.prices.fondosWithRecentPrice}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Sin precio alguno</span>
-                    <span style={{ fontWeight: '600', color: health.prices.fondosWithoutPrice > 0 ? '#ef4444' : '#10b981' }}>
+                    <span style={{ color: '#6E7787' }}>Sin precio alguno</span>
+                    <span style={{ fontWeight: '600', color: health.prices.fondosWithoutPrice > 0 ? '#EF5B5B' : '#2ECC8F' }}>
                       {health.prices.fondosWithoutPrice}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>UF actual</span>
+                    <span style={{ color: '#6E7787' }}>UF actual</span>
                     <span style={{ fontWeight: '600' }}>${health.exchangeRates.uf.toLocaleString('es-CL', { maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
@@ -382,23 +382,23 @@ export default function DataSyncPage() {
                 <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#374151', marginBottom: '12px' }}>Fichas CMF (Extracción)</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Fichas FM</span>
+                    <span style={{ color: '#6E7787' }}>Fichas FM</span>
                     <span style={{ fontWeight: '600' }}>{health.fichas.totalFM}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Fichas FI</span>
+                    <span style={{ color: '#6E7787' }}>Fichas FI</span>
                     <span style={{ fontWeight: '600' }}>{health.fichas.totalFI}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Con TAC extraído</span>
-                    <span style={{ fontWeight: '600', color: '#10b981' }}>{health.fichas.withTAC}</span>
+                    <span style={{ color: '#6E7787' }}>Con TAC extraído</span>
+                    <span style={{ fontWeight: '600', color: '#2ECC8F' }}>{health.fichas.withTAC}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Extraídas con Gemini</span>
+                    <span style={{ color: '#6E7787' }}>Extraídas con Gemini</span>
                     <span style={{ fontWeight: '600', color: '#6366f1' }}>{health.fichas.likelyGemini}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#666' }}>Con beneficio tributario</span>
+                    <span style={{ color: '#6E7787' }}>Con beneficio tributario</span>
                     <span style={{ fontWeight: '600' }}>{health.fichas.withBeneficio}</span>
                   </div>
                 </div>
@@ -439,22 +439,22 @@ export default function DataSyncPage() {
 
         {/* CMF Status card — primary source */}
         {!loading && status.cmf && (
-          <div style={{ background: 'white', borderRadius: '12px', border: '2px solid #10b981', padding: '20px', marginBottom: '24px' }}>
+          <div style={{ background: 'white', borderRadius: '12px', border: '2px solid #2ECC8F', padding: '20px', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#2ECC8F', marginBottom: '8px' }}>
                   CMF CARTOLA DIARIA — FUENTE PRINCIPAL
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: '700', color: '#1a1a1a' }}>
                   {status.cmf.totalFondos} fondos
                 </div>
-                <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                <div style={{ fontSize: '13px', color: '#6E7787', marginTop: '4px' }}>
                   {status.cmf.latestDate && <>Último: {status.cmf.latestDate}</>}
                   {status.cmf.todayPrices > 0 && <> — Hoy: {status.cmf.todayPrices} precios</>}
                   {status.cmf.yesterdayPrices > 0 && <> — Ayer: {status.cmf.yesterdayPrices} precios</>}
                 </div>
               </div>
-              <div style={{ fontSize: '12px', color: status.cmf.autoSyncAvailable ? '#10b981' : '#f59e0b', textAlign: 'right', fontWeight: '600' }}>
+              <div style={{ fontSize: '12px', color: status.cmf.autoSyncAvailable ? '#2ECC8F' : '#f59e0b', textAlign: 'right', fontWeight: '600' }}>
                 {status.cmf.autoSyncAvailable ? '2captcha configurado' : '2captcha no configurado'}
               </div>
             </div>
@@ -465,11 +465,11 @@ export default function DataSyncPage() {
         {!loading && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
             <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>CATÁLOGO FINTUAL</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#6E7787', marginBottom: '8px' }}>CATÁLOGO FINTUAL</div>
               {status.fintual ? (
                 <>
                   <div style={{ fontSize: '24px', fontWeight: '700', color: '#1a1a1a' }}>{status.fintual.funds} fondos</div>
-                  <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                  <div style={{ fontSize: '13px', color: '#6E7787', marginTop: '4px' }}>
                     {status.fintual.providers} proveedores
                     {status.fintual.lastUpdate && <> — Actualizado: {new Date(status.fintual.lastUpdate).toLocaleDateString('es-CL')}</>}
                   </div>
@@ -479,11 +479,11 @@ export default function DataSyncPage() {
               )}
             </div>
             <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>PRECIOS AAFM</div>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#6E7787', marginBottom: '8px' }}>PRECIOS AAFM</div>
               {status.aafm ? (
                 <>
                   <div style={{ fontSize: '24px', fontWeight: '700', color: '#1a1a1a' }}>{status.aafm.withPrice} con precio</div>
-                  <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
+                  <div style={{ fontSize: '13px', color: '#6E7787', marginTop: '4px' }}>
                     de {status.aafm.totalFunds} fondos — Hoy: {status.aafm.todayPrices}
                     {status.aafm.latestPriceDate && <> — Último: {status.aafm.latestPriceDate}</>}
                   </div>
@@ -502,7 +502,7 @@ export default function DataSyncPage() {
             <SyncButton
               label="Sync AAFM (Precios Hoy)"
               description="Descarga precios del día y rentabilidades desde AAFM. Requiere IP residencial."
-              color="#10b981"
+              color="#2ECC8F"
               loading={syncingAAFM}
               onClick={handleSyncAAFM}
             />
@@ -531,11 +531,11 @@ export default function DataSyncPage() {
         </div>
 
         {/* CMF Sync — Primary */}
-        <div style={{ background: 'white', borderRadius: '12px', border: '2px solid #10b981', padding: '24px', marginBottom: '24px' }}>
+        <div style={{ background: 'white', borderRadius: '12px', border: '2px solid #2ECC8F', padding: '24px', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
             CMF Cartola Diaria
           </h2>
-          <p style={{ fontSize: '13px', color: '#666', marginBottom: '16px' }}>
+          <p style={{ fontSize: '13px', color: '#6E7787', marginBottom: '16px' }}>
             Fuente principal de precios. Cubre 2,500+ fondos (100% del mercado chileno).
           </p>
 
@@ -548,7 +548,7 @@ export default function DataSyncPage() {
                 padding: '12px 24px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: syncingCMFAuto ? '#94a3b8' : '#10b981',
+                backgroundColor: syncingCMFAuto ? '#a9a49c' : '#2ECC8F',
                 color: 'white',
                 cursor: syncingCMFAuto ? 'not-allowed' : 'pointer',
                 fontWeight: '700',
@@ -563,9 +563,9 @@ export default function DataSyncPage() {
               style={{
                 padding: '12px 24px',
                 borderRadius: '8px',
-                border: '1px solid #d1d5db',
+                border: '1px solid #ccc8bf',
                 backgroundColor: uploadingCMF ? '#f3f4f6' : 'white',
-                color: uploadingCMF ? '#94a3b8' : '#374151',
+                color: uploadingCMF ? '#a9a49c' : '#374151',
                 cursor: uploadingCMF ? 'not-allowed' : 'pointer',
                 fontWeight: '600',
                 fontSize: '13px',
@@ -599,13 +599,13 @@ export default function DataSyncPage() {
           <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
             Precios de Bonos (FINRA)
           </h2>
-          <p style={{ fontSize: '13px', color: '#666', marginBottom: '16px' }}>
+          <p style={{ fontSize: '13px', color: '#6E7787', marginBottom: '16px' }}>
             Scraping del portal FINRA para precios de bonos corporativos desde el watchlist. Solo funciona desde localhost (Playwright).
           </p>
 
           {finraStatus && (
             <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', fontSize: '13px' }}>
-              <span style={{ color: finraStatus.configured ? '#10b981' : '#ef4444', fontWeight: '600' }}>
+              <span style={{ color: finraStatus.configured ? '#2ECC8F' : '#EF5B5B', fontWeight: '600' }}>
                 {finraStatus.configured ? 'Credenciales OK' : 'Sin credenciales FINRA'}
               </span>
               {!finraStatus.isLocal && (
@@ -614,7 +614,7 @@ export default function DataSyncPage() {
                 </span>
               )}
               {finraStatus.totalBonds > 0 && (
-                <span style={{ color: '#666' }}>
+                <span style={{ color: '#6E7787' }}>
                   {finraStatus.totalBonds} bonos · Ultimo: {finraStatus.latestDate}
                 </span>
               )}
@@ -629,7 +629,7 @@ export default function DataSyncPage() {
                 padding: '12px 24px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: syncingFINRA ? '#94a3b8' : '#7c3aed',
+                backgroundColor: syncingFINRA ? '#a9a49c' : '#7c3aed',
                 color: 'white',
                 cursor: syncingFINRA ? 'not-allowed' : 'pointer',
                 fontWeight: '700',
@@ -646,7 +646,7 @@ export default function DataSyncPage() {
                 padding: '12px 24px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: syncingFINRAHist ? '#94a3b8' : '#6d28d9',
+                backgroundColor: syncingFINRAHist ? '#a9a49c' : '#6d28d9',
                 color: 'white',
                 cursor: syncingFINRAHist ? 'not-allowed' : 'pointer',
                 fontWeight: '700',
@@ -688,7 +688,7 @@ export default function DataSyncPage() {
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#8b5cf6', marginBottom: '4px' }}>
                 Cargar Rentabilidades
               </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>
+              <div style={{ fontSize: '12px', color: '#6E7787' }}>
                 Subir Excel con rentabilidades agregadas por fondo.
               </div>
             </button>
@@ -706,7 +706,7 @@ export default function DataSyncPage() {
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#6366f1', marginBottom: '4px' }}>
                 Cargar TAC
               </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>
+              <div style={{ fontSize: '12px', color: '#6E7787' }}>
                 Subir Excel con TAC sintética por fondo/serie.
               </div>
             </button>
@@ -727,7 +727,7 @@ export default function DataSyncPage() {
                     backgroundColor: r.ok ? '#f0fdf4' : '#fef2f2',
                     border: `1px solid ${r.ok ? '#bbf7d0' : '#fecaca'}`,
                     fontSize: '13px',
-                    color: r.ok ? '#166534' : '#dc2626',
+                    color: r.ok ? '#166534' : '#EF5B5B',
                     fontWeight: '500',
                   }}
                 >
@@ -755,9 +755,9 @@ function HealthCard({ label, value, detail, status }: {
   detail: string;
   status: 'good' | 'warn' | 'bad';
 }) {
-  const borderColor = status === 'good' ? '#10b981' : status === 'warn' ? '#f59e0b' : '#ef4444';
+  const borderColor = status === 'good' ? '#2ECC8F' : status === 'warn' ? '#f59e0b' : '#EF5B5B';
   const bgColor = status === 'good' ? '#f0fdf4' : status === 'warn' ? '#fffbeb' : '#fef2f2';
-  const valueColor = status === 'good' ? '#059669' : status === 'warn' ? '#d97706' : '#dc2626';
+  const valueColor = status === 'good' ? '#2ECC8F' : status === 'warn' ? '#d97706' : '#EF5B5B';
 
   return (
     <div style={{
@@ -766,13 +766,13 @@ function HealthCard({ label, value, detail, status }: {
       border: `2px solid ${borderColor}`,
       padding: '14px 16px',
     }}>
-      <div style={{ fontSize: '11px', fontWeight: '600', color: '#666', marginBottom: '4px', textTransform: 'uppercase' }}>
+      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6E7787', marginBottom: '4px', textTransform: 'uppercase' }}>
         {label}
       </div>
       <div style={{ fontSize: '24px', fontWeight: '800', color: valueColor }}>
         {value}
       </div>
-      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>{detail}</div>
+      <div style={{ fontSize: '11px', color: '#6E7787', marginTop: '2px' }}>{detail}</div>
     </div>
   );
 }
@@ -792,7 +792,7 @@ function SyncButton({ label, description, color, loading, onClick }: {
         padding: '16px',
         borderRadius: '8px',
         border: 'none',
-        backgroundColor: loading ? '#94a3b8' : color,
+        backgroundColor: loading ? '#a9a49c' : color,
         color: 'white',
         cursor: loading ? 'not-allowed' : 'pointer',
         textAlign: 'left',

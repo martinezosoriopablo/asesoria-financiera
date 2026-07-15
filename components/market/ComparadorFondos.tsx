@@ -224,10 +224,10 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
         )}
         
         {/* Labels eje Y */}
-        <text x={paddingLeft - 5} y={paddingTop + 5} textAnchor="end" fontSize="11" fill="#666" fontWeight="500">
+        <text x={paddingLeft - 5} y={paddingTop + 5} textAnchor="end" fontSize="11" fill="#6E7787" fontWeight="500">
           {maxVal.toFixed(1)}
         </text>
-        <text x={paddingLeft - 5} y={height - paddingBottom + 5} textAnchor="end" fontSize="11" fill="#666" fontWeight="500">
+        <text x={paddingLeft - 5} y={height - paddingBottom + 5} textAnchor="end" fontSize="11" fill="#6E7787" fontWeight="500">
           {minVal.toFixed(1)}
         </text>
         
@@ -266,7 +266,7 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
               y={height - paddingBottom + 20}
               textAnchor="middle"
               fontSize="11"
-              fill="#666"
+              fill="#6E7787"
               fontWeight="500"
             >
               {label}
@@ -278,7 +278,7 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
         {datosNormalizados.map((fondo, idx) => (
           <g key={idx} transform={`translate(${paddingLeft}, ${height - paddingBottom + 35 + idx * 15})`}>
             <line x1="0" y1="0" x2="20" y2="0" stroke={fondo.color} strokeWidth="2.5" />
-            <text x="25" y="4" fontSize="11" fill="#666">
+            <text x="25" y="4" fontSize="11" fill="#6E7787">
               {fondo.nombre_fondo.substring(0, 40)}
             </text>
           </g>
@@ -312,8 +312,8 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
                   padding: '6px 12px',
                   borderRadius: '6px',
                   border: '1px solid #ddd',
-                  backgroundColor: periodo === p.id ? '#2563eb' : 'white',
-                  color: periodo === p.id ? 'white' : '#666',
+                  backgroundColor: periodo === p.id ? '#5AA0E6' : 'white',
+                  color: periodo === p.id ? 'white' : '#6E7787',
                   fontSize: '12px',
                   fontWeight: '600',
                   cursor: 'pointer'
@@ -326,7 +326,7 @@ export default function ComparadorFondos({ fondoActual }: ComparadorFondosProps)
         </div>
         
         {/* Info */}
-        <div style={{ fontSize: '13px', color: '#666', marginBottom: '12px' }}>
+        <div style={{ fontSize: '13px', color: '#6E7787', marginBottom: '12px' }}>
           Selecciona hasta 6 fondos para comparar. Gráfico normalizado a base 100.
         </div>
         

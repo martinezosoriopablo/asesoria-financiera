@@ -273,7 +273,7 @@ export function generateModelCommentaryHTML(rows: ConsolidatedRow[]): string {
   const commentary = generateModelCommentary(rows);
   
   const html = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; line-height: 1.6;">
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #0B2140; line-height: 1.6;">
       <h3 style="color: #1e40af; margin-bottom: 16px; font-size: 18px; font-weight: 600;">
         Comentario del Modelo de Inversión
       </h3>
@@ -293,7 +293,7 @@ export function generateModelCommentaryHTML(rows: ConsolidatedRow[]): string {
       ` : ''}
       
       ${commentary.byAssetClass.fixedIncome ? `
-        <div style="margin-bottom: 12px; padding-left: 16px; border-left: 3px solid #64748b;">
+        <div style="margin-bottom: 12px; padding-left: 16px; border-left: 3px solid #6E7787;">
           <p style="margin: 0; text-align: justify;">
             ${commentary.byAssetClass.fixedIncome}
           </p>
@@ -308,8 +308,8 @@ export function generateModelCommentaryHTML(rows: ConsolidatedRow[]): string {
         </div>
       ` : ''}
       
-      <div style="margin-top: 20px; padding: 12px; background-color: #f8fafc; border-radius: 8px;">
-        <p style="margin: 0; font-size: 14px; color: #475569; text-align: justify;">
+      <div style="margin-top: 20px; padding: 12px; background-color: #F7F6F2; border-radius: 8px;">
+        <p style="margin: 0; font-size: 14px; color: #6E7787; text-align: justify;">
           ${commentary.full.split('\n\n').pop()}
         </p>
       </div>
