@@ -1,4 +1,4 @@
-# Manual de Funcionamiento — Greybark Advisors
+# Manual de Funcionamiento — Global Advisors
 
 **Plataforma de Asesoria Financiera**
 Ultima actualizacion: 2026-04-01
@@ -7,7 +7,7 @@ Ultima actualizacion: 2026-04-01
 
 ## 1. Vision General
 
-Greybark Advisors es una plataforma SaaS para **asesores financieros** enfocada en el mercado chileno con capacidad internacional. Gestiona todo el ciclo de asesoria:
+Global Advisors es una plataforma SaaS para **asesores financieros** enfocada en el mercado chileno con capacidad internacional. Gestiona todo el ciclo de asesoria:
 
 **Cliente nuevo → Perfil de riesgo → Cartola → Portafolio recomendado → Seguimiento → Rebalanceo → Reportes**
 

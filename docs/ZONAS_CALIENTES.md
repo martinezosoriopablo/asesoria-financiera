@@ -1,4 +1,4 @@
-# ZONAS_CALIENTES.md — Greybark Advisors
+# ZONAS_CALIENTES.md — Global Advisors
 
 > Hipótesis priorizada de auditoría.
 > Severidad: BLOQUEANTE / ALTO / MEDIO / COSMÉTICO
@@ -125,7 +125,7 @@ RLS implementado en 25+ tablas con politicas USING + WITH CHECK. Funciones SQL:
 
 ## ZONA 10 — Reportes (HTML/PDF "bonitos") [MEDIO]
 
-- Marca WAOP × Greybark
+- Marca WAOP × Global
 - Acentos y caracteres chilenos (ñ, tildes)
 - Formato de moneda chileno: $1.234.567
 - Fechas DD/MM/YYYY

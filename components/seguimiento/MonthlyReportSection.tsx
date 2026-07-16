@@ -98,7 +98,7 @@ export default function MonthlyReportSection({ currentMonth }: Props) {
               )}
               {reports.map((r) => (
                 <option key={r.month} value={r.month}>
-                  {r.month} — {r.title?.replace(/(?:Greybark Research|Global)\s*[–—-]\s*/i, "")}
+                  {r.month} — {r.title?.replace(/(?:Global Advisors|Global Research|Global)\s*[–—-]\s*/i, "")}
                 </option>
               ))}
             </select>

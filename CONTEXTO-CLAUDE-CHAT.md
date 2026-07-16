@@ -1,7 +1,7 @@
-# Contexto de Plataforma — Greybark Advisors
+# Contexto de Plataforma — Global Advisors
 ## Para conversación con Claude Chat
 
-Soy el fundador/desarrollador de **Greybark Advisors**, una plataforma SaaS de asesoría financiera enfocada en el mercado chileno con capacidad internacional. Usa Next.js 16, React 19, Supabase, TypeScript, Tailwind CSS v4, desplegada en Vercel.
+Soy el fundador/desarrollador de **Global Advisors**, una plataforma SaaS de asesoría financiera enfocada en el mercado chileno con capacidad internacional. Usa Next.js 16, React 19, Supabase, TypeScript, Tailwind CSS v4, desplegada en Vercel.
 
 ---
 

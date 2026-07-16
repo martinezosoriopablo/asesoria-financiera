@@ -1,10 +1,10 @@
-# Greybark Advisors — Manual de Usuario
+# Global Advisors — Manual de Usuario
 
 ---
 
 ## Bienvenido
 
-Greybark Advisors es tu herramienta para gestionar todo el ciclo de asesoria financiera: desde captar un cliente nuevo hasta hacer seguimiento de su portafolio y enviarle reportes periodicos.
+Global Advisors es tu herramienta para gestionar todo el ciclo de asesoria financiera: desde captar un cliente nuevo hasta hacer seguimiento de su portafolio y enviarle reportes periodicos.
 
 Este manual te guia paso a paso por cada funcion de la plataforma.
 
