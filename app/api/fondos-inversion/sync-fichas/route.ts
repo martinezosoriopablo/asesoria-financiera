@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
   let synced = 0;
   let errors = 0;
   let skipped = 0;
+  let noFolleto = 0;
   let geminiExhausted = false;
 
   for (const fondo of fondosToSync) {
@@ -80,8 +81,10 @@ export async function POST(request: NextRequest) {
       // FIRES (rescatables) y FINRE (no rescatables) usan distinto tipoentidad en CMF
       const cmfData = await discoverFromCmfPage(fondo.rut, fondo.tipo);
       if (!cmfData) {
-        results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "no_folleto_page" });
-        errors++;
+        // No es un error real: muchos FI (sobre todo FINRE de deuda privada) no
+        // publican folleto informativo en CMF. Se cuenta aparte de los errores.
+        results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "sin_folleto" });
+        noFolleto++;
         continue;
       }
 
@@ -141,7 +144,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-    return NextResponse.json({ success: true, synced, errors, skipped, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
+    return NextResponse.json({ success: true, synced, errors, skipped, sin_folleto: noFolleto, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
   });
 }
 

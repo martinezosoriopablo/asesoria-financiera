@@ -26,7 +26,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncingAdmin, setSyncingAdmin] = useState<string | null>(null);
-  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; geminiExhausted: boolean; details: SyncResultDetail[] }[]>([]);
+  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; sinFolleto: number; geminiExhausted: boolean; details: SyncResultDetail[] }[]>([]);
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -78,6 +78,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
           synced: data.synced,
           errors: data.errors,
           skipped: data.skipped || 0,
+          sinFolleto: data.sin_folleto || 0,
           geminiExhausted: data.gemini_exhausted || false,
           details: data.results || [],
         }, ...prev]);
@@ -223,6 +224,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                     <span className="text-xs text-gb-gray">
                       <span className="text-green-600 font-medium">{r.synced} OK</span>
                       {r.skipped > 0 && <span className="text-blue-500 ml-2">{r.skipped} ya sincronizados</span>}
+                      {r.sinFolleto > 0 && <span className="text-gb-gray ml-2">{r.sinFolleto} sin folleto</span>}
                       {r.errors > 0 && <span className="text-red-500 ml-2">{r.errors} errores</span>}
                     </span>
                   </div>
@@ -243,7 +245,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                           {d.nombre ? ` - ${d.nombre.substring(0, 40)}` : ''}
                           {' '}({d.serie})
                         </span>
-                        <span className={d.status === 'ok' ? 'text-green-600' : 'text-amber-600'}>
+                        <span className={d.status === 'ok' ? 'text-green-600' : d.status === 'sin_folleto' ? 'text-gb-gray' : 'text-amber-600'}>
                           {d.status}
                         </span>
                       </div>
