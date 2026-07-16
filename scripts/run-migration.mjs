@@ -1,8 +1,14 @@
 // Script para ejecutar migración de multi-asesor
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://zysotxkelepvotzujhxe.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5c290eGtlbGVwdm90enVqaHhlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjUyNjk3NCwiZXhwIjoyMDgyMTAyOTc0fQ.Ansi89kIfptszv0I3DzmPJdqrEpi7tLbckiobvw6QRM';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const adminEmail = process.env.ADMIN_EMAIL;
+
+if (!supabaseUrl || !supabaseServiceKey || !adminEmail) {
+  console.error('❌ Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -53,10 +59,10 @@ async function runMigration() {
       .from('advisors')
       .update({
         rol: 'admin',
-        company_name: 'Greybark',
-        logo_url: '/logo-greybark.png'
+        company_name: 'Global Advisors',
+        logo_url: '/images/global2.jpeg'
       })
-      .eq('email', 'pmartinez@greybark.com')
+      .eq('email', adminEmail)
       .select();
 
     if (updateError) {
@@ -64,7 +70,7 @@ async function runMigration() {
     } else if (updated?.length) {
       console.log('   ✅ Advisor actualizado como admin:', updated[0].email);
     } else {
-      console.log('   ⚠️  No se encontró el advisor pmartinez@greybark.com');
+      console.log(`   ⚠️  No se encontró el advisor ${adminEmail}`);
     }
   }
 
