@@ -2,11 +2,12 @@
 // Shared helpers for scraping fichas (folletos) from CMF
 // Used by both fondos mutuos and fondos de inversión sync routes
 
-type EntityType = "RGFMU" | "FIRES";
+type EntityType = "RGFMU" | "FIRES" | "FINRE";
 
 /**
  * Discover rutAdmin and available series for a fund from CMF folleto page.
- * RGFMU = Fondos Mutuos, FIRES = Fondos de Inversión
+ * RGFMU = Fondos Mutuos, FIRES = Fondos de Inversión (rescatables),
+ * FINRE = Fondos de Inversión no rescatables (misma estructura de folleto que FIRES).
  */
 export async function discoverFromCmfPage(
   rut: string | number,
@@ -16,7 +17,7 @@ export async function discoverFromCmfPage(
   const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
   const html = await res.text();
 
-  if (tipoEntidad === "FIRES") {
+  if (tipoEntidad === "FIRES" || tipoEntidad === "FINRE") {
     // FI regex: verFolleto('id','serie','rutAdmin')
     const matches = [...html.matchAll(/verFolleto\('(\d+)','([^']+)','(\d+)'\)/g)];
     if (matches.length === 0) return null;

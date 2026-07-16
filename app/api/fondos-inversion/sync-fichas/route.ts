@@ -33,19 +33,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Get fondos to sync
-  let fondosToSync: { id: string; rut: string; nombre: string; administradora: string }[] = [];
+  let fondosToSync: { id: string; rut: string; nombre: string; administradora: string; tipo: "FIRES" | "FINRE" }[] = [];
 
   if (fi_ruts && Array.isArray(fi_ruts)) {
     const { data } = await supabase
       .from("fondos_inversion")
-      .select("id, rut, nombre, administradora")
+      .select("id, rut, nombre, administradora, tipo")
       .in("rut", fi_ruts)
       .eq("activo", true);
     fondosToSync = data || [];
   } else if (administradora) {
     const { data } = await supabase
       .from("fondos_inversion")
-      .select("id, rut, nombre, administradora")
+      .select("id, rut, nombre, administradora, tipo")
       .ilike("administradora", `%${administradora}%`)
       .eq("activo", true)
       .limit(batchLimit);
@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
 
   for (const fondo of fondosToSync) {
     try {
-      const cmfData = await discoverFromCmfPage(fondo.rut, "FIRES");
+      // FIRES (rescatables) y FINRE (no rescatables) usan distinto tipoentidad en CMF
+      const cmfData = await discoverFromCmfPage(fondo.rut, fondo.tipo);
       if (!cmfData) {
         results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "no_folleto_page" });
         errors++;
