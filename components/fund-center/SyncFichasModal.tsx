@@ -7,6 +7,7 @@ interface AdminInfo {
   nombre: string;
   count: number;
   synced: number;
+  sinFolleto: number;
 }
 
 interface SyncResultDetail {
@@ -40,11 +41,14 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
             nombre: a.nombre,
             count: a.count,
             synced: a.synced || 0,
+            sinFolleto: 0,
           })));
         } else {
-          setAdminList((data.admin_list || []).map((a: { nombre: string; count: number; synced?: number }) => ({
-            ...a,
+          setAdminList((data.admin_list || []).map((a: { nombre: string; count: number; synced?: number; sin_folleto?: number }) => ({
+            nombre: a.nombre,
+            count: a.count,
             synced: a.synced || 0,
+            sinFolleto: a.sin_folleto || 0,
           })));
         }
         setFichasSynced(data.fichas_synced || 0);
@@ -169,13 +173,23 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                         <td className="px-4 py-2 text-gb-black text-xs truncate max-w-[280px]">{admin.nombre}</td>
                         <td className="px-4 py-2 text-right text-gb-gray text-xs">{admin.count}</td>
                         <td className="px-4 py-2 text-right text-xs">
-                          {admin.synced > 0 ? (
-                            <span className={admin.synced >= admin.count ? 'text-green-600 font-medium' : 'text-amber-600'}>
-                              {admin.synced}/{admin.count}
-                            </span>
-                          ) : (
-                            <span className="text-gb-gray">—</span>
-                          )}
+                          {(() => {
+                            const conFolleto = admin.count - admin.sinFolleto;
+                            return (
+                              <div className="flex flex-col items-end leading-tight">
+                                {conFolleto > 0 ? (
+                                  <span className={admin.synced >= conFolleto ? 'text-green-600 font-medium' : 'text-amber-600'}>
+                                    {admin.synced}/{conFolleto}
+                                  </span>
+                                ) : (
+                                  <span className="text-gb-gray">—</span>
+                                )}
+                                {admin.sinFolleto > 0 && (
+                                  <span className="text-[10px] text-gb-gray">{admin.sinFolleto} sin folleto</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-2 text-right">
                           <div className="flex items-center justify-end gap-1">

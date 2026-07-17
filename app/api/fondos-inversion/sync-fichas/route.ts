@@ -85,8 +85,12 @@ export async function POST(request: NextRequest) {
         // publican folleto informativo en CMF. Se cuenta aparte de los errores.
         results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "sin_folleto" });
         noFolleto++;
+        // Persistir para que la UI distinga "sin folleto" de pendientes (no re-escanea CMF)
+        try { await supabase.from("fondos_inversion").update({ sin_folleto: true }).eq("rut", fondo.rut); } catch { /* no fatal */ }
         continue;
       }
+      // Tiene folleto: marcarlo (por si antes estaba marcado sin_folleto)
+      try { await supabase.from("fondos_inversion").update({ sin_folleto: false }).eq("rut", fondo.rut); } catch { /* no fatal */ }
 
       // Process EVERY serie — each has its own TAC/costs
       for (const serie of cmfData.series) {
@@ -159,6 +163,20 @@ export async function GET(request: NextRequest) {
   return handleApiError("sync-fichas-fi-get", async () => {
     const supabase = createAdminClient();
 
+    // Conteo de fondos "sin folleto" por administradora (poblado en el sync).
+    // Permite a la UI distinguir "sin folleto" de fichas realmente pendientes.
+    const sinFolletoByAdmin: Record<string, number> = {};
+    {
+      const { data: sf } = await supabase
+        .from("fondos_inversion")
+        .select("administradora, sin_folleto")
+        .eq("activo", true)
+        .eq("sin_folleto", true);
+      (sf ?? []).forEach((f: { administradora: string | null }) => {
+        if (f.administradora) sinFolletoByAdmin[f.administradora] = (sinFolletoByAdmin[f.administradora] || 0) + 1;
+      });
+    }
+
     // Use SQL RPC for accurate counts with JOIN
   const { data: sqlResult, error: sqlError } = await supabase.rpc("get_fi_fichas_sync_status");
 
@@ -179,7 +197,7 @@ export async function GET(request: NextRequest) {
     });
 
     const adminList = Object.entries(adminCounts)
-      .map(([nombre, count]) => ({ nombre, count, synced: 0 }))
+      .map(([nombre, count]) => ({ nombre, count, synced: 0, sin_folleto: sinFolletoByAdmin[nombre] || 0 }))
       .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
@@ -195,6 +213,7 @@ export async function GET(request: NextRequest) {
       nombre: r.administradora,
       count: Number(r.total),
       synced: Number(r.synced),
+      sin_folleto: sinFolletoByAdmin[r.administradora] || 0,
     }))
     .sort((a, b) => b.count - a.count);
 
