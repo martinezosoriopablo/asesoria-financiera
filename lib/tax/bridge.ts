@@ -3,6 +3,7 @@
 
 import type { TaxableHolding } from "./types";
 import { RENTABILIDAD_ESPERADA_REAL } from "@/lib/constants/chilean-tax";
+import { toCLP } from "@/lib/portfolio/currency";
 
 // Raw holding from snapshot JSONB (cartola-parsed)
 interface RawHolding {
@@ -12,6 +13,7 @@ interface RawHolding {
   quantity?: number;
   costBasis?: number;
   unitCost?: number;
+  purchaseDate?: string | null; // fecha de compra inferida (match unitCost <-> valor cuota)
   marketPrice?: number;
   marketValue: number;
   marketValueCLP?: number; // already converted to CLP (if present)
@@ -65,14 +67,6 @@ function normalizeCategoria(cat: string): string {
   };
   if (cat.includes("Nacional") || cat.includes("Internacional")) return cat;
   return map[cat] || cat;
-}
-
-// Convert value to CLP based on currency
-function toCLP(value: number, currency: string | undefined, usdRate: number, eurRate?: number): number {
-  if (!currency || currency === "CLP") return value;
-  if (currency === "USD") return value * usdRate;
-  if (currency === "EUR" && eurRate) return value * eurRate;
-  return value;
 }
 
 // Estimate costs using REAL historical prices (valor cuota ratios)
@@ -134,6 +128,15 @@ export function convertToTaxHoldings(
   const proposalMap = options?.proposalMap;
   const quotes = options?.quotes;
   const purchaseUFs = options?.purchaseUFs;
+  // Tasas para la conversión canónica a CLP (incluye UF, que la impl. local omitía)
+  const rates = { usd: usdRate, eur: eurRate ?? 0, uf: ufValue };
+  // Delegamos en la toCLP canónica, pero si falta la tasa EUR mantenemos el valor
+  // nativo (comportamiento previo) en vez de multiplicar por 0.
+  const convertToCLP = (value: number, currency: string | undefined | null): number => {
+    const cur = (currency ?? "CLP").toUpperCase();
+    if (cur === "EUR" && !rates.eur) return value;
+    return toCLP(value, cur, rates);
+  };
 
   return rawHoldings.map((raw, index) => {
     // Match xray holding by index first, then by name
@@ -144,7 +147,7 @@ export function convertToTaxHoldings(
     // Convert to CLP: use marketValueCLP if already converted, otherwise convert
     const valueCLP = raw.marketValueCLP && raw.marketValueCLP > 0
       ? raw.marketValueCLP
-      : toCLP(raw.marketValue, raw.currency, usdRate, eurRate);
+      : convertToCLP(raw.marketValue, raw.currency);
     const currentValueUF = valueCLP / ufValue;
 
     const quantity = raw.quantity || 1;
@@ -163,11 +166,23 @@ export function convertToTaxHoldings(
 
     if (raw.costBasis != null && raw.costBasis > 0) {
       // costBasis is in the same currency as marketValue — this is real data from cartola
-      const costCLP = toCLP(raw.costBasis, raw.currency, usdRate, eurRate);
+      const costCLP = convertToCLP(raw.costBasis, raw.currency);
 
       // Use UF at purchase date for corrección monetaria
       const purchaseInfo = purchaseUFs?.[quoteKey];
-      if (purchaseInfo && purchaseInfo.uf > 0) {
+      if (raw.purchaseDate) {
+        // Fecha de adquisición inferida (purchaseDate) — preferida sobre la estimada
+        acquisitionDate = raw.purchaseDate;
+        if (purchaseInfo && purchaseInfo.date === raw.purchaseDate && purchaseInfo.uf > 0) {
+          ufAtPurchase = purchaseInfo.uf;
+          acquisitionCostUF = costCLP / purchaseInfo.uf;
+        } else {
+          // No tenemos la UF exacta de esa fecha; el costo CLP es firme,
+          // la corrección monetaria queda aproximada con la UF actual
+          ufAtPurchase = ufValue;
+          acquisitionCostUF = costCLP / ufValue;
+        }
+      } else if (purchaseInfo && purchaseInfo.uf > 0) {
         ufAtPurchase = purchaseInfo.uf;
         acquisitionDate = purchaseInfo.date;
         acquisitionCostUF = costCLP / purchaseInfo.uf;

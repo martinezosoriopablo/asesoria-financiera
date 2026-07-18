@@ -6,7 +6,7 @@ import { requireAdmin, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
-const FICHA_FIELDS = "tac_serie, nombre_fondo_pdf, serie_detectada, rent_1m, rent_3m, rent_6m, rent_12m, horizonte_inversion, tolerancia_riesgo, rescatable, updated_at, beneficio_apv, beneficio_57bis, beneficio_107lir, beneficio_108lir, notas_tributarias, objetivo";
+const FICHA_FIELDS = "tac_serie, nombre_fondo_pdf, serie_detectada, rent_1m, rent_3m, rent_6m, rent_12m, horizonte_inversion, tolerancia_riesgo, rescatable, updated_at, beneficio_apv, beneficio_57bis, beneficio_107lir, beneficio_108lir, notas_tributarias, objetivo, pct_uf, pct_renta_variable, pct_renta_fija";
 
 export async function GET(request: NextRequest) {
   const blocked = await applyRateLimit(request, "fichas-review", { limit: 10, windowSeconds: 60 });

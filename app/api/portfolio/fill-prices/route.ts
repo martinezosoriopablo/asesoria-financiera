@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { recomputeClientReturns } from "@/lib/returns/persist";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getSeriesPrices } from "@/lib/fintual-api";
 import { getHistoricalPrices as getBolsaSantiagoHistorical } from "@/lib/bolsa-santiago/client";
@@ -313,6 +314,34 @@ async function prefetchFintualFunds(
   return { all, byFintualId, byRun };
 }
 
+// CMF valor cuota cache: fo_run → series (fondo_id). Fuente canónica de precios
+// para fondos mutuos chilenos que Fintual no cubre.
+interface CmfFundsCache {
+  byRun: Map<string, Array<{ id: string; serie: string | null }>>;
+}
+
+async function prefetchCmfFunds(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<CmfFundsCache> {
+  const byRun = new Map<string, Array<{ id: string; serie: string | null }>>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("fondos_mutuos")
+      .select("id, fo_run, fm_serie")
+      .range(from, from + pageSize - 1);
+    if (error || !data || data.length === 0) break;
+    for (const row of data as Array<{ id: string; fo_run: number | string; fm_serie: string | null }>) {
+      const run = String(row.fo_run);
+      const arr = byRun.get(run) || [];
+      arr.push({ id: row.id, serie: row.fm_serie });
+      byRun.set(run, arr);
+    }
+    if (data.length < pageSize) break;
+  }
+  return { byRun };
+}
+
 // Try to match a holding to a Fintual fund using pre-fetched cache
 // Strategy: name search → find candidates → pick best serie match
 function matchHoldingToFintualCached(
@@ -553,17 +582,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Pre-fetch ALL fintual_funds, Yahoo map, and manual prices in parallel for O(1) lookups
-    const [fintualCache, yahooMap, manualPricesMap] = await Promise.all([
+    const [fintualCache, yahooMap, manualPricesMap, cmfCache] = await Promise.all([
       prefetchFintualFunds(supabase),
       prefetchYahooMap(supabase),
       prefetchManualPrices(supabase),
+      prefetchCmfFunds(supabase),
     ]);
 
     // Track CUSIPs that need Yahoo search (not yet in map)
     const pendingYahooSearches = new Map<string, string>(); // securityId → fundName
 
     // Resolve price sources for each unique holding across ALL cartolas
-    type PriceSource = "fintual" | "yahoo" | "alphavantage" | "bolsa_santiago" | "manual" | "none";
+    type PriceSource = "fintual" | "cmf" | "yahoo" | "alphavantage" | "bolsa_santiago" | "manual" | "none";
     type ResolvedSource = { source: PriceSource; sourceId: string | null };
     const resolvedCache = new Map<string, ResolvedSource>();
 
@@ -658,6 +688,17 @@ export async function POST(request: NextRequest) {
         if (priceSource === "none") {
           const fintualId = matchHoldingToFintualCached(fintualCache, holding.fundName, holding.securityId);
           if (fintualId) { priceSource = "fintual"; sourceId = fintualId; }
+        }
+        // CMF valor cuota (fuente canónica para FM chilenos no cubiertos por Fintual)
+        if (priceSource === "none" && holding.securityId) {
+          const runStr = String(parseInt(holding.securityId.trim(), 10));
+          const cmfMatches = cmfCache.byRun.get(runStr);
+          if (cmfMatches?.length) {
+            const serie = ((holding as { serie?: string | null }).serie || "").toString().trim().toUpperCase();
+            // Preferir la serie del holding; si no, la primera (el retorno por valor cuota es ~igual entre series)
+            const match = cmfMatches.find((m) => (m.serie || "").toString().trim().toUpperCase() === serie) || cmfMatches[0];
+            priceSource = "cmf"; sourceId = match.id;
+          }
         }
         // Bolsa de Santiago
         if (priceSource === "none" && holding.securityId) {
@@ -933,6 +974,24 @@ export async function POST(request: NextRequest) {
             name: holdingName,
             task: () => fetchFintualHistorical(sourceId, fetchFromDate, fetchToDate)
               .then(prices => ({ name: holdingName, prices })),
+          });
+        } else if (info.source === "cmf") {
+          // Valor cuota diario desde CMF (fund_cuota_history, keyed by fondo_id)
+          fetchTasks.push({
+            name: holdingName,
+            task: async () => {
+              const { data } = await supabase
+                .from("fund_cuota_history")
+                .select("fecha, valor_cuota")
+                .eq("fondo_id", sourceId)
+                .gte("fecha", fetchFromDate)
+                .lte("fecha", fetchToDate)
+                .order("fecha", { ascending: true });
+              const prices: DailyPrice[] = (data || [])
+                .filter((r: { valor_cuota: number | null }) => r.valor_cuota != null && r.valor_cuota > 0)
+                .map((r: { fecha: string; valor_cuota: number }) => ({ date: r.fecha, price: r.valor_cuota }));
+              return { name: holdingName, prices };
+            },
           });
         } else if (info.source === "bolsa_santiago") {
           fetchTasks.push({
@@ -1313,6 +1372,9 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // Recalcula el TWR encadenado de toda la serie (incluye los interpolados)
+    await recomputeClientReturns(supabase, clientId);
 
     return NextResponse.json({
       success: true,

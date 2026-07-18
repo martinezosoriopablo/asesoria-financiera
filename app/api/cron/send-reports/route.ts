@@ -188,53 +188,53 @@ export async function GET(request: NextRequest) {
         subject: `Reporte de portafolio — ${new Date().toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #1e293b;">Hola ${client.nombre},</h2>
-            <p style="color: #475569; font-size: 15px; line-height: 1.6;">
+            <h2 style="color: #0B2140;">Hola ${client.nombre},</h2>
+            <p style="color: #6E7787; font-size: 15px; line-height: 1.6;">
               Aquí tienes un resumen de tu portafolio al ${new Date(snapshotSummary.date + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}.
             </p>
 
-            <div style="background-color: #f1f5f9; border-radius: 12px; padding: 20px; margin: 24px 0;">
+            <div style="background-color: #F7F6F2; border-radius: 12px; padding: 20px; margin: 24px 0;">
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
-                  <td style="padding: 8px 0; color: #475569; font-size: 14px;">Valor Total</td>
-                  <td style="padding: 8px 0; text-align: right; font-size: 20px; font-weight: bold; color: #1e293b;">${formatCLP(snapshotSummary.total_value)}</td>
+                  <td style="padding: 8px 0; color: #6E7787; font-size: 14px;">Valor Total</td>
+                  <td style="padding: 8px 0; text-align: right; font-size: 20px; font-weight: bold; color: #0B2140;">${formatCLP(snapshotSummary.total_value)}</td>
                 </tr>
                 ${valueChange !== null ? `
                 <tr>
-                  <td style="padding: 8px 0; color: #475569; font-size: 14px;">Cambio</td>
-                  <td style="padding: 8px 0; text-align: right; font-size: 14px; font-weight: 600; color: ${valueChange >= 0 ? "#16a34a" : "#dc2626"};">
+                  <td style="padding: 8px 0; color: #6E7787; font-size: 14px;">Cambio</td>
+                  <td style="padding: 8px 0; text-align: right; font-size: 14px; font-weight: 600; color: ${valueChange >= 0 ? "#2ECC8F" : "#EF5B5B"};">
                     ${valueChange >= 0 ? "+" : ""}${formatCLP(valueChange)}
                   </td>
                 </tr>
                 ` : ""}
-                <tr><td colspan="2" style="padding: 12px 0 4px; border-top: 1px solid #e2e8f0;"></td></tr>
+                <tr><td colspan="2" style="padding: 12px 0 4px; border-top: 1px solid #E7E4DD;"></td></tr>
                 <tr>
-                  <td style="padding: 4px 0; color: #475569; font-size: 13px;">Renta Variable</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.equity_percent ?? 0).toFixed(1)}%</td>
+                  <td style="padding: 4px 0; color: #6E7787; font-size: 13px;">Renta Variable</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #0B2140;">${(snapshotSummary.equity_percent ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr>
-                  <td style="padding: 4px 0; color: #475569; font-size: 13px;">Renta Fija</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.fixed_income_percent ?? 0).toFixed(1)}%</td>
+                  <td style="padding: 4px 0; color: #6E7787; font-size: 13px;">Renta Fija</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #0B2140;">${(snapshotSummary.fixed_income_percent ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr>
-                  <td style="padding: 4px 0; color: #475569; font-size: 13px;">Alternativos</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.alternatives_percent ?? 0).toFixed(1)}%</td>
+                  <td style="padding: 4px 0; color: #6E7787; font-size: 13px;">Alternativos</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #0B2140;">${(snapshotSummary.alternatives_percent ?? 0).toFixed(1)}%</td>
                 </tr>
                 <tr>
-                  <td style="padding: 4px 0; color: #475569; font-size: 13px;">Caja</td>
-                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #1e293b;">${(snapshotSummary.cash_percent ?? 0).toFixed(1)}%</td>
+                  <td style="padding: 4px 0; color: #6E7787; font-size: 13px;">Caja</td>
+                  <td style="padding: 4px 0; text-align: right; font-size: 13px; color: #0B2140;">${(snapshotSummary.cash_percent ?? 0).toFixed(1)}%</td>
                 </tr>
               </table>
             </div>
 
             <div style="text-align: center; margin: 32px 0;">
               <a href="${appUrl}/portal/reportes"
-                 style="background-color: #1e293b; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block;">
+                 style="background-color: #0B2140; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block;">
                 Ver reporte completo
               </a>
             </div>
 
-            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px;">
+            <p style="color: #a9a49c; font-size: 12px; text-align: center; margin-top: 24px;">
               ${advisor.nombre} ${advisor.apellido} — ${advisor.company_name || "Asesoría Financiera"}
             </p>
           </div>

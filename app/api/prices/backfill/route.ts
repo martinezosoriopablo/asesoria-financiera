@@ -1,7 +1,7 @@
 // app/api/prices/backfill/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -15,12 +15,12 @@ export async function POST(request: NextRequest) {
     const rateLimitError = await applyRateLimit(request, "prices-backfill", { limit: 10 });
     if (rateLimitError) return rateLimitError as NextResponse;
 
-    const { error } = await requireAdvisor();
-    if (error) return error as NextResponse;
-
     const body = await request.json();
     const { clientId } = body;
     if (!clientId) return errorResponse("clientId es requerido", 400);
+
+    const { error } = await requireClientAccess(clientId);
+    if (error) return error as NextResponse;
 
     const supabase = createAdminClient();
 

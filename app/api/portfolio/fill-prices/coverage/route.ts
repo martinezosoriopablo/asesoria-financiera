@@ -3,7 +3,7 @@
 // Lightweight endpoint — does NOT fetch or fill prices, just checks sources
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -12,15 +12,16 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("fill-prices-coverage-get", async () => {
-    const { error: authError } = await requireAdvisor();
-    if (authError) return authError;
-
-    const supabase = createAdminClient();
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     if (!clientId) {
       return NextResponse.json({ success: false, error: "clientId requerido" }, { status: 400 });
     }
+
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     // Get the latest CARTOLA snapshot (source = statement/manual/excel — these have securityIds)
     // NOT api-prices snapshots, which may have lost the securityId field

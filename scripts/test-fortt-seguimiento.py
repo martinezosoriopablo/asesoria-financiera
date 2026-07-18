@@ -1,5 +1,12 @@
+import os
 from playwright.sync_api import sync_playwright
-import json
+
+test_email = os.environ.get('TEST_EMAIL', '')
+test_password = os.environ.get('TEST_PASSWORD', '')
+
+if not test_email or not test_password:
+    print('❌ Set TEST_EMAIL and TEST_PASSWORD environment variables')
+    exit(1)
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -14,9 +21,9 @@ with sync_playwright() as p:
     # Fill login credentials
     email_input = page.locator('input[type="email"]')
     if email_input.count() > 0:
-        email_input.fill('martin@greybark.io')
+        email_input.fill(test_email)
         password_input = page.locator('input[type="password"]')
-        password_input.fill('greybark2024')
+        password_input.fill(test_password)
         # Click submit
         submit = page.locator('button[type="submit"]')
         submit.click()

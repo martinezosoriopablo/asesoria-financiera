@@ -113,101 +113,72 @@ export async function POST(request: NextRequest) {
   let skipped = 0;
   let geminiExhausted = false;
 
-  for (const [foRun, fondo] of uniqueRuns) {
+  // Pool de concurrencia: evita el timeout del serverless. El loop secuencial con
+  // throttle de 4s superaba maxDuration (300s) en AGF con muchas series. Gemini es
+  // tier pago y admite paralelismo.
+  async function runPool<T>(items: T[], size: number, fn: (item: T) => Promise<void>) {
+    let i = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(size, items.length) }, async () => {
+        while (i < items.length) { const item = items[i++]; await fn(item); }
+      })
+    );
+  }
+
+  // Fase 1: discovery en paralelo -> arma la lista de series a extraer (jobs).
+  const jobs: { foRun: number; serie: string; rutAdmin: string }[] = [];
+  await runPool([...uniqueRuns], 8, async ([foRun, fondo]) => {
     try {
-      // Discover rutAdmin and ALL available series from CMF
       const cmfData = await discoverFromCmfPage(foRun, "RGFMU");
       if (!cmfData) {
+        // Fallback: sin folleto page, intentar con el rutAdmin de la AGF y la serie del DB
         const rutAdmin = findRutAdmin(fondo.nombre_agf);
-        if (!rutAdmin) {
-          results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "no_rut_admin" });
-          errors++;
-          continue;
-        }
-        // Fallback: try single serie from DB
-        if (alreadySynced.has(`${foRun}-${fondo.fm_serie}`)) {
-          results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "already_synced" });
-          skipped++;
-          continue;
-        }
-        const pdfUrl = await getPdfUrl(foRun, fondo.fm_serie, rutAdmin);
-        if (!pdfUrl) {
-          results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "no_pdf_url" });
-          errors++;
-          continue;
-        }
-        const pdfBuffer = await downloadPdf(pdfUrl);
-        if (!pdfBuffer) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "download_failed" }); errors++; continue; }
-        const { data: extracted, gemini_exhausted: fallbackGeminiExhausted } = await extractFromPdf(pdfBuffer);
-        if (fallbackGeminiExhausted) geminiExhausted = true;
-        const { extraction_method: _, ...dbFields1 } = extracted;
-        const { error: upsertError } = await supabase.from("fund_fichas").upsert({
-          fo_run: foRun, fm_serie: fondo.fm_serie, ...dbFields1,
-          updated_at: new Date().toISOString(), updated_by: user!.id,
-        }, { onConflict: "fo_run,fm_serie" });
-        if (upsertError) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: `db_error: ${upsertError.message}` }); errors++; }
-        else { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "ok" }); synced++; }
-        await new Promise(r => setTimeout(r, 4000));
-        continue;
+        if (!rutAdmin) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "no_rut_admin" }); errors++; return; }
+        if (alreadySynced.has(`${foRun}-${fondo.fm_serie}`)) { results.push({ fo_run: foRun, serie: fondo.fm_serie, status: "already_synced" }); skipped++; return; }
+        jobs.push({ foRun, serie: fondo.fm_serie, rutAdmin });
+        return;
       }
-
-      // Process EVERY serie — each has its own TAC/costs
       for (const serie of cmfData.series) {
-        // Skip series already synced
-        if (alreadySynced.has(`${foRun}-${serie}`)) {
-          results.push({ fo_run: foRun, serie, status: "already_synced" });
-          skipped++;
-          continue;
-        }
-        try {
-          const pdfUrl = await getPdfUrl(foRun, serie, cmfData.rutAdmin);
-          if (!pdfUrl) {
-            results.push({ fo_run: foRun, serie, status: "no_pdf" });
-            errors++;
-            continue;
-          }
-
-          const pdfBuffer = await downloadPdf(pdfUrl);
-          if (!pdfBuffer) {
-            results.push({ fo_run: foRun, serie, status: "download_failed" });
-            errors++;
-            continue;
-          }
-
-          const { data: extracted, gemini_exhausted: serieGeminiExhausted } = await extractFromPdf(pdfBuffer);
-          if (serieGeminiExhausted) geminiExhausted = true;
-          const { extraction_method: _x, ...dbFields2 } = extracted;
-
-          const { error: upsertError } = await supabase
-            .from("fund_fichas")
-            .upsert({
-              fo_run: foRun,
-              fm_serie: serie,
-              ...dbFields2,
-              updated_at: new Date().toISOString(),
-              updated_by: user!.id,
-            }, { onConflict: "fo_run,fm_serie" });
-
-          if (upsertError) {
-            results.push({ fo_run: foRun, serie, status: `db_error: ${upsertError.message}` });
-            errors++;
-          } else {
-            results.push({ fo_run: foRun, serie, status: "ok" });
-            synced++;
-          }
-
-          // Throttle: ~4s between requests to stay under Gemini free tier 15 RPM
-          await new Promise(r => setTimeout(r, 4000));
-        } catch (err) {
-          results.push({ fo_run: foRun, serie, status: `error: ${err instanceof Error ? err.message : "unknown"}` });
-          errors++;
-        }
+        if (alreadySynced.has(`${foRun}-${serie}`)) { results.push({ fo_run: foRun, serie, status: "already_synced" }); skipped++; continue; }
+        jobs.push({ foRun, serie, rutAdmin: cmfData.rutAdmin });
       }
     } catch (err) {
       results.push({ fo_run: foRun, serie: fondo.fm_serie, status: `error: ${err instanceof Error ? err.message : 'unknown'}` });
       errors++;
     }
-  }
+  });
+
+  // Fase 2: descarga PDF + extracción Gemini + upsert, en paralelo (pool).
+  await runPool(jobs, 5, async ({ foRun, serie, rutAdmin }) => {
+    try {
+      const pdfUrl = await getPdfUrl(foRun, serie, rutAdmin);
+      if (!pdfUrl) { results.push({ fo_run: foRun, serie, status: "no_pdf" }); errors++; return; }
+      const pdfBuffer = await downloadPdf(pdfUrl);
+      if (!pdfBuffer) { results.push({ fo_run: foRun, serie, status: "download_failed" }); errors++; return; }
+      const { data: extracted, gemini_exhausted: serieGeminiExhausted } = await extractFromPdf(pdfBuffer);
+      if (serieGeminiExhausted) geminiExhausted = true;
+      const { extraction_method: _x, ...dbFields2 } = extracted;
+      const { error: upsertError } = await supabase
+        .from("fund_fichas")
+        .upsert({
+          fo_run: foRun,
+          fm_serie: serie,
+          ...dbFields2,
+          updated_at: new Date().toISOString(),
+          updated_by: user!.id,
+        }, { onConflict: "fo_run,fm_serie" });
+      if (upsertError) {
+        results.push({ fo_run: foRun, serie, status: `db_error: ${upsertError.message}` });
+        errors++;
+      } else {
+        results.push({ fo_run: foRun, serie, status: "ok" });
+        synced++;
+      }
+    } catch (err) {
+      results.push({ fo_run: foRun, serie, status: `error: ${err instanceof Error ? err.message : "unknown"}` });
+      errors++;
+    }
+  });
 
   return NextResponse.json({
     success: true,

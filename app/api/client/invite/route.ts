@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
         <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
           Puedes acceder con tu email y contraseña actual. Si no recuerdas tu contraseña, usa la opción "Olvidé mi contraseña" en la página de inicio de sesión.
         </p>
-        <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #0B2C5E; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #0B2140; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
           Acceder al portal
         </a>
       `;
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
         <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 24px;">
           Haz clic en el botón para crear tu contraseña y acceder a tu portafolio, perfil de riesgo y comunicación directa con tu asesor.
         </p>
-        <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #0B2C5E; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        <a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background: #0B2140; color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
           Crear contraseña y acceder
         </a>
         <p style="font-size: 12px; color: #9ca3af; margin-top: 32px;">
@@ -185,17 +185,17 @@ export async function POST(req: NextRequest) {
       subject: emailSubject,
       html: `
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
-          <div style="background: #0B2C5E; padding: 20px 24px; border-radius: 8px 8px 0 0;">
-            <svg viewBox="0 0 100 100" width="28" height="28" style="vertical-align:middle;"><path d="M82.34 39.5 A34 34 0 1 0 82.34 60.5" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/><path d="M53 50 L85 50" fill="none" stroke="#6FB2EF" stroke-width="13" stroke-linecap="round"/></svg>
+          <div style="background: #0B2140; padding: 20px 24px; border-radius: 8px 8px 0 0;">
+            <svg viewBox="0 0 100 100" width="28" height="28" style="vertical-align:middle;"><path d="M82.34 39.5 A34 34 0 1 0 82.34 60.5" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round"/><path d="M53 50 L85 50" fill="none" stroke="#EB7838" stroke-width="13" stroke-linecap="round"/></svg>
             <span style="font-size: 16px; font-weight: 700; letter-spacing: 1px; color: white; vertical-align: middle; margin-left: 6px;">Global</span>
           </div>
           <div style="padding: 32px 24px;">
-            <h1 style="font-size: 20px; color: #0B2C5E; margin: 0 0 16px 0;">
+            <h1 style="font-size: 20px; color: #0B2140; margin: 0 0 16px 0;">
               Hola ${escapeHtml(client.nombre || '')},
             </h1>
             ${emailBody}
-            <div style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #DCE7F4;">
-              <p style="font-size: 11px; color: #5B6B82; margin: 0;">Global — Asesoría de inversiones independiente</p>
+            <div style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #E7E4DD;">
+              <p style="font-size: 11px; color: #6E7787; margin: 0;">Global — Asesoría de inversiones independiente</p>
             </div>
           </div>
         </div>

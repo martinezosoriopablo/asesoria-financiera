@@ -100,10 +100,26 @@ async function getChileanFundPrice(
     .lte("fecha", targetDate)
     .order("fecha", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (priceRow && priceRow.valor_cuota > 0) {
     return { price: priceRow.valor_cuota, date: priceRow.fecha };
+  }
+
+  // Fallback: los fondos mutuos reportan valor cuota con rezago (ej. 8 días).
+  // Si no hay precio en la ventana, usar el ÚLTIMO disponible <= targetDate.
+  // Devolvemos su fecha real para que la UI muestre "precio al <fecha>".
+  const { data: latestRow } = await supabase
+    .from("fondos_rentabilidades_diarias")
+    .select("valor_cuota, fecha")
+    .eq("fondo_id", fondo.id)
+    .lte("fecha", targetDate)
+    .order("fecha", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestRow && latestRow.valor_cuota > 0) {
+    return { price: latestRow.valor_cuota, date: latestRow.fecha };
   }
 
   return null;

@@ -154,7 +154,7 @@ export default function UploadTACModal({ onClose }: UploadTACModalProps) {
               width: '100%',
               padding: '10px',
               borderRadius: '6px',
-              border: '1px solid #ddd',
+              border: '1px solid #ccc8bf',
               fontSize: '14px'
             }}
           />
@@ -173,7 +173,7 @@ export default function UploadTACModal({ onClose }: UploadTACModalProps) {
               gap: '8px',
               padding: '12px',
               borderRadius: '6px',
-              border: `2px solid ${modo === 'reemplazar' ? '#6366f1' : '#ddd'}`,
+              border: `2px solid ${modo === 'reemplazar' ? '#5AA0E6' : '#ccc8bf'}`,
               backgroundColor: modo === 'reemplazar' ? '#eef2ff' : 'white',
               cursor: 'pointer',
               transition: 'all 0.2s'
@@ -203,7 +203,7 @@ export default function UploadTACModal({ onClose }: UploadTACModalProps) {
               gap: '8px',
               padding: '12px',
               borderRadius: '6px',
-              border: `2px solid ${modo === 'actualizar' ? '#6366f1' : '#ddd'}`,
+              border: `2px solid ${modo === 'actualizar' ? '#5AA0E6' : '#ccc8bf'}`,
               backgroundColor: modo === 'actualizar' ? '#eef2ff' : 'white',
               cursor: 'pointer',
               transition: 'all 0.2s'
@@ -233,7 +233,7 @@ export default function UploadTACModal({ onClose }: UploadTACModalProps) {
           <label style={{
             display: 'block',
             padding: '20px',
-            border: '2px dashed #ddd',
+            border: '2px dashed #ccc8bf',
             borderRadius: '8px',
             textAlign: 'center',
             cursor: 'pointer',
@@ -344,7 +344,7 @@ export default function UploadTACModal({ onClose }: UploadTACModalProps) {
             style={{
               padding: '10px 20px',
               borderRadius: '6px',
-              border: '1px solid #ddd',
+              border: '1px solid #ccc8bf',
               backgroundColor: 'white',
               color: '#666',
               fontSize: '14px',
@@ -363,7 +363,7 @@ export default function UploadTACModal({ onClose }: UploadTACModalProps) {
               padding: '10px 24px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: loading || !file ? '#ccc' : '#6366f1',
+              backgroundColor: loading || !file ? '#ccc8bf' : '#5AA0E6',
               color: 'white',
               fontSize: '14px',
               fontWeight: '600',

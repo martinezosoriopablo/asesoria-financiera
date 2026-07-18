@@ -2,9 +2,12 @@
 // API para gestionar snapshots de portfolio y calcular métricas
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
+import { recomputeClientReturns } from "@/lib/returns/persist";
+import { estimateImpliedFlow, type FlowHolding } from "@/lib/returns/implied-flow";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { enrichHoldingsWithCostBasis, HoldingWithCostBasis } from "@/lib/cost-basis";
+import { enrichPurchaseDates } from "@/lib/tax/enrich-purchase-dates";
 import { handleApiError } from "@/lib/api-response";
 
 interface HoldingData {
@@ -43,11 +46,6 @@ export async function GET(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-snapshots-get", async () => {
-    const { error: authError } = await requireAuth();
-    if (authError) return authError;
-
-    const supabase = createAdminClient();
-
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
     const period = searchParams.get("period") || "1Y"; // 1M, 3M, 6M, 1Y, ALL
@@ -55,6 +53,12 @@ export async function GET(request: NextRequest) {
     if (!clientId) {
       return NextResponse.json({ success: false, error: "clientId requerido" }, { status: 400 });
     }
+
+    // Verifica advisor + tenencia del cliente antes de tocar datos (evita IDOR)
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     // Calcular fecha de inicio según periodo
     const endDate = new Date();
@@ -118,9 +122,6 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("portfolio-snapshots-post", async () => {
-    const { error: authError } = await requireAuth();
-    if (authError) return authError;
-
     const supabase = createAdminClient();
 
     const body: SnapshotData = await request.json();
@@ -145,6 +146,10 @@ export async function POST(request: NextRequest) {
     if (!composition) {
       return NextResponse.json({ success: false, error: "composition requerida" }, { status: 400 });
     }
+
+    // Verifica advisor + tenencia del cliente antes de escribir (evita IDOR)
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
 
     const date = snapshotDate || new Date().toISOString().split("T")[0];
 
@@ -247,6 +252,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Inferir fecha de compra (match unitCost <-> valor cuota) para uso tributario
+    if (enrichedHoldings && enrichedHoldings.length > 0) {
+      try {
+        await enrichPurchaseDates(
+          enrichedHoldings as unknown as Array<{
+            securityId?: string | null;
+            serie?: string | null;
+            unitCost?: number | null;
+            purchaseDate?: string | null;
+          }>,
+          supabase
+        );
+      } catch (e) {
+        console.warn("enrichPurchaseDates fallo (no fatal):", e);
+      }
+    }
+
     // Prepare data with clamped values
     const snapshotData = {
       client_id: clientId,
@@ -311,9 +333,41 @@ export async function POST(request: NextRequest) {
       snapshot.is_baseline = true;
     }
 
+    // Detección de aportes/retiros NO registrados: si el cambio de valor vs la
+    // cartola anterior no se explica por el mercado ni por el flujo registrado,
+    // avisar al asesor (evita que un aporte/retiro se vea como rentabilidad).
+    let flowWarning: { impliedFlow: number; registeredFlow: number; message: string } | null = null;
+    if (prevSnapshot?.holdings && Array.isArray(prevSnapshot.holdings) && enrichedHoldings && enrichedHoldings.length > 0) {
+      const implied = estimateImpliedFlow(
+        prevSnapshot.holdings as unknown as FlowHolding[],
+        enrichedHoldings as unknown as FlowHolding[],
+      );
+      const unexplained = implied - estimatedNetFlow;
+      const threshold = Math.max(Math.abs(totalValue) * 0.01, 50000); // 1% del portafolio o $50.000
+      if (Math.abs(unexplained) > threshold) {
+        flowWarning = {
+          impliedFlow: Math.round(implied),
+          registeredFlow: Math.round(estimatedNetFlow),
+          message: `El cambio de valor sugiere un ${unexplained >= 0 ? "aporte" : "retiro"} de ~$${Math.abs(Math.round(unexplained)).toLocaleString("es-CL")} que no fue registrado. Revisa los campos de Aportes/Retiros del período para que la rentabilidad sea correcta.`,
+        };
+      }
+    }
+
+    // Recalcula el TWR encadenado de toda la serie (flow-independiente).
+    // Reemplaza el cumulative_return ingenuo calculado inline arriba.
+    await recomputeClientReturns(supabase, clientId);
+
+    // Re-fetch para devolver el cumulative_return ya recomputado
+    const { data: refreshed } = await supabase
+      .from("portfolio_snapshots")
+      .select("*")
+      .eq("id", snapshot.id)
+      .single();
+
     return NextResponse.json({
       success: true,
-      data: snapshot,
+      data: refreshed || snapshot,
+      flowWarning,
       // Signal to frontend that fill-prices should be triggered
       shouldFillPrices: !!(holdings && holdings.length > 0 && (source === "statement" || source === "manual" || source === "excel")),
     });

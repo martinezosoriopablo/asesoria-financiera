@@ -334,7 +334,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
             }}>
               {fondo.nombre_fondo}
             </h2>
-            <div style={{ fontSize: '13px', color: '#666' }}>
+            <div style={{ fontSize: '13px', color: '#6E7787' }}>
               {fondo.nombre_agf} • {fondo.fo_run} - {fondo.fm_serie}
             </div>
             {datos.length > 0 && (
@@ -353,7 +353,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                 borderRadius: '6px',
                 border: '1px solid #ddd',
                 backgroundColor: 'white',
-                color: '#2563eb',
+                color: '#5AA0E6',
                 fontSize: '13px',
                 fontWeight: '600',
                 cursor: loading ? 'not-allowed' : 'pointer',
@@ -370,7 +370,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                 borderRadius: '6px',
                 border: '1px solid #ddd',
                 backgroundColor: 'white',
-                color: '#666',
+                color: '#6E7787',
                 fontSize: '13px',
                 fontWeight: '600',
                 cursor: 'pointer'
@@ -403,11 +403,11 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                 padding: '12px 16px',
                 border: 'none',
                 backgroundColor: 'transparent',
-                color: activeTab === tab.id ? '#2563eb' : '#666',
+                color: activeTab === tab.id ? '#5AA0E6' : '#6E7787',
                 fontSize: '14px',
                 fontWeight: '600',
                 cursor: 'pointer',
-                borderBottom: activeTab === tab.id ? '2px solid #2563eb' : '2px solid transparent',
+                borderBottom: activeTab === tab.id ? '2px solid #5AA0E6' : '2px solid transparent',
                 transition: 'all 0.2s'
               }}
             >
@@ -429,7 +429,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
           ) : datos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px' }}>
               <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
-              <div style={{ fontSize: '16px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>
+              <div style={{ fontSize: '16px', fontWeight: '600', color: '#6E7787', marginBottom: '8px' }}>
                 No hay datos diarios
               </div>
               <div style={{ fontSize: '14px', color: '#999' }}>
@@ -467,8 +467,8 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                             padding: '6px 12px',
                             borderRadius: '6px',
                             border: '1px solid #ddd',
-                            backgroundColor: periodo === p.id ? '#2563eb' : 'white',
-                            color: periodo === p.id ? 'white' : '#666',
+                            backgroundColor: periodo === p.id ? '#5AA0E6' : 'white',
+                            color: periodo === p.id ? 'white' : '#6E7787',
                             fontSize: '12px',
                             fontWeight: '600',
                             cursor: 'pointer'
@@ -514,7 +514,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                             <polyline
                               points={puntos}
                               fill="none"
-                              stroke="#2563eb"
+                              stroke="#5AA0E6"
                               strokeWidth="2"
                             />
                             {/* Área */}
@@ -528,10 +528,10 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                             {/* Eje X */}
                             <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#ddd" strokeWidth="1" />
                             {/* Labels eje Y */}
-                            <text x={padding - 5} y={padding} textAnchor="end" fontSize="12" fill="#666">
+                            <text x={padding - 5} y={padding} textAnchor="end" fontSize="12" fill="#6E7787">
                               {maxVal.toFixed(2)}
                             </text>
-                            <text x={padding - 5} y={height - padding} textAnchor="end" fontSize="12" fill="#666">
+                            <text x={padding - 5} y={height - padding} textAnchor="end" fontSize="12" fill="#6E7787">
                               {minVal.toFixed(2)}
                             </text>
                             {/* Labels eje X (fechas) */}
@@ -550,7 +550,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                                     y={height - padding + 20} 
                                     textAnchor="middle" 
                                     fontSize="11" 
-                                    fill="#666"
+                                    fill="#6E7787"
                                   >
                                     {label}
                                   </text>
@@ -573,19 +573,19 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                     }}>
                       <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
                         <div style={{ fontSize: '11px', color: '#999', marginBottom: '4px' }}>Rentabilidad Acumulada</div>
-                        <div style={{ fontSize: '18px', fontWeight: '700', color: metricas.rentabilidad_acumulada > 0 ? '#10b981' : '#ef4444' }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: metricas.rentabilidad_acumulada > 0 ? '#2ECC8F' : '#ef4444' }}>
                           {formatNumber(metricas.rentabilidad_acumulada)}%
                         </div>
                       </div>
                       <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
                         <div style={{ fontSize: '11px', color: '#999', marginBottom: '4px' }}>Volatilidad Anual</div>
-                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#5AA0E6' }}>
                           {formatNumber(metricas.volatilidad_anual)}%
                         </div>
                       </div>
                       <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
                         <div style={{ fontSize: '11px', color: '#999', marginBottom: '4px' }}>Sharpe Ratio</div>
-                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#2563eb' }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#5AA0E6' }}>
                           {formatNumber(metricas.sharpe_ratio)}
                         </div>
                       </div>
@@ -616,13 +616,13 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
                         <tr>
-                          <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#666', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6E7787', borderBottom: '1px solid #e5e7eb' }}>
                             Fecha
                           </th>
-                          <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#666', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#6E7787', borderBottom: '1px solid #e5e7eb' }}>
                             Valor Cuota
                           </th>
-                          <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#666', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ padding: '12px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#6E7787', borderBottom: '1px solid #e5e7eb' }}>
                             Rent. Diaria
                           </th>
                         </tr>
@@ -641,7 +641,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                               fontSize: '13px', 
                               fontWeight: '600', 
                               textAlign: 'right',
-                              color: d.rent_diaria > 0 ? '#10b981' : '#ef4444'
+                              color: d.rent_diaria > 0 ? '#2ECC8F' : '#ef4444'
                             }}>
                               {d.rent_diaria > 0 ? '+' : ''}{formatNumber(d.rent_diaria)}%
                             </td>
@@ -673,15 +673,15 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px' }}>
                             Volatilidad Anualizada
                           </div>
-                          <div style={{ fontSize: '12px', color: '#666' }}>
+                          <div style={{ fontSize: '12px', color: '#6E7787' }}>
                             Desviación estándar de rentabilidades
                           </div>
                         </div>
-                        <div style={{ fontSize: '32px', fontWeight: '700', color: '#2563eb' }}>
+                        <div style={{ fontSize: '32px', fontWeight: '700', color: '#5AA0E6' }}>
                           {formatNumber(metricas.volatilidad_anual)}%
                         </div>
                       </div>
-                      <div style={{ marginTop: '12px', fontSize: '12px', color: '#666' }}>
+                      <div style={{ marginTop: '12px', fontSize: '12px', color: '#6E7787' }}>
                         {metricas.volatilidad_anual < 5 ? '🟢 Volatilidad Baja' : 
                          metricas.volatilidad_anual < 15 ? '🟡 Volatilidad Media' : 
                          '🔴 Volatilidad Alta'}
@@ -700,7 +700,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px' }}>
                             Máxima Caída (Drawdown)
                           </div>
-                          <div style={{ fontSize: '12px', color: '#666' }}>
+                          <div style={{ fontSize: '12px', color: '#6E7787' }}>
                             Peor caída desde el máximo histórico
                           </div>
                         </div>
@@ -722,7 +722,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px' }}>
                             VaR 95% (Value at Risk)
                           </div>
-                          <div style={{ fontSize: '12px', color: '#666' }}>
+                          <div style={{ fontSize: '12px', color: '#6E7787' }}>
                             Pérdida máxima esperada en el 95% de los casos
                           </div>
                         </div>
@@ -740,13 +740,13 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                         borderRadius: '8px',
                         border: '1px solid #bbf7d0'
                       }}>
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '12px', color: '#6E7787', marginBottom: '8px' }}>
                           📈 Mejor Día
                         </div>
-                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#2ECC8F', marginBottom: '4px' }}>
                           +{formatNumber(metricas.mejor_dia.valor)}%
                         </div>
-                        <div style={{ fontSize: '11px', color: '#666' }}>
+                        <div style={{ fontSize: '11px', color: '#6E7787' }}>
                           {formatFecha(metricas.mejor_dia.fecha)}
                         </div>
                       </div>
@@ -757,13 +757,13 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                         borderRadius: '8px',
                         border: '1px solid #fecaca'
                       }}>
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '12px', color: '#6E7787', marginBottom: '8px' }}>
                           📉 Peor Día
                         </div>
                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#ef4444', marginBottom: '4px' }}>
                           {formatNumber(metricas.peor_dia.valor)}%
                         </div>
-                        <div style={{ fontSize: '11px', color: '#666' }}>
+                        <div style={{ fontSize: '11px', color: '#6E7787' }}>
                           {formatFecha(metricas.peor_dia.fecha)}
                         </div>
                       </div>
@@ -792,11 +792,11 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                           <div style={{ fontSize: '16px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px' }}>
                             Sharpe Ratio
                           </div>
-                          <div style={{ fontSize: '13px', color: '#666' }}>
+                          <div style={{ fontSize: '13px', color: '#6E7787' }}>
                             Rentabilidad ajustada por riesgo (volatilidad total)
                           </div>
                         </div>
-                        <div style={{ fontSize: '36px', fontWeight: '700', color: '#2563eb' }}>
+                        <div style={{ fontSize: '36px', fontWeight: '700', color: '#5AA0E6' }}>
                           {formatNumber(metricas.sharpe_ratio)}
                         </div>
                       </div>
@@ -805,7 +805,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                         backgroundColor: '#f0f9ff', 
                         borderRadius: '6px',
                         fontSize: '12px',
-                        color: '#666'
+                        color: '#6E7787'
                       }}>
                         <div style={{ fontWeight: '600', marginBottom: '4px', color: '#1a1a1a' }}>Interpretación:</div>
                         {metricas.sharpe_ratio < 0 ? '🔴 Negativo: Rentabilidad inferior al activo libre de riesgo' :
@@ -827,11 +827,11 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                           <div style={{ fontSize: '16px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px' }}>
                             Sortino Ratio
                           </div>
-                          <div style={{ fontSize: '13px', color: '#666' }}>
+                          <div style={{ fontSize: '13px', color: '#6E7787' }}>
                             Rentabilidad ajustada por riesgo (solo volatilidad negativa)
                           </div>
                         </div>
-                        <div style={{ fontSize: '36px', fontWeight: '700', color: '#10b981' }}>
+                        <div style={{ fontSize: '36px', fontWeight: '700', color: '#2ECC8F' }}>
                           {formatNumber(metricas.sortino_ratio)}
                         </div>
                       </div>
@@ -840,7 +840,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                         backgroundColor: '#f0fdf4', 
                         borderRadius: '6px',
                         fontSize: '12px',
-                        color: '#666'
+                        color: '#6E7787'
                       }}>
                         <div style={{ fontWeight: '600', marginBottom: '4px', color: '#1a1a1a' }}>Interpretación:</div>
                         Similar al Sharpe, pero solo penaliza volatilidad negativa. Valores mayores a 2 son excelentes.
@@ -859,25 +859,25 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                       </div>
                       <div style={{ display: 'grid', gap: '8px', fontSize: '13px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#666' }}>Rentabilidad Total:</span>
-                          <span style={{ fontWeight: '600', color: metricas.rentabilidad_acumulada > 0 ? '#10b981' : '#ef4444' }}>
+                          <span style={{ color: '#6E7787' }}>Rentabilidad Total:</span>
+                          <span style={{ fontWeight: '600', color: metricas.rentabilidad_acumulada > 0 ? '#2ECC8F' : '#ef4444' }}>
                             {formatNumber(metricas.rentabilidad_acumulada)}%
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#666' }}>Volatilidad Anual:</span>
-                          <span style={{ fontWeight: '600', color: '#2563eb' }}>
+                          <span style={{ color: '#6E7787' }}>Volatilidad Anual:</span>
+                          <span style={{ fontWeight: '600', color: '#5AA0E6' }}>
                             {formatNumber(metricas.volatilidad_anual)}%
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#666' }}>Ratio Rent/Riesgo:</span>
-                          <span style={{ fontWeight: '600', color: '#2563eb' }}>
+                          <span style={{ color: '#6E7787' }}>Ratio Rent/Riesgo:</span>
+                          <span style={{ fontWeight: '600', color: '#5AA0E6' }}>
                             {formatNumber(metricas.rentabilidad_acumulada / metricas.volatilidad_anual)}
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#666' }}>Período Análisis:</span>
+                          <span style={{ color: '#6E7787' }}>Período Análisis:</span>
                           <span style={{ fontWeight: '600', color: '#1a1a1a' }}>
                             {datos.length} días
                           </span>
@@ -932,13 +932,13 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                             type="checkbox"
                             checked={fichaData[item.key]}
                             onChange={e => setFichaData(prev => ({ ...prev, [item.key]: e.target.checked }))}
-                            style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#10b981' }}
+                            style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#2ECC8F' }}
                           />
                           <div>
                             <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a' }}>
                               {item.label}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>
+                            <div style={{ fontSize: '12px', color: '#6E7787' }}>
                               {item.desc}
                             </div>
                           </div>
@@ -948,7 +948,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#666', marginBottom: '6px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#6E7787', marginBottom: '6px' }}>
                       Notas Tributarias
                     </div>
                     <textarea
@@ -975,7 +975,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                       padding: '10px 20px',
                       borderRadius: '8px',
                       border: 'none',
-                      backgroundColor: fichaSaved ? '#10b981' : '#2563eb',
+                      backgroundColor: fichaSaved ? '#2ECC8F' : '#5AA0E6',
                       color: 'white',
                       fontSize: '14px',
                       fontWeight: '600',
@@ -1017,7 +1017,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                           return (
                             <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span>{r.label}</span>
-                              <span style={{ fontWeight: '600', color: val >= 0 ? '#10b981' : '#ef4444' }}>
+                              <span style={{ fontWeight: '600', color: val >= 0 ? '#2ECC8F' : '#ef4444' }}>
                                 {val}%
                               </span>
                             </div>
@@ -1109,7 +1109,7 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                         style={{
                           padding: '10px 24px',
                           borderRadius: '8px',
-                          backgroundColor: '#2563eb',
+                          backgroundColor: '#5AA0E6',
                           color: 'white',
                           fontSize: '14px',
                           fontWeight: '600',
@@ -1158,11 +1158,11 @@ export default function FondoDetalleModal({ fondo, onClose }: FondoDetalleModalP
                       }}
                     >
                       {fichaUploading ? (
-                        <div style={{ fontSize: '14px', color: '#666' }}>Subiendo PDF...</div>
+                        <div style={{ fontSize: '14px', color: '#6E7787' }}>Subiendo PDF...</div>
                       ) : (
                         <>
                           <div style={{ fontSize: '40px', marginBottom: '12px' }}>📄</div>
-                          <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '4px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: '600', color: '#6E7787', marginBottom: '4px' }}>
                             Arrastra el PDF o haz clic para subir
                           </div>
                           <div style={{ fontSize: '12px', color: '#999' }}>

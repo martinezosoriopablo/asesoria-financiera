@@ -2,7 +2,7 @@
 // Aplica la cartera recomendada: guarda en cliente, crea modelo
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
+import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
 
@@ -54,11 +54,6 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("comite-aplicar-cartera-post", async () => {
-    const { user, error: authError } = await requireAdvisor();
-    if (authError) return authError;
-
-    const supabase = createAdminClient();
-
     const body: AplicarCarteraRequest = await request.json();
     const { clientId, cliente, recomendacion, generadoEn } = body;
 
@@ -68,6 +63,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verifica advisor + tenencia antes de sobrescribir la cartera del cliente (evita IDOR)
+    const { user, error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
+
+    const supabase = createAdminClient();
 
     // 1. Calculate weights from cartera
     const weights = {

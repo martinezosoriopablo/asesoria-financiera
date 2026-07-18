@@ -1,6 +1,6 @@
 // app/api/portfolio/baseline-evolution/route.ts
 import { NextRequest } from 'next/server';
-import { requireAuth, createAdminClient } from '@/lib/auth/api-auth';
+import { requireClientAccess, createAdminClient } from '@/lib/auth/api-auth';
 import { successResponse, errorResponse, handleApiError } from '@/lib/api-response';
 import { applyRateLimit } from '@/lib/rate-limit';
 
@@ -8,12 +8,12 @@ export async function POST(request: NextRequest) {
   const rateLimitResult = await applyRateLimit(request, 'baseline-evolution', { limit: 10 });
   if (rateLimitResult) return rateLimitResult;
 
-  const { error: authError } = await requireAuth();
-  if (authError) return authError;
-
   return handleApiError('baseline-evolution', async () => {
     const { clientId } = await request.json();
     if (!clientId) return errorResponse('clientId es requerido', 400);
+
+    const { error: accessError } = await requireClientAccess(clientId);
+    if (accessError) return accessError;
 
     const supabase = createAdminClient();
 

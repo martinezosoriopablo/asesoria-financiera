@@ -18,6 +18,14 @@ Canonical palette — keep UI, emails, and reports consistent with the marketing
 
 Rule: navy dominates; copper/gold are accents (never large fills); azure for actions/data; green/red only for market variations.
 
+**Platform (app) palette — `app/globals.css` tokens (light scheme, aligned with the globalcompanies site).** The advisor app + client portal use a warm off-white surface, not the dark marketing navy. This is the canonical source for `--gb-*`/`--gl-*` tokens (use the tokens/Tailwind classes, don't hardcode hex):
+- Surface `#F7F6F2` (`--background`/`--gb-light`) · Border `#E7E4DD` (`--gb-border`)
+- Navy `#0B2140` (`--gb-black`/`--gb-sidebar`; canonical app navy) · Navy-dark `#1A3558` (`--gb-dark`) · Sidebar-hover `#132D52`
+- Text `#2C3A4E` (`--foreground`) · Gray `#6E7787` (`--gb-gray`) · Light-gray `#a9a49c`
+- Copper primary `#EB7838` (`--gb-primary`/`--gb-accent`) · Copper-dark `#D0682E` · Copper-light `#FEF3EC`
+- Azure `#5AA0E6` (`--gb-info`; links/CTA/single-series chart lines) · Up `#2ECC8F` (`--gb-success`) · Down `#EF5B5B` (`--gb-danger`)
+- Emails/PDFs (no CSS vars) hardcode these hex directly. Chart **categorical** palettes (per-asset-class color maps, multi-series arrays) are data colors — NOT brand chrome — leave them.
+
 Fonts: **Fraunces** (serif display/numbers), **Hanken Grotesk** (UI/body), **IBM Plex Mono** (data). In email/HTML where webfonts may not load, fall back to Georgia / Arial / Consolas.
 
 Logo: inline SVG in `components/landing/GlobalLogo.tsx` — G icon with copper `#EB7838` bars, `currentColor` paths (white on dark via `variant="light"`, navy `#0B2140` on light via `variant="dark"`). `GBrandMark.tsx` is a simplified G+bars mark. Master brand = **Global Companies**; Wealth / Planning / Properties are the three service lines.
@@ -115,6 +123,7 @@ npx vitest run lib/rate-limit.test.ts   # Run a single test file
 - `GET /api/benchmark/config` + `PUT /api/benchmark/config` — Per-client benchmark configuration (stored in `clients.benchmark_config` JSONB)
 - `POST /api/portfolio/historical-prices` — Dot-product portfolio evolution: accepts `holdings` (by RUN), `holdingsByName` (name-matching), and `internationalHoldings` (Yahoo/AV). Processes international holdings in parallel via `Promise.allSettled`. Requires ≥50% of instruments to have data per date (not all).
 - `POST /api/portfolio/prices-at-date` — Per-holding prices at two dates for return calculation. On-demand Yahoo/AV fallback when `international_prices` DB is empty. **CRÍTICO: holdings internacionales (resueltos a EODHD/Yahoo/AV por `resolveSource`) NUNCA deben caer al fallback de name-matching de fondos chilenos (`getChileanFundPriceByName`). El guard `isInternational` lo impide. Sin él, un fondo USD como "DWS Invest Latin American" matchea un fondo chileno CLP y produce retornos absurdos (~9900%). NUNCA eliminar este guard.**
+  - **Precio actual con rezago de reporte (jul 2026):** los FM chilenos publican su `valor_cuota` en `fondos_rentabilidades_diarias` con **rezago de varios días** (~8). La búsqueda por `fo_run` primero intenta una ventana de 7 días alrededor de `targetDate`; si no hay dato (el último precio quedó fuera de los 7 días), **cae al ÚLTIMO valor cuota disponible ≤ targetDate** y devuelve su fecha real (la UI muestra "precio al <fecha>"). Sin ese fallback, el precio actual salía **null** para fondos identificados y correctos (síntoma: "no trae precios actuales" aunque el fondo esté en el catálogo). NO volver a exigir la ventana estricta sin fallback. Nota: `fund_cuota_history` suele estar más fresca que `fondos_rentabilidades_diarias`; el fill-prices CMF usa la primera, prices-at-date la segunda.
 
 **Seguimiento API filters:** The `GET /api/clients/[id]/seguimiento` route excludes `source=api-prices` snapshots to avoid polluting manual cartola tracking with auto-generated price snapshots.
 

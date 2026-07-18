@@ -25,6 +25,9 @@ interface FichaRow {
   beneficio_108lir: boolean | null;
   notas_tributarias: string | null;
   objetivo: string | null;
+  pct_uf: number | null;
+  pct_renta_variable: number | null;
+  pct_renta_fija: number | null;
   // From vw
   nombre_vw: string | null;
   agf: string | null;
@@ -124,7 +127,7 @@ export default function FichasReviewPage() {
 
   const handleSaveField = async (f: FichaRow, field: string, rawValue: string) => {
     setSaving(true);
-    const numFields = ["tac_serie", "rent_1m", "rent_3m", "rent_6m", "rent_12m"];
+    const numFields = ["tac_serie", "rent_1m", "rent_3m", "rent_6m", "rent_12m", "pct_uf", "pct_renta_variable", "pct_renta_fija"];
     const boolFields = ["beneficio_apv", "beneficio_57bis", "beneficio_107lir", "beneficio_108lir"];
     let value: string | number | boolean | null = rawValue.trim();
     if (value === "" || value === "—") value = null;
@@ -441,6 +444,9 @@ export default function FichasReviewPage() {
                     <th className="text-right py-2 px-2 font-medium">R12M</th>
                     <th className="text-left py-2 px-2 font-medium">Horizonte</th>
                     <th className="text-left py-2 px-2 font-medium">Beneficio</th>
+                    <th className="text-right py-2 px-2 font-medium">%UF</th>
+                    <th className="text-right py-2 px-2 font-medium">%RV</th>
+                    <th className="text-right py-2 px-2 font-medium">%RF</th>
                     <th className="text-center py-2 px-2 font-medium">Obj</th>
                     <th className="text-center py-2 px-2 font-medium">OK</th>
                   </tr>
@@ -512,6 +518,15 @@ export default function FichasReviewPage() {
                               ben.includes("108") ? "text-blue-600 bg-blue-50" : "text-gb-gray bg-gb-light";
                             return <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${color}`}>{ben}</span>;
                           })()}
+                        </td>
+                        <td className="py-1.5 px-2 text-right tabular-nums">
+                          <EditableCell f={f} field="pct_uf" display={fmtPct(f.pct_uf)} className={f.pct_uf != null ? "text-gb-black" : "text-gb-gray"} />
+                        </td>
+                        <td className="py-1.5 px-2 text-right tabular-nums">
+                          <EditableCell f={f} field="pct_renta_variable" display={fmtPct(f.pct_renta_variable)} className={f.pct_renta_variable != null ? "text-gb-black" : "text-gb-gray"} />
+                        </td>
+                        <td className="py-1.5 px-2 text-right tabular-nums">
+                          <EditableCell f={f} field="pct_renta_fija" display={fmtPct(f.pct_renta_fija)} className={f.pct_renta_fija != null ? "text-gb-black" : "text-gb-gray"} />
                         </td>
                         <td className="py-1.5 px-2 text-center">
                           {f.objetivo ? (

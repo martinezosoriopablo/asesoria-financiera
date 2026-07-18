@@ -118,16 +118,16 @@ function PortalLoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFCFE] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#F7F6F2] flex items-center justify-center px-4">
       <div className="w-full max-w-sm text-center">
         <div className="flex justify-center mb-8">
-          <GlobalLogo size={60} />
+          <GlobalLogo className="h-16 w-auto" />
         </div>
 
         {status === "loading" && (
           <div className="space-y-4">
-            <Loader className="w-8 h-8 text-[#5B6B82] animate-spin mx-auto" />
-            <p className="text-sm text-[#5B6B82]">Verificando acceso...</p>
+            <Loader className="w-8 h-8 text-[#6E7787] animate-spin mx-auto" />
+            <p className="text-sm text-[#6E7787]">Verificando acceso...</p>
           </div>
         )}
 
@@ -135,8 +135,8 @@ function PortalLoginContent() {
           <div className="space-y-4">
             <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
             <div>
-              <h1 className="text-lg font-semibold text-[#0B2C5E]">Bienvenido</h1>
-              <p className="text-sm text-[#5B6B82] mt-1">Redirigiendo a tu portal...</p>
+              <h1 className="text-lg font-semibold text-[#0B2140]">Bienvenido</h1>
+              <p className="text-sm text-[#6E7787] mt-1">Redirigiendo a tu portal...</p>
             </div>
           </div>
         )}
@@ -144,29 +144,29 @@ function PortalLoginContent() {
         {status === "login" && (
           <div className="space-y-6">
             <div>
-              <h1 className="text-2xl font-semibold text-[#0B2C5E]">Portal de Inversiones</h1>
-              <p className="text-sm text-[#5B6B82] mt-1.5">Ingresa con tus credenciales</p>
+              <h1 className="text-2xl font-semibold text-[#0B2140]">Portal de Inversiones</h1>
+              <p className="text-sm text-[#6E7787] mt-1.5">Ingresa con tus credenciales</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4 text-left">
               <div>
-                <label className="block text-xs font-medium text-[#5B6B82] mb-1">Email</label>
+                <label className="block text-xs font-medium text-[#6E7787] mb-1">Email</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-[#DCE7F4] rounded-lg text-sm focus:ring-2 focus:ring-[#2E86E0]/20 focus:border-[#2E86E0] transition-colors"
+                  className="w-full px-3 py-2.5 border border-[#E7E4DD] rounded-lg text-sm focus:ring-2 focus:ring-[#EB7838]/20 focus:border-[#EB7838] transition-colors"
                   placeholder="tu@email.com"
                   autoComplete="email"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#5B6B82] mb-1">Contraseña</label>
+                <label className="block text-xs font-medium text-[#6E7787] mb-1">Contraseña</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-[#DCE7F4] rounded-lg text-sm focus:ring-2 focus:ring-[#2E86E0]/20 focus:border-[#2E86E0] transition-colors"
+                  className="w-full px-3 py-2.5 border border-[#E7E4DD] rounded-lg text-sm focus:ring-2 focus:ring-[#EB7838]/20 focus:border-[#EB7838] transition-colors"
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
@@ -175,7 +175,7 @@ function PortalLoginContent() {
               <div className="text-right">
                 <a
                   href="/forgot-password"
-                  className="text-xs text-[#2E86E0] hover:underline"
+                  className="text-xs text-[#EB7838] hover:underline"
                 >
                   ¿Olvidaste tu contraseña?
                 </a>
@@ -191,7 +191,7 @@ function PortalLoginContent() {
               <button
                 type="submit"
                 disabled={loginLoading || !email || !password}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#0B2C5E] text-white rounded-lg text-sm font-medium hover:bg-[#07203F] disabled:opacity-40 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#0B2140] text-white rounded-lg text-sm font-medium hover:bg-[#071A33] disabled:opacity-40 transition-colors"
               >
                 {loginLoading ? (
                   <Loader className="w-4 h-4 animate-spin" />
@@ -210,13 +210,13 @@ function PortalLoginContent() {
           <div className="space-y-4">
             <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
             <div>
-              <h1 className="text-lg font-semibold text-[#0B2C5E]">Acceso al Portal</h1>
-              <p className="text-sm text-[#5B6B82] mt-2">{errorMsg}</p>
+              <h1 className="text-lg font-semibold text-[#0B2140]">Acceso al Portal</h1>
+              <p className="text-sm text-[#6E7787] mt-2">{errorMsg}</p>
             </div>
           </div>
         )}
 
-        <p className="text-xs text-[#5B6B82]/50 mt-12">
+        <p className="text-xs text-[#6E7787]/50 mt-12">
           Global — Portal de Inversiones
         </p>
       </div>
@@ -228,7 +228,7 @@ export default function PortalLoginPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <Loader className="w-6 h-6 animate-spin text-[#5B6B82]" />
+        <Loader className="w-6 h-6 animate-spin text-[#6E7787]" />
       </div>
     }>
       <PortalLoginContent />

@@ -33,19 +33,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Get fondos to sync
-  let fondosToSync: { id: string; rut: string; nombre: string; administradora: string }[] = [];
+  let fondosToSync: { id: string; rut: string; nombre: string; administradora: string; tipo: "FIRES" | "FINRE" }[] = [];
 
   if (fi_ruts && Array.isArray(fi_ruts)) {
     const { data } = await supabase
       .from("fondos_inversion")
-      .select("id, rut, nombre, administradora")
+      .select("id, rut, nombre, administradora, tipo")
       .in("rut", fi_ruts)
       .eq("activo", true);
     fondosToSync = data || [];
   } else if (administradora) {
     const { data } = await supabase
       .from("fondos_inversion")
-      .select("id, rut, nombre, administradora")
+      .select("id, rut, nombre, administradora, tipo")
       .ilike("administradora", `%${administradora}%`)
       .eq("activo", true)
       .limit(batchLimit);
@@ -73,74 +73,81 @@ export async function POST(request: NextRequest) {
   let synced = 0;
   let errors = 0;
   let skipped = 0;
+  let noFolleto = 0;
   let geminiExhausted = false;
 
-  for (const fondo of fondosToSync) {
+  // Procesa items con un pool de concurrencia fijo. Evita el timeout del serverless
+  // que producía el loop secuencial con throttle de 4s (Gemini es tier pago y admite
+  // paralelismo). Sin esto, re-sincronizar una administradora con muchas series FINRE
+  // superaba maxDuration (300s) y la request moría sin devolver resultados.
+  async function runPool<T>(items: T[], size: number, fn: (item: T) => Promise<void>) {
+    let i = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(size, items.length) }, async () => {
+        while (i < items.length) { const item = items[i++]; await fn(item); }
+      })
+    );
+  }
+
+  // Fase 1: discovery en paralelo. Marca sin_folleto y arma la lista de series a extraer.
+  const jobs: { fondo: (typeof fondosToSync)[number]; serie: string; rutAdmin: string }[] = [];
+  await runPool(fondosToSync, 8, async (fondo) => {
     try {
-      const cmfData = await discoverFromCmfPage(fondo.rut, "FIRES");
+      // FIRES (rescatables) y FINRE (no rescatables) usan distinto tipoentidad en CMF
+      const cmfData = await discoverFromCmfPage(fondo.rut, fondo.tipo);
       if (!cmfData) {
-        results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "no_folleto_page" });
-        errors++;
-        continue;
+        // No es un error real: muchos FI (sobre todo FINRE de deuda privada) no
+        // publican folleto informativo en CMF. Se cuenta aparte de los errores.
+        results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: "sin_folleto" });
+        noFolleto++;
+        try { await supabase.from("fondos_inversion").update({ sin_folleto: true }).eq("rut", fondo.rut); } catch { /* no fatal */ }
+        return;
       }
-
-      // Process EVERY serie — each has its own TAC/costs
+      // Tiene folleto: marcarlo (por si antes estaba marcado sin_folleto)
+      try { await supabase.from("fondos_inversion").update({ sin_folleto: false }).eq("rut", fondo.rut); } catch { /* no fatal */ }
       for (const serie of cmfData.series) {
-        if (alreadySynced.has(`${fondo.rut}-${serie}`)) {
-          skipped++;
-          continue;
-        }
-        try {
-          const pdfUrl = await getPdfUrl(fondo.rut, serie, cmfData.rutAdmin);
-          if (!pdfUrl) {
-            results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: "no_pdf" });
-            errors++;
-            continue;
-          }
-
-          const pdfBuffer = await downloadPdf(pdfUrl);
-          if (!pdfBuffer) {
-            results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: "download_failed" });
-            errors++;
-            continue;
-          }
-
-          const { data: extracted, gemini_exhausted: serieGeminiExhausted } = await extractFromPdf(pdfBuffer);
-          if (serieGeminiExhausted) geminiExhausted = true;
-          const { extraction_method: _method, ...dbFields } = extracted;
-
-          const { error: upsertError } = await supabase
-            .from("fi_fichas")
-            .upsert({
-              fi_rut: fondo.rut,
-              fi_serie: serie,
-              ...dbFields,
-              updated_at: new Date().toISOString(),
-              updated_by: user!.id,
-            }, { onConflict: "fi_rut,fi_serie" });
-
-          if (upsertError) {
-            results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: `db_error: ${upsertError.message}` });
-            errors++;
-          } else {
-            results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: "ok" });
-            synced++;
-          }
-
-          // Throttle: ~4s between requests to stay under Gemini free tier 15 RPM
-          await new Promise(r => setTimeout(r, 4000));
-        } catch (err) {
-          results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: `error: ${err instanceof Error ? err.message : "unknown"}` });
-          errors++;
-        }
+        if (alreadySynced.has(`${fondo.rut}-${serie}`)) { skipped++; continue; }
+        jobs.push({ fondo, serie, rutAdmin: cmfData.rutAdmin });
       }
     } catch (err) {
       results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie: "-", status: `error: ${err instanceof Error ? err.message : "unknown"}` });
       errors++;
     }
-  }
+  });
 
-    return NextResponse.json({ success: true, synced, errors, skipped, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
+  // Fase 2: descarga PDF + extracción Gemini + upsert, en paralelo (pool).
+  await runPool(jobs, 5, async ({ fondo, serie, rutAdmin }) => {
+    try {
+      const pdfUrl = await getPdfUrl(fondo.rut, serie, rutAdmin);
+      if (!pdfUrl) { results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: "no_pdf" }); errors++; return; }
+      const pdfBuffer = await downloadPdf(pdfUrl);
+      if (!pdfBuffer) { results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: "download_failed" }); errors++; return; }
+      const { data: extracted, gemini_exhausted: serieGeminiExhausted } = await extractFromPdf(pdfBuffer);
+      if (serieGeminiExhausted) geminiExhausted = true;
+      const { extraction_method: _method, ...dbFields } = extracted;
+      const { error: upsertError } = await supabase
+        .from("fi_fichas")
+        .upsert({
+          fi_rut: fondo.rut,
+          fi_serie: serie,
+          ...dbFields,
+          updated_at: new Date().toISOString(),
+          updated_by: user!.id,
+        }, { onConflict: "fi_rut,fi_serie" });
+      if (upsertError) {
+        results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: `db_error: ${upsertError.message}` });
+        errors++;
+      } else {
+        results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: "ok" });
+        synced++;
+      }
+    } catch (err) {
+      results.push({ fi_rut: fondo.rut, nombre: fondo.nombre, serie, status: `error: ${err instanceof Error ? err.message : "unknown"}` });
+      errors++;
+    }
+  });
+
+    return NextResponse.json({ success: true, synced, errors, skipped, sin_folleto: noFolleto, total: fondosToSync.length, gemini_exhausted: geminiExhausted, results });
   });
 }
 
@@ -154,6 +161,20 @@ export async function GET(request: NextRequest) {
 
   return handleApiError("sync-fichas-fi-get", async () => {
     const supabase = createAdminClient();
+
+    // Conteo de fondos "sin folleto" por administradora (poblado en el sync).
+    // Permite a la UI distinguir "sin folleto" de fichas realmente pendientes.
+    const sinFolletoByAdmin: Record<string, number> = {};
+    {
+      const { data: sf } = await supabase
+        .from("fondos_inversion")
+        .select("administradora, sin_folleto")
+        .eq("activo", true)
+        .eq("sin_folleto", true);
+      (sf ?? []).forEach((f: { administradora: string | null }) => {
+        if (f.administradora) sinFolletoByAdmin[f.administradora] = (sinFolletoByAdmin[f.administradora] || 0) + 1;
+      });
+    }
 
     // Use SQL RPC for accurate counts with JOIN
   const { data: sqlResult, error: sqlError } = await supabase.rpc("get_fi_fichas_sync_status");
@@ -175,7 +196,7 @@ export async function GET(request: NextRequest) {
     });
 
     const adminList = Object.entries(adminCounts)
-      .map(([nombre, count]) => ({ nombre, count, synced: 0 }))
+      .map(([nombre, count]) => ({ nombre, count, synced: 0, sin_folleto: sinFolletoByAdmin[nombre] || 0 }))
       .sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
@@ -191,6 +212,7 @@ export async function GET(request: NextRequest) {
       nombre: r.administradora,
       count: Number(r.total),
       synced: Number(r.synced),
+      sin_folleto: sinFolletoByAdmin[r.administradora] || 0,
     }))
     .sort((a, b) => b.count - a.count);
 

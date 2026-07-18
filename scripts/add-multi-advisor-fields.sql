@@ -16,12 +16,13 @@ ALTER TABLE advisors ADD COLUMN IF NOT EXISTS parent_advisor_id UUID REFERENCES 
 -- 4. Crear índice para búsqueda por parent_advisor_id
 CREATE INDEX IF NOT EXISTS idx_advisors_parent ON advisors(parent_advisor_id);
 
--- 5. Actualizar advisor Greybark como admin con logo
+-- 5. Actualizar advisor principal como admin con logo
+-- NOTA: Ajustar email según el admin real del sistema
 UPDATE advisors
 SET rol = 'admin',
-    company_name = 'Greybark',
-    logo_url = '/logo-greybark.png'
-WHERE email = 'pmartinez@greybark.com';
+    company_name = 'Global Advisors',
+    logo_url = '/images/global2.jpeg'
+WHERE email = current_setting('app.admin_email', true);
 
 -- Verificar cambios
 SELECT id, email, nombre, apellido, rol, company_name, logo_url, parent_advisor_id, activo

@@ -153,7 +153,7 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
               width: '100%',
               padding: '10px',
               borderRadius: '6px',
-              border: '1px solid #ddd',
+              border: '1px solid #ccc8bf',
               fontSize: '14px'
             }}
           />
@@ -172,7 +172,7 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
               gap: '8px',
               padding: '12px',
               borderRadius: '6px',
-              border: `2px solid ${modo === 'reemplazar' ? '#2563eb' : '#ddd'}`,
+              border: `2px solid ${modo === 'reemplazar' ? '#5AA0E6' : '#ccc8bf'}`,
               backgroundColor: modo === 'reemplazar' ? '#f0f9ff' : 'white',
               cursor: 'pointer',
               transition: 'all 0.2s'
@@ -202,7 +202,7 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
               gap: '8px',
               padding: '12px',
               borderRadius: '6px',
-              border: `2px solid ${modo === 'actualizar' ? '#2563eb' : '#ddd'}`,
+              border: `2px solid ${modo === 'actualizar' ? '#5AA0E6' : '#ccc8bf'}`,
               backgroundColor: modo === 'actualizar' ? '#f0f9ff' : 'white',
               cursor: 'pointer',
               transition: 'all 0.2s'
@@ -232,7 +232,7 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
           <label style={{
             display: 'block',
             padding: '20px',
-            border: '2px dashed #ddd',
+            border: '2px dashed #ccc8bf',
             borderRadius: '8px',
             textAlign: 'center',
             cursor: 'pointer',
@@ -342,7 +342,7 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
             style={{
               padding: '10px 20px',
               borderRadius: '6px',
-              border: '1px solid #ddd',
+              border: '1px solid #ccc8bf',
               backgroundColor: 'white',
               color: '#666',
               fontSize: '14px',
@@ -361,7 +361,7 @@ export default function UploadRentAgregadasModal({ onClose }: UploadRentAgregada
               padding: '10px 24px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: loading || !file ? '#ccc' : '#2563eb',
+              backgroundColor: loading || !file ? '#ccc8bf' : '#5AA0E6',
               color: 'white',
               fontSize: '14px',
               fontWeight: '600',

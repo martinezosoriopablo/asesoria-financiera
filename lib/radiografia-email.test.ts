@@ -78,7 +78,7 @@ describe("buildRadiografiaHTML", () => {
   it("includes observations with severity styling", () => {
     const html = buildRadiografiaHTML(makeData());
     expect(html).toContain("Sin exposicion a Renta Fija");
-    expect(html).toContain("#ef4444");
+    expect(html).toContain("#EF5B5B");
     expect(html).toContain("#f59e0b");
   });
 

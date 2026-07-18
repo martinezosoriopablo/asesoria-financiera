@@ -141,8 +141,8 @@ export default function EvolucionChart({ snapshots, historicalSeries, baselineSe
           <ComposedChart data={mergedData}>
             <defs>
               <linearGradient id="colorValueSeguimiento" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                <stop offset="5%" stopColor="#5AA0E6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#5AA0E6" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
@@ -181,7 +181,7 @@ export default function EvolucionChart({ snapshots, historicalSeries, baselineSe
             <Area
               type="monotone"
               dataKey="value"
-              stroke="#2563eb"
+              stroke="#5AA0E6"
               strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorValueSeguimiento)"

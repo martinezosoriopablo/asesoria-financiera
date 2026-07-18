@@ -60,10 +60,10 @@ export async function distributeDailyReport(reportId: string): Promise<Distribut
   let htmlContent = report.html_content;
   if (report.podcast_url) {
     htmlContent += `
-      <div style="text-align: center; margin: 32px 0; padding: 20px; background-color: #f8fafc; border-radius: 12px;">
-        <p style="color: #475569; font-size: 14px; margin: 0 0 12px 0;">🎧 Escucha el podcast del día</p>
+      <div style="text-align: center; margin: 32px 0; padding: 20px; background-color: #F7F6F2; border-radius: 12px;">
+        <p style="color: #6E7787; font-size: 14px; margin: 0 0 12px 0;">🎧 Escucha el podcast del día</p>
         <a href="${report.podcast_url}"
-           style="background-color: #1e293b; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+           style="background-color: #0B2140; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
           Reproducir Podcast
         </a>
       </div>

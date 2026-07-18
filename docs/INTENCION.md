@@ -1,4 +1,4 @@
-# INTENCION.md — Greybark Advisors
+# INTENCION.md — Global Advisors
 
 > Documento de intención del producto.
 > Define qué DEBE hacer el sistema en su estado deseado.
@@ -90,7 +90,7 @@ Sin esperar el cuestionario, valor inmediato:
    - Si no hay opción, fallback al universo CMF (transparente, marcado en el reporte)
 
 3. **Output editable:**
-   - Reporte HTML/PDF "bonito" (marca WAOP × Greybark)
+   - Reporte HTML/PDF "bonito" (marca WAOP × Global)
    - Texto pre-redactado para mail al corredor/AGF
    - Versión final guardada con timestamp
 

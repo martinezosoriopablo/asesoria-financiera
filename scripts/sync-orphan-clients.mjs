@@ -1,11 +1,12 @@
-// Script para asignar clientes huérfanos a Pablo (admin principal)
+// Script para asignar clientes huérfanos al admin principal
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const adminEmail = process.env.ADMIN_EMAIL;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Faltan variables de entorno');
+if (!supabaseUrl || !supabaseServiceKey || !adminEmail) {
+  console.error('❌ Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL');
   process.exit(1);
 }
 
@@ -35,15 +36,15 @@ async function syncOrphanClients() {
     console.log(`${i + 1}. ${name} - ${c.email} - ${profile}`);
   });
 
-  // Buscar el admin principal (Pablo)
-  const { data: pablo } = await supabase
+  // Buscar el admin principal
+  const { data: admin } = await supabase
     .from('advisors')
     .select('id, email, nombre')
-    .eq('email', 'pmartinez@greybark.com')
+    .eq('email', adminEmail)
     .single();
 
-  if (!pablo) {
-    console.log('\n⚠️ No se encontró a pmartinez@greybark.com');
+  if (!admin) {
+    console.log(`\n⚠️ No se encontró a ${adminEmail}`);
 
     // Listar asesores disponibles
     const { data: advisors } = await supabase
@@ -58,19 +59,19 @@ async function syncOrphanClients() {
     return;
   }
 
-  console.log(`\n👤 Asignando a: ${pablo.nombre} (${pablo.email})\n`);
+  console.log(`\n👤 Asignando a: ${admin.nombre} (${admin.email})\n`);
 
-  // Asignar todos los huérfanos a Pablo
+  // Asignar todos los huérfanos al admin
   if (orphans.length > 0) {
     const { error: updateError } = await supabase
       .from('clients')
-      .update({ asesor_id: pablo.id })
+      .update({ asesor_id: admin.id })
       .is('asesor_id', null);
 
     if (updateError) {
       console.error('❌ Error actualizando:', updateError.message);
     } else {
-      console.log(`✅ ${orphans.length} clientes asignados a ${pablo.nombre}`);
+      console.log(`✅ ${orphans.length} clientes asignados a ${admin.nombre}`);
     }
   } else {
     console.log('✅ No hay clientes huérfanos');
