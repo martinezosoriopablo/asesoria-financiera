@@ -199,16 +199,14 @@ export default function HoldingsEditTable({
                       </select>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      {holding.assetType === "bond" ? (
-                        <input
-                          type="date"
-                          value={holding.purchaseDate || ""}
-                          onChange={(e) => handlePurchaseDateChange(index, e.target.value)}
-                          className="w-28 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
-                        />
-                      ) : (
-                        <span className="text-xs text-gb-gray">-</span>
-                      )}
+                      {/* Fecha de compra: editable para TODOS los holdings (bonos la
+                          usan para TIR/devengo; FM la inieren/usan para tributario). */}
+                      <input
+                        type="date"
+                        value={holding.purchaseDate || ""}
+                        onChange={(e) => handlePurchaseDateChange(index, e.target.value)}
+                        className="w-28 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
+                      />
                     </td>
                     <td className="px-3 py-2 text-right">
                       {holding.assetType === "bond" ? (
