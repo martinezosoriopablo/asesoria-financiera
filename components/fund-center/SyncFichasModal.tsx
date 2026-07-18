@@ -27,7 +27,7 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncingAdmin, setSyncingAdmin] = useState<string | null>(null);
-  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; sinFolleto: number; geminiExhausted: boolean; details: SyncResultDetail[] }[]>([]);
+  const [results, setResults] = useState<{ admin: string; synced: number; errors: number; skipped: number; sinFolleto: number; geminiExhausted: boolean; details: SyncResultDetail[]; error?: string }[]>([]);
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -75,20 +75,30 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (data.success) {
+      let data: { success?: boolean; synced?: number; errors?: number; skipped?: number; sin_folleto?: number; gemini_exhausted?: boolean; results?: SyncResultDetail[]; error?: string } | null = null;
+      try { data = await res.json(); } catch { /* respuesta no-JSON */ }
+      if (res.ok && data?.success) {
         setResults(prev => [{
           admin: nombre,
-          synced: data.synced,
-          errors: data.errors,
-          skipped: data.skipped || 0,
-          sinFolleto: data.sin_folleto || 0,
-          geminiExhausted: data.gemini_exhausted || false,
-          details: data.results || [],
+          synced: data!.synced || 0,
+          errors: data!.errors || 0,
+          skipped: data!.skipped || 0,
+          sinFolleto: data!.sin_folleto || 0,
+          geminiExhausted: data!.gemini_exhausted || false,
+          details: data!.results || [],
         }, ...prev]);
         fetchStatus();
+      } else {
+        // Nunca dejar la UI en blanco: mostrar por qué falló (timeout, 5xx, etc.)
+        const msg = data?.error
+          || (res.status === 504 || res.status === 408
+            ? 'Se agotó el tiempo del servidor. Esta administradora tiene muchas fichas; reintentá (retoma lo que falte) o sincronizá en tandas más chicas.'
+            : `Falló la sincronización (HTTP ${res.status}).`);
+        setResults(prev => [{ admin: nombre, synced: 0, errors: 0, skipped: 0, sinFolleto: 0, geminiExhausted: false, details: [], error: msg }, ...prev]);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setResults(prev => [{ admin: nombre, synced: 0, errors: 0, skipped: 0, sinFolleto: 0, geminiExhausted: false, details: [], error: 'Se interrumpió la sincronización (posible timeout de red). Reintentá; el proceso retoma lo que falte.' }, ...prev]);
+    }
     finally {
       setSyncing(false);
       setSyncingAdmin(null);
@@ -235,13 +245,20 @@ export default function SyncFichasModal({ onClose }: { onClose: () => void }) {
                 <div key={i} className="bg-gray-50 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gb-black">{r.admin}</span>
-                    <span className="text-xs text-gb-gray">
-                      <span className="text-green-600 font-medium">{r.synced} OK</span>
-                      {r.skipped > 0 && <span className="text-blue-500 ml-2">{r.skipped} ya sincronizados</span>}
-                      {r.sinFolleto > 0 && <span className="text-gb-gray ml-2">{r.sinFolleto} sin folleto</span>}
-                      {r.errors > 0 && <span className="text-red-500 ml-2">{r.errors} errores</span>}
-                    </span>
+                    {!r.error && (
+                      <span className="text-xs text-gb-gray">
+                        <span className="text-green-600 font-medium">{r.synced} OK</span>
+                        {r.skipped > 0 && <span className="text-blue-500 ml-2">{r.skipped} ya sincronizados</span>}
+                        {r.sinFolleto > 0 && <span className="text-gb-gray ml-2">{r.sinFolleto} sin folleto</span>}
+                        {r.errors > 0 && <span className="text-red-500 ml-2">{r.errors} errores</span>}
+                      </span>
+                    )}
                   </div>
+                  {r.error && (
+                    <div className="mb-2 px-2.5 py-1.5 rounded-md bg-red-50 border border-red-200 text-[11px] text-red-700">
+                      ⚠ {r.error}
+                    </div>
+                  )}
                   {r.geminiExhausted ? (
                     <div className="mb-2 px-2.5 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-[11px] text-amber-700">
                       ⚠ Gemini sin cuota — estas fichas se extrajeron con Regex (menor calidad)
