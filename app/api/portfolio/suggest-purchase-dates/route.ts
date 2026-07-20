@@ -28,6 +28,48 @@ async function seriesForFondo(supabase: SupabaseClient, fondoId: string): Promis
     .map((r: { fecha: string; valor_cuota: number }) => ({ fecha: r.fecha, valorCuota: r.valor_cuota }));
 }
 
+// Serie de valor cuota para un FI (fondos_inversion_precios, keyed por fondo_id UUID).
+// Para FI el "valor cuota" es valor_economico (fallback valor_libro).
+async function seriesForFI(supabase: SupabaseClient, fondoId: string, serie: string): Promise<VCPoint[]> {
+  let q = supabase
+    .from("fondos_inversion_precios")
+    .select("fecha, valor_economico, valor_libro")
+    .eq("fondo_id", fondoId)
+    .order("fecha", { ascending: true });
+  if (serie) q = q.eq("serie", serie);
+  const { data } = await q;
+  return (data ?? [])
+    .map((r: { fecha: string; valor_economico: number | null; valor_libro: number | null }) => ({
+      fecha: r.fecha,
+      valorCuota: (r.valor_economico ?? r.valor_libro ?? 0),
+    }))
+    .filter((p) => p.valorCuota > 0);
+}
+
+// Reúne todas las series candidatas para un RUN/RUT: primero FM (fondos_mutuos),
+// y también FI (fondos_inversion). El namespace numérico es compartido, así que
+// se prueban ambas fuentes; la exigencia de "una sola fecha" aguas arriba descarta
+// colisiones que produzcan fechas distintas.
+async function candidateSeries(supabase: SupabaseClient, sid: string, serie: string): Promise<VCPoint[][]> {
+  const out: VCPoint[][] = [];
+
+  // FM
+  let fmQ = supabase.from("fondos_mutuos").select("id, fm_serie").eq("fo_run", parseInt(sid, 10));
+  if (serie) fmQ = fmQ.eq("fm_serie", serie);
+  const { data: fms } = await fmQ.limit(30);
+  for (const f of (fms ?? []) as Array<{ id: string }>) {
+    out.push(await seriesForFondo(supabase, f.id));
+  }
+
+  // FI
+  const { data: fis } = await supabase.from("fondos_inversion").select("id").eq("rut", sid).limit(5);
+  for (const f of (fis ?? []) as Array<{ id: string }>) {
+    out.push(await seriesForFI(supabase, f.id, serie));
+  }
+
+  return out.filter((s) => s.length > 0);
+}
+
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "suggest-purchase-dates", { limit: 20, windowSeconds: 60 });
   if (blocked) return blocked;
@@ -47,21 +89,15 @@ export async function POST(request: NextRequest) {
       if (!/^\d{3,7}$/.test(sid)) continue;
       const unitCost = h.unitCost;
       if (!unitCost || unitCost <= 0) continue;
-
-      let fondoQuery = supabase
-        .from("fondos_mutuos")
-        .select("id, fm_serie")
-        .eq("fo_run", parseInt(sid, 10));
       const serie = (h.serie ?? "").toString().trim();
-      if (serie) fondoQuery = fondoQuery.eq("fm_serie", serie);
 
-      const { data: fondos } = await fondoQuery.limit(30);
-      if (!fondos || fondos.length === 0) continue;
+      // Series candidatas de FM y FI (namespace numérico compartido)
+      const candidates = await candidateSeries(supabase, sid, serie);
+      if (candidates.length === 0) continue;
 
       // Probar cada candidato; aceptar solo si EXACTAMENTE UNO sugiere fecha (evita ambigüedad)
       const hits: { date: string; valorCuota: number; diffPct: number }[] = [];
-      for (const f of fondos as Array<{ id: string }>) {
-        const serieVC = await seriesForFondo(supabase, f.id);
+      for (const serieVC of candidates) {
         const s = suggestPurchaseDate(unitCost, serieVC);
         if (s) hits.push(s);
       }
