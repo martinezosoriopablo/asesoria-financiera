@@ -155,6 +155,37 @@ export default function ReviewSnapshotModal({
   // State for custom search query in the search dialog
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Sugerencias de fecha de compra (match cercano, no exacto) por índice de holding.
+  // El asesor las confirma con un clic; nunca se aplican solas.
+  const [purchaseDateSuggestions, setPurchaseDateSuggestions] = useState<Record<number, { date: string; diffPct: number }>>({});
+
+  useEffect(() => {
+    // Solo pedir sugerencias para FM (RUN) con unitCost y SIN fecha aún.
+    const pending = holdings
+      .map((h, index) => ({ index, securityId: h.securityId, serie: h.serie, unitCost: h.unitCost, purchaseDate: h.purchaseDate }))
+      .filter((h) => !h.purchaseDate && h.unitCost && h.unitCost > 0 && /^\d{3,7}$/.test((h.securityId ?? "").toString().trim()));
+    if (pending.length === 0) { setPurchaseDateSuggestions({}); return; }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/portfolio/suggest-purchase-dates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holdings: pending }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !data?.success) return;
+        const map: Record<number, { date: string; diffPct: number }> = {};
+        for (const s of data.suggestions ?? []) map[s.index] = { date: s.date, diffPct: s.diffPct };
+        setPurchaseDateSuggestions(map);
+      } catch { /* no fatal */ }
+    })();
+    return () => { cancelled = true; };
+    // Recalcular cuando cambian los holdings (p.ej. tras auto-match o edición)
+  }, [holdings]);
+
   // Separate effect to open search dialog for first unmatched holding
   // This runs AFTER auto-match completes, avoiding state conflicts
   useEffect(() => {
@@ -690,6 +721,7 @@ export default function ReviewSnapshotModal({
           handleValueChange={handleValueChange}
           handleAssetClassChange={handleAssetClassChange}
           handlePurchaseDateChange={handlePurchaseDateChange}
+          purchaseDateSuggestions={purchaseDateSuggestions}
           searchFundPrice={searchFundPrice}
           searchingIndex={searchingIndex}
           searchQuery={searchQuery}

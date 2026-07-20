@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inferPurchaseDate } from "./infer-purchase-date";
+import { inferPurchaseDate, suggestPurchaseDate } from "./infer-purchase-date";
 
 describe("inferPurchaseDate", () => {
   it("match exacto único devuelve esa fecha", () => {
@@ -47,5 +47,41 @@ describe("inferPurchaseDate", () => {
     expect(inferPurchaseDate(5000.0, serie)).toEqual({ date: "2024-05-05" });
     const serie2 = [{ fecha: "2024-05-05", valorCuota: 5000.5 }];
     expect(inferPurchaseDate(5000.0, serie2)).toBeNull();
+  });
+});
+
+describe("suggestPurchaseDate", () => {
+  it("sin match exacto pero dentro de banda (0.5%): sugiere la fecha más cercana", () => {
+    // unitCost 1480.4857 vs vc 1480.5703 -> dif 0.0846 (0.006%) — supera EPS exacto
+    // pero cae en la banda de sugerencia.
+    const serie = [
+      { fecha: "2025-08-01", valorCuota: 1478.0 },
+      { fecha: "2025-08-03", valorCuota: 1480.5703 },
+      { fecha: "2025-08-10", valorCuota: 1490.0 },
+    ];
+    expect(suggestPurchaseDate(1480.4857, serie)).toEqual({
+      date: "2025-08-03",
+      valorCuota: 1480.5703,
+      diffPct: expect.closeTo(0.0057, 3),
+    });
+  });
+
+  it("si hay match exacto NO sugiere (lo resuelve inferPurchaseDate)", () => {
+    const serie = [{ fecha: "2024-05-05", valorCuota: 5000.0 }];
+    expect(suggestPurchaseDate(5000.0, serie)).toBeNull();
+  });
+
+  it("demasiado lejos (>0.5%) devuelve null", () => {
+    // 607.95 vs máx 400 -> ~34% de diferencia
+    const serie = [
+      { fecha: "2025-01-01", valorCuota: 127.48 },
+      { fecha: "2026-06-02", valorCuota: 400.85 },
+    ];
+    expect(suggestPurchaseDate(607.9524, serie)).toBeNull();
+  });
+
+  it("unitCost <= 0 o serie vacía devuelve null", () => {
+    expect(suggestPurchaseDate(0, [{ fecha: "2024-01-01", valorCuota: 100 }])).toBeNull();
+    expect(suggestPurchaseDate(100, [])).toBeNull();
   });
 });

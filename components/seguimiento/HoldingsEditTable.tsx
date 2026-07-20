@@ -44,6 +44,7 @@ interface HoldingsEditTableProps {
   handleValueChange: (index: number, value: number) => void;
   handleAssetClassChange: (index: number, assetClass: string) => void;
   handlePurchaseDateChange: (index: number, date: string) => void;
+  purchaseDateSuggestions?: Record<number, { date: string; diffPct: number }>;
   searchFundPrice: (index: number, fundName: string, customQuery?: string) => void;
   searchingIndex: number | null;
   searchQuery: string;
@@ -67,6 +68,7 @@ export default function HoldingsEditTable({
   handleValueChange,
   handleAssetClassChange,
   handlePurchaseDateChange,
+  purchaseDateSuggestions,
   searchFundPrice,
   searchingIndex,
   searchQuery,
@@ -207,6 +209,17 @@ export default function HoldingsEditTable({
                         onChange={(e) => handlePurchaseDateChange(index, e.target.value)}
                         className="w-28 px-1 py-1 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-blue-500"
                       />
+                      {/* Sugerencia (match cercano, no exacto): el asesor la confirma con un clic */}
+                      {!holding.purchaseDate && purchaseDateSuggestions?.[index] && (
+                        <button
+                          type="button"
+                          onClick={() => handlePurchaseDateChange(index, purchaseDateSuggestions[index].date)}
+                          title={`Valor cuota más cercano (dif ${purchaseDateSuggestions[index].diffPct.toFixed(3)}%). Clic para usar esta fecha.`}
+                          className="mt-1 w-28 truncate text-[10px] text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          sugerir: {purchaseDateSuggestions[index].date}
+                        </button>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right">
                       {holding.assetType === "bond" ? (
