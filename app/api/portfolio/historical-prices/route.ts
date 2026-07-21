@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { preloadYear, getDolarObservado } from "@/lib/bcch";
-import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
+import { resolveSource, fetchPriceRange, storeInternationalPrices, ensureIntlMappings } from "@/lib/prices/price-service";
 import { detectSerieCode } from "@/lib/fund-utils";
 import { isCurrencyCode } from "@/lib/portfolio/currency";
 import { handleApiError } from "@/lib/api-response";
@@ -420,6 +420,8 @@ export async function POST(req: NextRequest) {
   // 4b. International holdings: fetch from international_prices + Yahoo/AV fallback
   // Process in parallel to avoid Vercel timeout from sequential API calls
   if (internationalHoldings && internationalHoldings.length > 0) {
+    // Auto-resuelve CUSIP/ISIN desconocidos a su fuente de precios (Yahoo) y cachea.
+    await ensureIntlMappings(internationalHoldings.map((ih) => ih.securityId));
     // Pre-filter: resolve sources and skip non-tradeable (cmf, bcch, finra)
     const tradeableHoldings = internationalHoldings
       .filter((ih) => ih.securityId && ih.quantity > 0)

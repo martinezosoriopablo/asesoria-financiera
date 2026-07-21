@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
+import { resolveSource, fetchPriceRange, storeInternationalPrices, ensureIntlMappings } from "@/lib/prices/price-service";
 import { stripAccents } from "@/lib/text";
 import { detectSerieCode } from "@/lib/fund-utils";
 import { handleApiError } from "@/lib/api-response";
@@ -410,6 +410,9 @@ export async function POST(request: NextRequest) {
     }
 
     const results: PriceAtDateResult[] = [];
+
+    // Auto-resuelve CUSIP/ISIN desconocidos a su fuente de precios (Yahoo) y cachea.
+    await ensureIntlMappings(holdings.map((h) => h.securityId));
 
     // Process holdings concurrently (batch of 10)
     const BATCH = 10;

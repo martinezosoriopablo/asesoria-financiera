@@ -6,6 +6,7 @@ import { fetchDailyPricesRange, fetchQuote } from "./alphavantage";
 import { fetchYahooHistorical, fetchYahooQuote } from "./yahoo";
 import { fetchEodhdHistorical, fetchEodhdQuote } from "./eodhd";
 import { getHistoricalPrices as getBolsaHistorical, getResumenAccion } from "@/lib/bolsa-santiago/client";
+import { isCurrencyCode } from "@/lib/portfolio/currency";
 import type { DailyPrice, HoldingForPricing, PriceSource } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,28 @@ const INTL_FUND_MAP: Record<string, IntlFundMapping> = {
   // Equities ~111.6 y Fixed Income ~101.6.
   LU3158227002: { yahoo: "0P0001YCMY", currency: "USD" }, // BICE Global Equities
   LU3158226707: { yahoo: "0P0001YCMZ", currency: "USD" }, // BICE Global Fixed Income
+  // Fondos UCITS adicionales (custodia internacional). ID Morningstar resuelto por
+  // CUSIP vía Yahoo search y verificado por precio (P.actual cartola vs Yahoo).
+  G1R06J476: { yahoo: "0P0001K6KX", currency: "USD" }, // BNY Mellon Global Credit CL A
+  G1R06M859: { yahoo: "0P00019BOZ", currency: "USD" }, // BNY Mellon Global Short-Dated HY CL A Accum
+  L5780N309: { yahoo: "0P00000DS2", currency: "USD" }, // JPMorgan Global Select Equity CL A
+  L6365Z105: { yahoo: "0P000013GR", currency: "USD" }, // MFS Meridian Limited Maturity A1
+  L8146A664: { yahoo: "0P00000AOZ", currency: "USD" }, // Schroder ISF Latin American CL B
 };
+
+// Caché en memoria de mapeos resueltos en runtime (auto-resolución CUSIP/ISIN→Yahoo).
+// Se puebla desde la tabla international_fund_map y desde Yahoo search vía
+// ensureIntlMappings(). Persiste durante la vida del proceso del servidor.
+const runtimeIntlMap = new Map<string, IntlFundMapping>();
+
+// Lookup unificado: hardcoded primero (conocidos/verificados), luego runtime cache.
+function getIntlMapping(secId: string): IntlFundMapping | undefined {
+  const u = secId.toUpperCase();
+  return INTL_FUND_MAP[u] ?? runtimeIntlMap.get(u);
+}
+
+const CUSIP_RE = /^[A-Z0-9]{9}$/;      // CUSIP: 9 alfanuméricos
+const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/; // ISIN: 12 chars
 
 // ---------------------------------------------------------------------------
 // resolveSource — pure function, no I/O
@@ -93,9 +115,10 @@ export function resolveSource(h: HoldingForPricing): SourceResolution {
     return { source: "cl-adr", symbol: underlying, currency: "CLP" };
   }
 
-  // 5b. CUSIP mapped to international UCITS fund → eodhd or yahoo
-  if (secId && INTL_FUND_MAP[secId.toUpperCase()]) {
-    const mapping = INTL_FUND_MAP[secId.toUpperCase()];
+  // 5b. CUSIP/ISIN mapped to international UCITS fund → eodhd or yahoo
+  // (hardcoded o auto-resuelto en runtime vía ensureIntlMappings)
+  if (secId && getIntlMapping(secId)) {
+    const mapping = getIntlMapping(secId)!;
     if (mapping.eodhd) {
       return { source: "eodhd", symbol: mapping.eodhd, currency: mapping.currency };
     }
@@ -160,6 +183,120 @@ function adminClient() {
     );
   }
   return _admin;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-resolución de fondos internacionales (CUSIP/ISIN → Yahoo Morningstar ID)
+// ---------------------------------------------------------------------------
+// Antes había que agregar cada fondo UCITS a mano en INTL_FUND_MAP. Ahora, para
+// cualquier securityId con forma de CUSIP/ISIN que no esté mapeado, se resuelve
+// automáticamente vía Yahoo search (por CUSIP/ISIN → 0P Morningstar), se verifica
+// que tenga precio, y se cachea en la tabla international_fund_map + memoria.
+// Resiliente: si la tabla aún no existe, igual resuelve vía Yahoo (sin persistir).
+
+const YF_UA = { headers: { "User-Agent": "Mozilla/5.0" } };
+
+async function yahooSearchAndVerify(
+  securityId: string
+): Promise<{ yahoo: string; currency: string; fundName?: string } | null> {
+  try {
+    const sres = await fetch(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(securityId)}&quotesCount=6`,
+      { ...YF_UA, signal: AbortSignal.timeout(15000) }
+    );
+    if (!sres.ok) return null;
+    const sj = await sres.json();
+    const cand = (sj?.quotes || []).find(
+      (q: { symbol?: string; quoteType?: string }) =>
+        q.symbol && (q.quoteType === "MUTUALFUND" || q.quoteType === "ETF")
+    ) as { symbol: string; shortname?: string; longname?: string } | undefined;
+    if (!cand) return null;
+    // Verificar que el símbolo tenga serie de precios real
+    const vres = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cand.symbol)}?interval=1d&range=5d`,
+      { ...YF_UA, signal: AbortSignal.timeout(15000) }
+    );
+    if (!vres.ok) return null;
+    const vj = await vres.json();
+    const res = vj?.chart?.result?.[0];
+    const closes = (res?.indicators?.quote?.[0]?.close || []).filter((x: number | null) => x != null);
+    if (!closes.length) return null;
+    return { yahoo: cand.symbol, currency: res?.meta?.currency || "USD", fundName: cand.shortname || cand.longname };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Asegura que los securityId con forma de CUSIP/ISIN estén mapeados a una fuente
+ * de precios. Llamar ANTES de resolveSource() en las rutas de pricing internacional.
+ * Puebla runtimeIntlMap (que resolveSource consulta) desde la tabla cache y Yahoo.
+ */
+export async function ensureIntlMappings(securityIds: (string | null | undefined)[]): Promise<void> {
+  const candidates = [
+    ...new Set(
+      securityIds
+        .map((s) => (s || "").trim().toUpperCase())
+        .filter(
+          (s) =>
+            (CUSIP_RE.test(s) || ISIN_RE.test(s)) &&
+            !INTL_FUND_MAP[s] &&
+            !runtimeIntlMap.has(s) &&
+            !isCurrencyCode(s)
+        )
+    ),
+  ];
+  if (candidates.length === 0) return;
+
+  const sb = adminClient();
+
+  // 1. Cache en BD (si la tabla existe)
+  const inDb = new Set<string>();
+  try {
+    const { data } = await sb
+      .from("international_fund_map")
+      .select("security_id, yahoo_symbol, eodhd_symbol, currency, resolved")
+      .in("security_id", candidates);
+    for (const r of (data || []) as Array<{ security_id: string; yahoo_symbol: string | null; eodhd_symbol: string | null; currency: string | null; resolved: boolean }>) {
+      inDb.add(r.security_id);
+      if (r.resolved && (r.yahoo_symbol || r.eodhd_symbol)) {
+        runtimeIntlMap.set(r.security_id, {
+          yahoo: r.yahoo_symbol || undefined,
+          eodhd: r.eodhd_symbol || undefined,
+          currency: r.currency || "USD",
+        });
+      }
+    }
+  } catch {
+    /* tabla puede no existir aún — se resuelve vía Yahoo igual */
+  }
+
+  // 2. Resolver los que no estaban en BD, vía Yahoo, y persistir (positivo o negativo)
+  for (const secId of candidates) {
+    if (inDb.has(secId) || runtimeIntlMap.has(secId)) continue;
+    const found = await yahooSearchAndVerify(secId);
+    if (found) {
+      runtimeIntlMap.set(secId, { yahoo: found.yahoo, currency: found.currency });
+    }
+    try {
+      // international_fund_map no está en los tipos generados de Supabase → cast
+      await (sb.from("international_fund_map") as unknown as {
+        upsert: (v: Record<string, unknown>, o: { onConflict: string }) => Promise<unknown>;
+      }).upsert(
+        {
+          security_id: secId,
+          yahoo_symbol: found?.yahoo || null,
+          currency: found?.currency || "USD",
+          fund_name: found?.fundName || null,
+          resolved: !!found,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "security_id" }
+      );
+    } catch {
+      /* tabla puede no existir aún */
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
