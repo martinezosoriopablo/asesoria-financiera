@@ -4,6 +4,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { extractText, getDocumentProxy } from "unpdf";
 import { validateUpload } from "@/lib/upload-validation";
 import { errorResponse, handleApiError } from "@/lib/api-response";
+import { isCurrencyCode } from "@/lib/portfolio/currency";
 
 export const maxDuration = 60;
 
@@ -356,7 +357,7 @@ RESPONDE ÚNICAMENTE con JSON válido, sin markdown, sin explicaciones:
   "holdings": [
     {
       "fundName": "string (nombre completo del fondo o instrumento)",
-      "securityId": "string — Para acciones y ETFs: SIEMPRE usar el TICKER (ej: CRDO, QQQ, SPY, MU). Para bonos: usar el CUSIP. Si el documento muestra TICKER/CUSIP (ej: CRDO/G25457105), usar SOLO el ticker para stocks/ETFs y SOLO el CUSIP para bonds.",
+      "securityId": "string — Identificador del instrumento. Acciones/ETFs: el TICKER (ej: CRDO, QQQ, SPY, MU). FONDOS (fund): el ISIN si aparece (ej: LU3158226707, IE00B4L5Y983); si no hay ISIN, el CUSIP o 'Código de Identificación de Títulos' (ej: L0983J247). Bonos: el CUSIP o ISIN. REGLA ABSOLUTA: NUNCA uses un código de moneda (USD, EUR, CLP, UF) ni el número de cuenta como securityId. Si el nombre trae la moneda entre paréntesis (ej: 'CLASS A (USD)'), eso NO es el securityId — busca el ISIN (suele estar en la línea siguiente al nombre, a veces precedido por la palabra 'ISIN') o el 'Código de Identificación de Títulos'. Ej: 'BICE ... GLOBAL FIXED INCOME FUND CLASS A (USD) ISIN\\nLU3158226707' → securityId='LU3158226707'.",
       "market": "CL | INT | US",
       "assetType": "fund | etf | stock | bond | cash | other",
       "quantity": number,
@@ -524,6 +525,19 @@ RESPONDE SOLO CON EL JSON, NADA MÁS.`,
       // Post-procesar bonos: extraer campos del fundName si Claude los dejó embebidos
       if (parsed.holdings && Array.isArray(parsed.holdings)) {
         extractBondFields(parsed.holdings as Array<Record<string, unknown>>);
+      }
+
+      // Guard: securityId NUNCA debe ser un código de moneda. Bug observado en
+      // cartolas BICE/Pershing: fondos "CLASS A (USD)" quedaban con securityId="USD",
+      // que luego no matchea ninguna fuente de precios (o matchea un ticker ajeno).
+      // Si pasa, se limpia para no envenenar el pricing (mejor sin ID que con uno falso).
+      if (parsed.holdings && Array.isArray(parsed.holdings)) {
+        for (const h of parsed.holdings as Array<Record<string, unknown>>) {
+          if (isCurrencyCode(String(h.securityId || ""))) {
+            console.warn(`[parse-statement] securityId="${h.securityId}" es un código de moneda para "${h.fundName}" — limpiado`);
+            h.securityId = "";
+          }
+        }
       }
     } catch (parseError) {
       console.error("Error parsing JSON from Claude:", parseError);
