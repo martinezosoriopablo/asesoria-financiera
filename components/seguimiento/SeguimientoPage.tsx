@@ -78,6 +78,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     periodReturns,
     accumulatedReturn,
     weightedTAC,
+    hasPriceCoverage,
   } = useHistoricalSeries({
     snapshots: seg.data?.snapshots,
     portalMode,
@@ -244,6 +245,15 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             >
               Ocultar detalle
             </button>
+          </div>
+        )}
+
+        {/* Aviso: sin cobertura de precios reales, no se muestran retornos por período
+            (evita presentar variación de tipo de cambio como rentabilidad del portafolio). */}
+        {snapshots.length > 0 && !hasPriceCoverage && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-[13px] text-amber-800">
+            ⚠ Sin precios de mercado para estos instrumentos (fondos internacionales/sin cotización en el sistema).
+            No se muestran retornos por período ni evolución porque la variación sería solo por tipo de cambio, no rentabilidad real de los fondos.
           </div>
         )}
 

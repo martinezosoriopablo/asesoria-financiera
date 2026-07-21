@@ -6,6 +6,24 @@ export interface ExchangeRates {
   uf: number;
 }
 
+// Códigos de moneda (ISO 4217 + unidades chilenas UF/CLF). Se usan para EVITAR
+// que un código de moneda mal cargado como securityId se cotice como ticker.
+// Caso real: un holding con securityId "USD" matcheaba el ETF Yahoo "USD"
+// (ProShares Ultra Semiconductors) e inyectaba una serie de precios falsa.
+const CURRENCY_CODES = new Set([
+  "USD", "EUR", "CLP", "UF", "CLF", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD",
+  "BRL", "ARS", "MXN", "PEN", "COP", "UYU", "CNY", "CNH", "HKD", "SGD",
+]);
+
+/**
+ * ¿El string es un código de moneda (no un ticker/RUN)? Case-insensitive.
+ * Úsalo como guard antes de rutear un securityId a una fuente de precios.
+ */
+export function isCurrencyCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return CURRENCY_CODES.has(code.trim().toUpperCase());
+}
+
 /**
  * Convert a value in any currency to CLP.
  * Pure function — extracted from ReviewSnapshotModal.

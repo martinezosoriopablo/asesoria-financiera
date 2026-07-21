@@ -45,6 +45,11 @@ const INTL_FUND_MAP: Record<string, IntlFundMapping> = {
   G6016L337: { yahoo: "0P00000ICR", currency: "USD" },
   // UBAM Dynamic Dollar Bond AC USD
   L9381G101: { eodhd: "LU0029761532.EUFUND", yahoo: "0P00000AZP", currency: "USD" },
+  // BICE Global (custodia BICE, cartola trae ISIN). EODHD no los tiene; Yahoo sí
+  // por ID Morningstar. Correspondencia verificada por precio (MV/qty vs Yahoo):
+  // Equities ~111.6 y Fixed Income ~101.6.
+  LU3158227002: { yahoo: "0P0001YCMY", currency: "USD" }, // BICE Global Equities
+  LU3158226707: { yahoo: "0P0001YCMZ", currency: "USD" }, // BICE Global Fixed Income
 };
 
 // ---------------------------------------------------------------------------

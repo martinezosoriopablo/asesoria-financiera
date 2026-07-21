@@ -4,6 +4,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { preloadYear, getDolarObservado } from "@/lib/bcch";
 import { resolveSource, fetchPriceRange, storeInternationalPrices } from "@/lib/prices/price-service";
 import { detectSerieCode } from "@/lib/fund-utils";
+import { isCurrencyCode } from "@/lib/portfolio/currency";
 import { handleApiError } from "@/lib/api-response";
 import { tokenizeFundName, scoreFundMatch } from "@/lib/fund-matching";
 import { projectBondPrices } from "@/lib/bonds/price-projection";
@@ -422,6 +423,9 @@ export async function POST(req: NextRequest) {
     // Pre-filter: resolve sources and skip non-tradeable (cmf, bcch, finra)
     const tradeableHoldings = internationalHoldings
       .filter((ih) => ih.securityId && ih.quantity > 0)
+      // Guard: un código de moneda como securityId (ej. "USD") NO es un ticker.
+      // "USD" matchea el ETF real "USD" en Yahoo -> serie de precios falsa.
+      .filter((ih) => !isCurrencyCode(ih.securityId))
       .filter((ih) => {
         const res = resolveSource({
           securityId: ih.securityId,

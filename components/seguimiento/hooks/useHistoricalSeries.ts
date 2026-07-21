@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { detectSerieCode } from "@/lib/fund-utils";
+import { isCurrencyCode } from "@/lib/portfolio/currency";
 
 interface Snapshot {
   id: string;
@@ -39,6 +40,7 @@ interface UseHistoricalSeriesReturn {
   periodReturns: { "1M": PeriodReturn | null; "3M": PeriodReturn | null; "6M": PeriodReturn | null; "1Y": PeriodReturn | null; "YTD": PeriodReturn | null } | null;
   accumulatedReturn: number | null;
   weightedTAC: { weighted: number; annualCost: number; coverage: number } | null;
+  hasPriceCoverage: boolean;
 }
 
 export function useHistoricalSeries({
@@ -90,18 +92,26 @@ export function useHistoricalSeries({
     const isTradeableInternational = (h: typeof holdings[0]): boolean => {
       const id = (h.securityId || "").trim().toUpperCase();
       if (!id || /^\d{1,6}$/.test(id) || (h.quantity || 0) <= 0) return false;
+      // Guard: un código de moneda mal cargado como securityId (ej. "USD") NO es
+      // un ticker. Sin esto, "USD" matchea el ETF real "USD" en Yahoo e inyecta
+      // una serie de precios falsa. Cae a flatHoldings (valor plano) en su lugar.
+      if (isCurrencyCode(id)) return false;
       const name = (h.fundName || "").toUpperCase();
-      const isBond = (h.assetClass || "").toLowerCase().includes("fixed") ||
-        (h.assetClass || "").toLowerCase() === "fixedincome" ||
-        (h.assetType || "").toLowerCase() === "bond" ||
+      // Un FONDO de renta fija (assetType="fund") NO es un bono: se cotiza por su
+      // ISIN/ticker en Yahoo, no con matemática de bonos. Solo excluimos bonos
+      // reales (assetType=bond, cupón/vencimiento, o marcadores de bono en el nombre).
+      const isFund = (h.assetType || "").toLowerCase() === "fund";
+      const isBond = (h.assetType || "").toLowerCase() === "bond" ||
+        !!(h.couponRate || h.maturityDate) ||
         /\b(CPN|DUE\s+\d|NOTE|UNSECD|FXD\/VAR)\b/.test(name) ||
-        !!(h.couponRate || h.maturityDate);
+        (!isFund && (h.assetClass || "").toLowerCase().includes("fixed"));
       if (isBond) return false;
       if (/^CFI/.test(id)) return true;
       if (/^[A-Z]{3,10}CL$/.test(id)) return true;
       if (id.includes(".SN")) return true;
       if (/^[A-Z]{1,5}$/.test(id)) return true;
       if (/^[A-Z0-9]{9}$/i.test(id)) return true;
+      if (/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(id)) return true; // ISIN (12 chars, ej. fondos UCITS)
       return false;
     };
 
@@ -273,9 +283,19 @@ export function useHistoricalSeries({
     fetchHistorical();
   }, [snapshots]);
 
+  // ¿Hay cobertura de precios REALES? Un fondo con run "flat" no tiene precio: su
+  // valor se mantiene constante y, si es USD, la conversión a CLP con dólar histórico
+  // hace "mover" el total por puro tipo de cambio. Si TODOS los fondos son flat, los
+  // retornos serían solo FX (rentabilidad de fondos desconocida) → no se muestran.
+  const hasPriceCoverage = useMemo(
+    () => fundsMeta.length > 0 && fundsMeta.some((f) => f.run !== "flat"),
+    [fundsMeta]
+  );
+
   // Calculate period returns from historical series (nominal + real + USD)
   const periodReturns = useMemo(() => {
     if (historicalSeries.length < 2) return null;
+    if (!hasPriceCoverage) return null; // sin precios reales -> no inventar retornos (sería solo FX)
 
     const latest = historicalSeries[historicalSeries.length - 1];
     const latestValue = latest.total as number;
@@ -340,17 +360,18 @@ export function useHistoricalSeries({
       "1Y": getForMonths(12),
       "YTD": getReturnForPeriod(`${latestDate.getFullYear()}-01-01`),
     };
-  }, [historicalSeries, deflatorData, findDeflatorValue]);
+  }, [historicalSeries, deflatorData, findDeflatorValue, hasPriceCoverage]);
 
   // Accumulated return from first to last point of historicalSeries
   // This is the single source of truth for portfolio-level total return
   const accumulatedReturn = useMemo(() => {
     if (historicalSeries.length < 2) return null;
+    if (!hasPriceCoverage) return null; // sin precios reales -> no reportar retorno (sería solo FX)
     const first = historicalSeries[0].total as number;
     const last = historicalSeries[historicalSeries.length - 1].total as number;
     if (first <= 0) return null;
     return ((last / first) - 1) * 100;
-  }, [historicalSeries]);
+  }, [historicalSeries, hasPriceCoverage]);
 
   // TAC ponderado del portafolio
   const weightedTAC = useMemo(() => {
@@ -389,5 +410,6 @@ export function useHistoricalSeries({
     periodReturns,
     accumulatedReturn,
     weightedTAC,
+    hasPriceCoverage,
   };
 }
