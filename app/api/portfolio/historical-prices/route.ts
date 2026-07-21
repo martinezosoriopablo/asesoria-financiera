@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
   // Process in parallel to avoid Vercel timeout from sequential API calls
   if (internationalHoldings && internationalHoldings.length > 0) {
     // Auto-resuelve CUSIP/ISIN desconocidos a su fuente de precios (Yahoo) y cachea.
-    await ensureIntlMappings(internationalHoldings.map((ih) => ih.securityId));
+    await ensureIntlMappings(internationalHoldings.map((ih) => ({ securityId: ih.securityId, currency: ih.currency })));
     // Pre-filter: resolve sources and skip non-tradeable (cmf, bcch, finra)
     const tradeableHoldings = internationalHoldings
       .filter((ih) => ih.securityId && ih.quantity > 0)

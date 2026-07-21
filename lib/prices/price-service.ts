@@ -197,31 +197,46 @@ function adminClient() {
 const YF_UA = { headers: { "User-Agent": "Mozilla/5.0" } };
 
 async function yahooSearchAndVerify(
-  securityId: string
+  securityId: string,
+  preferCurrency?: string
 ): Promise<{ yahoo: string; currency: string; fundName?: string } | null> {
   try {
     const sres = await fetch(
-      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(securityId)}&quotesCount=6`,
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(securityId)}&quotesCount=8`,
       { ...YF_UA, signal: AbortSignal.timeout(15000) }
     );
     if (!sres.ok) return null;
     const sj = await sres.json();
-    const cand = (sj?.quotes || []).find(
+    const cands = (sj?.quotes || []).filter(
       (q: { symbol?: string; quoteType?: string }) =>
         q.symbol && (q.quoteType === "MUTUALFUND" || q.quoteType === "ETF")
-    ) as { symbol: string; shortname?: string; longname?: string } | undefined;
-    if (!cand) return null;
-    // Verificar que el símbolo tenga serie de precios real
-    const vres = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cand.symbol)}?interval=1d&range=5d`,
-      { ...YF_UA, signal: AbortSignal.timeout(15000) }
-    );
-    if (!vres.ok) return null;
-    const vj = await vres.json();
-    const res = vj?.chart?.result?.[0];
-    const closes = (res?.indicators?.quote?.[0]?.close || []).filter((x: number | null) => x != null);
-    if (!closes.length) return null;
-    return { yahoo: cand.symbol, currency: res?.meta?.currency || "USD", fundName: cand.shortname || cand.longname };
+    ) as Array<{ symbol: string; shortname?: string; longname?: string }>;
+    if (cands.length === 0) return null;
+
+    const want = (preferCurrency || "").toUpperCase();
+    // Verifica candidatos (hasta 5) y prefiere el que cotiza en la moneda del holding.
+    // Un mismo ISIN puede tener listados en varias bolsas/monedas (ej. CSPX.L en USD
+    // vs CSSPX.MI en EUR); tomar la moneda equivocada valoriza mal el holding.
+    let fallback: { yahoo: string; currency: string; fundName?: string } | null = null;
+    for (const cand of cands.slice(0, 5)) {
+      try {
+        const vres = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cand.symbol)}?interval=1d&range=5d`,
+          { ...YF_UA, signal: AbortSignal.timeout(15000) }
+        );
+        if (!vres.ok) continue;
+        const res = (await vres.json())?.chart?.result?.[0];
+        const closes = (res?.indicators?.quote?.[0]?.close || []).filter((x: number | null) => x != null);
+        if (!closes.length) continue;
+        const cur = (res?.meta?.currency || "USD").toUpperCase();
+        const hit = { yahoo: cand.symbol, currency: cur, fundName: cand.shortname || cand.longname };
+        if (want && cur === want) return hit; // match de moneda → preferido
+        if (!fallback) fallback = hit;          // primer verificado como respaldo
+      } catch {
+        /* siguiente candidato */
+      }
+    }
+    return fallback;
   } catch {
     return null;
   }
@@ -232,18 +247,28 @@ async function yahooSearchAndVerify(
  * de precios. Llamar ANTES de resolveSource() en las rutas de pricing internacional.
  * Puebla runtimeIntlMap (que resolveSource consulta) desde la tabla cache y Yahoo.
  */
-export async function ensureIntlMappings(securityIds: (string | null | undefined)[]): Promise<void> {
+export async function ensureIntlMappings(
+  items: (string | null | undefined | { securityId?: string | null; currency?: string | null })[]
+): Promise<void> {
+  // Normaliza a {id, currency}; conserva la moneda del holding para preferir el
+  // listado correcto cuando un ISIN cotiza en varias bolsas/monedas.
+  const curById = new Map<string, string>();
+  const ids: string[] = [];
+  for (const it of items) {
+    const id = (typeof it === "string" ? it : it?.securityId || "").trim().toUpperCase();
+    if (!id) continue;
+    ids.push(id);
+    if (typeof it === "object" && it?.currency) curById.set(id, it.currency.toUpperCase());
+  }
   const candidates = [
     ...new Set(
-      securityIds
-        .map((s) => (s || "").trim().toUpperCase())
-        .filter(
-          (s) =>
-            (CUSIP_RE.test(s) || ISIN_RE.test(s)) &&
-            !INTL_FUND_MAP[s] &&
-            !runtimeIntlMap.has(s) &&
-            !isCurrencyCode(s)
-        )
+      ids.filter(
+        (s) =>
+          (CUSIP_RE.test(s) || ISIN_RE.test(s)) &&
+          !INTL_FUND_MAP[s] &&
+          !runtimeIntlMap.has(s) &&
+          !isCurrencyCode(s)
+      )
     ),
   ];
   if (candidates.length === 0) return;
@@ -274,7 +299,7 @@ export async function ensureIntlMappings(securityIds: (string | null | undefined
   // 2. Resolver los que no estaban en BD, vía Yahoo, y persistir (positivo o negativo)
   for (const secId of candidates) {
     if (inDb.has(secId) || runtimeIntlMap.has(secId)) continue;
-    const found = await yahooSearchAndVerify(secId);
+    const found = await yahooSearchAndVerify(secId, curById.get(secId));
     if (found) {
       runtimeIntlMap.set(secId, { yahoo: found.yahoo, currency: found.currency });
     }

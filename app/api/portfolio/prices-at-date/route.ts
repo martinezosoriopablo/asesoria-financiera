@@ -412,7 +412,7 @@ export async function POST(request: NextRequest) {
     const results: PriceAtDateResult[] = [];
 
     // Auto-resuelve CUSIP/ISIN desconocidos a su fuente de precios (Yahoo) y cachea.
-    await ensureIntlMappings(holdings.map((h) => h.securityId));
+    await ensureIntlMappings(holdings.map((h) => ({ securityId: h.securityId, currency: h.currency })));
 
     // Process holdings concurrently (batch of 10)
     const BATCH = 10;
