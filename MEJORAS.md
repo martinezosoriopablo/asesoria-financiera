@@ -231,7 +231,10 @@ Ultima auditoria: 2026-04-01
 ## RESUELTOS (2026-07-21)
 
 ### Precios de fondos internacionales — auto-resolución
-- [x] **Auto-resolver CUSIP/ISIN → Yahoo** (`ensureIntlMappings` en `lib/prices/price-service.ts`) — cualquier fondo UCITS no mapeado se resuelve solo vía Yahoo search (por CUSIP/ISIN → ID Morningstar `0P…`), verificado por precio, cacheado en tabla `international_fund_map` + memoria. Ya no hay que agregar fondos a mano. Migración `20260721_international_fund_map.sql`. Llamado en `historical-prices` y `prices-at-date` (commit 672c5c2)
+- [x] **Auto-resolver CUSIP/ISIN → Yahoo** (`ensureIntlMappings` en `lib/prices/price-service.ts`) — cualquier fondo UCITS no mapeado se resuelve solo vía Yahoo search (por CUSIP/ISIN → ID Morningstar `0P…`), verificado por precio, cacheado en tabla `international_fund_map` + memoria. Ya no hay que agregar fondos a mano. Migración `20260721_international_fund_map.sql` (CORRIDA en prod). Llamado en `historical-prices` y `prices-at-date` (commit 672c5c2)
+- [x] **Auto-resolver prefiere la moneda del holding** — un ISIN de ETF cotiza en varias bolsas/monedas (ej. CSPX.L USD vs CSSPX.MI EUR); ahora verifica hasta 5 candidatos y elige el que cotiza en la moneda del holding (commit 222e14f)
+- [x] **Parser PDF asigna ISIN/CUSIP a fondos, no la moneda** — el prompt de Claude solo instruía securityId para acciones/ETF y bonos; para FONDOS tomaba "USD" de "CLASS A (USD)". Ahora usa ISIN/CUSIP + guard `isCurrencyCode`. Verificado aislado con cartola BICE/Pershing (commit 8c1da80)
+- [x] **E2E validado con cliente real (B&B LIMITADA)**: crear cliente → riesgo → cartola → seguimiento → radiografía → análisis narrativo IA (Claude Opus). Todo funciona
 - [x] **Retornos falsos por tipo de cambio** — fondos USD sin precio quedaban "flat" y al convertir a CLP con dólar histórico mostraban retornos que eran solo FX. `useHistoricalSeries.hasPriceCoverage`: si no hay precios reales, no se calculan retornos ni evolución + aviso en UI (commit e43e16d)
 - [x] **Guard `isCurrencyCode`** — un securityId mal cargado como moneda ("USD") ya no se cotiza como el ETF real "USD" de Yahoo (commit e43e16d)
 - [x] **ISIN + fondo de renta fija** — `isTradeableInternational` reconoce ISIN (12 chars) y no confunde un FONDO de renta fija con un bono (commit e43e16d)
@@ -258,9 +261,12 @@ Ultima auditoria: 2026-04-01
 
 ### Urgente / técnico (jul 2026)
 - [ ] ⚠️ **Rotar el service_role key de Supabase** — estuvo hardcodeado en `scripts/run-migration.mjs`, removido del código pero sigue en el historial de git. Dashboard → Settings → API → regenerar + actualizar `.env.local` y Vercel
-- [ ] **Correr migraciones** en SQL Editor: `20260721_international_fund_map` (caché precios int'l), `20260717_fondos_inversion_sin_folleto`, `20260714_returns_confidence`
-- [ ] **Parser de Excel pone la moneda como securityId** — cartolas BICE (custodia "Bice Corredora") guardan `securityId="USD"` y descartan el ISIN. Arreglar `parse-portfolio-excel` para capturar el ISIN (requiere el Excel para reproducir)
-- [ ] **Cron FINRA de bonos** — verificar que `sync-bond-prices` corre (bond_prices puede quedar atrasado; ya se rompió ~1 mes en jun 2026)
+- [ ] **Cron FINRA de bonos** — verificar que `sync-bond-prices` corre (bond_prices puede quedar atrasado; ya se rompió ~1 mes en jun 2026). Los BONOS son el único instrumento que NO aparece "sí o sí" al subir cartola (dependen de este cron llenando `bond_prices`)
+- [x] ~~Correr migraciones~~ — hechas (international_fund_map, sin_folleto, returns_confidence)
+- [x] ~~Parser pone la moneda como securityId~~ — RESUELTO (commit 8c1da80). NOTA: el parser es PDF (Claude), no Excel
+
+### Gotcha de entorno (importante)
+- El proyecto está en **OneDrive** → el file-watcher de Next.js dev a veces NO detecta ediciones a disco. Si un cambio no se refleja en local: **reiniciar `npm run dev`**. En Vercel (build fresco) siempre funciona.
 
 ### Próximos pasos del flujo
 - [ ] **Firma electrónica del contrato** — integración con servicio de firma (e.g., DocuSign, FirmaVirtual)
