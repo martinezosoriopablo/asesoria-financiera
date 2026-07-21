@@ -228,7 +228,39 @@ Ultima auditoria: 2026-04-01
 
 ---
 
+## RESUELTOS (2026-07-21)
+
+### Precios de fondos internacionales — auto-resolución
+- [x] **Auto-resolver CUSIP/ISIN → Yahoo** (`ensureIntlMappings` en `lib/prices/price-service.ts`) — cualquier fondo UCITS no mapeado se resuelve solo vía Yahoo search (por CUSIP/ISIN → ID Morningstar `0P…`), verificado por precio, cacheado en tabla `international_fund_map` + memoria. Ya no hay que agregar fondos a mano. Migración `20260721_international_fund_map.sql`. Llamado en `historical-prices` y `prices-at-date` (commit 672c5c2)
+- [x] **Retornos falsos por tipo de cambio** — fondos USD sin precio quedaban "flat" y al convertir a CLP con dólar histórico mostraban retornos que eran solo FX. `useHistoricalSeries.hasPriceCoverage`: si no hay precios reales, no se calculan retornos ni evolución + aviso en UI (commit e43e16d)
+- [x] **Guard `isCurrencyCode`** — un securityId mal cargado como moneda ("USD") ya no se cotiza como el ETF real "USD" de Yahoo (commit e43e16d)
+- [x] **ISIN + fondo de renta fija** — `isTradeableInternational` reconoce ISIN (12 chars) y no confunde un FONDO de renta fija con un bono (commit e43e16d)
+- [x] **Health-check de las 7 fuentes de precios** — BCCH, Yahoo, AlphaVantage, EODHD, Fintual, FINRA, CMF: todas operativas
+
+### Fichas CMF — FI FINRE
+- [x] **Soporte FI FINRE** — el sync de fichas FI pasa `fondo.tipo` (FIRES|FINRE) a CMF en vez de hardcodear FIRES (Larraín Vial: 91/99 son FINRE, antes "0 ok, N errores") (commit 6288db5)
+- [x] **Conteo `sin_folleto`** separado de errores reales + columna `fondos_inversion.sin_folleto` + UI "X con folleto · Y sin folleto" (commits a4ff116, 86a60fd)
+- [x] **Sync FM+FI en pool de concurrencia** — evita timeout serverless; la UI nunca queda en blanco (surface de timeout/errores) (commits c6903a6, eb8d727)
+- [x] **Carga masiva de fichas** — FI (433 series) + FM (315 nuevas + 118 TAC backfill desde vw_fondos_completo)
+- [x] **Columnas %UF / %RV / %RF** editables en revisión de fichas (commit 656af19)
+
+### Tributario — fecha de compra
+- [x] **Inferir fecha de compra** — `lib/tax/infer-purchase-date.ts` matchea unitCost vs valor cuota histórico (exacto), rellena `holding.purchaseDate` al guardar cartola + backfill; `bridge.ts` la usa para corrección monetaria
+- [x] **Sugerencia de fecha** (match cercano <0.5%, confirmación manual) para FM y FI + columna "F. Compra" editable para todos los holdings
+
+### Marca / infraestructura
+- [x] **Rebrand app** a paleta Global (navy #0B2140 + copper #EB7838) + fuentes Hanken/Fraunces/IBM Plex + rename Greybark→Global
+- [x] **Seguridad**: removidos secretos hardcodeados de scripts (service_role, admin email, test password) → env vars. ⚠️ PENDIENTE: rotar service_role key (expuesto en historial git)
+
+---
+
 ## PENDIENTES
+
+### Urgente / técnico (jul 2026)
+- [ ] ⚠️ **Rotar el service_role key de Supabase** — estuvo hardcodeado en `scripts/run-migration.mjs`, removido del código pero sigue en el historial de git. Dashboard → Settings → API → regenerar + actualizar `.env.local` y Vercel
+- [ ] **Correr migraciones** en SQL Editor: `20260721_international_fund_map` (caché precios int'l), `20260717_fondos_inversion_sin_folleto`, `20260714_returns_confidence`
+- [ ] **Parser de Excel pone la moneda como securityId** — cartolas BICE (custodia "Bice Corredora") guardan `securityId="USD"` y descartan el ISIN. Arreglar `parse-portfolio-excel` para capturar el ISIN (requiere el Excel para reproducir)
+- [ ] **Cron FINRA de bonos** — verificar que `sync-bond-prices` corre (bond_prices puede quedar atrasado; ya se rompió ~1 mes en jun 2026)
 
 ### Próximos pasos del flujo
 - [ ] **Firma electrónica del contrato** — integración con servicio de firma (e.g., DocuSign, FirmaVirtual)
