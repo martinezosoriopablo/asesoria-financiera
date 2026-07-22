@@ -19,6 +19,7 @@ import {
   Loader,
   X,
   Save,
+  Upload,
 } from "lucide-react";
 
 interface AdvisorData {
@@ -57,6 +58,7 @@ export default function AdminAdvisorsPage() {
   const [saving, setSaving] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<null | "foto" | "logo">(null);
 
   useEffect(() => {
     if (!authLoading && advisor) {
@@ -112,6 +114,33 @@ export default function AdminAdvisorsPage() {
       rol: adv.rol,
     });
     setShowModal(true);
+  };
+
+  const uploadAsset = async (kind: "foto" | "logo", file: File) => {
+    setUploading(kind);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("kind", kind);
+      const res = await fetch("/api/admin/advisors/upload-asset", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        setFormData((prev) => ({
+          ...prev,
+          [kind === "logo" ? "logo_url" : "foto_url"]: data.url,
+        }));
+      } else {
+        setError(data.error || "Error al subir la imagen");
+      }
+    } catch {
+      setError("Error de conexión al subir la imagen");
+    } finally {
+      setUploading(null);
+    }
   };
 
   const handleSave = async () => {
@@ -490,35 +519,101 @@ export default function AdminAdvisorsPage() {
                 />
               </div>
 
-              {/* Logo URL */}
+              {/* Logo de la firma */}
               <div>
                 <label className="block text-sm font-medium text-gb-black mb-1.5">
-                  URL del Logo
+                  Logo de la firma
                 </label>
+                <div className="flex items-center gap-3">
+                  {formData.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={formData.logo_url}
+                      alt="Logo"
+                      className="h-12 w-12 object-contain rounded border border-gb-border bg-white p-1"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded border border-dashed border-gb-border flex items-center justify-center text-gb-gray">
+                      <Building2 size={18} />
+                    </div>
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border border-gb-border rounded-lg text-sm hover:bg-gb-light transition-colors">
+                    {uploading === "logo" ? (
+                      <Loader size={15} className="animate-spin" />
+                    ) : (
+                      <Upload size={15} />
+                    )}
+                    {uploading === "logo" ? "Subiendo..." : "Subir logo"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={uploading !== null}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) uploadAsset("logo", f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
                 <input
                   type="url"
                   value={formData.logo_url}
                   onChange={(e) =>
                     setFormData({ ...formData, logo_url: e.target.value })
                   }
-                  className="w-full px-4 py-2.5 border border-gb-border rounded-lg focus:outline-none focus:border-gb-accent"
-                  placeholder="https://..."
+                  className="mt-2 w-full px-4 py-2.5 border border-gb-border rounded-lg focus:outline-none focus:border-gb-accent text-sm"
+                  placeholder="o pega una URL: https://..."
                 />
               </div>
 
-              {/* Foto URL */}
+              {/* Foto de perfil */}
               <div>
                 <label className="block text-sm font-medium text-gb-black mb-1.5">
-                  URL de Foto de Perfil
+                  Foto de perfil del asesor
                 </label>
+                <div className="flex items-center gap-3">
+                  {formData.foto_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={formData.foto_url}
+                      alt="Foto de perfil"
+                      className="h-12 w-12 object-cover rounded-full border border-gb-border"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full border border-dashed border-gb-border flex items-center justify-center text-gb-gray">
+                      <Users size={18} />
+                    </div>
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 border border-gb-border rounded-lg text-sm hover:bg-gb-light transition-colors">
+                    {uploading === "foto" ? (
+                      <Loader size={15} className="animate-spin" />
+                    ) : (
+                      <Upload size={15} />
+                    )}
+                    {uploading === "foto" ? "Subiendo..." : "Subir foto"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={uploading !== null}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) uploadAsset("foto", f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
                 <input
                   type="url"
                   value={formData.foto_url}
                   onChange={(e) =>
                     setFormData({ ...formData, foto_url: e.target.value })
                   }
-                  className="w-full px-4 py-2.5 border border-gb-border rounded-lg focus:outline-none focus:border-gb-accent"
-                  placeholder="https://..."
+                  className="mt-2 w-full px-4 py-2.5 border border-gb-border rounded-lg focus:outline-none focus:border-gb-accent text-sm"
+                  placeholder="o pega una URL: https://..."
                 />
               </div>
 
