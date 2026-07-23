@@ -317,20 +317,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // Auto-mark as baseline if this is the first snapshot for this client
-    // Done AFTER insert to avoid race condition between count and insert
-    const { count: existingCount } = await supabase
-      .from("portfolio_snapshots")
-      .select("id", { count: "exact", head: true })
-      .eq("client_id", clientId);
-
-    if (existingCount === 1 && snapshot) {
-      // Exactly one snapshot exists (the one we just created) → mark as baseline
-      await supabase
+    // Auto-marcar la PRIMERA cartola REAL del cliente como baseline (cartola inicial
+    // permanente). NO se cuentan los snapshots `api-prices` (precios automáticos
+    // diarios) ni se marca uno de ellos como baseline. Se marca cuando el cliente
+    // todavía no tiene baseline — así re-subir la cartola tras borrarla la vuelve a
+    // fijar (antes se exigía count===1 total, que fallaba con api-prices presentes).
+    const isRealCartola = source === "statement" || source === "manual" || source === "excel";
+    if (snapshot && isRealCartola) {
+      const { count: baselineCount } = await supabase
         .from("portfolio_snapshots")
-        .update({ is_baseline: true })
-        .eq("id", snapshot.id);
-      snapshot.is_baseline = true;
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientId)
+        .eq("is_baseline", true);
+
+      if (!baselineCount) {
+        await supabase
+          .from("portfolio_snapshots")
+          .update({ is_baseline: true })
+          .eq("id", snapshot.id);
+        snapshot.is_baseline = true;
+      }
     }
 
     // Detección de aportes/retiros NO registrados: si el cambio de valor vs la

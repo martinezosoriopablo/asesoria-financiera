@@ -298,7 +298,7 @@ export async function DELETE(
     // Verificar que el snapshot existe
     const { data: existingSnapshot, error: fetchError } = await supabase
       .from("portfolio_snapshots")
-      .select("id, client_id, snapshot_date, source")
+      .select("id, client_id, snapshot_date, source, is_baseline")
       .eq("id", snapshotId)
       .single();
 
@@ -363,6 +363,26 @@ export async function DELETE(
         { success: false, error: error.message },
         { status: 500 }
       );
+    }
+
+    // Si borramos la baseline (cartola inicial permanente), reasignarla a la cartola
+    // REAL más antigua que quede, para no dejar al cliente sin baseline.
+    if (existingSnapshot.is_baseline) {
+      const { data: nextBaseline } = await supabase
+        .from("portfolio_snapshots")
+        .select("id")
+        .eq("client_id", existingSnapshot.client_id)
+        .in("source", ["manual", "statement", "excel"])
+        .order("snapshot_date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (nextBaseline) {
+        await supabase
+          .from("portfolio_snapshots")
+          .update({ is_baseline: true })
+          .eq("id", nextBaseline.id);
+      }
     }
 
     // Recalcula el TWR tras eliminar (cambia la cadena de la serie)
