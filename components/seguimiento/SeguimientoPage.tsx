@@ -142,6 +142,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     livePortfolioValue: seg.livePortfolioValue,
     displayCurrency: seg.displayCurrency,
     accumulatedReturn,
+    fxRateAt,
   });
 
   // Loading state

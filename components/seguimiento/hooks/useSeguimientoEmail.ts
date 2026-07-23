@@ -61,6 +61,7 @@ interface UseSeguimientoEmailProps {
   livePortfolioValue: number | null;
   displayCurrency: string;
   accumulatedReturn: number | null;
+  fxRateAt?: (currency: string, date: string) => number; // FX (CLP por unidad) por fecha
 }
 
 // ---------- Monthly computation helper ----------
@@ -70,6 +71,8 @@ interface MonthlyResult {
   holdingRets: SeguimientoEmailData["holdingReturns"];
   attrList: SeguimientoEmailData["attribution"];
   returnsBasis: { fromDate: string; toDate: string };
+  fromISO: string; // fecha ISO de inicio del período (para tasa FX)
+  toISO: string;   // fecha ISO de fin del período (para tasa FX)
   monthTotalValue: number;
   netCashFlowCLP?: number;
   monthlyReturnPct?: number;
@@ -152,6 +155,8 @@ function computeMonthlyFromClassValues(
     holdingRets: [], // No per-holding detail without holdings arrays
     attrList: [],
     returnsBasis: { fromDate: fmtDate(startSnap.snapshot_date), toDate: fmtDate(endSnap.snapshot_date) },
+    fromISO: startSnap.snapshot_date,
+    toISO: endSnap.snapshot_date,
     monthTotalValue: endSnap.total_value,
   };
 }
@@ -259,6 +264,8 @@ function computeMonthlyDataWithSnaps(
     holdingRets,
     attrList,
     returnsBasis: { fromDate: fmtDate(startSnap.snapshot_date), toDate: fmtDate(endSnap.snapshot_date) },
+    fromISO: startSnap.snapshot_date,
+    toISO: endSnap.snapshot_date,
     monthTotalValue: endSnap.total_value,
     netCashFlowCLP: result.netCashFlowCLP,
     monthlyReturnPct: result.portfolioReturnPct,
@@ -280,7 +287,14 @@ async function fetchMonthlyFromAPI(
   reportMonth: string,
   snapshots: EmailSnapshot[],
   holdingReturnsData: HoldingReturnsData,
+  fxRateAt?: (currency: string, date: string) => number,
 ): Promise<MonthlyResult | null> {
+  // FX (CLP por unidad de moneda) a una fecha; 1 si no hay data.
+  const fxAt = (ccy: string, date: string): number => {
+    const c = (ccy || "CLP").toUpperCase();
+    if (c === "CLP") return 1;
+    return (fxRateAt && fxRateAt(c, date)) || 1;
+  };
   const [y, m] = reportMonth.split("-").map(Number);
   const startDate = `${y}-${String(m).padStart(2, "0")}-01`;
   const now = new Date();
@@ -333,10 +347,12 @@ async function fetchMonthlyFromAPI(
     for (const h of holdingReturnsData.bondHoldings) { classOf.set(h.fundName, "fixedIncome"); typeOf.set(h.fundName, "bond"); }
     for (const h of (holdingReturnsData.alternativesHoldings || [])) { classOf.set(h.fundName, "alternatives"); typeOf.set(h.fundName, (h as { assetType?: string }).assetType || "fund"); }
 
-    // Build weighted returns using returnPct from API + CLP weight from snapshot
+    // Valores CLP REALES por clase: inicial = qty×precio_inicio×TC(inicio),
+    // final = qty×precio_fin×TC(fin). Así el retorno CLP incluye el FX real del mes
+    // (no se fabrica el final a la tasa de inicio). Fallback a CLP del snapshot si
+    // falta cantidad/precio.
     let totalWeight = 0;
-    let eqWeight = 0, fiWeight = 0, altWeight = 0;
-    let eqWeightedRet = 0, fiWeightedRet = 0, altWeightedRet = 0;
+    let eqInit = 0, eqFin = 0, fiInit = 0, fiFin = 0, altInit = 0, altFin = 0;
 
     const holdingRets: SeguimientoEmailData["holdingReturns"] = [];
     const attrRaw: Array<{ name: string; instrumentType: string; weight: number; returnPct: number }> = [];
@@ -348,16 +364,21 @@ async function fetchMonthlyFromAPI(
       const h = holdings.find(hh => hh.fundName === r.fundName);
       const weight = (h?.marketValueCLP && h.marketValueCLP > 0) ? h.marketValueCLP : (h?.marketValue || 0);
       if (weight <= 0) continue;
+      const qty = h?.quantity || 0;
+      const ccy = h?.currency || "USD";
+      const initCLP = (qty > 0 && r.startPrice != null) ? qty * r.startPrice * fxAt(ccy, startDate) : weight;
+      const finCLP = (qty > 0 && r.endPrice != null) ? qty * r.endPrice * fxAt(ccy, endDate) : initCLP * (1 + r.returnPct / 100);
+      // Retorno CLP real (incluye FX del mes); el hook lo re-basa a la moneda del cliente.
+      const clpRet = initCLP > 0 ? ((finCLP / initCLP) - 1) * 100 : r.returnPct;
 
       totalWeight += weight;
       const cls = classOf.get(r.fundName);
-      if (cls === "equity") { eqWeight += weight; eqWeightedRet += (r.returnPct / 100) * weight; }
-      else if (cls === "fixedIncome") { fiWeight += weight; fiWeightedRet += (r.returnPct / 100) * weight; }
-      else if (cls === "alternatives") { altWeight += weight; altWeightedRet += (r.returnPct / 100) * weight; }
-      else { eqWeight += weight; eqWeightedRet += (r.returnPct / 100) * weight; }
+      if (cls === "fixedIncome") { fiInit += initCLP; fiFin += finCLP; }
+      else if (cls === "alternatives") { altInit += initCLP; altFin += finCLP; }
+      else { eqInit += initCLP; eqFin += finCLP; }
 
-      holdingRets.push({ name: r.fundName, assetType: typeOf.get(r.fundName) || "Otro", returnPct: r.returnPct });
-      attrRaw.push({ name: r.fundName, instrumentType: typeOf.get(r.fundName) || "Otro", weight, returnPct: r.returnPct });
+      holdingRets.push({ name: r.fundName, assetType: typeOf.get(r.fundName) || "Otro", returnPct: clpRet });
+      attrRaw.push({ name: r.fundName, instrumentType: typeOf.get(r.fundName) || "Otro", weight, returnPct: clpRet });
     }
 
     // Bonds return null from prices-at-date (no FINRA historical handler).
@@ -376,8 +397,8 @@ async function fetchMonthlyFromAPI(
       if (weight <= 0) continue;
 
       totalWeight += weight;
-      fiWeight += weight;
-      fiWeightedRet += (ret / 100) * weight;
+      fiInit += weight;
+      fiFin += weight * (1 + ret / 100);
       holdingRets.push({ name: b.fundName, assetType: "bond", returnPct: ret });
       attrRaw.push({ name: b.fundName, instrumentType: "bond", weight, returnPct: ret });
     }
@@ -395,16 +416,14 @@ async function fetchMonthlyFromAPI(
       }))
       .sort((a, b) => b.contributionPp - a.contributionPp);
 
-    // Composition: use snapshot values as "initial", compute "final" from returnPct
-    const eqInitial = eqWeight;
-    const fiInitial = fiWeight;
-    const altInitial = altWeight;
+    // Composición con valores CLP reales inicial/final por clase (returnPct CLP,
+    // el hook lo re-basa a la moneda del cliente con el TC de cada fecha).
     const cashValue = snap.cash_value || 0;
 
     const comp: SeguimientoEmailData["composition"] = {
-      equity: { initial: eqInitial, final: eqInitial + eqWeightedRet, returnPct: eqWeight > 0 ? (eqWeightedRet / eqWeight) * 100 : 0 },
-      fixedIncome: { initial: fiInitial, final: fiInitial + fiWeightedRet, returnPct: fiWeight > 0 ? (fiWeightedRet / fiWeight) * 100 : 0 },
-      alternatives: { initial: altInitial, final: altInitial + altWeightedRet, returnPct: altWeight > 0 ? (altWeightedRet / altWeight) * 100 : 0 },
+      equity: { initial: eqInit, final: eqFin, returnPct: eqInit > 0 ? ((eqFin / eqInit) - 1) * 100 : 0 },
+      fixedIncome: { initial: fiInit, final: fiFin, returnPct: fiInit > 0 ? ((fiFin / fiInit) - 1) * 100 : 0 },
+      alternatives: { initial: altInit, final: altFin, returnPct: altInit > 0 ? ((altFin / altInit) - 1) * 100 : 0 },
       cash: { initial: cashValue, final: cashValue, returnPct: 0 },
     };
 
@@ -415,7 +434,9 @@ async function fetchMonthlyFromAPI(
       holdingRets: holdingRets.slice(0, 20),
       attrList,
       returnsBasis: { fromDate: fmtDate(startDate), toDate: fmtDate(endDate) },
-      monthTotalValue: totalWeight + cashValue,
+      fromISO: startDate,
+      toISO: endDate,
+      monthTotalValue: eqFin + fiFin + altFin + cashValue,
     };
   } catch (err) {
     console.warn("[useSeguimientoEmail] prices-at-date API error:", err);
@@ -437,6 +458,7 @@ export function useSeguimientoEmail({
   livePortfolioValue,
   displayCurrency,
   accumulatedReturn,
+  fxRateAt,
 }: UseSeguimientoEmailProps) {
   const [showSendModal, setShowSendModal] = useState(false);
   const [clientEmail, setClientEmail] = useState("");
@@ -469,6 +491,15 @@ export function useSeguimientoEmail({
     let returnsBasis: { fromDate: string; toDate: string; isMonthly?: boolean } | undefined;
     let reportTotalValue = latestValue;
 
+    // Tasas por fecha del período: inicial (fromISO) y final (toISO). Así cada valor
+    // se convierte a la moneda del cliente con el TC de SU fecha (no el de hoy).
+    const ratesFinal = (monthly && fxRateAt)
+      ? { usd: fxRateAt("USD", monthly.toISO) || rates.usd, uf: fxRateAt("UF", monthly.toISO) || rates.uf }
+      : rates;
+    const ratesInitial = (monthly && fxRateAt)
+      ? { usd: fxRateAt("USD", monthly.fromISO) || rates.usd, uf: fxRateAt("UF", monthly.fromISO) || rates.uf }
+      : rates;
+
     if (monthly) {
       comp = monthly.comp;
       returnsBasis = { ...monthly.returnsBasis, isMonthly: true };
@@ -487,6 +518,29 @@ export function useSeguimientoEmail({
         cash: { initial: cashFinal, final: cashFinal, returnPct: 0 },
       };
     }
+
+    // === Re-base a la moneda del cliente ===================================
+    // El retorno honesto en R sale del ratio de valores convertidos a R con el TC
+    // de cada fecha (inicial a ratesInitial, final a ratesFinal). En CLP incluye el
+    // FX; en la moneda del instrumento lo excluye. Mismo criterio que CompositionBoxes.
+    const R = (displayCurrency || "CLP").toUpperCase();
+    const toR = (clp: number, rt: { usd: number; uf: number }): number => {
+      if (R === "USD") return rt.usd ? clp / rt.usd : clp;
+      if (R === "UF") return rt.uf ? clp / rt.uf : clp;
+      return clp; // CLP
+    };
+    let totInitR = 0, totFinR = 0;
+    for (const k of ["equity", "fixedIncome", "alternatives", "cash"] as const) {
+      // La caja no tiene rentabilidad: se valoriza a la tasa de FIN en ambas puntas
+      // para no inventar un retorno por FX sobre efectivo.
+      const initRates = k === "cash" ? ratesFinal : ratesInitial;
+      const initR = toR(comp[k].initial, initRates);
+      const finR = toR(comp[k].final, ratesFinal);
+      comp[k] = { ...comp[k], returnPct: initR > 0 ? ((finR / initR) - 1) * 100 : 0 };
+      totInitR += initR;
+      totFinR += finR;
+    }
+    const monthlyReturnR = totInitR > 0 ? ((totFinR / totInitR) - 1) * 100 : null;
 
     // --- Period returns (always from live data) ---
     const pr: SeguimientoEmailData["periodReturns"] = {};
@@ -543,20 +597,39 @@ export function useSeguimientoEmail({
     }
 
     // --- Holding returns & attribution (ALWAYS monthly, never accumulated) ---
-    const holdingRetList: SeguimientoEmailData["holdingReturns"] = monthly?.holdingRets || [];
-    const attrList: SeguimientoEmailData["attribution"] = monthly?.attrList || [];
+    // Re-base de la tabla por posición a la moneda del cliente. Los retornos vienen
+    // en CLP (valor cuota o CLP real); se re-basan con el FX del período. La
+    // contribución se ajusta manteniendo la proporción retR/retCLP.
+    const posFactor = R === "USD"
+      ? (ratesFinal.usd > 0 ? ratesInitial.usd / ratesFinal.usd : 1)
+      : R === "UF"
+        ? (ratesFinal.uf > 0 ? ratesInitial.uf / ratesFinal.uf : 1)
+        : 1;
+    const rebasePos = (retCLP: number): number => R === "CLP" ? retCLP : ((1 + retCLP / 100) * posFactor - 1) * 100;
+    const retClpByName = new Map<string, number>((monthly?.holdingRets || []).map(h => [h.name, h.returnPct]));
+    const holdingRetList: SeguimientoEmailData["holdingReturns"] = (monthly?.holdingRets || [])
+      .map(h => ({ ...h, returnPct: rebasePos(h.returnPct) }));
+    const attrList: SeguimientoEmailData["attribution"] = (monthly?.attrList || []).map(a => {
+      const retCLP = retClpByName.get(a.name);
+      const contribR = (retCLP != null && Math.abs(retCLP) > 1e-9)
+        ? a.contributionPp * (rebasePos(retCLP) / retCLP)
+        : a.contributionPp * posFactor;
+      return { ...a, contributionPp: contribR };
+    });
 
     // --- Monthly total return (used in summary card + narrative) ---
     let monthlyTotalRet: number | null = null;
     if (monthly) {
       if (typeof monthly.monthlyReturnPct === "number") {
-        // Retorno por valor cuota ponderado (no distorsionado por aportes/retiros)
-        monthlyTotalRet = monthly.monthlyReturnPct;
+        // Retorno por valor cuota ponderado (no distorsionado por aportes/retiros),
+        // re-basado a R con el FX del período (fx_inicio/fx_fin).
+        const fFrom = R === "USD" ? ratesInitial.usd : R === "UF" ? ratesInitial.uf : 1;
+        const fTo = R === "USD" ? ratesFinal.usd : R === "UF" ? ratesFinal.uf : 1;
+        const factor = fFrom > 0 && fTo > 0 ? fFrom / fTo : 1;
+        monthlyTotalRet = ((1 + monthly.monthlyReturnPct / 100) * factor - 1) * 100;
       } else {
-        // Fallback (paths sin detalle por holding): variación de valor por clase
-        const totalStart = (comp.equity.initial + comp.fixedIncome.initial + comp.alternatives.initial + comp.cash.initial);
-        const totalEnd = (comp.equity.final + comp.fixedIncome.final + comp.alternatives.final + comp.cash.final);
-        monthlyTotalRet = totalStart > 0 ? ((totalEnd / totalStart) - 1) * 100 : 0;
+        // Sin valor cuota (path API): ratio de valores por clase ya en R.
+        monthlyTotalRet = monthlyReturnR;
       }
     }
 
@@ -598,6 +671,8 @@ export function useSeguimientoEmail({
       totalValueCLP: reportTotalValue,
       displayCurrency: displayCurrency,
       exchangeRates: rates,
+      ratesInitial,
+      ratesFinal,
       composition: comp,
       periodReturns: pr,
       distribution: { byAssetType: distByType, byCurrency: distByCurrency },
@@ -610,7 +685,7 @@ export function useSeguimientoEmail({
       returnsBasis,
       platformUrl: typeof window !== "undefined" ? `${window.location.origin}/clients/${clientId}/seguimiento` : "",
     };
-  }, [data, holdingReturnsData, periodReturns, benchmarkReturns, benchmarkLabel, currentExchangeRates, exchangeRates, livePortfolioValue, displayCurrency, narrativeText, clientId, accumulatedReturn, reportMonth, apiMonthlyResult]);
+  }, [data, holdingReturnsData, periodReturns, benchmarkReturns, benchmarkLabel, currentExchangeRates, exchangeRates, livePortfolioValue, displayCurrency, narrativeText, clientId, accumulatedReturn, reportMonth, apiMonthlyResult, fxRateAt]);
 
   const openSendModal = useCallback(async () => {
     if (!clientEmail) {
@@ -652,7 +727,7 @@ export function useSeguimientoEmail({
       if (data?.snapshots && holdingReturnsData) {
         const cartolas = data.snapshots.filter(s => s.source !== "api-prices");
         if (cartolas.length < 2) {
-          const apiResult = await fetchMonthlyFromAPI(selectedMonth, data.snapshots, holdingReturnsData);
+          const apiResult = await fetchMonthlyFromAPI(selectedMonth, data.snapshots, holdingReturnsData, fxRateAt);
           setApiMonthlyResult(apiResult);
         }
       }
@@ -667,7 +742,7 @@ export function useSeguimientoEmail({
       if (data?.snapshots && holdingReturnsData) {
         const cartolas = data.snapshots.filter(s => s.source !== "api-prices");
         if (cartolas.length < 2) {
-          const apiResult = await fetchMonthlyFromAPI(selectedMonth, data.snapshots, holdingReturnsData);
+          const apiResult = await fetchMonthlyFromAPI(selectedMonth, data.snapshots, holdingReturnsData, fxRateAt);
           setApiMonthlyResult(apiResult);
         }
       }

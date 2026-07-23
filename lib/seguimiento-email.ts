@@ -4,7 +4,9 @@ export interface SeguimientoEmailData {
   perfilCliente: string;
   totalValueCLP: number;
   displayCurrency: string; // "CLP" | "USD" | "UF"
-  exchangeRates: { usd: number; uf: number };
+  exchangeRates: { usd: number; uf: number };          // tasa de hoy (footer / fallback)
+  ratesInitial?: { usd: number; uf: number };          // tasa a la fecha de INICIO del período
+  ratesFinal?: { usd: number; uf: number };            // tasa a la fecha de FIN del período
   composition: {
     equity: { initial: number; final: number; returnPct: number };
     fixedIncome: { initial: number; final: number; returnPct: number };
@@ -104,7 +106,7 @@ const LOGO_SVG = `<svg viewBox="0 0 100 100" width="32" height="32" style="verti
 
 function buildHeader(data: SeguimientoEmailData): string {
   const profileLabel = PROFILE_LABELS[data.perfilCliente] || data.perfilCliente;
-  const displayValue = formatValue(data.totalValueCLP, data.displayCurrency, data.exchangeRates);
+  const displayValue = formatValue(data.totalValueCLP, data.displayCurrency, data.ratesFinal || data.exchangeRates);
 
   return `
     <div style="background:${BRAND.navy}; color:white; padding:24px 32px;">
@@ -140,7 +142,7 @@ function buildMonthlySummary(data: SeguimientoEmailData): string {
   const ret = data.monthlyReturn;
   const color = ret >= 0 ? BRAND.up : BRAND.down;
   const sign = ret > 0 ? "+" : "";
-  const displayValue = formatValue(data.totalValueCLP, data.displayCurrency, data.exchangeRates);
+  const displayValue = formatValue(data.totalValueCLP, data.displayCurrency, data.ratesFinal || data.exchangeRates);
   const basisLabel = data.returnsBasis
     ? `${data.returnsBasis.fromDate} — ${data.returnsBasis.toDate}`
     : "";
@@ -163,7 +165,7 @@ function buildMonthlySummary(data: SeguimientoEmailData): string {
     </div>`;
 }
 
-function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, rates: { usd: number; uf: number }, returnsBasis?: { fromDate: string; toDate: string }, netCashFlowCLP?: number | null): string {
+function buildCompositionSection(composition: SeguimientoEmailData["composition"], currency: string, ratesInitial: { usd: number; uf: number }, ratesFinal: { usd: number; uf: number }, returnsBasis?: { fromDate: string; toDate: string }, netCashFlowCLP?: number | null): string {
   const classes = ["equity", "fixedIncome", "alternatives", "cash"] as const;
 
   const rows = classes
@@ -177,8 +179,8 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
       return `
         <tr style="border-bottom:1px solid #F7F6F2;">
           <td style="padding:10px 12px; border-left:4px solid ${color}; font-weight:500; font-size:13px; color:#0B2140; font-family:${FONT};">${label}</td>
-          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; color:#6E7787;">${formatValue(c.initial, currency, rates)}</td>
-          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:#0B2140;">${formatValue(c.final, currency, rates)}</td>
+          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; color:#6E7787;">${formatValue(c.initial, currency, ratesInitial)}</td>
+          <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:#0B2140;">${formatValue(c.final, currency, ratesFinal)}</td>
           <td style="padding:10px 12px; text-align:right; font-family:monospace; font-size:12px; font-weight:600; color:${retColor}; background:${retBg};">${sign}${c.returnPct.toFixed(1)}%</td>
         </tr>`;
     })
@@ -190,7 +192,7 @@ function buildCompositionSection(composition: SeguimientoEmailData["composition"
 
   // Aportes/retiros netos: cambio de valor no explicado por rentabilidad.
   const flowNote = (netCashFlowCLP != null && Math.abs(netCashFlowCLP) > 1)
-    ? `<div style="font-size:11px; color:#6E7787; margin-top:10px; font-family:${FONT};">${netCashFlowCLP >= 0 ? "Aportes" : "Retiros"} netos del periodo: ${formatValue(Math.abs(netCashFlowCLP), currency, rates)} <span style="color:#a9a49c;">(no se contabilizan como rentabilidad)</span></div>`
+    ? `<div style="font-size:11px; color:#6E7787; margin-top:10px; font-family:${FONT};">${netCashFlowCLP >= 0 ? "Aportes" : "Retiros"} netos del periodo: ${formatValue(Math.abs(netCashFlowCLP), currency, ratesFinal)} <span style="color:#a9a49c;">(no se contabilizan como rentabilidad)</span></div>`
     : "";
 
   return `
@@ -366,7 +368,7 @@ function buildFooter(data: SeguimientoEmailData): string {
 export function buildSeguimientoHTML(data: SeguimientoEmailData): string {
   const header = buildHeader(data);
   const summary = buildMonthlySummary(data);
-  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.exchangeRates, data.returnsBasis, data.netCashFlowCLP);
+  const composition = buildCompositionSection(data.composition, data.displayCurrency, data.ratesInitial || data.exchangeRates, data.ratesFinal || data.exchangeRates, data.returnsBasis, data.netCashFlowCLP);
   const periodReturns = buildPeriodReturnsSection(data.periodReturns);
   const benchmark = data.benchmarkComparison ? buildBenchmarkSection(data.benchmarkComparison) : "";
   const positions = buildPositionsSection(data.holdingReturns, data.attribution, data.returnsBasis);
