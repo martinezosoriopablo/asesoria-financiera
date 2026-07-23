@@ -34,6 +34,7 @@ interface Props {
   comparisonReturns?: Record<string, number>;
   displayCurrency?: string;                              // moneda de reporte (toggle)
   fxRateAt?: (currency: string, date: string) => number; // FX por fecha (CLP por unidad de moneda)
+  benchmarkSpread?: number;                              // spread anual del benchmark UF (default 2 = "UF +2%")
 }
 
 interface MonthData {
@@ -54,6 +55,7 @@ export default function RetornosComparados({
   comparisonReturns,
   displayCurrency = "CLP",
   fxRateAt,
+  benchmarkSpread = 2,
 }: Props) {
   const R = (displayCurrency || "CLP").toUpperCase();
   const chartData = useMemo(() => {
@@ -66,6 +68,18 @@ export default function RetornosComparados({
       const e = fxRateAt(R, endDate);
       if (!s || !e) return clpPct;
       return ((1 + clpPct / 100) * (s / e) - 1) * 100;
+    };
+    // Benchmark "UF +spread%" del mes, en CLP nominal = variación REAL de la UF del
+    // mes (inflación) + spread/12. Usa la UF histórica (fxRateAt). Si no hay UF,
+    // cae al valor plano de fallback (benchmarkMonthlyReturn). El re-base a R lo
+    // convierte luego: en UF queda ~spread/12, en USD ajustado por dólar.
+    const defaultBenchCLP = (startDate: string, endDate: string): number | null => {
+      if (!fxRateAt || !startDate || !endDate) return benchmarkMonthlyReturn ?? null;
+      const ufStart = fxRateAt("UF", startDate);
+      const ufEnd = fxRateAt("UF", endDate);
+      if (!ufStart || !ufEnd) return benchmarkMonthlyReturn ?? null;
+      const ufInflation = ((ufEnd / ufStart) - 1) * 100;
+      return ufInflation + benchmarkSpread / 12;
     };
     // Derive monthly portfolio returns from historicalSeries (daily prices) when available
     // This gives proper month-by-month granularity even with few cartola snapshots
@@ -143,7 +157,7 @@ export default function RetornosComparados({
 
           let benchReturn: number | null = null;
           if (benchmarkReturns && benchmarkReturns[monthKeys[i]] != null) benchReturn = benchmarkReturns[monthKeys[i]];
-          else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
+          else benchReturn = defaultBenchCLP(prev.snapshot_date, curr.snapshot_date); // UF real del mes + spread/12
           if (benchReturn != null) benchReturn = rebaseCLP(benchReturn, prev.snapshot_date, curr.snapshot_date);
 
           let compReturn: number | null = null;
@@ -202,6 +216,7 @@ export default function RetornosComparados({
 
       let benchReturn: number | null = null;
       if (benchmarkReturns && benchmarkReturns[key] != null) benchReturn = benchmarkReturns[key];
+      else if (dates) benchReturn = defaultBenchCLP(dates.start, dates.end); // UF real del mes + spread/12
       else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
       if (benchReturn != null && dates) benchReturn = rebaseCLP(benchReturn, dates.start, dates.end);
 
@@ -243,7 +258,7 @@ export default function RetornosComparados({
     }
 
     return months;
-  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns, R, fxRateAt]);
+  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns, R, fxRateAt, benchmarkSpread]);
 
   if (chartData.length === 0) return null;
 
