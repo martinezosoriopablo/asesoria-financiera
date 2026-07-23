@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return handleApiError("client-closings-generate", async () => {
-    const { clientId, month, content } = await req.json();
+    const { clientId, month, content, currency: reqCurrency } = await req.json();
 
     if (!clientId || !month) {
       return errorResponse("clientId y month requeridos", 400);
@@ -95,11 +95,16 @@ export async function POST(req: NextRequest) {
     // 2. Get client info
     const { data: client } = await sb
       .from("clients")
-      .select("nombre, apellido, perfil_riesgo, puntaje_riesgo")
+      .select("nombre, apellido, perfil_riesgo, puntaje_riesgo, display_currency")
       .eq("id", clientId)
       .single();
 
     if (!client) return errorResponse("Cliente no encontrado", 404);
+
+    // Moneda de reporte: la enviada (toggle) o, por defecto, la de consolidación
+    // del cliente (display_currency, elegida al subir la cartola). Gobierna TODO el
+    // cierre — retornos, valores y la redacción — para que sea consistente.
+    const R = String(reqCurrency || client.display_currency || "CLP").toUpperCase();
 
     // 3. Get client's snapshots — latest in/before this month + previous one
     const monthStart = `${month}-01`;
@@ -131,7 +136,6 @@ export async function POST(req: NextRequest) {
     const previousSnap = prevSnaps?.[0];
 
     // 4. Helpers
-    const fmtM = (v: number) => `$${Math.round(v / 1e6)}M`;
     const fmtPct = (v: number, total: number) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : "0%";
 
     // 5. Build composition summary from snapshot class-level values
@@ -166,7 +170,13 @@ export async function POST(req: NextRequest) {
       currency: string;           // moneda del holding (para re-basar a CLP con FX)
     }
     const holdingReturns: HoldingReturn[] = [];
-    let usdFxFactor = 1; // TC_fin / TC_inicio del mes — re-basa retornos USD a CLP
+    // Factores TC_fin/TC_inicio del mes por moneda (crecimiento en CLP de 1 unidad de
+    // esa moneda durante el mes). Re-basan retornos entre monedas. CLP = 1 siempre.
+    let usdFxFactor = 1;
+    let ufFxFactor = 1;
+    // Tasas a fin de mes (para convertir valores CLP → moneda de reporte).
+    let usdRateEnd = 920;
+    let ufRateEnd = 39000;
 
     if (latestSnap?.holdings && Array.isArray(latestSnap.holdings)) {
       const holdings = latestSnap.holdings as Array<{
@@ -181,36 +191,46 @@ export async function POST(req: NextRequest) {
         currency?: string;
       }>;
 
-      // Fetch USD/CLP rate at month START and END (dólar observado from BCCH)
-      let usdRateEndMonth: number | null = null;
-      let usdRateStartMonth: number | null = null;
-      try {
-        const bcchUser = process.env.BCCH_API_USER;
-        const bcchPass = process.env.BCCH_API_PASSWORD;
-        if (bcchUser && bcchPass) {
-          const bcchUrl = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?user=${bcchUser}&pass=${bcchPass}&firstdate=${priceStartDate}&lastdate=${priceEndDate}&timeseries=F073.TCO.PRE.Z.D&function=GetSeries`;
-          const bcchRes = await fetch(bcchUrl, { signal: AbortSignal.timeout(10000) });
-          if (bcchRes.ok) {
-            const bcchData = await bcchRes.json();
-            const obs = bcchData?.Series?.Obs;
-            if (Array.isArray(obs) && obs.length > 0) {
-              const parseVal = (o: { value: unknown }) => { const v = parseFloat(String(o.value).replace(",", ".")); return isFinite(v) && v > 0 ? v : null; };
-              usdRateEndMonth = parseVal(obs[obs.length - 1]); // última obs = fin de mes
-              usdRateStartMonth = parseVal(obs[0]);            // primera obs = inicio de mes
-            }
+      // Fetch tasa de cambio (inicio y fin de mes) desde BCCH para USD y UF.
+      const bcchUser = process.env.BCCH_API_USER;
+      const bcchPass = process.env.BCCH_API_PASSWORD;
+      const parseVal = (o: { value: unknown }) => { const v = parseFloat(String(o.value).replace(",", ".")); return isFinite(v) && v > 0 ? v : null; };
+      const fetchBcchRange = async (series: string): Promise<{ start: number | null; end: number | null }> => {
+        if (!bcchUser || !bcchPass) return { start: null, end: null };
+        try {
+          const url = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?user=${bcchUser}&pass=${bcchPass}&firstdate=${priceStartDate}&lastdate=${priceEndDate}&timeseries=${series}&function=GetSeries`;
+          const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+          if (!res.ok) return { start: null, end: null };
+          const data = await res.json();
+          const obs = data?.Series?.Obs;
+          if (Array.isArray(obs) && obs.length > 0) {
+            return { start: parseVal(obs[0]), end: parseVal(obs[obs.length - 1]) };
           }
-        }
-      } catch { /* BCCH unavailable, use fallback */ }
-      // Fallback: derive from snapshot's USD holding ratio
+        } catch { /* BCCH unavailable */ }
+        return { start: null, end: null };
+      };
+
+      const [usdRange, ufRange] = await Promise.all([
+        fetchBcchRange("F073.TCO.PRE.Z.D"), // dólar observado
+        fetchBcchRange("F073.UFF.PRE.Z.D"), // UF
+      ]);
+
+      let usdRateEndMonth = usdRange.end;
+      let usdRateStartMonth = usdRange.start;
+      // Fallback USD: derivar del ratio de un holding USD del snapshot
       if (!usdRateEndMonth) {
         const usdHolding = holdings.find(hh => hh.currency === "USD" && hh.marketValueCLP && hh.marketValue && hh.marketValue > 0);
-        if (usdHolding) {
-          usdRateEndMonth = usdHolding.marketValueCLP! / usdHolding.marketValue;
-        }
+        if (usdHolding) usdRateEndMonth = usdHolding.marketValueCLP! / usdHolding.marketValue;
       }
       if (!usdRateEndMonth) usdRateEndMonth = 920;
-      if (!usdRateStartMonth) usdRateStartMonth = usdRateEndMonth; // sin dato de inicio → usa el de fin (sin efecto FX)
+      if (!usdRateStartMonth) usdRateStartMonth = usdRateEndMonth; // sin inicio → sin efecto FX
       usdFxFactor = usdRateStartMonth > 0 ? usdRateEndMonth / usdRateStartMonth : 1;
+      usdRateEnd = usdRateEndMonth;
+
+      const ufEnd = ufRange.end ?? ufRateEnd;
+      const ufStart = ufRange.start ?? ufEnd;
+      ufFxFactor = ufStart > 0 ? ufEnd / ufStart : 1;
+      ufRateEnd = ufEnd;
 
       // Look up prices for each holding with a numeric RUN (Chilean funds)
       for (const h of holdings) {
@@ -377,14 +397,29 @@ export async function POST(req: NextRequest) {
     // Compute weighted portfolio return from real prices
     const totalWeightCLP = holdingReturns.reduce((s, h) => s + h.weightCLP, 0);
     const holdingsWithReturn = holdingReturns.filter(h => h.returnPct !== null);
-    // Retorno del holding en CLP (con FX): el nativo re-basado por el movimiento del
-    // dólar del mes para posiciones USD. Así el retorno del mes es el CLP real (para
-    // un cliente que reporta en pesos), no el nativo que ignora el dólar.
-    const clpReturnOf = (h: HoldingReturn): number =>
-      h.currency === "USD" ? ((1 + h.returnPct! / 100) * usdFxFactor - 1) * 100 : h.returnPct!;
+    // Retorno del holding EN LA MONEDA DE REPORTE R: el nativo re-basado con el FX
+    // del mes. En la moneda del instrumento queda nativo; en CLP suma el dólar; en
+    // USD/UF ajusta según el movimiento del dólar/UF del mes. Consistente con la
+    // regla de moneda del resto del reporte.
+    const curFactor = (cur: string): number => {
+      const c = (cur || "CLP").toUpperCase();
+      return c === "USD" ? usdFxFactor : c === "UF" ? ufFxFactor : 1;
+    };
+    const returnInR = (h: HoldingReturn): number => {
+      const c = (h.currency || "CLP").toUpperCase();
+      if (c === R) return h.returnPct!;
+      const factor = curFactor(c) / (curFactor(R) || 1);
+      return ((1 + h.returnPct! / 100) * factor - 1) * 100;
+    };
+    // Formatea un valor CLP en la moneda de reporte R.
+    const fmtMoney = (clp: number): string => {
+      if (R === "USD") { const u = usdRateEnd > 0 ? clp / usdRateEnd : clp; return u >= 1e6 ? `US$${(u / 1e6).toFixed(1)}M` : `US$${Math.round(u / 1e3)}k`; }
+      if (R === "UF") { const uf = ufRateEnd > 0 ? clp / ufRateEnd : clp; return `UF ${Math.round(uf).toLocaleString("es-CL")}`; }
+      return `$${Math.round(clp / 1e6)}M`;
+    };
     let portfolioReturnPct: number | null = null;
     if (holdingsWithReturn.length > 0 && totalWeightCLP > 0) {
-      const weightedSum = holdingsWithReturn.reduce((s, h) => s + (clpReturnOf(h) / 100) * h.weightCLP, 0);
+      const weightedSum = holdingsWithReturn.reduce((s, h) => s + (returnInR(h) / 100) * h.weightCLP, 0);
       const coveredWeight = holdingsWithReturn.reduce((s, h) => s + h.weightCLP, 0);
       portfolioReturnPct = (weightedSum / coveredWeight) * 100;
     }
@@ -396,18 +431,18 @@ export async function POST(req: NextRequest) {
     let portfolioChange = "";
     if (portfolioReturnPct !== null) {
       const sign = portfolioReturnPct >= 0 ? "+" : "";
-      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtM(totalEndValueCLP)} | Retorno del mes: ${sign}${portfolioReturnPct.toFixed(2)}%`;
+      portfolioChange = `Valor del portafolio al cierre de ${month}: ${fmtMoney(totalEndValueCLP)} | Retorno del mes: ${sign}${portfolioReturnPct.toFixed(2)}%`;
     } else if (latestSnap) {
-      portfolioChange = `Valor del portafolio: ${fmtM(totalEndValueCLP)}`;
+      portfolioChange = `Valor del portafolio: ${fmtMoney(totalEndValueCLP)}`;
     }
 
-    // Per-holding returns detail
+    // Per-holding returns detail (en la moneda de reporte R)
     const holdingsChangeList = holdingReturns
       .sort((a, b) => b.weightCLP - a.weightCLP)
       .map(h => {
-        const retCLP = h.returnPct !== null ? clpReturnOf(h) : null;
-        const retStr = retCLP !== null ? `${retCLP >= 0 ? "+" : ""}${retCLP.toFixed(1)}%` : "sin datos";
-        const valStr = h.endValueCLP ? fmtM(h.endValueCLP) : fmtM(h.weightCLP);
+        const retR = h.returnPct !== null ? returnInR(h) : null;
+        const retStr = retR !== null ? `${retR >= 0 ? "+" : ""}${retR.toFixed(1)}%` : "sin datos";
+        const valStr = h.endValueCLP ? fmtMoney(h.endValueCLP) : fmtMoney(h.weightCLP);
         return `- ${h.fundName} (${h.assetClass}): ${valStr} | Retorno mes: ${retStr}`;
       })
       .join("\n");
@@ -437,12 +472,15 @@ ${portfolioChange}
 DETALLE POR HOLDING:
 ${holdingsChangeList || "Sin datos de holdings."}
 
+MONEDA DE REPORTE: ${R === "USD" ? "dólares (USD)" : R === "UF" ? "UF" : "pesos chilenos (CLP)"}. Todas las cifras de valor y retorno de arriba ya están expresadas en esta moneda.
+
 REGLAS:
 - 3 párrafos cortos en markdown. Sin título.
 - Párrafo 1: qué pasó en los mercados relevantes para este cliente.
 - Párrafo 2: cómo impactó sus posiciones (menciona instrumentos por nombre, usa las cifras de CAMBIO y DETALLE POR HOLDING).
 - Párrafo 3: perspectiva breve para el próximo mes.
 - Tutéalo, tono profesional. NO inventes cifras. NO des recomendaciones de compra/venta.
+- Las cifras están en ${R === "USD" ? "dólares (USD)" : R === "UF" ? "UF" : "pesos (CLP)"}: refiérete a los valores y retornos en esa moneda; NO las conviertas a otra. ${R === "USD" ? "En dólares el efecto del tipo de cambio ya está descontado (retorno de la inversión)." : R === "CLP" ? "En pesos, el retorno incluye el efecto del tipo de cambio sobre los activos en dólares." : ""}
 - Usa **negritas** para instrumentos y cifras clave.`;
 
     // 9. Call Claude

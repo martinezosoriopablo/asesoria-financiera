@@ -16,6 +16,7 @@ interface Props {
   clientId: string;
   month: string; // "2026-05"
   hasMonthlyReport?: boolean;
+  displayCurrency?: string; // moneda de reporte (toggle) — gobierna la narrativa
 }
 
 interface Closing {
@@ -29,6 +30,7 @@ export default function ClientMonthlyClosing({
   clientId,
   month,
   hasMonthlyReport,
+  displayCurrency = "CLP",
 }: Props) {
   const [closing, setClosing] = useState<Closing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ export default function ClientMonthlyClosing({
       const res = await fetch("/api/client-closings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, month }),
+        body: JSON.stringify({ clientId, month, currency: displayCurrency }),
       });
       const d = await res.json();
       if (d.closing) {

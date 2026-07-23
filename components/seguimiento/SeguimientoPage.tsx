@@ -439,6 +439,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
               const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
               return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
             })()}
+            displayCurrency={seg.displayCurrency}
           />
         )}
 
