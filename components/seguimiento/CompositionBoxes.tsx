@@ -76,13 +76,13 @@ export default function CompositionBoxes({
   let altInitial: number;
   let cashInitial: number;
 
-  if (baseSnap.holdings && Array.isArray(baseSnap.holdings) && baseSnap.holdings.length > 0) {
-    // Valor inicial = CLP REAL del snapshot base (cartola inicial o fecha elegida),
-    // buscado por nombre y agrupado por la clasificación ACTUAL (evita mismatch de
-    // clase con snapshots viejos). Es el CLP real a la tasa de esa fecha → el retorno
-    // por moneda (calculado más abajo sobre valores en R) queda honesto, con el FX
-    // real de cada fecha dentro. NO se usa initFromReturn (que cancela el FX).
-    const baseHoldings = baseSnap.holdings as SnapshotHolding[];
+  {
+    // Valor inicial POR HOLDING = CLP REAL del snapshot base (buscado por nombre,
+    // agrupado por la clasificación ACTUAL). Es el CLP real a la tasa de esa fecha →
+    // el retorno por moneda (calculado más abajo sobre valores en R) queda honesto
+    // con el FX real de cada fecha dentro. Si un holding NO está en el snapshot base
+    // (cambió la cartola), fallback a initFromReturn (deriva el inicial del retorno).
+    const baseHoldings = (Array.isArray(baseSnap.holdings) ? baseSnap.holdings : []) as SnapshotHolding[];
     const baseValueByName = new Map<string, number>();
     for (const h of baseHoldings) {
       if (h.fundName) {
@@ -90,27 +90,24 @@ export default function CompositionBoxes({
         baseValueByName.set(h.fundName, (baseValueByName.get(h.fundName) || 0) + clp);
       }
     }
-    const lookupInit = (h: { fundName: string }) => baseValueByName.get(h.fundName) || 0;
-
-    rvInitial = d.equityHoldings.reduce((s, h) => s + lookupInit(h), 0);
-    rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + lookupInit(h), 0)
-      + d.bondHoldings.reduce((s, h) => s + lookupInit(h), 0);
-    altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + lookupInit(h), 0);
-    cashInitial = baseSnap.cash_value || 0;
-  } else {
-    // Fallback (snapshot base sin holdings): deriva el inicial del retorno nativo.
     const initFromReturn = (h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => {
       const ret = (h.totalReturn ?? h.returnPrice ?? 0) / 100;
       return ret !== 0 ? h.marketValue / (1 + ret) : h.marketValue;
     };
+    const initOf = (h: { fundName: string; marketValue: number; totalReturn?: number; returnPrice?: number }) => {
+      const v = baseValueByName.get(h.fundName) || 0;
+      return v > 0 ? v : initFromReturn(h);
+    };
 
-    rvInitial = d.equityHoldings.reduce((s, h) => s + initFromReturn(h), 0);
-    rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + initFromReturn(h), 0)
+    rvInitial = d.equityHoldings.reduce((s, h) => s + initOf(h), 0);
+    rfInitial = d.fixedIncomeFundHoldings.reduce((s, h) => s + initOf(h), 0)
       + d.bondHoldings.reduce((s, h) => {
+        const v = baseValueByName.get(h.fundName) || 0;
+        if (v > 0) return s + v;
         const ret = (h.totalReturn ?? 0) / 100;
         return s + (ret !== 0 ? h.marketValue / (1 + ret) : (h.costBasis > 0 ? h.costBasis : h.marketValue));
       }, 0);
-    altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + initFromReturn(h), 0);
+    altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + initOf(h), 0);
     cashInitial = baseSnap.cash_value || 0;
   }
 
