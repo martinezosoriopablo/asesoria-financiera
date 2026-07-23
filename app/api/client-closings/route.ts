@@ -162,9 +162,11 @@ export async function POST(req: NextRequest) {
       assetClass: string;
       weightCLP: number;
       endValueCLP: number | null;
-      returnPct: number | null;
+      returnPct: number | null;   // retorno NATIVO (moneda del instrumento)
+      currency: string;           // moneda del holding (para re-basar a CLP con FX)
     }
     const holdingReturns: HoldingReturn[] = [];
+    let usdFxFactor = 1; // TC_fin / TC_inicio del mes — re-basa retornos USD a CLP
 
     if (latestSnap?.holdings && Array.isArray(latestSnap.holdings)) {
       const holdings = latestSnap.holdings as Array<{
@@ -179,8 +181,9 @@ export async function POST(req: NextRequest) {
         currency?: string;
       }>;
 
-      // Fetch USD/CLP rate at month end (dólar observado from BCCH)
+      // Fetch USD/CLP rate at month START and END (dólar observado from BCCH)
       let usdRateEndMonth: number | null = null;
+      let usdRateStartMonth: number | null = null;
       try {
         const bcchUser = process.env.BCCH_API_USER;
         const bcchPass = process.env.BCCH_API_PASSWORD;
@@ -191,10 +194,9 @@ export async function POST(req: NextRequest) {
             const bcchData = await bcchRes.json();
             const obs = bcchData?.Series?.Obs;
             if (Array.isArray(obs) && obs.length > 0) {
-              // Last observation in the range = closest to month end
-              const last = obs[obs.length - 1];
-              const val = parseFloat(String(last.value).replace(",", "."));
-              if (isFinite(val) && val > 0) usdRateEndMonth = val;
+              const parseVal = (o: { value: unknown }) => { const v = parseFloat(String(o.value).replace(",", ".")); return isFinite(v) && v > 0 ? v : null; };
+              usdRateEndMonth = parseVal(obs[obs.length - 1]); // última obs = fin de mes
+              usdRateStartMonth = parseVal(obs[0]);            // primera obs = inicio de mes
             }
           }
         }
@@ -207,6 +209,8 @@ export async function POST(req: NextRequest) {
         }
       }
       if (!usdRateEndMonth) usdRateEndMonth = 920;
+      if (!usdRateStartMonth) usdRateStartMonth = usdRateEndMonth; // sin dato de inicio → usa el de fin (sin efecto FX)
+      usdFxFactor = usdRateStartMonth > 0 ? usdRateEndMonth / usdRateStartMonth : 1;
 
       // Look up prices for each holding with a numeric RUN (Chilean funds)
       for (const h of holdings) {
@@ -288,9 +292,10 @@ export async function POST(req: NextRequest) {
               weightCLP: clpValue,
               endValueCLP: endVal,
               returnPct: retPct,
+              currency: h.currency || "CLP",
             });
           } else {
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: null, returnPct: null });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: null, returnPct: null , currency: h.currency || "CLP" });
           }
         } else {
           // International holding — resolve ticker via price-service, then look up in international_prices
@@ -332,7 +337,7 @@ export async function POST(req: NextRequest) {
               ? ((endP - startP) / startP) * 100
               : null;
 
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: retPct !== null ? clpValue * (1 + retPct / 100) : null, returnPct: retPct });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: retPct !== null ? clpValue * (1 + retPct / 100) : null, returnPct: retPct , currency: h.currency || "CLP" });
           } else if (resolution.source === "finra") {
             // Bonds → bond_prices table (last_price is % of par)
             const cusip = h.securityId || resolution.symbol;
@@ -361,9 +366,9 @@ export async function POST(req: NextRequest) {
               ? ((endP - startP) / startP) * 100
               : null;
 
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: retPct !== null ? clpValue * (1 + retPct / 100) : null, returnPct: retPct });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: retPct !== null ? clpValue * (1 + retPct / 100) : null, returnPct: retPct , currency: h.currency || "CLP" });
           } else {
-            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: null, returnPct: null });
+            holdingReturns.push({ fundName: h.fundName, assetClass: h.assetClass || "?", weightCLP: clpValue, endValueCLP: null, returnPct: null , currency: h.currency || "CLP" });
           }
         }
       }
@@ -372,9 +377,14 @@ export async function POST(req: NextRequest) {
     // Compute weighted portfolio return from real prices
     const totalWeightCLP = holdingReturns.reduce((s, h) => s + h.weightCLP, 0);
     const holdingsWithReturn = holdingReturns.filter(h => h.returnPct !== null);
+    // Retorno del holding en CLP (con FX): el nativo re-basado por el movimiento del
+    // dólar del mes para posiciones USD. Así el retorno del mes es el CLP real (para
+    // un cliente que reporta en pesos), no el nativo que ignora el dólar.
+    const clpReturnOf = (h: HoldingReturn): number =>
+      h.currency === "USD" ? ((1 + h.returnPct! / 100) * usdFxFactor - 1) * 100 : h.returnPct!;
     let portfolioReturnPct: number | null = null;
     if (holdingsWithReturn.length > 0 && totalWeightCLP > 0) {
-      const weightedSum = holdingsWithReturn.reduce((s, h) => s + (h.returnPct! / 100) * h.weightCLP, 0);
+      const weightedSum = holdingsWithReturn.reduce((s, h) => s + (clpReturnOf(h) / 100) * h.weightCLP, 0);
       const coveredWeight = holdingsWithReturn.reduce((s, h) => s + h.weightCLP, 0);
       portfolioReturnPct = (weightedSum / coveredWeight) * 100;
     }
@@ -395,7 +405,8 @@ export async function POST(req: NextRequest) {
     const holdingsChangeList = holdingReturns
       .sort((a, b) => b.weightCLP - a.weightCLP)
       .map(h => {
-        const retStr = h.returnPct !== null ? `${h.returnPct >= 0 ? "+" : ""}${h.returnPct.toFixed(1)}%` : "sin datos";
+        const retCLP = h.returnPct !== null ? clpReturnOf(h) : null;
+        const retStr = retCLP !== null ? `${retCLP >= 0 ? "+" : ""}${retCLP.toFixed(1)}%` : "sin datos";
         const valStr = h.endValueCLP ? fmtM(h.endValueCLP) : fmtM(h.weightCLP);
         return `- ${h.fundName} (${h.assetClass}): ${valStr} | Retorno mes: ${retStr}`;
       })
