@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import Link from "next/link";
 import { formatNumber, formatCurrency } from "@/lib/format";
+import type { FxAdjust } from "@/lib/portfolio/currency";
 import EvolucionChart from "./EvolucionChart";
 
 import AddSnapshotModal from "./AddSnapshotModal";
@@ -92,6 +93,42 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     if (seg.displayCurrency === "UF") return `UF ${formatNumber(clpValue / rates.uf, 1)}`;
     return formatCurrency(clpValue);
   }, [seg.displayCurrency]);
+
+  // Factor de ajuste FX por moneda para re-basar retornos: fx(inicio)/fx(fin),
+  // con inicio = fecha de cartola y fin = fecha de valorización actual. Alimenta
+  // el re-base honesto por moneda del toggle. Ver project_moneda_reporte_seguimiento.
+  const fxAdjust = useMemo<FxAdjust | null>(() => {
+    // "Fin" = misma tasa que usa la conversión de valores (currentExchangeRates
+    // con fallback a exchangeRates de hoy); "inicio" = tasa de la cartola. Así el
+    // re-base del retorno queda consistente con la conversión del valor.
+    const end = currentExchangeRates || exchangeRates;
+    if (!cartolaExchangeRates || !end) return null;
+    const ratio = (a?: number, b?: number) => (a && b ? a / b : 1);
+    return {
+      CLP: 1,
+      USD: ratio(cartolaExchangeRates.usd, end.usd),
+      UF: ratio(cartolaExchangeRates.uf, end.uf),
+      EUR: ratio(cartolaExchangeRates.eur, end.eur),
+    };
+  }, [cartolaExchangeRates, currentExchangeRates, exchangeRates]);
+
+  // FX (CLP por 1 unidad de moneda) a una fecha arbitraria — para re-basar
+  // retornos entre fechas cualesquiera (vistas por mes de Rentabilidad por Activo).
+  // USD usa observado T+1 (convención corredora); UF/EUR mismo día.
+  const fxRateAt = useCallback((currency: string, date: string): number => {
+    const c = (currency || "CLP").toUpperCase();
+    if (c === "CLP") return 1;
+    if (!deflatorData || !date) return 1;
+    if (c === "USD") {
+      const d = new Date(date + "T12:00:00");
+      d.setDate(d.getDate() + 1);
+      const next = d.toISOString().split("T")[0];
+      return findDeflatorValueNext(deflatorData.usd, next) ?? findDeflatorValue(deflatorData.usd, date) ?? 1;
+    }
+    if (c === "UF") return findDeflatorValue(deflatorData.uf, date) ?? 1;
+    if (c === "EUR") return findDeflatorValue(deflatorData.eur, date) ?? 1;
+    return 1;
+  }, [deflatorData, findDeflatorValue, findDeflatorValueNext]);
 
   const email = useSeguimientoEmail({
     clientId,
@@ -290,12 +327,13 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             cartolaExchangeRates={cartolaExchangeRates}
             currentExchangeRates={currentExchangeRates}
             exchangeRates={exchangeRates}
+            displayCurrency={seg.displayCurrency}
           />
         )}
 
         {/* Holding Returns Panel */}
         {snapshots.length > 0 && (
-          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={seg.setLivePortfolioValue} onPriceDateUpdate={seg.setLivePriceDate} onHoldingReturnsReady={seg.setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={(currentExchangeRates || exchangeRates)?.usd} ufRate={(currentExchangeRates || exchangeRates)?.uf} eurRate={(currentExchangeRates || exchangeRates)?.eur} ufRateInitial={deflatorData ? findDeflatorValue(deflatorData.uf, snapshots[0]?.snapshot_date) ?? undefined : undefined} />
+          <HoldingReturnsPanel snapshots={snapshots} clientId={clientId} onCurrentValueUpdate={seg.setLivePortfolioValue} onPriceDateUpdate={seg.setLivePriceDate} onHoldingReturnsReady={seg.setHoldingReturnsData} fundsMeta={fundsMeta} usdRate={(currentExchangeRates || exchangeRates)?.usd} ufRate={(currentExchangeRates || exchangeRates)?.uf} eurRate={(currentExchangeRates || exchangeRates)?.eur} ufRateInitial={deflatorData ? findDeflatorValue(deflatorData.uf, snapshots[0]?.snapshot_date) ?? undefined : undefined} displayCurrency={seg.displayCurrency} fxAdjust={fxAdjust} />
         )}
 
         {/* Evolution chart */}
@@ -433,7 +471,10 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
           <RentabilidadPorActivo
             holdingReturnsData={seg.holdingReturnsData}
             snapshots={snapshots}
-            historicalAccumulatedReturn={seg.holdingReturnsData?.portfolioReturn ?? accumulatedReturn}
+            historicalAccumulatedReturn={seg.holdingReturnsData?.portfolioReturnDisplay ?? seg.holdingReturnsData?.portfolioReturn ?? accumulatedReturn}
+            displayCurrency={seg.displayCurrency}
+            fxAdjust={fxAdjust}
+            fxRateAt={fxRateAt}
           />
         )}
 
@@ -453,6 +494,8 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
               benchmarkMonthlyReturn={!benchmarkReturns ? 0.5 : undefined}
               comparisonLabel="Portfolio Inicial"
               comparisonReturns={baselineMonthlyReturns}
+              displayCurrency={seg.displayCurrency}
+              fxRateAt={fxRateAt}
             />
           </>
         )}
@@ -463,8 +506,13 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             snapshots={snapshots}
             recommendation={seg.recommendation}
             previousPortfolio={snapshots.find(s => s.is_baseline) || null}
-            totalReturn={seg.holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? metrics?.totalReturn}
+            totalReturn={seg.holdingReturnsData?.portfolioReturnDisplay ?? seg.holdingReturnsData?.portfolioReturn ?? accumulatedReturn ?? metrics?.totalReturn}
             holdingReturnsData={seg.holdingReturnsData}
+            displayCurrency={seg.displayCurrency}
+            fxAdjust={fxAdjust}
+            fxRateAt={fxRateAt}
+            baseRates={cartolaExchangeRates}
+            curRates={currentExchangeRates || exchangeRates}
           />
         )}
 

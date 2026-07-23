@@ -32,6 +32,8 @@ interface Props {
   /** Optional: second comparison series (e.g. "Portafolio Banchile" or modelo) */
   comparisonLabel?: string;
   comparisonReturns?: Record<string, number>;
+  displayCurrency?: string;                              // moneda de reporte (toggle)
+  fxRateAt?: (currency: string, date: string) => number; // FX por fecha (CLP por unidad de moneda)
 }
 
 interface MonthData {
@@ -50,11 +52,25 @@ export default function RetornosComparados({
   benchmarkReturns,
   comparisonLabel,
   comparisonReturns,
+  displayCurrency = "CLP",
+  fxRateAt,
 }: Props) {
+  const R = (displayCurrency || "CLP").toUpperCase();
   const chartData = useMemo(() => {
+    // Re-basa un retorno CLP a la moneda de reporte R usando el FX real de las
+    // dos fechas del período. Portafolio y benchmark (UF+2% nominal CLP) y la
+    // comparación son series CLP → mismo transform. En CLP queda igual.
+    const rebaseCLP = (clpPct: number, startDate: string, endDate: string): number => {
+      if (R === "CLP" || !fxRateAt || !startDate || !endDate) return clpPct;
+      const s = fxRateAt(R, startDate);
+      const e = fxRateAt(R, endDate);
+      if (!s || !e) return clpPct;
+      return ((1 + clpPct / 100) * (s / e) - 1) * 100;
+    };
     // Derive monthly portfolio returns from historicalSeries (daily prices) when available
     // This gives proper month-by-month granularity even with few cartola snapshots
     const monthlyPortfolioReturns = new Map<string, number>();
+    const monthlyDates = new Map<string, { start: string; end: string }>(); // fechas por mes para re-basar benchmark/comparación
     let accumPortfolio = 0;
 
     if (historicalSeries && historicalSeries.length > 1) {
@@ -78,19 +94,21 @@ export default function RetornosComparados({
       for (let i = 1; i < monthKeys.length; i++) {
         const prevMonth = byMonth.get(monthKeys[i - 1])!;
         const currMonth = byMonth.get(monthKeys[i])!;
-        // Return = currMonth.last / prevMonth.last - 1
+        // Return = currMonth.last / prevMonth.last - 1  (CLP), re-basado a R
         if (prevMonth.last > 0) {
-          const ret = ((currMonth.last / prevMonth.last) - 1) * 100;
-          monthlyPortfolioReturns.set(monthKeys[i], ret);
+          const retCLP = ((currMonth.last / prevMonth.last) - 1) * 100;
+          monthlyDates.set(monthKeys[i], { start: prevMonth.lastDate, end: currMonth.lastDate });
+          monthlyPortfolioReturns.set(monthKeys[i], rebaseCLP(retCLP, prevMonth.lastDate, currMonth.lastDate));
         }
       }
 
-      // Accumulated from first point to last point
-      const firstTotal = historicalSeries[0].total;
-      const lastTotal = historicalSeries[historicalSeries.length - 1].total;
-      if (typeof firstTotal === "number" && typeof lastTotal === "number" && firstTotal > 0) {
-        accumPortfolio = ((lastTotal / firstTotal) - 1) * 100;
-      }
+      // Acumulado = compuesto de los retornos mensuales (ya re-basados), NO el
+      // ratio directo primer→último punto. Así el acumulado calza con las barras
+      // mensuales mostradas y con el benchmark (también compuesto), y la Diferencia
+      // queda consistente en cualquier moneda (evita desfase de ventana FX).
+      let compoundP = 1;
+      for (const v of monthlyPortfolioReturns.values()) compoundP *= 1 + v / 100;
+      accumPortfolio = (compoundP - 1) * 100;
     }
 
     const useHistorical = monthlyPortfolioReturns.size > 0;
@@ -119,15 +137,18 @@ export default function RetornosComparados({
           const curr = byMonth.get(monthKeys[i])!;
           const d = new Date(curr.snapshot_date);
           const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" }).replace(".", "");
-          const portfolioReturn = prev.total_value > 0
+          const portfolioReturnCLP = prev.total_value > 0
             ? ((curr.total_value - prev.total_value) / prev.total_value) * 100 : 0;
+          const portfolioReturn = rebaseCLP(portfolioReturnCLP, prev.snapshot_date, curr.snapshot_date);
 
           let benchReturn: number | null = null;
           if (benchmarkReturns && benchmarkReturns[monthKeys[i]] != null) benchReturn = benchmarkReturns[monthKeys[i]];
           else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
+          if (benchReturn != null) benchReturn = rebaseCLP(benchReturn, prev.snapshot_date, curr.snapshot_date);
 
           let compReturn: number | null = null;
           if (comparisonReturns && comparisonReturns[monthKeys[i]] != null) compReturn = comparisonReturns[monthKeys[i]];
+          if (compReturn != null) compReturn = rebaseCLP(compReturn, prev.snapshot_date, curr.snapshot_date);
 
           months.push({
             monthKey: monthKeys[i],
@@ -140,8 +161,10 @@ export default function RetornosComparados({
       }
 
       if (months.length > 0) {
-        const accumP = sorted[0].total_value > 0
-          ? ((sorted[sorted.length - 1].total_value - sorted[0].total_value) / sorted[0].total_value) * 100 : 0;
+        // Acumulado = compuesto de los meses (ya re-basados), consistente con benchmark
+        let compoundP = 1;
+        for (const m of months) compoundP *= 1 + m.portfolio / 100;
+        const accumP = (compoundP - 1) * 100;
         let accumBench: number | null = null;
         if (benchmarkMonthlyReturn != null || benchmarkReturns) {
           let compound = 1;
@@ -174,14 +197,17 @@ export default function RetornosComparados({
       const d = new Date(y, m - 1, 1);
       const label = d.toLocaleDateString("es-CL", { month: "short", year: "2-digit" }).replace(".", "");
 
-      const portfolioReturn = monthlyPortfolioReturns.get(key) ?? 0;
+      const portfolioReturn = monthlyPortfolioReturns.get(key) ?? 0; // ya re-basado
+      const dates = monthlyDates.get(key);
 
       let benchReturn: number | null = null;
       if (benchmarkReturns && benchmarkReturns[key] != null) benchReturn = benchmarkReturns[key];
       else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
+      if (benchReturn != null && dates) benchReturn = rebaseCLP(benchReturn, dates.start, dates.end);
 
       let compReturn: number | null = null;
       if (comparisonReturns && comparisonReturns[key] != null) compReturn = comparisonReturns[key];
+      if (compReturn != null && dates) compReturn = rebaseCLP(compReturn, dates.start, dates.end);
 
       months.push({
         monthKey: key,
@@ -217,7 +243,7 @@ export default function RetornosComparados({
     }
 
     return months;
-  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns]);
+  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns, R, fxRateAt]);
 
   if (chartData.length === 0) return null;
 
@@ -234,6 +260,7 @@ export default function RetornosComparados({
       <h3 className="text-base font-semibold text-gb-black flex items-center gap-2 mb-4">
         <GitCompare className="w-5 h-5 text-blue-500" />
         Retornos Comparados
+        <span className="text-xs font-normal text-gb-gray">· {R}</span>
       </h3>
 
       {/* Accumulated summary cards */}

@@ -22,6 +22,7 @@ import {
   type AssetClassWithBreakdown,
   type PositionAttr,
 } from "./hooks/usePerformanceCalculations";
+import type { FxAdjust } from "@/lib/portfolio/currency";
 
 interface BenchmarkAllocation {
   equity_percent?: number;
@@ -36,6 +37,11 @@ interface Props {
   previousPortfolio?: Snapshot | null;
   totalReturn?: number;
   holdingReturnsData?: HoldingReturnsData | null;
+  displayCurrency?: string;
+  fxAdjust?: FxAdjust | null;
+  fxRateAt?: (currency: string, date: string) => number;
+  baseRates?: { uf: number; usd: number; eur?: number } | null;
+  curRates?: { uf: number; usd: number; eur?: number } | null;
 }
 
 export default function PerformanceAttribution(props: Props) {

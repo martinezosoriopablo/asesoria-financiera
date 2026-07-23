@@ -153,16 +153,35 @@ export default function SeguimientoSummaryCards({
                 const renderVal = (v: number | null | undefined, label: string, bold?: boolean) => {
                   if (v === null || v === undefined) return null;
                   return (
-                    <p className={`${bold ? "text-sm font-bold" : "text-[10px] font-medium"} ${v >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    <p key={label || "primary"} className={`${bold ? "text-sm font-bold" : "text-[10px] font-medium"} ${v >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {!bold && <span className="text-gb-gray mr-0.5">{label}</span>}
                       {v >= 0 ? "+" : ""}{formatNumber(v, 1)}%
                     </p>
                   );
                 };
+                // El número grande sigue el toggle; las otras 2 monedas van de subtítulo.
+                const byCur: Record<string, { v: number | null; label: string }> = {
+                  CLP: { v: ret?.nominal ?? null, label: "CLP" },
+                  UF: { v: ret?.real ?? null, label: "UF" },
+                  USD: { v: ret?.usd ?? null, label: "USD" },
+                };
+                const order = displayCurrency === "USD"
+                  ? (["USD", "CLP", "UF"] as const)
+                  : displayCurrency === "UF"
+                    ? (["UF", "CLP", "USD"] as const)
+                    : (["CLP", "UF", "USD"] as const);
+                const primaryHasValue = byCur[order[0]].v !== null;
                 return (
                   <div key={p} className="bg-white rounded-lg border border-gb-border px-3 py-2 shadow-sm text-center">
                     <p className="text-[10px] text-gb-gray font-medium uppercase mb-0.5">{p}</p>
-                    {ret !== null ? (
+                    {ret !== null && primaryHasValue ? (
+                      <>
+                        {renderVal(byCur[order[0]].v, "", true)}
+                        {renderVal(byCur[order[1]].v, byCur[order[1]].label + " ")}
+                        {renderVal(byCur[order[2]].v, byCur[order[2]].label + " ")}
+                      </>
+                    ) : ret !== null ? (
+                      // Sin valor en la moneda del toggle: muestra el nominal como fallback
                       <>
                         {renderVal(ret.nominal, "", true)}
                         {renderVal(ret.real, "UF ")}

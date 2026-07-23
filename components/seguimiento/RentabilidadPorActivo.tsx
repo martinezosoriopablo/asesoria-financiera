@@ -14,6 +14,7 @@ import {
 import { BarChart3, ChevronLeft, ChevronRight, Loader } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import { proratePeriodReturn } from "@/lib/bonds/prorate-period-return";
+import { rebaseReturnPct, type FxAdjust } from "@/lib/portfolio/currency";
 import type { Snapshot } from "./SeguimientoPage";
 import type { HoldingReturnsData } from "./HoldingReturnsPanel";
 
@@ -36,6 +37,9 @@ interface Props {
   pricesAtDateEndpoint?: string;
   /** Accumulated return from historicalSeries (single source of truth for portfolio total) */
   historicalAccumulatedReturn?: number | null;
+  displayCurrency?: string;                              // moneda de reporte (toggle)
+  fxAdjust?: FxAdjust | null;                            // FX cartola→actual (vista Acumulado)
+  fxRateAt?: (currency: string, date: string) => number; // FX por fecha (vistas por mes)
 }
 
 interface ChartItem {
@@ -66,7 +70,8 @@ interface MonthOption {
   isAccumulated: boolean;
 }
 
-export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, pricesAtDateEndpoint = "/api/portfolio/prices-at-date", historicalAccumulatedReturn }: Props) {
+export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, pricesAtDateEndpoint = "/api/portfolio/prices-at-date", historicalAccumulatedReturn, displayCurrency = "CLP", fxAdjust = null, fxRateAt }: Props) {
+  const R = (displayCurrency || "CLP").toUpperCase();
   // Cartola snapshots with holdings, sorted by date
   const cartolas = useMemo(() =>
     snapshots
@@ -147,7 +152,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         items.push({
           name: h.fundName.length > 30 ? h.fundName.slice(0, 28) + "…" : h.fundName,
           fullName: h.fundName,
-          returnPct: h.totalReturn ?? h.returnPrice ?? 0,
+          returnPct: rebaseReturnPct(h.totalReturn ?? h.returnPrice ?? 0, h.currency, R, fxAdjust),
           assetClass: h.assetClass,
           color: getColor(h.assetClass),
         });
@@ -156,7 +161,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         items.push({
           name: h.fundName.length > 30 ? h.fundName.slice(0, 28) + "…" : h.fundName,
           fullName: h.fundName,
-          returnPct: h.totalReturn ?? h.returnPrice ?? 0,
+          returnPct: rebaseReturnPct(h.totalReturn ?? h.returnPrice ?? 0, h.currency, R, fxAdjust),
           assetClass: "fixedIncome",
           color: getColor("fixedIncome"),
         });
@@ -165,7 +170,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         items.push({
           name: b.fundName.length > 30 ? b.fundName.slice(0, 28) + "…" : b.fundName,
           fullName: b.fundName,
-          returnPct: b.totalReturn ?? 0,
+          returnPct: rebaseReturnPct(b.totalReturn ?? 0, b.currency || "USD", R, fxAdjust),
           assetClass: "fixedIncome",
           color: getColor("fixedIncome"),
         });
@@ -191,7 +196,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
     // This ensures we use actual price series, not snapshot CLP comparisons
     // which can mix FX effects and reference wrong base dates
     return null;
-  }, [holdingReturnsData, selected, cartolas]);
+  }, [holdingReturnsData, selected, cartolas, R, fxAdjust, historicalAccumulatedReturn]);
 
   // Fetch month data from API when localChartData is null and not accumulated
   useEffect(() => {
@@ -216,6 +221,15 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
     const now = new Date();
     const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
     const endDate = isCurrentMonth ? now.toISOString().split("T")[0] : monthEnd;
+
+    // Factor de re-base FX para ESTE mes (fx inicio / fx fin por moneda)
+    const fxAt = fxRateAt || (() => 1);
+    const adjMonth: FxAdjust = {
+      CLP: 1,
+      USD: fxAt("USD", startDate) / (fxAt("USD", endDate) || 1),
+      UF: fxAt("UF", startDate) / (fxAt("UF", endDate) || 1),
+      EUR: fxAt("EUR", startDate) / (fxAt("EUR", endDate) || 1),
+    };
 
     setLoadingPast(true);
     setPastMonthData(null);
@@ -263,14 +277,16 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
           const h = holdings.find(hh => hh.fundName === r.fundName);
           // Weight = CLP value from snapshot (already in CLP)
           const weight = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : (h?.marketValue || 0);
+          // Re-base el retorno nativo a la moneda de reporte con el FX del mes
+          const rebased = rebaseReturnPct(r.returnPct, h?.currency || "USD", R, adjMonth);
 
-          weightedRetSum += (r.returnPct / 100) * weight;
+          weightedRetSum += (rebased / 100) * weight;
           totalWeight += weight;
 
           items.push({
             name: r.fundName.length > 30 ? r.fundName.slice(0, 28) + "…" : r.fundName,
             fullName: r.fundName,
-            returnPct: r.returnPct,
+            returnPct: rebased,
             assetClass: r.assetClass,
             color: getColor(r.assetClass),
             synthetic: r.synthetic,
@@ -293,14 +309,15 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
             });
             const weight = b.marketValue || 0;
             if (weight <= 0) continue;
+            const retR = rebaseReturnPct(ret, b.currency || "USD", R, adjMonth);
 
-            weightedRetSum += (ret / 100) * weight;
+            weightedRetSum += (retR / 100) * weight;
             totalWeight += weight;
 
             items.push({
               name: b.fundName.length > 30 ? b.fundName.slice(0, 28) + "…" : b.fundName,
               fullName: b.fundName,
-              returnPct: ret,
+              returnPct: retR,
               assetClass: "fixedIncome",
               color: getColor("fixedIncome"),
             });
@@ -325,7 +342,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         setPastMonthData([]);
       })
       .finally(() => setLoadingPast(false));
-  }, [selected, localChartData, holdingReturnsData, cartolas]);
+  }, [selected, localChartData, holdingReturnsData, cartolas, R, fxRateAt]);
 
   if (!holdingReturnsData) return null;
 
@@ -341,6 +358,7 @@ export default function RentabilidadPorActivo({ holdingReturnsData, snapshots, p
         <h3 className="text-base font-semibold text-gb-black flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-green-500" />
           Rentabilidad por Activo
+          <span className="text-xs font-normal text-gb-gray">· {R}</span>
         </h3>
         <div className="flex items-center gap-2">
           <button

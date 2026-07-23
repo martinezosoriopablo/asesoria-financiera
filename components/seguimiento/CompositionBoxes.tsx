@@ -27,6 +27,7 @@ interface Props {
   cartolaExchangeRates: { uf: number; usd: number } | null;
   currentExchangeRates: { uf: number; usd: number } | null;
   exchangeRates: { uf: number; usd: number } | null;
+  displayCurrency?: string;
 }
 
 export default function CompositionBoxes({
@@ -40,7 +41,20 @@ export default function CompositionBoxes({
   cartolaExchangeRates,
   currentExchangeRates,
   exchangeRates,
+  displayCurrency = "CLP",
 }: Props) {
+  const R = (displayCurrency || "CLP").toUpperCase();
+  // Convierte un valor CLP a la moneda de reporte usando la tasa de la fecha
+  // correspondiente (base = cartola, actual = hoy). El retorno se calcula sobre
+  // estos valores en R → honesto por moneda (mismo criterio que el resto).
+  const toR = (clp: number, rates: { uf: number; usd: number } | null): number => {
+    if (!rates || R === "CLP") return clp;
+    if (R === "USD") return rates.usd ? clp / rates.usd : clp;
+    if (R === "UF") return rates.uf ? clp / rates.uf : clp;
+    return clp;
+  };
+  const baseRates = cartolaExchangeRates || exchangeRates;
+  const curRates = currentExchangeRates || exchangeRates;
   const d = holdingReturnsData;
   const cashVal = d.cashValue > 0 ? d.cashValue : (snapshots[snapshots.length - 1].cash_value ?? 0);
 
@@ -62,9 +76,12 @@ export default function CompositionBoxes({
   let altInitial: number;
   let cashInitial: number;
 
-  if (useCustomBase && baseSnap.holdings && Array.isArray(baseSnap.holdings)) {
-    // "Desde fecha": look up each holding's CLP value in the base snapshot,
-    // grouped by CURRENT classification (avoids mismatch with old snapshot class values).
+  if (baseSnap.holdings && Array.isArray(baseSnap.holdings) && baseSnap.holdings.length > 0) {
+    // Valor inicial = CLP REAL del snapshot base (cartola inicial o fecha elegida),
+    // buscado por nombre y agrupado por la clasificación ACTUAL (evita mismatch de
+    // clase con snapshots viejos). Es el CLP real a la tasa de esa fecha → el retorno
+    // por moneda (calculado más abajo sobre valores en R) queda honesto, con el FX
+    // real de cada fecha dentro. NO se usa initFromReturn (que cancela el FX).
     const baseHoldings = baseSnap.holdings as SnapshotHolding[];
     const baseValueByName = new Map<string, number>();
     for (const h of baseHoldings) {
@@ -81,8 +98,7 @@ export default function CompositionBoxes({
     altInitial = (d.alternativesHoldings || []).reduce((s, h) => s + lookupInit(h), 0);
     cashInitial = baseSnap.cash_value || 0;
   } else {
-    // "Desde inicio": derive initial CLP per holding from its return (returnFromBase
-    // is already currency-consistent). Avoids both currency mixing and classification mismatch.
+    // Fallback (snapshot base sin holdings): deriva el inicial del retorno nativo.
     const initFromReturn = (h: { marketValue: number; totalReturn?: number; returnPrice?: number }) => {
       const ret = (h.totalReturn ?? h.returnPrice ?? 0) / 100;
       return ret !== 0 ? h.marketValue / (1 + ret) : h.marketValue;
@@ -181,7 +197,11 @@ export default function CompositionBoxes({
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         {boxes.map(b => {
-          const ret = b.initial > 0 ? ((b.final / b.initial) - 1) * 100 : 0;
+          // Retorno honesto en R: ratio de valores convertidos a R con la tasa de
+          // cada fecha (base = cartola, actual = hoy). En CLP incluye el FX real.
+          const bInitR = toR(b.initial, baseRates);
+          const bFinR = toR(b.final, curRates);
+          const ret = bInitR > 0 ? ((bFinR / bInitR) - 1) * 100 : 0;
           return (
             <div key={b.label} className={`${b.bg} rounded-lg border ${b.border} p-3 flex flex-col`}>
               <div className="flex items-center justify-between mb-1.5">
@@ -206,7 +226,9 @@ export default function CompositionBoxes({
               {b.subs.length > 0 && (
                 <div className="mt-auto pt-1.5 border-t border-black/5 space-y-0.5">
                   {b.subs.map(sub => {
-                    const subRet = sub.initial > 0 ? ((sub.final / sub.initial) - 1) * 100 : 0;
+                    const subInitR = toR(sub.initial, baseRates);
+                    const subFinR = toR(sub.final, curRates);
+                    const subRet = subInitR > 0 ? ((subFinR / subInitR) - 1) * 100 : 0;
                     return (
                       <div key={sub.label} className="flex items-center justify-between text-[10px]">
                         <span className="text-gb-gray">{sub.label}</span>

@@ -3,8 +3,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { inferInstrumentType } from "@/lib/instrument-type";
 import { proratePeriodReturn } from "@/lib/bonds/prorate-period-return";
+import { rebaseReturnPct, type FxAdjust } from "@/lib/portfolio/currency";
 import type { Snapshot } from "../SeguimientoPage";
 import type { HoldingReturnsData } from "../HoldingReturnsPanel";
+
+interface Rates { uf: number; usd: number; eur?: number }
 
 interface Holding {
   fundName: string;
@@ -117,6 +120,11 @@ interface UsePerformanceCalculationsProps {
   previousPortfolio?: Snapshot | null;
   totalReturn?: number;
   holdingReturnsData?: HoldingReturnsData | null;
+  displayCurrency?: string;
+  fxAdjust?: FxAdjust | null;
+  fxRateAt?: (currency: string, date: string) => number;
+  baseRates?: Rates | null;   // tasas a la fecha de la cartola (inicio)
+  curRates?: Rates | null;    // tasas a la fecha actual
 }
 
 export function usePerformanceCalculations({
@@ -125,7 +133,21 @@ export function usePerformanceCalculations({
   previousPortfolio,
   totalReturn: totalReturnProp,
   holdingReturnsData,
+  displayCurrency = "CLP",
+  fxAdjust = null,
+  fxRateAt,
+  baseRates = null,
+  curRates = null,
 }: UsePerformanceCalculationsProps) {
+  const R = (displayCurrency || "CLP").toUpperCase();
+  // Convierte CLP → R con la tasa de la fecha dada (base o actual).
+  const toR = (clp: number, rates: Rates | null): number => {
+    if (!rates || R === "CLP") return clp;
+    if (R === "USD") return rates.usd ? clp / rates.usd : clp;
+    if (R === "UF") return rates.uf ? clp / rates.uf : clp;
+    if (R === "EUR" && rates.eur) return clp / rates.eur;
+    return clp;
+  };
   // ---------- Month selector ----------
   const cartolas = useMemo(
     () => snapshots
@@ -198,6 +220,15 @@ export function usePerformanceCalculations({
     const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
     const endDate = isCurrentMonth ? now.toISOString().split("T")[0] : monthEnd;
 
+    // Factor de re-base FX para este mes
+    const fxAt = fxRateAt || (() => 1);
+    const adjMonth: FxAdjust = {
+      CLP: 1,
+      USD: fxAt("USD", startDate) / (fxAt("USD", endDate) || 1),
+      UF: fxAt("UF", startDate) / (fxAt("UF", endDate) || 1),
+      EUR: fxAt("EUR", startDate) / (fxAt("EUR", endDate) || 1),
+    };
+
     setLoadingMonth(true);
     setPastMonthAttribution(null);
 
@@ -226,7 +257,7 @@ export function usePerformanceCalculations({
         }
 
         let totalWeight = 0;
-        const positionsRaw: Array<{ name: string; weight: number; returnPct: number; assetClass?: string }> = [];
+        const positionsRaw: Array<{ name: string; weight: number; returnPct: number; assetClass?: string; currency?: string }> = [];
         const coveredNames = new Set<string>();
 
         for (const r of data.results as Array<{
@@ -242,7 +273,7 @@ export function usePerformanceCalculations({
           // Weight = CLP value from snapshot (already in CLP)
           const weight = (h?.marketValueCLP || 0) > 0 ? h!.marketValueCLP! : (h?.marketValue || 0);
           totalWeight += weight;
-          positionsRaw.push({ name: r.fundName, weight, returnPct: r.returnPct, assetClass: r.assetClass });
+          positionsRaw.push({ name: r.fundName, weight, returnPct: r.returnPct, assetClass: r.assetClass, currency: h?.currency || "USD" });
         }
 
         // Bonds return null from prices-at-date (no FINRA historical handler).
@@ -261,7 +292,7 @@ export function usePerformanceCalculations({
             const weight = b.marketValue || 0;
             if (weight <= 0) continue;
             totalWeight += weight;
-            positionsRaw.push({ name: b.fundName, weight, returnPct: ret, assetClass: "fixedIncome" });
+            positionsRaw.push({ name: b.fundName, weight, returnPct: ret, assetClass: "fixedIncome", currency: b.currency || "USD" });
           }
         }
 
@@ -271,13 +302,14 @@ export function usePerformanceCalculations({
         }
 
         const positions: PositionAttr[] = positionsRaw.map(p => {
+          const retR = rebaseReturnPct(p.returnPct, p.currency, R, adjMonth);
           const portfolioWeight = (p.weight / totalWeight) * 100;
-          const contribution = (p.returnPct / 100) * (p.weight / totalWeight) * 100;
+          const contribution = (retR / 100) * (p.weight / totalWeight) * 100;
           return {
             name: p.name,
             initialValue: p.weight,
-            finalValue: p.weight * (1 + p.returnPct / 100),
-            return: p.returnPct,
+            finalValue: p.weight * (1 + retR / 100),
+            return: retR,
             contribution,
             weight: portfolioWeight,
             assetClass: p.assetClass,
@@ -293,7 +325,7 @@ export function usePerformanceCalculations({
       })
       .finally(() => setLoadingMonth(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, holdingReturnsData, cartolas]);
+  }, [selectedMonth, holdingReturnsData, cartolas, R, fxRateAt]);
 
   const canPrevMonth = selectedMonthIdx > 0;
   const canNextMonth = selectedMonthIdx < monthOptions.length - 1;
@@ -365,17 +397,17 @@ export function usePerformanceCalculations({
     ];
 
     const contributions = classes.map((cls) => {
-      const classReturn = cls.initialValue > 0
-        ? ((cls.finalValue - cls.initialValue) / cls.initialValue) * 100
-        : 0;
-      const weight = (cls.initialPercent || 0) / 100;
+      const initR = toR(cls.initialValue, baseRates);
+      const finR = toR(cls.finalValue, curRates);
+      const classReturn = initR > 0 ? ((finR - initR) / initR) * 100 : 0;
+      const weight = (cls.initialPercent || 0) / 100; // % del portafolio (invariante a moneda)
       const contribution = classReturn * weight;
 
       return {
         ...cls,
         return: classReturn,
         contribution,
-        valueChange: cls.finalValue - cls.initialValue,
+        valueChange: finR - initR,
       };
     });
 
@@ -385,7 +417,7 @@ export function usePerformanceCalculations({
       initialValue,
       finalValue,
     };
-  }, [snapshotsWithAssetData, firstSnapshot, lastSnapshot, totalReturnProp]);
+  }, [snapshotsWithAssetData, firstSnapshot, lastSnapshot, totalReturnProp, R, baseRates, curRates]);
 
   // ============================================
   // 1b. INSTRUMENT TYPE BREAKDOWN within each asset class
@@ -406,8 +438,13 @@ export function usePerformanceCalculations({
 
     // === PRIMARY: Use holdingReturnsData from HoldingReturnsPanel ===
     if (holdingReturnsData) {
-      const { equityHoldings, fixedIncomeFundHoldings = [], alternativesHoldings = [], bondHoldings, cashValue, totalValue } = holdingReturnsData;
+      const { equityHoldings, fixedIncomeFundHoldings = [], alternativesHoldings = [], bondHoldings, cashValue, cashCurrency, totalValue } = holdingReturnsData;
       if (equityHoldings.length === 0 && fixedIncomeFundHoldings.length === 0 && alternativesHoldings.length === 0 && bondHoldings.length === 0) return null;
+
+      // Contribución re-basada a la moneda de reporte: retorno nativo del holding
+      // re-expresado en R × su peso. Consistente con Rentabilidad del Portafolio.
+      const contribR = (h: { totalReturn?: number; returnPrice?: number; currency?: string; weight?: number }) =>
+        rebaseReturnPct(h.totalReturn ?? h.returnPrice ?? 0, h.currency, R, fxAdjust) * (h.weight ?? 0) / 100;
 
       const result: AssetClassWithBreakdown[] = [];
 
@@ -417,7 +454,7 @@ export function usePerformanceCalculations({
         for (const h of equityHoldings) {
           const t = h.assetType || "fund";
           const existing = byType.get(t) || { contribution: 0, totalReturn: 0, weight: 0 };
-          existing.contribution += h.contribution;
+          existing.contribution += contribR(h);
           existing.weight += h.weight;
           byType.set(t, existing);
         }
@@ -454,7 +491,7 @@ export function usePerformanceCalculations({
         const breakdown: InstrumentBreakdown[] = [];
 
         // RF funds contribution
-        const fundContrib = fixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0);
+        const fundContrib = fixedIncomeFundHoldings.reduce((s, h) => s + contribR(h), 0);
         if (fixedIncomeFundHoldings.length > 0) {
           const fundMeta = INSTRUMENT_COLORS.fund;
           breakdown.push({
@@ -467,7 +504,7 @@ export function usePerformanceCalculations({
         }
 
         // Bonds contribution
-        const bondContrib = bondHoldings.reduce((s, h) => s + h.contribution, 0);
+        const bondContrib = bondHoldings.reduce((s, h) => s + contribR(h), 0);
         if (bondHoldings.length > 0) {
           const bondMeta = INSTRUMENT_COLORS.bond;
           breakdown.push({
@@ -502,7 +539,7 @@ export function usePerformanceCalculations({
         for (const h of alternativesHoldings) {
           const t = h.assetType || "fund";
           const existing = byType.get(t) || { contribution: 0, weight: 0 };
-          existing.contribution += h.contribution;
+          existing.contribution += contribR(h);
           existing.weight += h.weight;
           byType.set(t, existing);
         }
@@ -534,21 +571,24 @@ export function usePerformanceCalculations({
         });
       }
 
-      // Cash
+      // Cash — en la moneda del reporte, la caja aporta su efecto FX (ej. caja USD
+      // vista en CLP gana cuando sube el dólar). En su propia moneda aporta 0.
       if (cashValue > 0 && totalValue > 0) {
         const meta = INSTRUMENT_COLORS.cash;
+        const cashReturnR = rebaseReturnPct(0, cashCurrency, R, fxAdjust);
+        const cashContribR = cashReturnR * (cashValue / totalValue);
         result.push({
           name: classKeyMap.cash,
           key: "cash",
           color: classColorMap.cash,
-          totalContribution: 0,
-          classReturn: 0,
+          totalContribution: cashContribR,
+          classReturn: cashReturnR,
           breakdown: [{
             type: "cash",
             label: meta.label,
             color: meta.color,
             negColor: meta.negColor,
-            contribution: 0,
+            contribution: cashContribR,
           }],
         });
       }
@@ -599,12 +639,15 @@ export function usePerformanceCalculations({
       let classTotalStart = 0;
       let classTotalEnd = 0;
 
+      const portfolioInitR = toR(portfolioInitialValue, baseRates);
       for (const [instType, vals] of acMap) {
-        const contribution = ((vals.endValue - vals.startValue) / portfolioInitialValue) * 100;
+        const startR = toR(vals.startValue, baseRates);
+        const endR = toR(vals.endValue, curRates);
+        const contribution = portfolioInitR > 0 ? ((endR - startR) / portfolioInitR) * 100 : 0;
         const meta = INSTRUMENT_COLORS[instType] || INSTRUMENT_COLORS.fund;
         breakdown.push({ type: instType, label: meta.label, color: meta.color, negColor: meta.negColor, contribution });
-        classTotalStart += vals.startValue;
-        classTotalEnd += vals.endValue;
+        classTotalStart += startR;
+        classTotalEnd += endR;
       }
 
       breakdown.sort((a, b) => b.contribution - a.contribution);
@@ -624,7 +667,7 @@ export function usePerformanceCalculations({
     }
 
     return result.length > 0 ? result : null;
-  }, [holdingReturnsData, firstSnapshot, lastSnapshot, snapshotsWithAssetData]);
+  }, [holdingReturnsData, firstSnapshot, lastSnapshot, snapshotsWithAssetData, R, fxAdjust, baseRates, curRates]);
 
   // ============================================
   // 2. ATTRIBUTION BY INDIVIDUAL POSITION
@@ -680,44 +723,34 @@ export function usePerformanceCalculations({
 
       const positions: PositionAttr[] = [];
 
-      for (const h of [...equityHoldings, ...fixedIncomeFundHoldings, ...alternativesHoldings]) {
+      // Retorno/contribución honestos en la moneda R: se convierten los valores
+      // CLP inicial (tasa cartola) y final (tasa actual) a R. En CLP incluye el FX.
+      const portInitR = toR(portfolioInitialValue, baseRates);
+      const attrFor = (h: { fundName: string; marketValue: number; totalReturn?: number; contribution?: number; currency?: string; weight?: number; assetClass?: string }, assetClass?: string) => {
         const initCLP = initialCLPByName.get(h.fundName) || 0;
-        // For holdings NOT in first snapshot (initCLP=0), use HoldingReturnsPanel's
-        // contribution directly — computing (fullMarketValue / portfolioInitial) would
-        // inflate the contribution with the entire position, not just the gain.
-        const contribution = initCLP > 0 && portfolioInitialValue > 0
-          ? ((h.marketValue - initCLP) / portfolioInitialValue) * 100
-          : (h.contribution ?? 0);
-        const posReturn = initCLP > 0 ? ((h.marketValue - initCLP) / initCLP) * 100 : (h.totalReturn ?? 0);
-
+        const initR = toR(initCLP, baseRates);
+        const finR = toR(h.marketValue, curRates);
+        // Holdings NO presentes en la primera cartola (initR=0): usar retorno nativo
+        // re-basado × peso (no inflar con el market value completo).
+        const contribution = initR > 0 && portInitR > 0
+          ? ((finR - initR) / portInitR) * 100
+          : rebaseReturnPct(h.totalReturn ?? 0, h.currency, R, fxAdjust) * (h.weight ?? 0) / 100;
+        const posReturn = initR > 0
+          ? ((finR - initR) / initR) * 100
+          : rebaseReturnPct(h.totalReturn ?? 0, h.currency, R, fxAdjust);
         positions.push({
           name: h.fundName,
-          initialValue: initCLP,
-          finalValue: h.marketValue,
+          initialValue: initR,
+          finalValue: finR,
           return: posReturn,
           contribution,
           weight: h.weight ?? (totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0),
-          assetClass: h.assetClass,
+          assetClass: assetClass ?? h.assetClass,
         });
-      }
+      };
 
-      for (const b of bondHoldings) {
-        const initCLP = initialCLPByName.get(b.fundName) || 0;
-        const contribution = initCLP > 0 && portfolioInitialValue > 0
-          ? ((b.marketValue - initCLP) / portfolioInitialValue) * 100
-          : (b.contribution ?? 0);
-        const posReturn = initCLP > 0 ? ((b.marketValue - initCLP) / initCLP) * 100 : (b.totalReturn ?? 0);
-
-        positions.push({
-          name: b.fundName,
-          initialValue: initCLP,
-          finalValue: b.marketValue,
-          return: posReturn,
-          contribution,
-          weight: b.weight ?? (totalValue > 0 ? (b.marketValue / totalValue) * 100 : 0),
-          assetClass: "fixedIncome",
-        });
-      }
+      for (const h of [...equityHoldings, ...fixedIncomeFundHoldings, ...alternativesHoldings]) attrFor(h);
+      for (const b of bondHoldings) attrFor(b, "fixedIncome");
 
       if (positions.length === 0) return null;
       positions.sort((a, b) => b.contribution - a.contribution);
@@ -770,17 +803,19 @@ export function usePerformanceCalculations({
       }
     });
 
-    const totalInitialValue = firstSnapshot.total_value;
+    const totalInitR = toR(firstSnapshot.total_value, baseRates);
     const positions = Array.from(holdingsMap.values()).map((pos) => {
+      const initR = toR(pos.initialValue, baseRates);
+      const finR = toR(pos.finalValue, curRates);
       // New holdings (initialValue=0) get 0% return — we don't know actual cost
-      const posReturn = pos.initialValue > 0
-        ? ((pos.finalValue - pos.initialValue) / pos.initialValue) * 100
-        : 0;
-      const weight = pos.initialValue / totalInitialValue;
+      const posReturn = initR > 0 ? ((finR - initR) / initR) * 100 : 0;
+      const weight = totalInitR > 0 ? initR / totalInitR : 0;
       const contribution = posReturn * weight;
 
       return {
         ...pos,
+        initialValue: initR,
+        finalValue: finR,
         return: posReturn,
         contribution,
         weight: weight * 100,
@@ -789,7 +824,7 @@ export function usePerformanceCalculations({
 
     positions.sort((a, b) => b.contribution - a.contribution);
     return positions;
-  }, [holdingReturnsData, firstSnapshot, lastSnapshot]);
+  }, [holdingReturnsData, firstSnapshot, lastSnapshot, R, fxAdjust, baseRates, curRates]);
 
   // ============================================
   // 3. BENCHMARK COMPARISON (Allocation Effect)

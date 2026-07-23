@@ -8,6 +8,17 @@ import FixedIncomeSection, { type BondHoldingRow } from "./FixedIncomeSection";
 import type { Snapshot } from "./SeguimientoPage";
 import { useBondCalculations } from "./hooks/useBondCalculations";
 import { useHoldingSummaries } from "./hooks/useHoldingSummaries";
+import { rebaseReturnPct, type FxAdjust } from "@/lib/portfolio/currency";
+
+// Prefijo de moneda para valores ya convertidos a la moneda de reporte.
+function valuePrefix(currency: string): string {
+  switch ((currency || "CLP").toUpperCase()) {
+    case "USD": return "US$";
+    case "UF": return "UF ";
+    case "EUR": return "€";
+    default: return "$";
+  }
+}
 
 interface FundMeta {
   fundName: string;
@@ -23,8 +34,10 @@ export interface HoldingReturnsData {
   alternativesHoldings: EquityHolding[];
   bondHoldings: BondHoldingRow[];
   cashValue: number;
+  cashCurrency?: string;           // moneda de la caja (para re-basar su contribución FX)
   totalValue: number;
-  portfolioReturn: number;
+  portfolioReturn: number;         // NATIVO (sin FX) — base histórica para otros componentes
+  portfolioReturnDisplay?: number; // re-basado a la moneda de reporte (toggle) — fuente única del total
 }
 
 interface Props {
@@ -39,9 +52,11 @@ interface Props {
   eurRate?: number;
   ufRateInitial?: number;
   pricesAtDateEndpoint?: string;
+  displayCurrency?: string;         // moneda de reporte (toggle CLP/USD/UF)
+  fxAdjust?: FxAdjust | null;       // factor FX inicio/fin por moneda (re-base de retornos)
 }
 
-export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, eurRate, ufRateInitial, pricesAtDateEndpoint = "/api/portfolio/prices-at-date" }: Props) {
+export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValueUpdate, onPriceDateUpdate, onHoldingReturnsReady, fundsMeta, usdRate, ufRate, eurRate, ufRateInitial, pricesAtDateEndpoint = "/api/portfolio/prices-at-date", displayCurrency = "CLP", fxAdjust = null }: Props) {
   const [returnMode, setReturnMode] = useState<"cartola" | "compra">("cartola");
 
   const { holdingSummaries, enrichedSummaries, previousSnapshotDate, bondPrices, loadingPrices } = useHoldingSummaries({
@@ -136,6 +151,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const cashValue = enrichedSummaries
     .filter(h => h.assetType === "cash")
     .reduce((s, h) => s + h.marketValue, 0);
+  const cashCurrency = enrichedSummaries.find(h => h.assetType === "cash")?.currency || "CLP";
 
   // Total value: use recalculated bond values (duration-adjusted + UF converted)
   const nonBondValue = enrichedSummaries.filter(h => h.assetType !== "bond").reduce((s, h) => s + h.marketValue, 0);
@@ -183,6 +199,55 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   const bondContrib = finalBondHoldings.reduce((s, h) => s + h.contribution, 0);
   const portfolioReturn = equityContrib + fiFundContrib + altContrib + bondContrib;
 
+  // === Re-base a la moneda de reporte (toggle CLP/USD/UF) ===================
+  // El toggle gobierna TODOS los números. Los retornos nativos se re-expresan
+  // en la moneda R con el FX real de cada fecha; los valores CLP se convierten
+  // con la tasa actual. Ver project_moneda_reporte_seguimiento.
+  const R = (displayCurrency || "CLP").toUpperCase();
+  const rateOf = (ccy: string): number | undefined =>
+    ccy === "USD" ? usdRate : ccy === "UF" ? ufRate : ccy === "EUR" ? eurRate : 1;
+  const toDisplayValue = (clp: number): number => {
+    const rate = rateOf(R);
+    return R === "CLP" || !rate ? clp : clp / rate;
+  };
+  const vPrefix = valuePrefix(R);
+
+  const rebaseEquity = (h: EquityHolding): EquityHolding => {
+    const rp = rebaseReturnPct(h.returnPrice, h.currency, R, fxAdjust);
+    const tr = rp + (h.dividendYield || 0);
+    return { ...h, returnPrice: rp, totalReturn: tr, contribution: (tr * h.weight) / 100, marketValue: toDisplayValue(h.marketValue) };
+  };
+  const rebaseBond = (h: BondHoldingRow): BondHoldingRow => {
+    const tr = rebaseReturnPct(h.totalReturn, h.currency || "USD", R, fxAdjust);
+    return { ...h, totalReturn: tr, contribution: (tr * h.weight) / 100, marketValue: toDisplayValue(h.marketValue) };
+  };
+
+  const displayEquityHoldings = finalEquityHoldings.map(rebaseEquity);
+  const displayFixedIncomeFundHoldings = finalFixedIncomeFundHoldings.map(rebaseEquity);
+  const displayAlternativesHoldings = finalAlternativesHoldings.map(rebaseEquity);
+  const displayBondHoldings = finalBondHoldings.map(rebaseBond);
+
+  // Contribución de la caja (excluida del portfolioReturn nativo). En CLP aporta
+  // su ganancia por FX (dólar cash), en su propia moneda aporta 0.
+  const cashContribR = totalValue > 0
+    ? enrichedSummaries
+        .filter((h) => h.assetType === "cash")
+        .reduce((s, ch) => {
+          const w = (ch.marketValue / totalValue) * 100;
+          return s + (rebaseReturnPct(0, ch.currency, R, fxAdjust) * w) / 100;
+        }, 0)
+    : 0;
+
+  const portfolioReturnR =
+    displayEquityHoldings.reduce((s, h) => s + h.contribution, 0) +
+    displayFixedIncomeFundHoldings.reduce((s, h) => s + h.contribution, 0) +
+    displayAlternativesHoldings.reduce((s, h) => s + h.contribution, 0) +
+    displayBondHoldings.reduce((s, h) => s + h.contribution, 0) +
+    cashContribR;
+
+  const totalValueR = toDisplayValue(totalValue);
+  const cashValueR = toDisplayValue(cashValue);
+
   // Notify parent of total value (after bond recalculation)
   useEffect(() => {
     if (totalValue > 0 && onCurrentValueUpdate) onCurrentValueUpdate(totalValue);
@@ -191,8 +256,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
   // Expose computed holding returns to parent (for PerformanceAttribution)
   useEffect(() => {
     if (!onHoldingReturnsReady) return;
-    onHoldingReturnsReady({ equityHoldings: finalEquityHoldings, fixedIncomeFundHoldings: finalFixedIncomeFundHoldings, alternativesHoldings: finalAlternativesHoldings, bondHoldings: finalBondHoldings, cashValue, totalValue, portfolioReturn });
-  }, [finalEquityHoldings, finalFixedIncomeFundHoldings, finalAlternativesHoldings, finalBondHoldings, onHoldingReturnsReady, cashValue, totalValue, portfolioReturn]);
+    onHoldingReturnsReady({ equityHoldings: finalEquityHoldings, fixedIncomeFundHoldings: finalFixedIncomeFundHoldings, alternativesHoldings: finalAlternativesHoldings, bondHoldings: finalBondHoldings, cashValue, cashCurrency, totalValue, portfolioReturn, portfolioReturnDisplay: portfolioReturnR });
+  }, [finalEquityHoldings, finalFixedIncomeFundHoldings, finalAlternativesHoldings, finalBondHoldings, onHoldingReturnsReady, cashValue, cashCurrency, totalValue, portfolioReturn, portfolioReturnR]);
 
   if (holdingSummaries.length === 0) return null;
 
@@ -208,8 +273,8 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
           {loadingPrices ? (
             <Loader className="w-4 h-4 text-blue-500 animate-spin ml-2" />
           ) : (
-            <span className={`ml-2 text-sm font-semibold ${portfolioReturn >= 0 ? "text-green-600" : "text-red-600"}`}>
-              Portafolio: {formatPercent(portfolioReturn)}
+            <span className={`ml-2 text-sm font-semibold ${portfolioReturnR >= 0 ? "text-green-600" : "text-red-600"}`}>
+              Portafolio: {formatPercent(portfolioReturnR)} <span className="text-gb-gray font-normal">{R}</span>
             </span>
           )}
         </div>
@@ -239,11 +304,11 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
 
       {/* Summary cards */}
       <div className="px-6 py-3 grid grid-cols-4 gap-3 border-b border-gb-border bg-slate-50/50">
-        <SummaryCard label="Valor Total" value={`$${formatNumber(totalValue, 0)}`} />
+        <SummaryCard label={`Valor Total (${R})`} value={`${vPrefix}${formatNumber(totalValueR, 0)}`} />
         <SummaryCard
-          label="Retorno Total"
-          value={formatPercent(portfolioReturn)}
-          color={portfolioReturn >= 0 ? "text-green-600" : "text-red-600"}
+          label={`Retorno Total (${R})`}
+          value={formatPercent(portfolioReturnR)}
+          color={portfolioReturnR >= 0 ? "text-green-600" : "text-red-600"}
         />
       </div>
 
@@ -251,36 +316,39 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
       <div className="py-4">
         {hasEquity && (
           <EquitySection
-            holdings={finalEquityHoldings}
-            totalPortfolioValue={totalValue}
+            holdings={displayEquityHoldings}
+            totalPortfolioValue={totalValueR}
             showDividends={hasStocksOrETFs}
+            valueCurrency={R}
           />
         )}
 
         {hasFixedIncomeFunds && (
           <EquitySection
-            holdings={finalFixedIncomeFundHoldings}
-            totalPortfolioValue={totalValue}
+            holdings={displayFixedIncomeFundHoldings}
+            totalPortfolioValue={totalValueR}
             showDividends={false}
             title="Renta Fija (Fondos)"
             sectionColor="green"
+            valueCurrency={R}
           />
         )}
 
         {hasAlternatives && (
           <EquitySection
-            holdings={finalAlternativesHoldings}
-            totalPortfolioValue={totalValue}
+            holdings={displayAlternativesHoldings}
+            totalPortfolioValue={totalValueR}
             showDividends={false}
             title="Alternativos"
             sectionColor="orange"
+            valueCurrency={R}
           />
         )}
 
         {hasBonds && (
           <FixedIncomeSection
-            holdings={finalBondHoldings}
-            totalPortfolioValue={totalValue}
+            holdings={displayBondHoldings}
+            totalPortfolioValue={totalValueR}
           />
         )}
 
@@ -293,7 +361,7 @@ export default function HoldingReturnsPanel({ snapshots, clientId, onCurrentValu
             <div className="bg-slate-50 rounded-lg px-4 py-3 flex justify-between items-center">
               <span className="text-sm text-gb-gray">Cash Balance</span>
               <span className="text-sm font-semibold text-gb-black">
-                ${formatNumber(cashValue, 0)}
+                {vPrefix}{formatNumber(cashValueR, 0)}
               </span>
             </div>
           </div>

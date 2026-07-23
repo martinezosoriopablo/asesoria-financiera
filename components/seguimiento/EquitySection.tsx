@@ -27,6 +27,17 @@ interface Props {
   showDividends: boolean;
   title?: string;
   sectionColor?: string;    // tailwind color for accent bar and bg
+  valueCurrency?: string;   // moneda de reporte para la columna VALOR (marketValue ya viene en esa moneda)
+}
+
+// Prefijo de moneda para la columna VALOR (el marketValue ya viene convertido a esa moneda)
+function valuePrefix(currency: string): string {
+  switch ((currency || "CLP").toUpperCase()) {
+    case "USD": return "US$";
+    case "UF": return "UF ";
+    case "EUR": return "€";
+    default: return "$";
+  }
 }
 
 const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
@@ -35,8 +46,10 @@ const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = 
   stock: { bg: "bg-green-100",  text: "text-green-700",  label: "Stock" },
 };
 
-export default function EquitySection({ holdings, totalPortfolioValue, showDividends, title = "Renta Variable", sectionColor = "blue" }: Props) {
+export default function EquitySection({ holdings, totalPortfolioValue, showDividends, title = "Renta Variable", sectionColor = "blue", valueCurrency = "CLP" }: Props) {
   if (holdings.length === 0) return null;
+
+  const vPrefix = valuePrefix(valueCurrency);
 
   const subtotalValue = holdings.reduce((s, h) => s + h.marketValue, 0);
   const subtotalWeight = totalPortfolioValue > 0
@@ -125,7 +138,7 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right text-sm font-medium text-gb-black">
-                    ${formatNumber(h.marketValue, 0)}
+                    {vPrefix}{formatNumber(h.marketValue, 0)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <ReturnCell value={h.returnPrice} />
@@ -157,7 +170,7 @@ export default function EquitySection({ holdings, totalPortfolioValue, showDivid
                 Subtotal {title}
               </td>
               <td className="px-3 py-2 text-right text-sm text-gb-black">
-                ${formatNumber(subtotalValue, 0)}
+                {vPrefix}{formatNumber(subtotalValue, 0)}
               </td>
               <td className="px-3 py-2" />
               {showDividends && <td className="px-3 py-2" />}
