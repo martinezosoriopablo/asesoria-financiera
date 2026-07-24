@@ -6,6 +6,13 @@ Ultima auditoria: 2026-04-01
 
 ---
 
+## RESUELTOS (2026-07-24)
+
+### Seguimiento — Comparación triple (recomendado vs inicial vs mercado)
+- [x] **4ª serie "Recomendado" (cobre) en RetornosComparados** — la cartera recomendada (nivel-clase RV/RF/Alt/Caja) se revaloriza a mercado vía proxies por clase (ACWI/AGG/GLD+RWO/UF) y se compara junto a Portafolio, Portfolio Inicial y UF+2%, todo re-basado a la moneda del toggle. Nuevo endpoint `POST /api/portfolio/recommended-evolution` (devuelve retornos mensuales en CLP; ETFs USD→CLP con dólar observado) + `lib/prices/recommended-proxies.ts` (matemática pura, 9 tests) + `lib/prices/market-series.ts` (reusa `lib/bcch.ts`). Rama `feat/comparacion-triple-recomendado`, revisado (Opus: 0 Critical/Important). **⚠️ Falta E2E manual en localhost (CLP/USD/UF) antes del merge — ver `CONTEXTO-SESION.md`.** (2026-07-24)
+
+---
+
 ## RESUELTOS (2026-03-25)
 
 - [x] Rutas rotas `/portfolio-comparison` y `/modelo-cartera` — redirigen a `/portfolio-designer`
