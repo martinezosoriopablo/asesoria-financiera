@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { fetchBcchSeries, getMarketTickerPrices } from "@/lib/prices/market-series";
+import { fetchBcchDailyPrices, getMarketTickerPrices } from "@/lib/prices/market-series";
 import {
   expandRecommendation,
   buildMonthEnds,
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const cartera = (rec.cartera || []) as Array<{ clase: string; porcentaje: number }>;
     const classWeights: Record<string, number> = {};
     for (const p of cartera) {
-      if (p.clase && p.porcentaje) classWeights[p.clase] = (classWeights[p.clase] || 0) + p.porcentaje;
+      if (p.clase && p.porcentaje > 0) classWeights[p.clase] = (classWeights[p.clase] || 0) + p.porcentaje;
     }
     if (Object.keys(classWeights).length === 0) {
       const eq = rec.equity_percent as number | undefined;
@@ -69,9 +69,9 @@ export async function POST(request: NextRequest) {
     if (monthEnds.length < 2) return successResponse({ series: null });
 
     // 5. Precios + FX
-    const usdSeries = await fetchBcchSeries("F073.TCO.PRE.Z.D", fromDate, toDate);
+    const usdSeries = await fetchBcchDailyPrices("dolar", fromDate, toDate);
     const needUf = components.some((c) => c.ticker === "UF");
-    const ufSeries = needUf ? await fetchBcchSeries("F073.UFF.PRE.Z.D", fromDate, toDate) : [];
+    const ufSeries = needUf ? await fetchBcchDailyPrices("uf", fromDate, toDate) : [];
 
     const pricesByTicker: Record<string, DailyPrice[]> = {};
     for (const c of components) {
