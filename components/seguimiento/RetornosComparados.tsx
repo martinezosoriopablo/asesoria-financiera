@@ -32,6 +32,9 @@ interface Props {
   /** Optional: second comparison series (e.g. "Portafolio Banchile" or modelo) */
   comparisonLabel?: string;
   comparisonReturns?: Record<string, number>;
+  /** Retornos CLP de la estrategia recomendada por "YYYY-MM" (revalorizada a mercado) */
+  recommendedReturns?: Record<string, number>;
+  recommendedLabel?: string;
   displayCurrency?: string;                              // moneda de reporte (toggle)
   fxRateAt?: (currency: string, date: string) => number; // FX por fecha (CLP por unidad de moneda)
   benchmarkSpread?: number;                              // spread anual del benchmark UF (default 2 = "UF +2%")
@@ -43,6 +46,7 @@ interface MonthData {
   portfolio: number;
   benchmark: number | null;
   comparison: number | null;
+  recommended: number | null;
 }
 
 export default function RetornosComparados({
@@ -53,6 +57,8 @@ export default function RetornosComparados({
   benchmarkReturns,
   comparisonLabel,
   comparisonReturns,
+  recommendedReturns,
+  recommendedLabel = "Recomendado",
   displayCurrency = "CLP",
   fxRateAt,
   benchmarkSpread = 2,
@@ -164,12 +170,17 @@ export default function RetornosComparados({
           if (comparisonReturns && comparisonReturns[monthKeys[i]] != null) compReturn = comparisonReturns[monthKeys[i]];
           if (compReturn != null) compReturn = rebaseCLP(compReturn, prev.snapshot_date, curr.snapshot_date);
 
+          let recReturn: number | null = null;
+          if (recommendedReturns && recommendedReturns[monthKeys[i]] != null) recReturn = recommendedReturns[monthKeys[i]];
+          if (recReturn != null) recReturn = rebaseCLP(recReturn, prev.snapshot_date, curr.snapshot_date);
+
           months.push({
             monthKey: monthKeys[i],
             label,
             portfolio: parseFloat(portfolioReturn.toFixed(2)),
             benchmark: benchReturn != null ? parseFloat(benchReturn.toFixed(2)) : null,
             comparison: compReturn != null ? parseFloat(compReturn.toFixed(2)) : null,
+            recommended: recReturn != null ? parseFloat(recReturn.toFixed(2)) : null,
           });
         }
       }
@@ -191,11 +202,18 @@ export default function RetornosComparados({
           for (const m of months) { if (m.comparison != null) compound *= 1 + m.comparison / 100; }
           accumComp = (compound - 1) * 100;
         }
+        let accumRec: number | null = null;
+        if (recommendedReturns) {
+          let compound = 1;
+          for (const m of months) { if (m.recommended != null) compound *= 1 + m.recommended / 100; }
+          accumRec = (compound - 1) * 100;
+        }
         months.push({
           monthKey: "_acum", label: "Acumulado",
           portfolio: parseFloat(accumP.toFixed(2)),
           benchmark: accumBench != null ? parseFloat(accumBench.toFixed(2)) : null,
           comparison: accumComp != null ? parseFloat(accumComp.toFixed(2)) : null,
+          recommended: accumRec != null ? parseFloat(accumRec.toFixed(2)) : null,
         });
       }
 
@@ -224,12 +242,17 @@ export default function RetornosComparados({
       if (comparisonReturns && comparisonReturns[key] != null) compReturn = comparisonReturns[key];
       if (compReturn != null && dates) compReturn = rebaseCLP(compReturn, dates.start, dates.end);
 
+      let recReturn: number | null = null;
+      if (recommendedReturns && recommendedReturns[key] != null) recReturn = recommendedReturns[key];
+      if (recReturn != null && dates) recReturn = rebaseCLP(recReturn, dates.start, dates.end);
+
       months.push({
         monthKey: key,
         label,
         portfolio: parseFloat(portfolioReturn.toFixed(2)),
         benchmark: benchReturn != null ? parseFloat(benchReturn.toFixed(2)) : null,
         comparison: compReturn != null ? parseFloat(compReturn.toFixed(2)) : null,
+        recommended: recReturn != null ? parseFloat(recReturn.toFixed(2)) : null,
       });
     }
 
@@ -247,6 +270,12 @@ export default function RetornosComparados({
         for (const m of months) { if (m.comparison != null) compound *= 1 + m.comparison / 100; }
         accumComp = (compound - 1) * 100;
       }
+      let accumRec: number | null = null;
+      if (recommendedReturns) {
+        let compound = 1;
+        for (const m of months) { if (m.recommended != null) compound *= 1 + m.recommended / 100; }
+        accumRec = (compound - 1) * 100;
+      }
 
       months.push({
         monthKey: "_acum",
@@ -254,11 +283,12 @@ export default function RetornosComparados({
         portfolio: parseFloat(accumPortfolio.toFixed(2)),
         benchmark: accumBench != null ? parseFloat(accumBench.toFixed(2)) : null,
         comparison: accumComp != null ? parseFloat(accumComp.toFixed(2)) : null,
+        recommended: accumRec != null ? parseFloat(accumRec.toFixed(2)) : null,
       });
     }
 
     return months;
-  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns, R, fxRateAt, benchmarkSpread]);
+  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns, recommendedReturns, R, fxRateAt, benchmarkSpread]);
 
   if (chartData.length === 0) return null;
 
@@ -268,6 +298,7 @@ export default function RetornosComparados({
 
   const hasBenchmark = chartData.some((d) => d.benchmark != null);
   const hasComparison = chartData.some((d) => d.comparison != null);
+  const hasRecommended = chartData.some((d) => d.recommended != null);
   const accumDiff = accumData && accumData.benchmark != null ? accumData.portfolio - accumData.benchmark : null;
 
   return (
@@ -308,6 +339,14 @@ export default function RetornosComparados({
               <div className="text-[11px] text-gb-gray">{comparisonLabel || "Portfolio Inicial"}</div>
               <div className="text-lg font-semibold text-orange-500">
                 {accumData.comparison >= 0 ? "+" : ""}{formatNumber(accumData.comparison, 2)}%
+              </div>
+            </div>
+          )}
+          {hasRecommended && accumData.recommended != null && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2">
+              <div className="text-[11px] text-gb-gray">{recommendedLabel}</div>
+              <div className="text-lg font-semibold" style={{ color: "#EB7838" }}>
+                {accumData.recommended >= 0 ? "+" : ""}{formatNumber(accumData.recommended, 2)}%
               </div>
             </div>
           )}
@@ -358,6 +397,15 @@ export default function RetornosComparados({
                 maxBarSize={40}
               />
             )}
+            {hasRecommended && (
+              <Bar
+                dataKey="recommended"
+                name={recommendedLabel}
+                fill="#EB7838"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={40}
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -376,6 +424,9 @@ export default function RetornosComparados({
                 )}
                 {hasComparison && (
                   <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{comparisonLabel || "Portfolio Inicial"}</th>
+                )}
+                {hasRecommended && (
+                  <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{recommendedLabel}</th>
                 )}
                 {hasBenchmark && (
                   <th className="text-right py-1.5 px-2 text-gb-gray font-medium">Diferencia</th>
@@ -402,6 +453,11 @@ export default function RetornosComparados({
                     {hasComparison && (
                       <td className="py-1.5 px-2 text-right text-gb-gray">
                         {d.comparison != null ? `${formatNumber(d.comparison, 2)}%` : "—"}
+                      </td>
+                    )}
+                    {hasRecommended && (
+                      <td className="py-1.5 px-2 text-right text-gb-gray">
+                        {d.recommended != null ? `${formatNumber(d.recommended, 2)}%` : "—"}
                       </td>
                     )}
                     {hasBenchmark && (
