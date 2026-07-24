@@ -85,8 +85,12 @@ export function buildMonthEnds(fromDate: string, toDate: string): string[] {
 }
 
 function closest(prices: DailyPrice[], target: string): number | null {
+  const sorted =
+    prices.length > 1 && prices[0].date > prices[prices.length - 1].date
+      ? [...prices].sort((a, b) => a.date.localeCompare(b.date))
+      : prices;
   let best: DailyPrice | null = null;
-  for (const p of prices) {
+  for (const p of sorted) {
     if (p.date <= target) best = p;
     else break;
   }

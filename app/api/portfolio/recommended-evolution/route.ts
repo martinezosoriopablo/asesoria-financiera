@@ -69,6 +69,8 @@ export async function POST(request: NextRequest) {
     if (monthEnds.length < 2) return successResponse({ series: null });
 
     // 5. Precios + FX
+    // Nota: se usa el observado de la misma fecha en ambas puntas del mes; la
+    // convención T+1 del observado se cancela casi por completo en el ratio usd_end/usd_start.
     const usdSeries = await fetchBcchDailyPrices("dolar", fromDate, toDate);
     const needUf = components.some((c) => c.ticker === "UF");
     const ufSeries = needUf ? await fetchBcchDailyPrices("uf", fromDate, toDate) : [];

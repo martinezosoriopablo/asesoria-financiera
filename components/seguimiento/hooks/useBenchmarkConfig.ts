@@ -27,7 +27,6 @@ interface UseBenchmarkConfigReturn {
   baselineMonthlyReturns: Record<string, number> | undefined;
   baselineAccReturn: number | null;
   recommendedReturns: Record<string, number> | undefined;
-  recommendedAccReturn: number | null;
 }
 
 export function useBenchmarkConfig({
@@ -41,7 +40,6 @@ export function useBenchmarkConfig({
   const [baselineSeries, setBaselineSeries] = useState<Array<{ fecha: string; total: number }> | null>(null);
   const [loadingBaseline, setLoadingBaseline] = useState(false);
   const [recommendedReturns, setRecommendedReturns] = useState<Record<string, number> | undefined>(undefined);
-  const [recommendedAccReturn, setRecommendedAccReturn] = useState<number | null>(null);
 
   // Sync initialBenchmarkConfig when it arrives
   useEffect(() => {
@@ -113,7 +111,6 @@ export function useBenchmarkConfig({
   useEffect(() => {
     if (!clientId || !snapshots || snapshots.length === 0) {
       setRecommendedReturns(undefined);
-      setRecommendedAccReturn(null);
       return;
     }
     fetch('/api/portfolio/recommended-evolution', {
@@ -126,10 +123,8 @@ export function useBenchmarkConfig({
         const series = result?.data?.series ?? result?.series;
         if (result?.success && series && series.returns && Object.keys(series.returns).length > 0) {
           setRecommendedReturns(series.returns);
-          setRecommendedAccReturn(typeof series.accumulated === 'number' ? series.accumulated : null);
         } else {
           setRecommendedReturns(undefined);
-          setRecommendedAccReturn(null);
         }
       })
       .catch((err) => console.warn('[useBenchmarkConfig] Error fetching recommended evolution:', err));
@@ -182,6 +177,5 @@ export function useBenchmarkConfig({
     baselineMonthlyReturns,
     baselineAccReturn,
     recommendedReturns,
-    recommendedAccReturn,
   };
 }
