@@ -41,6 +41,33 @@ async function getPricesForTicker(
   return prices;
 }
 
+/** Serie de la UF (valor en CLP) desde BCCH, para calcular la inflación real del mes. */
+async function fetchUfPrices(fromDate: string, toDate: string): Promise<DailyPrice[]> {
+  const user = process.env.BCCH_API_USER;
+  const pass = process.env.BCCH_API_PASSWORD;
+  if (!user || !pass) return [];
+  try {
+    const url = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?user=${user}&pass=${pass}&firstdate=${fromDate}&lastdate=${toDate}&timeseries=F073.UFF.PRE.Z.D&function=GetSeries`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const obs = data?.Series?.Obs;
+    if (!Array.isArray(obs)) return [];
+    const out: DailyPrice[] = [];
+    for (const o of obs) {
+      const v = parseFloat(String(o.value).replace(",", "."));
+      const ds = String(o.indexDateString || ""); // "DD-MM-YYYY"
+      const parts = ds.split("-");
+      if (parts.length !== 3 || !isFinite(v) || v <= 0) continue;
+      out.push({ date: `${parts[2]}-${parts[1]}-${parts[0]}`, price: v });
+    }
+    out.sort((a, b) => a.date.localeCompare(b.date));
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 function findClosestPrice(prices: DailyPrice[], targetDate: string): number | null {
   let best: DailyPrice | null = null;
   for (const p of prices) {
@@ -103,12 +130,20 @@ export async function POST(request: NextRequest) {
 
     for (const comp of benchmark) {
       if (comp.ticker === "UF" && comp.spread != null) {
-        // UF + spread: monthly return = spread / 12
-        const monthlyReturn = comp.spread / 12;
+        // UF + spread: retorno mensual = variación REAL de la UF del mes (inflación,
+        // desde BCCH) + spread/12. Antes solo hacía spread/12 e ignoraba la UF.
+        const ufPrices = await fetchUfPrices(fromDate, toDate);
+        const monthlyReal = comp.spread / 12;
         for (let i = 1; i < monthEnds.length; i++) {
           const key = monthEnds[i].substring(0, 7);
+          let ufInflation = 0;
+          if (ufPrices.length > 0) {
+            const prevUf = findClosestPrice(ufPrices, monthEnds[i - 1]);
+            const currUf = findClosestPrice(ufPrices, monthEnds[i]);
+            if (prevUf && currUf && prevUf > 0) ufInflation = ((currUf - prevUf) / prevUf) * 100;
+          }
           monthlyReturns[key] =
-            (monthlyReturns[key] || 0) + comp.weight * monthlyReturn;
+            (monthlyReturns[key] || 0) + comp.weight * (ufInflation + monthlyReal);
         }
         continue;
       }
