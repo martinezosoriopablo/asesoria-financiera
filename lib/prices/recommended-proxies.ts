@@ -67,6 +67,7 @@ export function expandRecommendation(classWeights: Record<string, number>): Flat
 export function buildMonthEnds(fromDate: string, toDate: string): string[] {
   const start = new Date(fromDate + "T00:00:00Z");
   const end = new Date(toDate + "T00:00:00Z");
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return [];
   const ends: string[] = [];
   let y = start.getUTCFullYear();
   let m = start.getUTCMonth();

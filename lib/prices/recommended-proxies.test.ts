@@ -53,6 +53,11 @@ describe("buildMonthEnds", () => {
       "2026-03-31",
     ]);
   });
+
+  it("devuelve [] ante fechas inválidas (no cuelga)", () => {
+    expect(buildMonthEnds("no-es-fecha", "2026-03-10")).toEqual([]);
+    expect(buildMonthEnds("2026-01-15", "basura")).toEqual([]);
+  });
 });
 
 describe("computeRecommendedMonthlyReturnsCLP", () => {
