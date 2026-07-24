@@ -53,10 +53,22 @@ export async function POST(req: NextRequest) {
       return errorResponse("clientId y month requeridos", 400);
     }
 
-    const { advisor, error } = await requireClientAccess(clientId);
-    if (error) return error;
-
     const sb = createAdminClient();
+
+    // Auth: sesión de asesor, o bypass server-to-server por CRON_SECRET (para el
+    // cron de cierre mensual, que llama este endpoint por cliente).
+    const cronSecret = process.env.CRON_SECRET;
+    const isCron = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+    let advisorId: string;
+    if (isCron) {
+      const { data: c } = await sb.from("clients").select("asesor_id").eq("id", clientId).single();
+      if (!c?.asesor_id) return errorResponse("Cliente sin asesor asignado", 400);
+      advisorId = c.asesor_id;
+    } else {
+      const { advisor, error } = await requireClientAccess(clientId);
+      if (error) return error;
+      advisorId = advisor!.id;
+    }
 
     // If content is provided, just save it (manual write)
     if (content) {
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
             month,
             content,
             status: "draft",
-            advisor_id: advisor!.id,
+            advisor_id: advisorId,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "client_id,month" }
@@ -516,7 +528,7 @@ REGLAS:
     // Track usage
     if (claudeResponse.usage) {
       trackAIUsage({
-        advisorId: advisor!.id,
+        advisorId: advisorId,
         inputTokens: claudeResponse.usage.input_tokens,
         outputTokens: claudeResponse.usage.output_tokens,
         model,
@@ -533,7 +545,7 @@ REGLAS:
           content: generatedContent,
           status: "draft",
           monthly_report_id: report.id,
-          advisor_id: advisor!.id,
+          advisor_id: advisorId,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "client_id,month" }
