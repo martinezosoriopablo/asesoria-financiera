@@ -148,6 +148,22 @@ export function usePerformanceCalculations({
     if (R === "EUR" && rates.eur) return clp / rates.eur;
     return clp;
   };
+  // Convierte CLP → R con la tasa a una FECHA arbitraria (vía fxRateAt); para las
+  // comparaciones snapshot-a-snapshot (benchmark, portfolio inicial) que usan fechas
+  // distintas a la cartola/actual.
+  const toRAt = (clp: number, date: string): number => {
+    if (R === "CLP" || !fxRateAt || !date) return clp;
+    const r = fxRateAt(R, date);
+    return r ? clp / r : clp;
+  };
+  // Re-basa un retorno CLP de un período [fromDate, toDate] a la moneda R.
+  const rebasePeriod = (clpPct: number, fromDate: string, toDate: string): number => {
+    if (R === "CLP" || !fxRateAt || !fromDate || !toDate) return clpPct;
+    const f = fxRateAt(R, fromDate);
+    const t = fxRateAt(R, toDate);
+    if (!f || !t) return clpPct;
+    return ((1 + clpPct / 100) * (f / t) - 1) * 100;
+  };
   // ---------- Month selector ----------
   const cartolas = useMemo(
     () => snapshots
@@ -832,14 +848,19 @@ export function usePerformanceCalculations({
   const benchmarkAttribution = useMemo(() => {
     if (!recommendation || !firstSnapshot || !lastSnapshot || snapshotsWithAssetData.length < 2) return null;
 
-    const portfolioReturn = ((lastSnapshot.total_value - firstSnapshot.total_value) / firstSnapshot.total_value) * 100;
+    const fromD = firstSnapshot.snapshot_date;
+    const toD = lastSnapshot.snapshot_date;
+    const portfolioReturn = rebasePeriod(
+      ((lastSnapshot.total_value - firstSnapshot.total_value) / firstSnapshot.total_value) * 100,
+      fromD, toD
+    );
 
-    // Calculate actual returns per asset class from real data
+    // Calculate actual returns per asset class from real data (CLP), re-basados a R
     const daysDiff =
-      (new Date(lastSnapshot.snapshot_date).getTime() -
-        new Date(firstSnapshot.snapshot_date).getTime()) /
-      (1000 * 60 * 60 * 24);
-    const realReturns = calculateAssetClassReturns(firstSnapshot, lastSnapshot, daysDiff);
+      (new Date(toD).getTime() - new Date(fromD).getTime()) / (1000 * 60 * 60 * 24);
+    const realReturnsCLP = calculateAssetClassReturns(firstSnapshot, lastSnapshot, daysDiff);
+    const realReturns: Record<string, number> = {};
+    for (const k of Object.keys(realReturnsCLP)) realReturns[k] = rebasePeriod(realReturnsCLP[k], fromD, toD);
 
     // Benchmark return: what we would have gotten with recommended allocation + actual class returns
     const benchmarkReturn =
@@ -882,7 +903,7 @@ export function usePerformanceCalculations({
       residual: activeReturn - totalAllocationEffect,
       effects,
     };
-  }, [recommendation, firstSnapshot, lastSnapshot, snapshotsWithAssetData]);
+  }, [recommendation, firstSnapshot, lastSnapshot, snapshotsWithAssetData, R, fxRateAt]);
 
   // ============================================
   // 4. PREVIOUS PORTFOLIO COMPARISON
@@ -898,23 +919,35 @@ export function usePerformanceCalculations({
       { name: "Cash", color: "#6b7280", baseValue: baselineSnapshot.cash_value, currentValue: lastSnapshot.cash_value, basePercent: baselineSnapshot.cash_percent, currentPercent: lastSnapshot.cash_percent },
     ];
 
-    const comparison = classes.map((cls) => ({
-      ...cls,
-      valueChange: cls.currentValue - cls.baseValue,
-      percentChange: cls.currentPercent - cls.basePercent,
-      returnPct: cls.baseValue > 0 ? ((cls.currentValue - cls.baseValue) / cls.baseValue) * 100 : 0,
-    }));
+    // Valores convertidos a la moneda de reporte con la tasa de cada fecha (base y
+    // actual) → retornos honestos por moneda.
+    const baseD = baselineSnapshot.snapshot_date;
+    const currD = lastSnapshot.snapshot_date;
+    const comparison = classes.map((cls) => {
+      const baseR = toRAt(cls.baseValue, baseD);
+      const currR = toRAt(cls.currentValue, currD);
+      return {
+        ...cls,
+        baseValue: baseR,
+        currentValue: currR,
+        valueChange: currR - baseR,
+        percentChange: cls.currentPercent - cls.basePercent,
+        returnPct: baseR > 0 ? ((currR - baseR) / baseR) * 100 : 0,
+      };
+    });
 
+    const baseTotalR = toRAt(baselineSnapshot.total_value, baseD);
+    const currTotalR = toRAt(lastSnapshot.total_value, currD);
     return {
-      baselineDate: baselineSnapshot.snapshot_date,
-      currentDate: lastSnapshot.snapshot_date,
-      baselineTotal: baselineSnapshot.total_value,
-      currentTotal: lastSnapshot.total_value,
-      totalChange: lastSnapshot.total_value - baselineSnapshot.total_value,
-      totalReturnPct: ((lastSnapshot.total_value - baselineSnapshot.total_value) / baselineSnapshot.total_value) * 100,
+      baselineDate: baseD,
+      currentDate: currD,
+      baselineTotal: baseTotalR,
+      currentTotal: currTotalR,
+      totalChange: currTotalR - baseTotalR,
+      totalReturnPct: baseTotalR > 0 ? ((currTotalR - baseTotalR) / baseTotalR) * 100 : 0,
       comparison,
     };
-  }, [previousPortfolio, firstSnapshot, lastSnapshot]);
+  }, [previousPortfolio, firstSnapshot, lastSnapshot, R, fxRateAt]);
 
   // Toggle section
   const [expandedSection, setExpandedSection] = useState<string | null>("assetClass");

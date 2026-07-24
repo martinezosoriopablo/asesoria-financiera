@@ -24,6 +24,14 @@ import {
 } from "./hooks/usePerformanceCalculations";
 import type { FxAdjust } from "@/lib/portfolio/currency";
 
+// Formatea un valor (ya en la moneda de reporte) con el símbolo correcto.
+function fmtCur(value: number, currency: string): string {
+  const c = (currency || "CLP").toUpperCase();
+  if (c === "USD") return `US$${formatNumber(value, 0)}`;
+  if (c === "UF") return `UF ${formatNumber(value, 1)}`;
+  return formatCurrency(value);
+}
+
 interface BenchmarkAllocation {
   equity_percent?: number;
   fixed_income_percent?: number;
@@ -154,6 +162,7 @@ export default function PerformanceAttribution(props: Props) {
           portfolioComparison={portfolioComparison}
           expandedSection={expandedSection}
           toggleSection={toggleSection}
+          currency={props.displayCurrency || "CLP"}
         />
       )}
     </div>
@@ -608,10 +617,12 @@ function ComparisonSection({
   portfolioComparison,
   expandedSection,
   toggleSection,
+  currency,
 }: {
   portfolioComparison: NonNullable<ReturnType<typeof usePerformanceCalculations>["portfolioComparison"]>;
   expandedSection: string | null;
   toggleSection: (s: string) => void;
+  currency: string;
 }) {
   return (
     <div>
@@ -644,12 +655,12 @@ function ComparisonSection({
             <div>
               <p className="text-xs text-gb-gray">Desde</p>
               <p className="text-sm font-medium">{formatDate(portfolioComparison.baselineDate)}</p>
-              <p className="text-sm text-gb-black">{formatCurrency(portfolioComparison.baselineTotal)}</p>
+              <p className="text-sm text-gb-black">{fmtCur(portfolioComparison.baselineTotal, currency)}</p>
             </div>
             <div className="text-center">
               <div className={`text-lg font-bold ${portfolioComparison.totalChange >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {portfolioComparison.totalChange >= 0 ? <TrendingUp className="w-5 h-5 inline" /> : <TrendingDown className="w-5 h-5 inline" />}
-                {formatCurrency(portfolioComparison.totalChange)}
+                {fmtCur(portfolioComparison.totalChange, currency)}
               </div>
               <p className={`text-sm font-medium ${portfolioComparison.totalReturnPct >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatPercent(portfolioComparison.totalReturnPct)}
@@ -658,7 +669,7 @@ function ComparisonSection({
             <div className="text-right">
               <p className="text-xs text-gb-gray">Hasta</p>
               <p className="text-sm font-medium">{formatDate(portfolioComparison.currentDate)}</p>
-              <p className="text-sm text-gb-black">{formatCurrency(portfolioComparison.currentTotal)}</p>
+              <p className="text-sm text-gb-black">{fmtCur(portfolioComparison.currentTotal, currency)}</p>
             </div>
           </div>
 
@@ -678,13 +689,13 @@ function ComparisonSection({
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
                     <p className="text-gb-gray">Inicial</p>
-                    <p className="font-medium">{formatCurrency(cls.baseValue)}</p>
+                    <p className="font-medium">{fmtCur(cls.baseValue, currency)}</p>
                     <p className="text-gb-gray">{formatNumber(cls.basePercent, 1)}%</p>
                   </div>
                   <div className="text-center">
                     <p className="text-gb-gray">Cambio</p>
                     <p className={`font-medium ${cls.valueChange >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {cls.valueChange >= 0 ? "+" : ""}{formatCurrency(cls.valueChange)}
+                      {cls.valueChange >= 0 ? "+" : ""}{fmtCur(cls.valueChange, currency)}
                     </p>
                     <p className={`${cls.percentChange >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {cls.percentChange >= 0 ? "+" : ""}{formatNumber(cls.percentChange, 1)}pp
@@ -692,7 +703,7 @@ function ComparisonSection({
                   </div>
                   <div className="text-right">
                     <p className="text-gb-gray">Actual</p>
-                    <p className="font-medium">{formatCurrency(cls.currentValue)}</p>
+                    <p className="font-medium">{fmtCur(cls.currentValue, currency)}</p>
                     <p className="text-gb-gray">{formatNumber(cls.currentPercent, 1)}%</p>
                   </div>
                 </div>
