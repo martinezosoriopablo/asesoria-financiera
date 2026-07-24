@@ -26,6 +26,8 @@ interface UseBenchmarkConfigReturn {
   loadingBaseline: boolean;
   baselineMonthlyReturns: Record<string, number> | undefined;
   baselineAccReturn: number | null;
+  recommendedReturns: Record<string, number> | undefined;
+  recommendedAccReturn: number | null;
 }
 
 export function useBenchmarkConfig({
@@ -38,6 +40,8 @@ export function useBenchmarkConfig({
   const [benchmarkLabel, setBenchmarkLabel] = useState("UF +2%");
   const [baselineSeries, setBaselineSeries] = useState<Array<{ fecha: string; total: number }> | null>(null);
   const [loadingBaseline, setLoadingBaseline] = useState(false);
+  const [recommendedReturns, setRecommendedReturns] = useState<Record<string, number> | undefined>(undefined);
+  const [recommendedAccReturn, setRecommendedAccReturn] = useState<number | null>(null);
 
   // Sync initialBenchmarkConfig when it arrives
   useEffect(() => {
@@ -105,6 +109,32 @@ export function useBenchmarkConfig({
       .finally(() => setLoadingBaseline(false));
   }, [snapshots, clientId]);
 
+  // Fetch recommended evolution (estrategia recomendada revalorizada a mercado)
+  useEffect(() => {
+    if (!clientId || !snapshots || snapshots.length === 0) {
+      setRecommendedReturns(undefined);
+      setRecommendedAccReturn(null);
+      return;
+    }
+    fetch('/api/portfolio/recommended-evolution', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        const series = result?.data?.series ?? result?.series;
+        if (result?.success && series && series.returns && Object.keys(series.returns).length > 0) {
+          setRecommendedReturns(series.returns);
+          setRecommendedAccReturn(typeof series.accumulated === 'number' ? series.accumulated : null);
+        } else {
+          setRecommendedReturns(undefined);
+          setRecommendedAccReturn(null);
+        }
+      })
+      .catch((err) => console.warn('[useBenchmarkConfig] Error fetching recommended evolution:', err));
+  }, [snapshots, clientId]);
+
   // Calculate monthly returns from baseline series for RetornosComparados
   const baselineMonthlyReturns = useMemo(() => {
     if (!baselineSeries || baselineSeries.length < 2) return undefined;
@@ -151,5 +181,7 @@ export function useBenchmarkConfig({
     loadingBaseline,
     baselineMonthlyReturns,
     baselineAccReturn,
+    recommendedReturns,
+    recommendedAccReturn,
   };
 }

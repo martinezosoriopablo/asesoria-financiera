@@ -52,6 +52,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
     benchmarkReturns, benchmarkLabel,
     baselineSeries, loadingBaseline,
     baselineMonthlyReturns, baselineAccReturn,
+    recommendedReturns,
   } = useBenchmarkConfig({
     snapshots: seg.data?.snapshots,
     clientId,
@@ -496,6 +497,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
               benchmarkMonthlyReturn={!benchmarkReturns ? 0.5 : undefined}
               comparisonLabel="Portfolio Inicial"
               comparisonReturns={baselineMonthlyReturns}
+              recommendedReturns={recommendedReturns}
               displayCurrency={seg.displayCurrency}
               fxRateAt={fxRateAt}
             />
