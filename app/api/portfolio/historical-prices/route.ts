@@ -47,6 +47,83 @@ async function getEurRate(fecha: string): Promise<number> {
   throw new Error(`No EUR rate for ${fecha}`);
 }
 
+// Serie histórica de precios (valor_libro, CLP) de un Fondo de Inversión chileno
+// (CFI*/CFIETF*) desde fondos_inversion_precios. Fallback para cuando Yahoo .SN no
+// tiene histórico del nemotécnico (fondos Singular poco transados) o cuando el CFI*
+// resuelve a "cmf" y el bloque internacional lo descarta. Elige la serie cuyo
+// valor_libro más reciente se acerca al precio de la cartola (evita mezclar el NAV
+// de otra serie del mismo fondo). Devuelve fecha→valor_libro (CLP); vacío si no matchea.
+async function getFondoInversionPriceRange(
+  fundName: string,
+  cartolaPrice: number,
+  fromDate: string,
+  toDate: string,
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<Map<string, number>> {
+  const empty = new Map<string, number>();
+  const { tokens } = tokenizeFundName(fundName);
+  if (tokens.length === 0) return empty;
+
+  // Resolver el fondo por búsqueda progresiva de nombre (3→2→1 términos)
+  let fondos: Array<{ id: string; nombre: string }> | null = null;
+  for (let termCount = Math.min(tokens.length, 3); termCount >= 1; termCount--) {
+    let q = supabase.from("fondos_inversion").select("id, nombre").eq("activo", true);
+    for (const term of tokens.slice(0, termCount)) q = q.ilike("nombre", `%${term}%`);
+    const { data } = await q.limit(10);
+    if (data && data.length > 0) { fondos = data; break; }
+  }
+  if (!fondos || fondos.length === 0) return empty;
+
+  let bestFondo = fondos[0];
+  let bestScore = 0;
+  for (const f of fondos) {
+    const s = scoreFundMatch(f.nombre, null, tokens, null);
+    if (s > bestScore) { bestScore = s; bestFondo = f; }
+  }
+  if (bestScore < 2) return empty;
+
+  const { data: rows } = await supabase
+    .from("fondos_inversion_precios")
+    .select("serie, fecha, valor_libro")
+    .eq("fondo_id", bestFondo.id)
+    .gte("fecha", fromDate)
+    .lte("fecha", toDate)
+    .order("fecha", { ascending: true });
+  const typed = (rows || []) as Array<{ serie: string; fecha: string; valor_libro: number }>;
+  if (typed.length === 0) return empty;
+
+  // Agrupar por serie
+  const bySerie = new Map<string, Array<{ fecha: string; valor_libro: number }>>();
+  for (const r of typed) {
+    const v = Number(r.valor_libro);
+    if (!(v > 0)) continue;
+    if (!bySerie.has(r.serie)) bySerie.set(r.serie, []);
+    bySerie.get(r.serie)!.push({ fecha: r.fecha, valor_libro: v });
+  }
+  if (bySerie.size === 0) return empty;
+
+  // Elegir serie: única → esa; si hay varias → la de valor_libro más reciente más
+  // cercano al precio de cartola; sin precio → la de más puntos.
+  let chosen: Array<{ fecha: string; valor_libro: number }> | null = null;
+  if (bySerie.size === 1) {
+    chosen = [...bySerie.values()][0];
+  } else if (cartolaPrice > 0) {
+    let bestDiff = Infinity;
+    for (const arr of bySerie.values()) {
+      const latest = arr[arr.length - 1].valor_libro;
+      const diff = Math.abs(latest - cartolaPrice);
+      if (diff < bestDiff) { bestDiff = diff; chosen = arr; }
+    }
+  } else {
+    chosen = [...bySerie.values()].sort((a, b) => b.length - a.length)[0];
+  }
+  if (!chosen) return empty;
+
+  const map = new Map<string, number>();
+  for (const p of chosen) map.set(p.fecha, p.valor_libro);
+  return map;
+}
+
 // POST /api/portfolio/historical-prices
 // Producto punto: vector de cuotas × vector de precios por fecha
 // Para cada fecha t: valor_portafolio(t) = sum(cuotas_i × precio_i(t))
@@ -544,6 +621,35 @@ export async function POST(req: NextRequest) {
       normalizedPrices.set(key, fechaMap);
     }
     } // end tradeableHoldings.length > 0
+  }
+
+  // 4b-bis. Fondos de Inversión chilenos (CFI*/CFIETF*) sin histórico de mercado:
+  // fallback a valor_libro de fondos_inversion_precios. Cubre dos casos que caían del
+  // gráfico: (1) CFI* no-ETF que resuelven a "cmf" y el bloque internacional filtra,
+  // y (2) CFIETF* cuyo .SN de Yahoo no tiene serie histórica (Singular poco transados).
+  // Solo procesa los que NO quedaron ya resueltos con precio de mercado (evita doble
+  // conteo, p. ej. si Yahoo sí trajo el CFIETF). valor_libro ya viene en CLP.
+  if (internationalHoldings && internationalHoldings.length > 0) {
+    const toDate = new Date().toISOString().split("T")[0];
+    const fiFromDate = fromDate || new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0];
+    for (const ih of internationalHoldings) {
+      const secId = (ih.securityId || "").trim();
+      if (!/^CFI/i.test(secId) || (ih.quantity || 0) <= 0) continue;
+      const key = `int-${secId}`;
+      if (fundInfo.has(key)) continue; // ya resuelto con precios de mercado (Yahoo/DB)
+      const cartolaPrice = ih.quantity > 0 ? (ih.marketValue || 0) / ih.quantity : 0;
+      const fiMap = await getFondoInversionPriceRange(ih.fundName, cartolaPrice, fiFromDate, toDate, supabase);
+      if (fiMap.size < 2) continue;
+      fundInfo.set(key, {
+        id: key,
+        fundName: ih.fundName,
+        quantity: ih.quantity,
+        tac: null,
+        cartolaPrice: 0,
+        moneda: "CLP",
+      });
+      normalizedPrices.set(key, fiMap);
+    }
   }
 
   // 4c. Bond holdings: generate projected prices using bond math (constant-yield method)
