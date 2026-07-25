@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
+import { deriveCartera } from "@/lib/recomendacion/resolve";
+import type { RecomendacionRow } from "@/lib/recomendacion/types";
 
 interface CarteraPosition {
   clase: string;
@@ -54,7 +56,55 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked;
 
   return handleApiError("comite-aplicar-cartera-post", async () => {
-    const body: AplicarCarteraRequest = await request.json();
+    const raw = await request.json();
+
+    // Nuevo formato desde la vista Recomendación (3 columnas)
+    if (raw?.source === "comite_3col") {
+      const { clientId, cliente, posiciones, comite_report_date, custodios, resumenEjecutivo } = raw as {
+        clientId: string; cliente?: { nombre?: string; perfil?: string; puntaje?: number };
+        posiciones: RecomendacionRow[]; comite_report_date?: string; custodios?: string[]; resumenEjecutivo?: string;
+      };
+      if (!clientId || !posiciones?.length) {
+        return NextResponse.json({ success: false, error: "Faltan datos requeridos" }, { status: 400 });
+      }
+      const { user, error: accessError } = await requireClientAccess(clientId);
+      if (accessError) return accessError;
+      const supabase = createAdminClient();
+
+      const cartera = deriveCartera(posiciones);
+      const carteraRecomendada = {
+        source: "comite_3col",
+        comite_report_date: comite_report_date ?? null,
+        custodios: custodios ?? [],
+        perfil_modelo: cliente?.perfil ?? null,
+        posiciones,
+        cartera,
+        resumenEjecutivo: resumenEjecutivo || "Recomendación construida desde el comité.",
+        cliente: cliente ?? null,
+        generadoEn: comite_report_date ?? new Date().toISOString(),
+        aplicadoEn: new Date().toISOString(),
+        aplicadoPor: user!.email,
+      };
+
+      const { data: lastVersion } = await supabase
+        .from("recommendation_versions").select("version_number")
+        .eq("client_id", clientId).order("version_number", { ascending: false }).limit(1).maybeSingle();
+      const nextVersion = (lastVersion?.version_number || 0) + 1;
+
+      await supabase.from("recommendation_versions").insert({
+        client_id: clientId, version_number: nextVersion,
+        cartera_recomendada: carteraRecomendada, applied_by: user!.email, applied_at: new Date().toISOString(),
+      });
+
+      const { error: updErr } = await supabase.from("clients")
+        .update({ cartera_recomendada: carteraRecomendada, updated_at: new Date().toISOString() })
+        .eq("id", clientId);
+      if (updErr) return NextResponse.json({ success: false, error: updErr.message }, { status: 500 });
+
+      return NextResponse.json({ success: true, message: "Recomendación guardada", data: { versionNumber: nextVersion, cartera } });
+    }
+
+    const body: AplicarCarteraRequest = raw;
     const { clientId, cliente, recomendacion, generadoEn } = body;
 
     if (!clientId || !recomendacion) {
