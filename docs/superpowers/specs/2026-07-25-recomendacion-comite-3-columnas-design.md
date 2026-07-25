@@ -131,8 +131,12 @@ Por cada `posicion` del modelo del comité (una fila por categoría con `modelo_
 - **B** consumirá `cartera_recomendada.cartera[]` (instrumentos reales) para la serie; por eso `cartera[]` debe quedar bien derivada en A.
 - **C** (Mi Benchmark) es independiente de A salvo por el toggle de B; no bloquea A.
 
-## 12. Preguntas abiertas (a confirmar en implementación)
+## 12. Decisiones resueltas y verificación
 
-1. ¿La vista muestra también los **holdings actuales** del cliente (para contexto de qué comprar/vender), o eso queda 100% en la Radiografía? (Propuesta: enlace a Radiografía, no duplicar).
-2. ¿El selector de custodio es **multi** (considera todos) o **uno a la vez** (una recomendación por custodio)? (Propuesta: multi con `custodian_type` por decisión).
-3. Confirmar que `portfolio_snapshots.custodian_type` está poblado de forma confiable para clientes existentes; si no, prever el fallback manual de §6.
+Confirmado con el asesor (2026-07-25):
+
+1. **Holdings actuales:** la vista **no** duplica los holdings del cliente. Solo un **enlace a la Radiografía** para el contexto de compra/venta. Esta vista construye el *target*.
+2. **Selector de custodio: multi.** Se consideran todos los custodios del cliente a la vez; **cada decisión guarda su `custodian_type`**. El selector permite filtrar la vista por custodio pero la recomendación es una sola.
+3. **Caja permitida:** cuando no hay equivalente en la AGF, la Decisión puede **mandar el peso a caja** (además de forzar el ETF del comité o buscar otro instrumento).
+
+**Verificación pendiente en implementación (no bloquea el diseño):** confirmar que `portfolio_snapshots.custodian_type` está poblado de forma confiable para los clientes existentes; si no, aplica el fallback manual de §6 (elegir custodio a mano / asumir `internacional` con aviso).
