@@ -55,29 +55,44 @@ async function getEurRate(fecha: string): Promise<number> {
 // de otra serie del mismo fondo). Devuelve fecha→valor_libro (CLP); vacío si no matchea.
 async function getFondoInversionPriceRange(
   fundName: string,
+  nemo: string,
   cartolaPrice: number,
   fromDate: string,
   toDate: string,
   supabase: ReturnType<typeof createAdminClient>
 ): Promise<Map<string, number>> {
   const empty = new Map<string, number>();
-  const { tokens } = tokenizeFundName(fundName);
-  if (tokens.length === 0) return empty;
+
+  // Tokens de búsqueda: del nombre descriptivo y, como respaldo, del sufijo del
+  // nemotécnico. Algunas cartolas guardan el fundName como el nemo pelado
+  // (ej. "CFIETFIPSA") en vez del nombre → sin este respaldo no matchean.
+  const { tokens: nameTokens } = tokenizeFundName(fundName);
+  // Sufijo del nemo en minúscula (scoreFundMatch compara contra el nombre en
+  // minúscula, y tokenizeFundName también devuelve minúsculas).
+  const nemoSuffix = nemo.toLowerCase().replace(/^cfietf|^cfi/, "").replace(/[^a-z]/g, "");
+  const searchSets: string[][] = [];
+  if (nameTokens.length > 0) searchSets.push(nameTokens);
+  if (nemoSuffix.length >= 3) searchSets.push(["etf", "singular", nemoSuffix]);
+  if (searchSets.length === 0) return empty;
 
   // Resolver el fondo por búsqueda progresiva de nombre (3→2→1 términos)
   let fondos: Array<{ id: string; nombre: string }> | null = null;
-  for (let termCount = Math.min(tokens.length, 3); termCount >= 1; termCount--) {
-    let q = supabase.from("fondos_inversion").select("id, nombre").eq("activo", true);
-    for (const term of tokens.slice(0, termCount)) q = q.ilike("nombre", `%${term}%`);
-    const { data } = await q.limit(10);
-    if (data && data.length > 0) { fondos = data; break; }
+  let matchTokens: string[] = nameTokens;
+  for (const terms of searchSets) {
+    for (let termCount = Math.min(terms.length, 3); termCount >= 1; termCount--) {
+      let q = supabase.from("fondos_inversion").select("id, nombre").eq("activo", true);
+      for (const term of terms.slice(0, termCount)) q = q.ilike("nombre", `%${term}%`);
+      const { data } = await q.limit(10);
+      if (data && data.length > 0) { fondos = data; matchTokens = terms; break; }
+    }
+    if (fondos) break;
   }
   if (!fondos || fondos.length === 0) return empty;
 
   let bestFondo = fondos[0];
   let bestScore = 0;
   for (const f of fondos) {
-    const s = scoreFundMatch(f.nombre, null, tokens, null);
+    const s = scoreFundMatch(f.nombre, null, matchTokens, null);
     if (s > bestScore) { bestScore = s; bestFondo = f; }
   }
   if (bestScore < 2) return empty;
@@ -638,7 +653,7 @@ export async function POST(req: NextRequest) {
       const key = `int-${secId}`;
       if (fundInfo.has(key)) continue; // ya resuelto con precios de mercado (Yahoo/DB)
       const cartolaPrice = ih.quantity > 0 ? (ih.marketValue || 0) / ih.quantity : 0;
-      const fiMap = await getFondoInversionPriceRange(ih.fundName, cartolaPrice, fiFromDate, toDate, supabase);
+      const fiMap = await getFondoInversionPriceRange(ih.fundName, secId, cartolaPrice, fiFromDate, toDate, supabase);
       if (fiMap.size < 2) continue;
       fundInfo.set(key, {
         id: key,
