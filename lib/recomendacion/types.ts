@@ -13,7 +13,7 @@ export interface ComiteColumn {
 
 export interface MiFondoOption {
   fund_id: string;
-  fund_run: number | null;
+  fund_run: string | null; // RUN en CMF (TEXT, ej. "1234-1")
   ticker: string | null;
   nombre: string;
   custodian_type: CustodianType;

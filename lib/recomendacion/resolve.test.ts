@@ -13,7 +13,7 @@ describe("roleToClase", () => {
 
 describe("defaultDecision", () => {
   const comite: ComiteColumn = { etf_us: "VOO", etf_ucits: "CSPX", modelo_pct: 22, vista: "UW", conviction: "MEDIA" };
-  const miFondo: MiFondoOption = { fund_id: "f1", fund_run: 9226, ticker: null, nombre: "FM BCI USA", custodian_type: "agf", tac: 1.2, rent_12m: 8, isMapped: true };
+  const miFondo: MiFondoOption = { fund_id: "f1", fund_run: "9226", ticker: null, nombre: "FM BCI USA", custodian_type: "agf", tac: 1.2, rent_12m: 8, isMapped: true };
 
   it("AGF con mi fondo → usa el fondo", () => {
     const d = defaultDecision({ categoria: "rv_usa_large_cap", role: "rv", comite, misFondos: [miFondo], custodio: "agf" });
@@ -45,9 +45,9 @@ describe("defaultDecision", () => {
 
 describe("resolveMisFondos", () => {
   const funds = [
-    { id: "f1", fund_run: 100, ticker: null, nombre: "AGF USA A", custodian_type: "agf" as const, category: "RV USA", tac: 1.5, rent_12m: 7 },
-    { id: "f2", fund_run: 200, ticker: null, nombre: "AGF USA B", custodian_type: "agf" as const, category: "RV Internacional", tac: 0.9, rent_12m: 9 },
-    { id: "f3", fund_run: 300, ticker: null, nombre: "Corredora Global", custodian_type: "corredora" as const, category: "RV Global", tac: 0.5, rent_12m: 10 },
+    { id: "f1", fund_run: "100", ticker: null, nombre: "AGF USA A", custodian_type: "agf" as const, category: "RV USA", tac: 1.5, rent_12m: 7 },
+    { id: "f2", fund_run: "200", ticker: null, nombre: "AGF USA B", custodian_type: "agf" as const, category: "RV Internacional", tac: 0.9, rent_12m: 9 },
+    { id: "f3", fund_run: "300", ticker: null, nombre: "Corredora Global", custodian_type: "corredora" as const, category: "RV Global", tac: 0.5, rent_12m: 10 },
   ];
 
   it("filtra por categoría del comité (PREFERRED_TO_COMITE) y por custodio, ordena mapped primero luego menor TAC", () => {

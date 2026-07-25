@@ -48,7 +48,7 @@ export function defaultDecision(input: {
 
 interface PreferredFundInput {
   id: string;
-  fund_run: number | null;
+  fund_run: string | null;
   ticker: string | null;
   nombre: string;
   custodian_type: MiFondoOption["custodian_type"];
