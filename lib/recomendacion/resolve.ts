@@ -1,5 +1,7 @@
-import type { ComiteRole } from "@/lib/comite-categories";
-import type { ComiteColumn, CustodianType, Decision, MiFondoOption } from "./types";
+import { PREFERRED_TO_COMITE, type ComiteRole } from "@/lib/comite-categories";
+import type {
+  CarteraPosition, ComiteColumn, CustodianType, Decision, MiFondoOption, RecomendacionRow,
+} from "./types";
 
 const ROLE_TO_CLASE: Record<ComiteRole, string> = {
   rv: "Renta Variable",
@@ -42,4 +44,64 @@ export function defaultDecision(input: {
   // AGF sin equivalente (o categoría sin ETF): default a caja, el asesor decide.
   return { fuente: "caja", ticker: null, nombre: "Caja",
     clase, custodian_type: custodio, porcentaje: comite.modelo_pct };
+}
+
+interface PreferredFundInput {
+  id: string;
+  fund_run: number | null;
+  ticker: string | null;
+  nombre: string;
+  custodian_type: MiFondoOption["custodian_type"];
+  category: string;       // categoría del asesor (ej. "RV Internacional")
+  tac: number | null;
+  rent_12m: number | null;
+}
+interface MappingInput {
+  categoria: string;      // id de COMITE_CATEGORIES
+  custodian_type: MiFondoOption["custodian_type"];
+  preferred_fund_id: string;
+}
+
+export function resolveMisFondos(input: {
+  categoria: string;
+  custodios: MiFondoOption["custodian_type"][];
+  preferredFunds: PreferredFundInput[];
+  mappings: MappingInput[];
+}): MiFondoOption[] {
+  const { categoria, custodios, preferredFunds, mappings } = input;
+  const wantedCategories = PREFERRED_TO_COMITE[categoria] || [];
+  const custodioSet = new Set(custodios);
+
+  // IDs mapeados explícitamente para esta categoría y algún custodio del cliente
+  const mappedIds = new Set(
+    mappings.filter(m => m.categoria === categoria && custodioSet.has(m.custodian_type)).map(m => m.preferred_fund_id)
+  );
+
+  const candidates = preferredFunds.filter(f =>
+    custodioSet.has(f.custodian_type) &&
+    (mappedIds.has(f.id) || wantedCategories.includes(f.category))
+  );
+
+  const toOption = (f: PreferredFundInput): MiFondoOption => ({
+    fund_id: f.id, fund_run: f.fund_run, ticker: f.ticker, nombre: f.nombre,
+    custodian_type: f.custodian_type, tac: f.tac, rent_12m: f.rent_12m, isMapped: mappedIds.has(f.id),
+  });
+
+  return candidates
+    .map(toOption)
+    .sort((a, b) => {
+      if (a.isMapped !== b.isMapped) return a.isMapped ? -1 : 1;  // mapped primero
+      return (a.tac ?? Infinity) - (b.tac ?? Infinity);           // luego menor TAC
+    });
+}
+
+export function deriveCartera(rows: RecomendacionRow[]): CarteraPosition[] {
+  return rows.map(r => ({
+    clase: r.decision.clase, ticker: r.decision.ticker,
+    nombre: r.decision.nombre, porcentaje: r.decision.porcentaje,
+  }));
+}
+
+export function sumaPesos(rows: RecomendacionRow[]): number {
+  return rows.reduce((acc, r) => acc + (r.decision.porcentaje || 0), 0);
 }
