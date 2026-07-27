@@ -6,9 +6,23 @@ import { NextRequest } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { mapClientProfile, getCategoryById } from "@/lib/comite-categories";
+import { COMITE_CATEGORIES, mapClientProfile, getCategoryById, type ComiteCategory } from "@/lib/comite-categories";
 import { resolveMisFondos, defaultDecision } from "@/lib/recomendacion/resolve";
 import type { CustodianType, RecomendacionRow } from "@/lib/recomendacion/types";
+
+// Los model_portfolios guardan la categoría SIN el prefijo de rol (ej. "usa_large_cap",
+// "ust_belly", "gold", "tbills"), mientras COMITE_CATEGORIES usa el id con prefijo
+// (rv_usa_large_cap, rf_ust_belly, alt_gold, cash_tbills). Normalizamos para matchear
+// (mismo criterio que la Radiografía). Índice por id "pelado" (sin rv_/rf_/alt_/cash_).
+const ROLE_PREFIX = /^(rv|rf|alt|cash)_/;
+const strippedIndex = new Map<string, ComiteCategory>();
+for (const c of COMITE_CATEGORIES) {
+  const key = c.id.replace(ROLE_PREFIX, "");
+  if (!strippedIndex.has(key)) strippedIndex.set(key, c); // primer match (RV antes que RF para "chile")
+}
+function resolveCategoria(catId: string): ComiteCategory | undefined {
+  return getCategoryById(catId) || strippedIndex.get(catId.replace(ROLE_PREFIX, ""));
+}
 
 export async function GET(request: NextRequest) {
   const rl = await applyRateLimit(request, "comite-recomendacion", { limit: 30 });
@@ -81,7 +95,7 @@ export async function GET(request: NextRequest) {
     for (const p of posiciones) {
       const pct = Number(p.modelo_pct) || 0;
       if (pct <= 0) continue;
-      const cat = getCategoryById(p.categoria);
+      const cat = resolveCategoria(p.categoria);
       if (!cat) continue;
       const comite = {
         etf_us: p.etf_us ?? cat.etfUS, etf_ucits: p.etf_ucits ?? cat.etfUCITS,
