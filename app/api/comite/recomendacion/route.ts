@@ -50,12 +50,28 @@ export async function GET(request: NextRequest) {
     if (!perfilCliente) return successResponse({ ok: false, reason: "sin_perfil" });
     const perfilModelo = mapClientProfile(perfilCliente);
 
-    // 2. Custodios del cliente (distinct custodian_type de sus snapshots)
+    // 2. Custodios del cliente (distinct custodian_type de sus snapshots).
+    //    Override manual por query (?custodio=agf,internacional); si no hay override
+    //    ni custodio detectado, se ASUME internacional (acceso a ETFs) con aviso (§6).
+    const VALID_CUSTODIOS: CustodianType[] = ["agf", "corredora", "internacional"];
     const { data: snaps } = await supabase
       .from("portfolio_snapshots").select("custodian_type").eq("client_id", clientId);
-    const custodios = [...new Set((snaps || [])
+    const detectados = [...new Set((snaps || [])
       .map(s => s.custodian_type as CustodianType | null).filter(Boolean))] as CustodianType[];
-    if (custodios.length === 0) return successResponse({ ok: false, reason: "sin_custodio", perfil_modelo: perfilModelo });
+
+    const override = (request.nextUrl.searchParams.get("custodio") || "")
+      .split(",").map(s => s.trim()).filter(s => VALID_CUSTODIOS.includes(s as CustodianType)) as CustodianType[];
+
+    let custodios: CustodianType[];
+    let custodioAsumido = false;
+    if (override.length > 0) {
+      custodios = override;
+    } else if (detectados.length > 0) {
+      custodios = detectados;
+    } else {
+      custodios = ["internacional"];
+      custodioAsumido = true;
+    }
 
     // 3. Cartera-modelo del comité (report_date más reciente)
     const { data: modelo } = await supabase
@@ -110,7 +126,8 @@ export async function GET(request: NextRequest) {
 
     return successResponse({
       ok: true, perfil_cliente: perfilCliente, perfil_modelo: perfilModelo,
-      comite_report_date: modelo.report_date, custodios, rows,
+      comite_report_date: modelo.report_date, custodios,
+      custodios_detectados: detectados, custodio_asumido: custodioAsumido, rows,
     });
   });
 }

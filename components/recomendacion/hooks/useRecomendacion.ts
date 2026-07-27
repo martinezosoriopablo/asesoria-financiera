@@ -9,6 +9,9 @@ export function useRecomendacion(clientId: string | null) {
   const [reason, setReason] = useState<string | null>(null);
   const [rows, setRows] = useState<RecomendacionRow[]>([]);
   const [custodios, setCustodios] = useState<string[]>([]);
+  const [custodiosDetectados, setCustodiosDetectados] = useState<string[]>([]);
+  const [custodioAsumido, setCustodioAsumido] = useState(false);
+  const [custodioOverride, setCustodioOverride] = useState<string[] | null>(null);
   const [comiteReportDate, setComiteReportDate] = useState<string | null>(null);
   const [perfilModelo, setPerfilModelo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -19,17 +22,19 @@ export function useRecomendacion(clientId: string | null) {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/comite/recomendacion?clientId=${clientId}`);
+        const qs = custodioOverride && custodioOverride.length > 0 ? `&custodio=${custodioOverride.join(",")}` : "";
+        const res = await fetch(`/api/comite/recomendacion?clientId=${clientId}${qs}`);
         const j = await res.json();
         const d = j.data || j;
         if (cancelled) return;
         setOk(!!d.ok); setReason(d.reason ?? null);
         setRows(d.rows || []); setCustodios(d.custodios || []);
+        setCustodiosDetectados(d.custodios_detectados || []); setCustodioAsumido(!!d.custodio_asumido);
         setComiteReportDate(d.comite_report_date ?? null); setPerfilModelo(d.perfil_modelo ?? null);
       } finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, custodioOverride]);
 
   const setDecision = useCallback((categoria: string, patch: Partial<Decision>) => {
     setRows(prev => prev.map(r => r.categoria === categoria ? { ...r, decision: { ...r.decision, ...patch } } : r));
@@ -50,5 +55,8 @@ export function useRecomendacion(clientId: string | null) {
     } finally { setSaving(false); }
   }, [clientId, rows, comiteReportDate, custodios]);
 
-  return { loading, ok, reason, rows, custodios, comiteReportDate, perfilModelo, setDecision, totalPeso, save, saving };
+  return {
+    loading, ok, reason, rows, custodios, custodiosDetectados, custodioAsumido,
+    setCustodioOverride, comiteReportDate, perfilModelo, setDecision, totalPeso, save, saving,
+  };
 }

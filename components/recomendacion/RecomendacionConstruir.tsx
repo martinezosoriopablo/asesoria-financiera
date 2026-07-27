@@ -67,10 +67,26 @@ export default function RecomendacionConstruir({ clientId }: { clientId: string 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-sm text-gb-gray">
-          Perfil del comité: <strong className="text-gb-black">{rec.perfilModelo}</strong>
-          {rec.comiteReportDate ? ` · comité ${rec.comiteReportDate}` : ""}
-          {rec.custodios.length ? ` · custodios: ${rec.custodios.join(", ")}` : ""}
+        <div className="text-sm text-gb-gray flex items-center gap-3 flex-wrap">
+          <span>Perfil del comité: <strong className="text-gb-black">{rec.perfilModelo}</strong>
+            {rec.comiteReportDate ? ` · comité ${rec.comiteReportDate}` : ""}</span>
+          <span className="flex items-center gap-2">
+            Custodio:
+            {(["agf", "corredora", "internacional"] as const).map((c) => (
+              <label key={c} className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rec.custodios.includes(c)}
+                  onChange={() => {
+                    const cur = new Set(rec.custodios);
+                    if (cur.has(c)) cur.delete(c); else cur.add(c);
+                    rec.setCustodioOverride([...cur]);
+                  }}
+                />
+                <span className={rec.custodiosDetectados.includes(c) ? "text-gb-black font-medium" : ""}>{c}</span>
+              </label>
+            ))}
+          </span>
         </div>
         <button
           onClick={handleSave}
@@ -85,6 +101,12 @@ export default function RecomendacionConstruir({ clientId }: { clientId: string 
 
       {saveMsg && (
         <div className={`text-sm px-3 py-2 rounded ${saveMsg.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{saveMsg}</div>
+      )}
+
+      {rec.custodioAsumido && (
+        <div className="text-xs px-3 py-2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+          No se detectó custodio en las cartolas de este cliente — se asumió <strong>internacional</strong> (acceso a ETFs). Ajústalo con las casillas de arriba si corresponde.
+        </div>
       )}
 
       <RecomendacionTable rows={rec.rows} setDecision={rec.setDecision} totalPeso={rec.totalPeso} />
