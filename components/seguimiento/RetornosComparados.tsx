@@ -29,6 +29,10 @@ interface Props {
   benchmarkMonthlyReturn?: number; // fixed monthly return for simple benchmarks (e.g. 0.5 for UF+2%/12)
   /** Optional: actual monthly benchmark returns keyed by "YYYY-MM" */
   benchmarkReturns?: Record<string, number>;
+  /** Retornos del benchmark "proxy de mercado" (índices por clase). Opcional. */
+  benchmarkProxyReturns?: Record<string, number>;
+  benchmarkMode?: "uf_spread" | "market_proxy";
+  onBenchmarkModeChange?: (m: "uf_spread" | "market_proxy") => void;
   /** Optional: second comparison series (e.g. "Portafolio Banchile" or modelo) */
   comparisonLabel?: string;
   comparisonReturns?: Record<string, number>;
@@ -55,6 +59,9 @@ export default function RetornosComparados({
   benchmarkLabel = "UF +2%",
   benchmarkMonthlyReturn,
   benchmarkReturns,
+  benchmarkProxyReturns,
+  benchmarkMode = "uf_spread",
+  onBenchmarkModeChange,
   comparisonLabel,
   comparisonReturns,
   recommendedReturns,
@@ -64,6 +71,10 @@ export default function RetornosComparados({
   benchmarkSpread = 2,
 }: Props) {
   const R = (displayCurrency || "CLP").toUpperCase();
+  const proxyAvailable = !!benchmarkProxyReturns && Object.keys(benchmarkProxyReturns).length > 0;
+  const useProxy = benchmarkMode === "market_proxy" && proxyAvailable;
+  const effBenchReturns = useProxy ? benchmarkProxyReturns : benchmarkReturns;
+  const effBenchLabel = useProxy ? "Proxy de mercado" : benchmarkLabel;
   const chartData = useMemo(() => {
     // Re-basa un retorno CLP a la moneda de reporte R usando el FX real de las
     // dos fechas del período. Portafolio y benchmark (UF+2% nominal CLP) y la
@@ -162,7 +173,7 @@ export default function RetornosComparados({
           const portfolioReturn = rebaseCLP(portfolioReturnCLP, prev.snapshot_date, curr.snapshot_date);
 
           let benchReturn: number | null = null;
-          if (benchmarkReturns && benchmarkReturns[monthKeys[i]] != null) benchReturn = benchmarkReturns[monthKeys[i]];
+          if (effBenchReturns && effBenchReturns[monthKeys[i]] != null) benchReturn = effBenchReturns[monthKeys[i]];
           else benchReturn = defaultBenchCLP(prev.snapshot_date, curr.snapshot_date); // UF real del mes + spread/12
           if (benchReturn != null) benchReturn = rebaseCLP(benchReturn, prev.snapshot_date, curr.snapshot_date);
 
@@ -191,7 +202,7 @@ export default function RetornosComparados({
         for (const m of months) compoundP *= 1 + m.portfolio / 100;
         const accumP = (compoundP - 1) * 100;
         let accumBench: number | null = null;
-        if (benchmarkMonthlyReturn != null || benchmarkReturns) {
+        if (benchmarkMonthlyReturn != null || effBenchReturns) {
           let compound = 1;
           for (const m of months) { if (m.benchmark != null) compound *= 1 + m.benchmark / 100; }
           accumBench = (compound - 1) * 100;
@@ -233,7 +244,7 @@ export default function RetornosComparados({
       const dates = monthlyDates.get(key);
 
       let benchReturn: number | null = null;
-      if (benchmarkReturns && benchmarkReturns[key] != null) benchReturn = benchmarkReturns[key];
+      if (effBenchReturns && effBenchReturns[key] != null) benchReturn = effBenchReturns[key];
       else if (dates) benchReturn = defaultBenchCLP(dates.start, dates.end); // UF real del mes + spread/12
       else if (benchmarkMonthlyReturn != null) benchReturn = benchmarkMonthlyReturn;
       if (benchReturn != null && dates) benchReturn = rebaseCLP(benchReturn, dates.start, dates.end);
@@ -259,7 +270,7 @@ export default function RetornosComparados({
     // Accumulated
     if (months.length > 0) {
       let accumBench: number | null = null;
-      if (benchmarkMonthlyReturn != null || benchmarkReturns) {
+      if (benchmarkMonthlyReturn != null || effBenchReturns) {
         let compound = 1;
         for (const m of months) { if (m.benchmark != null) compound *= 1 + m.benchmark / 100; }
         accumBench = (compound - 1) * 100;
@@ -288,7 +299,7 @@ export default function RetornosComparados({
     }
 
     return months;
-  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, benchmarkReturns, comparisonReturns, recommendedReturns, R, fxRateAt, benchmarkSpread]);
+  }, [snapshots, historicalSeries, benchmarkMonthlyReturn, effBenchReturns, comparisonReturns, recommendedReturns, R, fxRateAt, benchmarkSpread]);
 
   if (chartData.length === 0) return null;
 
@@ -303,11 +314,33 @@ export default function RetornosComparados({
 
   return (
     <div className="bg-white rounded-lg border border-gb-border shadow-sm p-6">
-      <h3 className="text-base font-semibold text-gb-black flex items-center gap-2 mb-4">
-        <GitCompare className="w-5 h-5 text-blue-500" />
-        Retornos Comparados
-        <span className="text-xs font-normal text-gb-gray">· {R}</span>
-      </h3>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h3 className="text-base font-semibold text-gb-black flex items-center gap-2">
+          <GitCompare className="w-5 h-5 text-blue-500" />
+          Retornos Comparados
+          <span className="text-xs font-normal text-gb-gray">· {R}</span>
+        </h3>
+        {onBenchmarkModeChange && (
+          <div className="inline-flex rounded-md border border-gb-border overflow-hidden text-xs" role="group" aria-label="Modo de benchmark">
+            <button
+              type="button"
+              onClick={() => onBenchmarkModeChange("uf_spread")}
+              className={`px-2.5 py-1 ${benchmarkMode === "uf_spread" ? "bg-gb-black text-white" : "bg-white text-gb-gray hover:bg-gb-light"}`}
+            >
+              {benchmarkLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => proxyAvailable && onBenchmarkModeChange("market_proxy")}
+              disabled={!proxyAvailable}
+              title={proxyAvailable ? undefined : "Requiere una recomendación guardada para el cliente"}
+              className={`px-2.5 py-1 border-l border-gb-border ${benchmarkMode === "market_proxy" && proxyAvailable ? "bg-gb-black text-white" : "bg-white text-gb-gray hover:bg-gb-light"} ${!proxyAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+            >
+              Proxy de mercado
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Accumulated summary cards */}
       {accumData && (
@@ -320,7 +353,7 @@ export default function RetornosComparados({
           </div>
           {hasBenchmark && accumData.benchmark != null && (
             <div className="bg-gray-50 rounded-lg px-3 py-2">
-              <div className="text-[11px] text-gb-gray">{benchmarkLabel}</div>
+              <div className="text-[11px] text-gb-gray">{effBenchLabel}</div>
               <div className="text-lg font-semibold text-yellow-600">
                 {accumData.benchmark >= 0 ? "+" : ""}{formatNumber(accumData.benchmark, 2)}%
               </div>
@@ -382,7 +415,7 @@ export default function RetornosComparados({
             {hasBenchmark && (
               <Bar
                 dataKey="benchmark"
-                name={benchmarkLabel}
+                name={effBenchLabel}
                 fill="#eab308"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
@@ -420,7 +453,7 @@ export default function RetornosComparados({
                 <th className="text-left py-1.5 px-2 text-gb-gray font-medium">Período</th>
                 <th className="text-right py-1.5 px-2 text-gb-gray font-medium">Portafolio</th>
                 {hasBenchmark && (
-                  <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{benchmarkLabel}</th>
+                  <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{effBenchLabel}</th>
                 )}
                 {hasComparison && (
                   <th className="text-right py-1.5 px-2 text-gb-gray font-medium">{comparisonLabel || "Portfolio Inicial"}</th>
