@@ -769,6 +769,196 @@ gh pr create --draft --base master --head subproyecto-b-benchmark \
 
 ---
 
+### Task 8: Precio de fondos chilenos por RUN (valor cuota) en la serie real
+
+**Contexto:** `getMarketTickerPrices` rutea un RUN a `cmf`, pero `fetchPriceRange` no maneja `cmf` (devuelve vacío) → los fondos chilenos caían al proxy de clase. Esta tarea trae su serie de valor cuota real desde las tablas que ya usa el resto del Seguimiento (FM: `fondos_mutuos`→`fondos_rentabilidades_diarias`; FI: `fondos_inversion`→`fondos_inversion_precios`), cumpliendo §2/§3.1 del spec para instrumentos chilenos.
+
+**Files:**
+- Create: `lib/prices/chilean-fund-series.ts`
+- Test: `lib/prices/chilean-fund-series.test.ts`
+- Modify: `app/api/portfolio/recommended-evolution/route.ts` (rutear tickers RUN a la nueva función)
+
+**Interfaces:**
+- Produces: `isChileanRun(ticker: string): boolean`; `getChileanFundSeries(supabase, run: string, fromDate: string, toDate: string): Promise<DailyPrice[]>` (CLP, ordenada asc).
+- Consumes: `DailyPrice` de `@/lib/prices/types`.
+
+- [ ] **Step 1: Escribir el test que falla** en `lib/prices/chilean-fund-series.test.ts`:
+
+```ts
+import { describe, it, expect } from "vitest";
+import { isChileanRun, getChileanFundSeries } from "./chilean-fund-series";
+
+// Mock encadenable: ignora los filtros y resuelve a { data } por tabla.
+function makeSupabase(tables: Record<string, unknown[]>) {
+  const builder = (rows: unknown[]) => {
+    const b: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "gte", "lte", "order", "limit"]) b[m] = () => b;
+    (b as { then: unknown }).then = (resolve: (v: { data: unknown[] }) => void) => resolve({ data: rows });
+    return b;
+  };
+  return { from: (t: string) => builder(tables[t] || []) } as never;
+}
+
+describe("isChileanRun", () => {
+  it("reconoce RUN numérico de 3-6 dígitos, rechaza tickers y CUSIP/ISIN", () => {
+    expect(isChileanRun("9226")).toBe(true);
+    expect(isChileanRun("VOO")).toBe(false);
+    expect(isChileanRun("123456789")).toBe(false); // largo CUSIP
+    expect(isChileanRun("IE00BD5CTV53")).toBe(false); // ISIN
+  });
+});
+
+describe("getChileanFundSeries", () => {
+  it("FM: mapea fo_run→id→serie de valor_cuota", async () => {
+    const sb = makeSupabase({
+      fondos_mutuos: [{ id: "fm1" }],
+      fondos_rentabilidades_diarias: [
+        { fecha: "2026-01-31", valor_cuota: 100 },
+        { fecha: "2026-02-28", valor_cuota: 110 },
+      ],
+    });
+    expect(await getChileanFundSeries(sb, "9226", "2026-01-01", "2026-03-01")).toEqual([
+      { date: "2026-01-31", price: 100 },
+      { date: "2026-02-28", price: 110 },
+    ]);
+  });
+
+  it("FI: si no es FM, cae a rut→id→valor_libro", async () => {
+    const sb = makeSupabase({
+      fondos_mutuos: [],
+      fondos_inversion: [{ id: "fi1" }],
+      fondos_inversion_precios: [{ fecha: "2026-01-31", valor_libro: 50 }],
+    });
+    expect(await getChileanFundSeries(sb, "12345", "2026-01-01", "2026-03-01")).toEqual([
+      { date: "2026-01-31", price: 50 },
+    ]);
+  });
+
+  it("sin datos → vacío", async () => {
+    const sb = makeSupabase({ fondos_mutuos: [], fondos_inversion: [] });
+    expect(await getChileanFundSeries(sb, "999", "2026-01-01", "2026-03-01")).toEqual([]);
+  });
+
+  it("filtra precios <= 0", async () => {
+    const sb = makeSupabase({
+      fondos_mutuos: [{ id: "fm1" }],
+      fondos_rentabilidades_diarias: [
+        { fecha: "2026-01-31", valor_cuota: 0 },
+        { fecha: "2026-02-28", valor_cuota: 110 },
+      ],
+    });
+    expect(await getChileanFundSeries(sb, "9226", "2026-01-01", "2026-03-01")).toEqual([
+      { date: "2026-02-28", price: 110 },
+    ]);
+  });
+});
+```
+
+- [ ] **Step 2: Correr y ver que falla** — `npx vitest run lib/prices/chilean-fund-series.test.ts` → FAIL (no existe el módulo).
+
+- [ ] **Step 3: Implementar `lib/prices/chilean-fund-series.ts`**
+
+```ts
+// lib/prices/chilean-fund-series.ts
+// Serie de valor cuota (CLP) de un fondo chileno por RUN, para revalorizar
+// posiciones recomendadas que resolveSource rutea a "cmf" (RUN numérico).
+// Reusa el mismo camino que prices-at-date/historical-prices:
+//   FM: fondos_mutuos(fo_run) → fondos_rentabilidades_diarias(valor_cuota)
+//   FI: fondos_inversion(rut) → fondos_inversion_precios(valor_libro)
+import type { DailyPrice } from "@/lib/prices/types";
+
+// Estructura mínima que necesitamos del admin client (encadenable, awaitable).
+type SupabaseLike = { from: (table: string) => any };
+
+/** RUN chileno = 3-6 dígitos. Excluye tickers alfa y CUSIP/ISIN (9/12 chars). */
+export function isChileanRun(ticker: string): boolean {
+  return /^\d{3,6}$/.test(ticker.trim());
+}
+
+export async function getChileanFundSeries(
+  supabase: SupabaseLike,
+  run: string,
+  fromDate: string,
+  toDate: string
+): Promise<DailyPrice[]> {
+  const runNum = Number(run);
+
+  // FM: fondos_mutuos (fo_run) → id → fondos_rentabilidades_diarias
+  const { data: fm } = await supabase
+    .from("fondos_mutuos").select("id").eq("fo_run", runNum).limit(1);
+  if (fm && fm.length > 0) {
+    const { data: rows } = await supabase
+      .from("fondos_rentabilidades_diarias")
+      .select("valor_cuota, fecha")
+      .eq("fondo_id", fm[0].id)
+      .gte("fecha", fromDate).lte("fecha", toDate)
+      .order("fecha", { ascending: true });
+    const series = (rows || [])
+      .filter((r: any) => r.valor_cuota > 0)
+      .map((r: any) => ({ date: r.fecha as string, price: Number(r.valor_cuota) }));
+    if (series.length > 0) return series;
+  }
+
+  // FI: fondos_inversion (rut) → id → fondos_inversion_precios (valor_libro)
+  const { data: fi } = await supabase
+    .from("fondos_inversion").select("id").eq("rut", String(run)).limit(1);
+  if (fi && fi.length > 0) {
+    const { data: rows } = await supabase
+      .from("fondos_inversion_precios")
+      .select("valor_libro, fecha")
+      .eq("fondo_id", fi[0].id)
+      .gte("fecha", fromDate).lte("fecha", toDate)
+      .order("fecha", { ascending: true });
+    return (rows || [])
+      .filter((r: any) => r.valor_libro > 0)
+      .map((r: any) => ({ date: r.fecha as string, price: Number(r.valor_libro) }));
+  }
+
+  return [];
+}
+```
+
+- [ ] **Step 4: Correr y ver que pasa** — `npx vitest run lib/prices/chilean-fund-series.test.ts` → PASS (5 tests).
+
+- [ ] **Step 5: Rutear tickers RUN en la ruta.** En `app/api/portfolio/recommended-evolution/route.ts`:
+
+Añadir al import de recommended-real (o como import propio):
+
+```ts
+import { isChileanRun, getChileanFundSeries } from "@/lib/prices/chilean-fund-series";
+```
+
+Reemplazar el loop de fetch (paso 4):
+
+```ts
+    for (const ticker of uniqueTickers) {
+      pricesByTicker[ticker] = await getMarketTickerPrices(ticker, fromDate, toDate);
+    }
+```
+
+por:
+
+```ts
+    for (const ticker of uniqueTickers) {
+      pricesByTicker[ticker] = isChileanRun(ticker)
+        ? await getChileanFundSeries(supabase, ticker, fromDate, toDate)
+        : await getMarketTickerPrices(ticker, fromDate, toDate);
+    }
+```
+
+(El guard defensivo posterior mantiene `getMarketTickerPrices` — sus tickers son proxies de clase ACWI/AGG/…, nunca RUN.)
+
+- [ ] **Step 6: Typecheck** — `npx tsc --noEmit` → exit 0.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add lib/prices/chilean-fund-series.ts lib/prices/chilean-fund-series.test.ts app/api/portfolio/recommended-evolution/route.ts
+git commit -m "feat(seguimiento): serie real valoriza fondos chilenos por RUN (valor cuota FM/FI)"
+```
+
+---
+
 ## Self-Review (cobertura del spec)
 
 - §1/§3.1 serie honesta (instrumentos reales) → Task 2 (`expandRealInstruments`) + Task 3 (swap por serie vacía). ✓
