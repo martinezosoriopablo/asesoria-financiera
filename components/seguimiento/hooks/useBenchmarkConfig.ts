@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import type { BenchmarkComponent } from "@/lib/prices/types";
 
 interface Snapshot {
@@ -27,6 +27,9 @@ interface UseBenchmarkConfigReturn {
   baselineMonthlyReturns: Record<string, number> | undefined;
   baselineAccReturn: number | null;
   recommendedReturns: Record<string, number> | undefined;
+  benchmarkProxyReturns: Record<string, number> | undefined;
+  benchmarkMode: "uf_spread" | "market_proxy";
+  setBenchmarkMode: (m: "uf_spread" | "market_proxy") => void;
 }
 
 export function useBenchmarkConfig({
@@ -40,6 +43,8 @@ export function useBenchmarkConfig({
   const [baselineSeries, setBaselineSeries] = useState<Array<{ fecha: string; total: number }> | null>(null);
   const [loadingBaseline, setLoadingBaseline] = useState(false);
   const [recommendedReturns, setRecommendedReturns] = useState<Record<string, number> | undefined>(undefined);
+  const [benchmarkProxyReturns, setBenchmarkProxyReturns] = useState<Record<string, number> | undefined>(undefined);
+  const [benchmarkMode, setBenchmarkModeState] = useState<"uf_spread" | "market_proxy">("uf_spread");
 
   // Sync initialBenchmarkConfig when it arrives
   useEffect(() => {
@@ -47,6 +52,18 @@ export function useBenchmarkConfig({
       setBenchmarkConfig(initialBenchmarkConfig);
     }
   }, [initialBenchmarkConfig]);
+
+  // Modo del toggle de benchmark (persistido por cliente)
+  useEffect(() => {
+    if (!clientId) return;
+    fetch(`/api/clients/${clientId}/benchmark`)
+      .then((r) => r.json())
+      .then((d) => {
+        const mode = d?.data?.benchmark_mode ?? d?.benchmark_mode;
+        if (mode === "market_proxy" || mode === "uf_spread") setBenchmarkModeState(mode);
+      })
+      .catch(() => { /* mantiene uf_spread */ });
+  }, [clientId]);
 
   // Fetch benchmark returns when config and snapshots are available
   useEffect(() => {
@@ -120,11 +137,18 @@ export function useBenchmarkConfig({
     })
       .then((res) => res.json())
       .then((result) => {
-        const series = result?.data?.series ?? result?.series;
+        const payload = result?.data ?? result;
+        const series = payload?.series;
         if (result?.success && series && series.returns && Object.keys(series.returns).length > 0) {
           setRecommendedReturns(series.returns);
         } else {
           setRecommendedReturns(undefined);
+        }
+        const proxy = payload?.benchmarkProxy;
+        if (proxy && proxy.returns && Object.keys(proxy.returns).length > 0) {
+          setBenchmarkProxyReturns(proxy.returns);
+        } else {
+          setBenchmarkProxyReturns(undefined);
         }
       })
       .catch((err) => console.warn('[useBenchmarkConfig] Error fetching recommended evolution:', err));
@@ -167,6 +191,16 @@ export function useBenchmarkConfig({
     return ((last / first) - 1) * 100;
   }, [baselineSeries]);
 
+  const setBenchmarkMode = useCallback((m: "uf_spread" | "market_proxy") => {
+    setBenchmarkModeState(m);
+    if (!clientId) return;
+    fetch(`/api/clients/${clientId}/benchmark`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ benchmark_mode: m }),
+    }).catch((err) => console.warn("[useBenchmarkConfig] Error guardando benchmark_mode:", err));
+  }, [clientId]);
+
   return {
     benchmarkConfig,
     setBenchmarkConfig,
@@ -177,5 +211,8 @@ export function useBenchmarkConfig({
     baselineMonthlyReturns,
     baselineAccReturn,
     recommendedReturns,
+    benchmarkProxyReturns,
+    benchmarkMode,
+    setBenchmarkMode,
   };
 }

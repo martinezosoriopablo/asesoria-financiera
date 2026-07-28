@@ -50,6 +50,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
   const {
     benchmarkConfig, setBenchmarkConfig,
     benchmarkReturns, benchmarkLabel,
+    benchmarkProxyReturns, benchmarkMode, setBenchmarkMode,
     baselineSeries, loadingBaseline,
     baselineMonthlyReturns, baselineAccReturn,
     recommendedReturns,
@@ -495,6 +496,9 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
               benchmarkLabel={benchmarkLabel}
               benchmarkReturns={benchmarkReturns || undefined}
               benchmarkMonthlyReturn={!benchmarkReturns ? 0.5 : undefined}
+              benchmarkProxyReturns={benchmarkProxyReturns}
+              benchmarkMode={benchmarkMode}
+              onBenchmarkModeChange={portalMode ? undefined : setBenchmarkMode}
               comparisonLabel="Portfolio Inicial"
               comparisonReturns={baselineMonthlyReturns}
               recommendedReturns={recommendedReturns}

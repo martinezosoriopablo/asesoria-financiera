@@ -1,17 +1,24 @@
 // app/api/portfolio/recommended-evolution/route.ts
-// Revaloriza la cartera recomendada (nivel-clase) como estrategia de mercado
-// real y devuelve sus retornos mensuales en CLP. Paralelo a baseline-evolution
-// (que hace lo análogo para el portafolio inicial). Ver spec 2026-07-23.
+// Devuelve DOS series en CLP: `series` = instrumentos REALES de la recomendación
+// revalorizados a mercado; `benchmarkProxy` = índices por clase (proxy). Comparten
+// el fetch de precios. Ver spec 2026-07-27.
 import { NextRequest } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { fetchBcchDailyPrices, getMarketTickerPrices } from "@/lib/prices/market-series";
+import { isChileanRun, getChileanFundSeries } from "@/lib/prices/chilean-fund-series";
 import {
   expandRecommendation,
   buildMonthEnds,
   computeRecommendedMonthlyReturnsCLP,
 } from "@/lib/prices/recommended-proxies";
+import {
+  expandRealInstruments,
+  classProxyFor,
+  type RealComponent,
+} from "@/lib/prices/recommended-real";
+import { resolveSource } from "@/lib/prices/price-service";
 import type { DailyPrice } from "@/lib/prices/types";
 
 export async function POST(request: NextRequest) {
@@ -27,17 +34,24 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // 1. Recomendación (nivel-clase)
+    // 1. Recomendación guardada
     const { data: client } = await supabase
       .from("clients")
       .select("cartera_recomendada")
       .eq("id", clientId)
       .single();
     const rec = client?.cartera_recomendada as Record<string, unknown> | null;
-    if (!rec) return successResponse({ series: null });
+    if (!rec) return successResponse({ series: null, benchmarkProxy: null });
 
-    // 2. Pesos por clase (mismo patrón que check-drift)
-    const cartera = (rec.cartera || []) as Array<{ clase: string; porcentaje: number }>;
+    const cartera = (rec.cartera || []) as Array<{ clase: string; ticker: string | null; porcentaje: number }>;
+
+    // 2a. Componentes REALES (instrumentos de la Decisión)
+    const realComponents = expandRealInstruments(
+      cartera.map((p) => ({ clase: p.clase, ticker: p.ticker ?? null, porcentaje: p.porcentaje })),
+      resolveSource
+    );
+
+    // 2b. Componentes PROXY (índices por clase) — igual que antes
     const classWeights: Record<string, number> = {};
     for (const p of cartera) {
       if (p.clase && p.porcentaje > 0) classWeights[p.clase] = (classWeights[p.clase] || 0) + p.porcentaje;
@@ -48,50 +62,71 @@ export async function POST(request: NextRequest) {
       if (eq) classWeights["Renta Variable"] = eq;
       if (fi) classWeights["Renta Fija"] = fi;
     }
-    const components = expandRecommendation(classWeights);
-    if (components.length === 0) return successResponse({ series: null });
+    const proxyComponents = expandRecommendation(classWeights);
 
-    // 3. Rango: primera cartola real → hoy
+    if (realComponents.length === 0 && proxyComponents.length === 0) {
+      return successResponse({ series: null, benchmarkProxy: null });
+    }
+
+    // 3. Rango: inicio del seguimiento (primer snapshot de CUALQUIER fuente,
+    //    incl. api-prices) → hoy. La recomendación es una composición fija que
+    //    se revaloriza sobre toda la ventana de seguimiento con la base de precios;
+    //    no depende de cuántas cartolas manuales haya.
     const { data: firstSnap } = await supabase
       .from("portfolio_snapshots")
       .select("snapshot_date")
       .eq("client_id", clientId)
-      .in("source", ["manual", "statement", "excel"])
       .order("snapshot_date", { ascending: true })
       .limit(1)
       .maybeSingle();
-    if (!firstSnap) return successResponse({ series: null });
+    if (!firstSnap) return successResponse({ series: null, benchmarkProxy: null });
     const fromDate = (firstSnap as { snapshot_date: string }).snapshot_date;
     const toDate = new Date().toISOString().split("T")[0];
 
-    // 4. Cierres de mes
     const monthEnds = buildMonthEnds(fromDate, toDate);
-    if (monthEnds.length < 2) return successResponse({ series: null });
+    if (monthEnds.length < 2) return successResponse({ series: null, benchmarkProxy: null });
 
-    // 5. Precios + FX
-    // Nota: se usa el observado de la misma fecha en ambas puntas del mes; la
-    // convención T+1 del observado se cancela casi por completo en el ratio usd_end/usd_start.
+    // 4. Precios: unión de tickers de AMBAS listas (un solo fetch). UF y USD aparte.
+    const allComponents = [...realComponents, ...proxyComponents];
     const usdSeries = await fetchBcchDailyPrices("dolar", fromDate, toDate);
-    const needUf = components.some((c) => c.ticker === "UF");
+    const needUf = allComponents.some((c) => c.ticker === "UF");
     const ufSeries = needUf ? await fetchBcchDailyPrices("uf", fromDate, toDate) : [];
 
+    const uniqueTickers = [...new Set(allComponents.map((c) => c.ticker).filter((t) => t !== "UF"))];
     const pricesByTicker: Record<string, DailyPrice[]> = {};
-    for (const c of components) {
-      if (c.ticker === "UF") continue;
-      if (!pricesByTicker[c.ticker]) {
+    for (const ticker of uniqueTickers) {
+      pricesByTicker[ticker] = isChileanRun(ticker)
+        ? await getChileanFundSeries(supabase, ticker, fromDate, toDate)
+        : await getMarketTickerPrices(ticker, fromDate, toDate);
+    }
+
+    // 5. Swap por serie vacía: un instrumento real sin precios → proxy de su clase.
+    const hasPrices = (c: RealComponent): boolean =>
+      c.ticker === "UF" ? ufSeries.length > 0 : (pricesByTicker[c.ticker]?.length ?? 0) > 0;
+    const resolvedReal: RealComponent[] = realComponents.flatMap((c) =>
+      hasPrices(c) ? [c] : classProxyFor(c.clase, c.weight)
+    );
+    // Los proxies de sustitución (ACWI/AGG/GLD/RWO/UF) ya están en pricesByTicker
+    // porque su clase está presente en proxyComponents (misma recomendación).
+    // Defensa: si un proxy de sustitución no quedó en pricesByTicker (invariante
+    // de clases entre real/proxy roto por un cambio futuro), traer su serie ahora.
+    for (const c of resolvedReal) {
+      if (c.ticker !== "UF" && !(c.ticker in pricesByTicker)) {
         pricesByTicker[c.ticker] = await getMarketTickerPrices(c.ticker, fromDate, toDate);
       }
     }
 
-    // 6. Cálculo en CLP
-    const { returns, accumulated } = computeRecommendedMonthlyReturnsCLP(
-      components,
-      pricesByTicker,
-      usdSeries,
-      ufSeries,
-      monthEnds
-    );
+    // 6. Cálculo en CLP de ambas series
+    const real = computeRecommendedMonthlyReturnsCLP(resolvedReal, pricesByTicker, usdSeries, ufSeries, monthEnds);
+    const proxy = computeRecommendedMonthlyReturnsCLP(proxyComponents, pricesByTicker, usdSeries, ufSeries, monthEnds);
 
-    return successResponse({ series: { returns, accumulated, label: "Recomendado" } });
+    return successResponse({
+      series: Object.keys(real.returns).length > 0
+        ? { returns: real.returns, accumulated: real.accumulated, label: "Recomendado" }
+        : null,
+      benchmarkProxy: Object.keys(proxy.returns).length > 0
+        ? { returns: proxy.returns, accumulated: proxy.accumulated, label: "Proxy de mercado" }
+        : null,
+    });
   });
 }
