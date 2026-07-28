@@ -7,6 +7,7 @@ import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { fetchBcchDailyPrices, getMarketTickerPrices } from "@/lib/prices/market-series";
+import { isChileanRun, getChileanFundSeries } from "@/lib/prices/chilean-fund-series";
 import {
   expandRecommendation,
   buildMonthEnds,
@@ -92,7 +93,9 @@ export async function POST(request: NextRequest) {
     const uniqueTickers = [...new Set(allComponents.map((c) => c.ticker).filter((t) => t !== "UF"))];
     const pricesByTicker: Record<string, DailyPrice[]> = {};
     for (const ticker of uniqueTickers) {
-      pricesByTicker[ticker] = await getMarketTickerPrices(ticker, fromDate, toDate);
+      pricesByTicker[ticker] = isChileanRun(ticker)
+        ? await getChileanFundSeries(supabase, ticker, fromDate, toDate)
+        : await getMarketTickerPrices(ticker, fromDate, toDate);
     }
 
     // 5. Swap por serie vacía: un instrumento real sin precios → proxy de su clase.
