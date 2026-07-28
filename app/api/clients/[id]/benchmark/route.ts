@@ -22,17 +22,29 @@ export async function GET(
 
     const supabase = createAdminClient();
 
+    // Se selecciona benchmark_mode aparte y con tolerancia: si la columna aún no
+    // está migrada en la BD, el GET NO debe romper (seguiría cargando el benchmark_config).
     const { data, error: dbError } = await supabase
       .from("clients")
-      .select("benchmark_config, benchmark_mode")
+      .select("benchmark_config")
       .eq("id", clientId)
       .single();
 
     if (dbError) return errorResponse("Cliente no encontrado", 404);
 
+    let benchmarkMode = "uf_spread";
+    const { data: modeRow } = await supabase
+      .from("clients")
+      .select("benchmark_mode")
+      .eq("id", clientId)
+      .single();
+    if (modeRow && (modeRow as { benchmark_mode?: string | null }).benchmark_mode) {
+      benchmarkMode = (modeRow as { benchmark_mode: string }).benchmark_mode;
+    }
+
     return successResponse({
       benchmark: (data.benchmark_config as BenchmarkComponent[] | null) || DEFAULT_BENCHMARK,
-      benchmark_mode: (data.benchmark_mode as string | null) || "uf_spread",
+      benchmark_mode: benchmarkMode,
     });
   });
 }

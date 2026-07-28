@@ -103,6 +103,13 @@ export async function POST(request: NextRequest) {
     );
     // Los proxies de sustitución (ACWI/AGG/GLD/RWO/UF) ya están en pricesByTicker
     // porque su clase está presente en proxyComponents (misma recomendación).
+    // Defensa: si un proxy de sustitución no quedó en pricesByTicker (invariante
+    // de clases entre real/proxy roto por un cambio futuro), traer su serie ahora.
+    for (const c of resolvedReal) {
+      if (c.ticker !== "UF" && !(c.ticker in pricesByTicker)) {
+        pricesByTicker[c.ticker] = await getMarketTickerPrices(c.ticker, fromDate, toDate);
+      }
+    }
 
     // 6. Cálculo en CLP de ambas series
     const real = computeRecommendedMonthlyReturnsCLP(resolvedReal, pricesByTicker, usdSeries, ufSeries, monthEnds);
