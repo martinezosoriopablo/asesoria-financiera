@@ -68,12 +68,14 @@ export async function POST(request: NextRequest) {
       return successResponse({ series: null, benchmarkProxy: null });
     }
 
-    // 3. Rango: primera cartola real → hoy
+    // 3. Rango: inicio del seguimiento (primer snapshot de CUALQUIER fuente,
+    //    incl. api-prices) → hoy. La recomendación es una composición fija que
+    //    se revaloriza sobre toda la ventana de seguimiento con la base de precios;
+    //    no depende de cuántas cartolas manuales haya.
     const { data: firstSnap } = await supabase
       .from("portfolio_snapshots")
       .select("snapshot_date")
       .eq("client_id", clientId)
-      .in("source", ["manual", "statement", "excel"])
       .order("snapshot_date", { ascending: true })
       .limit(1)
       .maybeSingle();
