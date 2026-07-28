@@ -23,6 +23,10 @@ interface Props {
   totalPeso: number;
 }
 
+// Redondea a máx. 2 decimales solo para mostrar (evita "9.166666…%").
+// No muta el estado: el valor real se conserva para que el total sume exactamente 100.
+const fmtPct = (n: number) => String(Math.round((n + Number.EPSILON) * 100) / 100);
+
 function vistaBadge(vista: string | null) {
   if (!vista) return null;
   const up = vista.toUpperCase();
@@ -92,7 +96,7 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
                         {vistaBadge(row.comite.vista)}
                       </div>
                       <div className="text-[10px] text-gb-gray mt-0.5">
-                        {row.comite.modelo_pct}% · {etf || "—"}{row.comite.conviction ? ` · conv. ${row.comite.conviction}` : ""}
+                        {fmtPct(row.comite.modelo_pct)}% · {etf || "—"}{row.comite.conviction ? ` · conv. ${row.comite.conviction}` : ""}
                       </div>
                     </td>
 
@@ -148,7 +152,7 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
                     <td className="px-3 py-2 text-right align-top">
                       <input
                         type="number" step="0.5" min="0" max="100"
-                        value={row.decision.porcentaje}
+                        value={fmtPct(row.decision.porcentaje)}
                         onChange={(e) => setDecision(row.categoria, { porcentaje: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
                         className="w-16 px-1 py-0.5 text-xs text-right border border-gb-border rounded"
                       />
