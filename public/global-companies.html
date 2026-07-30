@@ -136,13 +136,13 @@
   /* ===== Sec 4 · Método + 4 áreas ===== */
   .metodo{background:var(--paper)}
   .proposito{background:var(--paper);overflow:hidden}
-  .prop-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:52px;align-items:center}
+  .prop-grid{display:grid;grid-template-columns:1.8fr 1fr;gap:44px;align-items:center}
   .prop-text{max-width:30em}
   .prop-img{margin:0;width:100%}
   .prop-img img{width:100%;height:auto;display:block}
-  .reveal-left,.reveal-right{opacity:0;transition:opacity .85s ease,transform .85s cubic-bezier(.2,.7,.2,1)}
-  .reveal-left{transform:translateX(-56px)}
-  .reveal-right{transform:translateX(56px)}
+  .reveal-left,.reveal-right{opacity:0;transition:opacity 1s ease,transform 1s cubic-bezier(.2,.7,.2,1)}
+  .reveal-left{transform:translateX(-90px)}
+  .reveal-right{transform:translateX(90px)}
   .proposito.in .reveal-left,.proposito.in .reveal-right{opacity:1;transform:none}
   @media(prefers-reduced-motion:reduce){.reveal-left,.reveal-right{opacity:1;transform:none;transition:none}}
   @media(max-width:820px){.prop-grid{grid-template-columns:1fr;gap:30px;text-align:center}.prop-text{max-width:none;margin:0 auto}.reveal-left,.reveal-right{transform:translateY(30px)}}
@@ -538,6 +538,6 @@ v.addEventListener('loadeddata',go,{once:false});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)go();});
 })();
 </script>
-<script>(function(){var s=document.querySelector(".proposito");if(!s)return;if(!("IntersectionObserver" in window)){s.classList.add("in");return;}var o=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){s.classList.add("in");o.disconnect();}});},{threshold:.28});o.observe(s);})();</script>
+<script>(function(){var s=document.querySelector(".proposito");if(!s)return;if(!("IntersectionObserver" in window)){s.classList.add("in");return;}var o=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){s.classList.add("in");o.disconnect();}});},{threshold:.15,rootMargin:"0px 0px -15% 0px"});o.observe(s);})();</script>
 </body>
 </html>
