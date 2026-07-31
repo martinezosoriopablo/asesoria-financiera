@@ -369,6 +369,21 @@
   .pmodal .prole{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--copper);margin-top:6px}
   .pmodal .pbio{padding:20px 30px 32px;color:var(--text);font-size:15px;line-height:1.65}
 .logo-f{height:26px;width:auto;display:block;margin-bottom:16px}
+
+.wl-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:36px}
+.wl-grid .wl-fcard:last-child{grid-column:1 / -1}
+@media(max-width:760px){.wl-grid{grid-template-columns:1fr}.wl-grid .wl-fcard:last-child{grid-column:auto}}
+.wl-fcard{position:relative;overflow:hidden;border-radius:6px;border-top:2px solid var(--copper);height:300px;isolation:isolate;transition:transform .45s ease,box-shadow .45s ease}
+.wl-fcard:hover{transform:translateY(-5px);box-shadow:0 26px 50px rgba(6,18,38,.40)}
+.wl-bg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0;transition:transform .7s ease}
+.wl-fcard:hover .wl-bg{transform:scale(1.07)}
+.wl-veil{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(11,33,64,.56) 0%,rgba(11,33,64,.74) 55%,rgba(11,33,64,.90) 100%);transition:background .45s ease}
+.wl-fcard:hover .wl-veil{background:linear-gradient(180deg,rgba(11,33,64,.64) 0%,rgba(11,33,64,.82) 55%,rgba(11,33,64,.95) 100%)}
+.wl-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
+.wl-body h3{font-family:"Fraunces",serif;font-size:21px;color:#fff;margin:0;line-height:1.2;text-shadow:0 2px 16px rgba(6,18,38,.55)}
+.wl-body p{margin:12px 0 0;color:rgba(255,255,255,.90);font-size:14.5px;line-height:1.6;max-width:46em;opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease}
+.wl-fcard:hover .wl-body p{opacity:1;transform:none}
+@media(hover:none){.wl-body p{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -408,19 +423,7 @@
 </header>
 
 <section class="gestion"><div class="wrap">
-  <div class="gcols">
-  <div class="sec-head">
-    <span class="eyebrow">Qué gestionamos</span>
-    <h2>Todo el universo invertible, en un solo portafolio.</h2>
-    <p class="lead" style="color:var(--muted)">Elegimos instrumento por instrumento según el objetivo, el horizonte y el riesgo de cada cliente.</p>
-  </div>
-  <div class="ilist">
-    <div class="iitem"><span class="k">Acciones</span><span class="v">Participación en compañías líderes, locales e internacionales, con visión de largo plazo.</span></div>
-    <div class="iitem"><span class="k">Fondos mutuos</span><span class="v">Gestión especializada, seleccionada entre todas las administradoras, sin compromisos comerciales con ninguna.</span></div>
-    <div class="iitem"><span class="k">ETF</span><span class="v">Exposición eficiente y de bajo costo a los principales mercados del mundo.</span></div>
-    <div class="iitem"><span class="k">Renta fija</span><span class="v">Flujos estables y equilibrio para el portafolio, según el horizonte y la tolerancia al riesgo.</span></div>
-  </div>
-  </div>
+  <div class="sec-head"><span class="eyebrow">Qué gestionamos</span><h2>Todo el universo invertible, en un solo portafolio.</h2><p class="lead" style="color:var(--muted)">Elegimos instrumento por instrumento según el objetivo, el horizonte y el riesgo de cada cliente.</p></div><div class="wl-grid"><div class="wl-fcard"><div class="wl-bg" style="background-image:url('/media/wl-card-1.jpg')"></div><div class="wl-veil"></div><div class="wl-body"><h3>Acciones</h3><p>Participación en compañías líderes, locales e internacionales, con visión de largo plazo.</p></div></div><div class="wl-fcard"><div class="wl-bg" style="background-image:url('/media/wl-card-2.jpg')"></div><div class="wl-veil"></div><div class="wl-body"><h3>Renta fija</h3><p>Flujos estables y equilibrio para el portafolio, según el horizonte y la tolerancia al riesgo.</p></div></div><div class="wl-fcard"><div class="wl-bg" style="background-image:url('/media/wl-card-3.jpg')"></div><div class="wl-veil"></div><div class="wl-body"><h3>Fondos mutuos</h3><p>Gestión especializada, seleccionada entre todas las administradoras, sin compromisos comerciales con ninguna.</p></div></div><div class="wl-fcard"><div class="wl-bg" style="background-image:url('/media/wl-card-4.jpg')"></div><div class="wl-veil"></div><div class="wl-body"><h3>ETF</h3><p>Exposición eficiente y de bajo costo a los principales mercados del mundo.</p></div></div><div class="wl-fcard"><div class="wl-bg" style="background-image:url('/media/wl-card-5.jpg')"></div><div class="wl-veil"></div><div class="wl-body"><h3>Activos alternativos</h3><p>Activos reales y estrategias no tradicionales (inmobiliario, oro, infraestructura, private equity) para diversificar más allá de los mercados líquidos.</p></div></div></div>
   <p class="ipuente">Un buen manejo patrimonial exige una mirada conjunta: inversiones financieras, inmobiliarias, protección y optimización tributaria. <span class="acc">Una sola estrategia.</span></p>
 </div></section>
 
