@@ -67,7 +67,15 @@
 
   /* Hero */
   .hero{border-top:none;padding:0}
-  .hero-media{position:relative;min-height:66vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,rgba(9,26,52,.56),rgba(9,26,52,.48) 55%,rgba(9,26,52,.58)),url('/media/planning-hero.jpg') center 42%/cover no-repeat;overflow:hidden;border-bottom:1px solid var(--line)}
+  .hero-media{position:relative;min-height:66vh;display:flex;align-items:center;justify-content:center;text-align:center;background:var(--navy);overflow:hidden;border-bottom:1px solid var(--line)}
+.hero-slides{position:absolute;inset:0}
+.hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.2s ease}
+.hero-slide.is-active{opacity:1}
+.hero-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,26,52,.56),rgba(9,26,52,.48) 55%,rgba(9,26,52,.58))}
+.hero-overlay{z-index:2}
+.hero-dots{position:absolute;left:0;right:0;bottom:20px;z-index:3;display:flex;gap:9px;justify-content:center}
+.hero-dots button{width:9px;height:9px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer;transition:.3s}
+.hero-dots button.on{background:#fff;width:24px;border-radius:5px}
   .hero-overlay{position:relative;max-width:760px;padding:40px 32px}
   .hero-overlay .eyebrow{margin-bottom:18px;display:block;color:#F4C39B;text-shadow:0 1px 14px rgba(6,18,38,.55)}
   .hero-overlay h1{margin-bottom:18px;color:#fff;text-shadow:0 2px 26px rgba(6,18,38,.45)}
@@ -402,13 +410,13 @@
 </nav>
 
 <header class="hero">
-  <div class="hero-media">
+  <div class="hero-media"><div class="hero-slides"><div class="hero-slide is-active" style="background-image:url(&#39;/media/planning-hero-1.jpg&#39;)"></div><div class="hero-slide" style="background-image:url(&#39;/media/planning-hero-2.jpg&#39;)"></div><div class="hero-slide" style="background-image:url(&#39;/media/planning-hero-3.jpg&#39;)"></div></div><div class="hero-veil"></div>
     <div class="hero-overlay">
       <span class="eyebrow">Una división de Global Companies</span>
       <h1>Un patrimonio estructurado y protegido, dentro y fuera de Chile.</h1>
       <p class="lead">Inversión, propiedades, protección y sucesión, estructuradas en una sola estrategia patrimonial, dentro y fuera de Chile.</p>
     </div>
-  </div>
+  <div class="hero-dots"><button class="on" aria-label="Foto 1"></button><button aria-label="Foto 2"></button><button aria-label="Foto 3"></button></div></div>
 </header>
 
 <section class="gestion"><div class="wrap">
@@ -557,5 +565,5 @@ n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('cli
   document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});
 })();
 </script>
-</body>
+<script>(function(){var m=document.querySelector('.hero-media');if(!m)return;var sl=m.querySelectorAll('.hero-slide'),dt=m.querySelectorAll('.hero-dots button');if(sl.length<2)return;var i=0,t;function go(n){sl[i].classList.remove('is-active');if(dt[i])dt[i].classList.remove('on');i=(n+sl.length)%sl.length;sl[i].classList.add('is-active');if(dt[i])dt[i].classList.add('on');}var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;function stop(){if(t){clearInterval(t);t=0;}}function play(){if(reduce)return;stop();t=setInterval(function(){go(i+1);},5000);}dt.forEach(function(b,k){b.addEventListener('click',function(){go(k);play();});});m.addEventListener('mouseenter',stop);m.addEventListener('mouseleave',play);play();})();</script></body>
 </html>
