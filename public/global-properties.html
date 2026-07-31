@@ -358,6 +358,20 @@
   .pmodal .prole{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--copper);margin-top:6px}
   .pmodal .pbio{padding:20px 30px 32px;color:var(--text);font-size:15px;line-height:1.65}
 .logo-f{height:26px;width:auto;display:block;margin-bottom:16px}
+
+.pr-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:36px}
+@media(max-width:760px){.pr-grid{grid-template-columns:1fr}}
+.pr-fcard{position:relative;overflow:hidden;border-radius:6px;border-top:2px solid var(--copper);height:320px;isolation:isolate;transition:transform .45s ease,box-shadow .45s ease}
+.pr-fcard:hover{transform:translateY(-5px);box-shadow:0 26px 50px rgba(6,18,38,.40)}
+.pr-bg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0;transition:transform .7s ease}
+.pr-fcard:hover .pr-bg{transform:scale(1.07)}
+.pr-veil{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(11,33,64,.52) 0%,rgba(11,33,64,.72) 55%,rgba(11,33,64,.90) 100%);transition:background .45s ease}
+.pr-fcard:hover .pr-veil{background:linear-gradient(180deg,rgba(11,33,64,.60) 0%,rgba(11,33,64,.80) 55%,rgba(11,33,64,.95) 100%)}
+.pr-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
+.pr-body h3{font-family:"Fraunces",serif;font-size:21px;color:#fff;margin:0;line-height:1.2;text-shadow:0 2px 16px rgba(6,18,38,.55)}
+.pr-body p{margin:12px 0 0;color:rgba(255,255,255,.90);font-size:14.5px;line-height:1.6;opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease}
+.pr-fcard:hover .pr-body p{opacity:1;transform:none}
+@media(hover:none){.pr-body p{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -390,27 +404,15 @@
   <div class="hero-media">
     <div class="hero-overlay">
       <span class="eyebrow">Una división de Global Companies</span>
-      <h1>Propiedades que rentan, gestionadas de principio a fin.</h1>
-      <p class="lead">Inversión inmobiliaria y administración profesional en una sola división: identificar, adquirir y operar activos reales que generen renta.</p>
+      <h1>Su departamento, en las mejores manos.</h1>
+      <p class="lead">Administración completa y arriendo garantizado. Encontramos al arrendatario, gestionamos el contrato y le aseguramos la renta cada mes.</p>
     </div>
   </div>
 </header>
 
 <section class="gestion"><div class="wrap">
-  <div class="gcols">
-  <div class="sec-head">
-    <span class="eyebrow">Qué hacemos</span>
-    <h2>Del activo a la renta, todo cubierto.</h2>
-    <p class="lead" style="color:var(--muted)">Acompañamos cada etapa de la inversión inmobiliaria, para que la propiedad rente sin convertirse en una carga.</p>
-  </div>
-  <div class="ilist">
-    <div class="iitem"><span class="k">Inversión inmobiliaria</span><span class="v">Identificar y adquirir activos reales con potencial de renta y plusvalía.</span></div>
-    <div class="iitem"><span class="k">Renta y arriendo</span><span class="v">Poner la propiedad a producir: arriendo, gestión de contratos y ocupación.</span></div>
-    <div class="iitem"><span class="k">Administración</span><span class="v">Operación integral del inmueble: mantención, cobros y reportes, sin que el dueño se ocupe.</span></div>
-    <div class="iitem"><span class="k">Estructura y tributación</span><span class="v">Estructurar la inversión para que sea eficiente en impuestos y fácil de heredar.</span></div>
-  </div>
-  </div>
-  <p class="ipuente">La inversión inmobiliaria no se piensa sola: va junto a las inversiones financieras y la planificación tributaria. <span class="acc">Una sola estrategia.</span></p>
+  <div class="sec-head"><span class="eyebrow">Qué hacemos</span><h2>Administración y arriendo, de principio a fin.</h2><p class="lead" style="color:var(--muted)">Nos especializamos en la gestión y el arriendo de departamentos, para que la propiedad rente sin convertirse en una carga.</p></div><div class="pr-grid"><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-1.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Administración confiable</h3><p>Gestión completa del departamento: contratos, cobros, mantención y reportes. Usted recibe la renta; del resto nos ocupamos nosotros.</p></div></div><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-2.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Arriendo garantizado</h3><p>Le aseguramos el pago de la renta cada mes, incluso ante vacancia o morosidad del arrendatario. Cero sobresaltos.</p></div></div><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-3.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Arriendo al mejor precio</h3><p>Publicamos, mostramos y seleccionamos al mejor arrendatario, al mejor precio de mercado, con contratos claros y ocupación rápida.</p></div></div><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-4.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Búsqueda de propiedad</h3><p>¿Busca invertir para arrendar? Encontramos el departamento con mejor potencial de renta, listo para producir desde el primer mes.</p></div></div></div>
+  <p class="ipuente">Del arriendo a la administración, una sola división que responde. <span class="acc">Usted recibe la renta, sin sobresaltos.</span></p>
 </div></section>
 
 <section class="estudios"><div class="wrap">
