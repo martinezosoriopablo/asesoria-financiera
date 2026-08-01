@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Global Properties · Global Companies</title>
+<title>Global Markets · Departamento de estudios de Global Companies</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -67,7 +67,7 @@
 
   /* Hero */
   .hero{border-top:none;padding:0}
-  .hero-media{position:relative;min-height:66vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,rgba(9,26,52,.54),rgba(9,26,52,.46) 55%,rgba(9,26,52,.56)),url('/media/properties-hero.jpg') center 42%/cover no-repeat;overflow:hidden;border-bottom:1px solid var(--line)}
+  .hero-media{position:relative;min-height:66vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,rgba(9,26,52,.50),rgba(9,26,52,.40) 55%,rgba(9,26,52,.52)),url('/media/markets-hero.jpg') center 42%/cover no-repeat;overflow:hidden;border-bottom:1px solid var(--line)}
   .hero-overlay{position:relative;max-width:760px;padding:40px 32px}
   .hero-overlay .eyebrow{margin-bottom:18px;display:block;color:#F4C39B;text-shadow:0 1px 14px rgba(6,18,38,.55)}
   .hero-overlay h1{margin-bottom:18px;color:#fff;text-shadow:0 2px 26px rgba(6,18,38,.45)}
@@ -151,17 +151,6 @@
 
   /* ===== Sec 5 · Departamento de estudios (navy) ===== */
   .estudios{background:var(--navy);border-top:none}
-  .estudios-top{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:start}
-  .estudios-top .sec-head{margin:0;max-width:none}
-  .estudios-img{border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 60px rgba(0,0,0,.4);aspect-ratio:16/10;position:relative}
-  .estudios-img img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.92) contrast(1.02)}
-  .estudios-img::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(9,26,52,.4),rgba(9,26,52,0) 58%);pointer-events:none}
-  @media(max-width:820px){.estudios-top{grid-template-columns:1fr;gap:34px}}
-  .banda{position:relative;min-height:58vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(rgba(11,33,64,.45),rgba(11,33,64,.55)),url('/media/properties-band.jpg') center center/cover fixed;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden}
-@media(max-width:768px){.banda{background-attachment:scroll}}
-  .banda .wrap{position:relative;z-index:1;max-width:860px}
-  .banda p{font-family:"Fraunces",serif;font-weight:300;font-size:clamp(24px,3.4vw,40px);line-height:1.28;color:#fff;margin:0;text-shadow:0 2px 20px rgba(6,18,38,.5)}
-  .banda .accent{color:var(--copper)}
   .estudios .eyebrow{color:var(--copper);margin-bottom:20px}
   .estudios h2{color:#fff;margin-bottom:20px}
   .estudios .lead{color:rgba(255,255,255,.75);max-width:42em}
@@ -171,6 +160,17 @@
   .pilar h4{font-family:"Fraunces",serif;font-weight:400;font-size:17px;color:#fff;margin-bottom:10px}
   .pilar p{color:rgba(255,255,255,.66);font-size:14px;line-height:1.55}
   .estudios .cierre{margin-top:42px;color:#fff;font-size:var(--fs-lead)}
+  .estudios-top{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:start}
+  .estudios-top .sec-head{margin:0;max-width:none}
+  .estudios-img{border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 60px rgba(0,0,0,.4);aspect-ratio:16/10;position:relative}
+  .estudios-img img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.85) contrast(1.02)}
+  .estudios-img::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(9,26,52,.4),rgba(9,26,52,0) 58%);pointer-events:none}
+  @media(max-width:820px){.estudios-top{grid-template-columns:1fr;gap:34px}}
+  .banda{position:relative;min-height:58vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(rgba(11,33,64,.50),rgba(11,33,64,.62)),url('/media/markets-band.jpg') center center/cover fixed;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden}
+@media(max-width:768px){.banda{background-attachment:scroll}}
+  .banda .wrap{position:relative;z-index:1;max-width:860px}
+  .banda p{font-family:"Fraunces",serif;font-weight:300;font-size:clamp(24px,3.4vw,40px);line-height:1.28;color:#fff;margin:0;text-shadow:0 2px 20px rgba(6,18,38,.5)}
+  .banda .accent{color:var(--copper)}
   /* ===== Sec 6 · Proceso ===== */
   .proceso{background:var(--paper) url("/media/greek-pattern.svg")}
   .etapas{margin-top:52px;border-top:1px solid var(--line)}
@@ -311,7 +311,7 @@
     h1{line-height:1.12}
   }
 
-  /* ===== Properties · Qué hacemos ===== */
+  /* ===== Wealth · Qué gestionamos ===== */
   .gestion{background:var(--paper) url("/media/greek-pattern.svg")}
   .gestion .gcols{display:grid;grid-template-columns:.82fr 1.18fr;gap:60px;align-items:start;border-top:1px solid var(--line);padding-top:30px}
   @media(max-width:860px){.gestion .gcols{grid-template-columns:1fr;gap:30px}}
@@ -330,17 +330,28 @@
   .pstep .pnum{flex:none;width:46px;height:46px;border-radius:50%;background:var(--paper);border:1.5px solid var(--copper);color:var(--copper);display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600;letter-spacing:.02em}
   .pstep .prail{flex:1;height:1.5px;background:var(--copper);opacity:.4}
   .pstep:last-child .prail{display:none}
-  .pstep h4{font-family:"Fraunces",serif;font-weight:400;font-size:19px;line-height:1.25;color:var(--navy);margin:0 0 10px;padding-right:26px;min-height:1.4em}
+  .pstep h4{font-family:"Fraunces",serif;font-weight:400;font-size:19px;line-height:1.25;color:var(--navy);margin:0 0 10px;padding-right:26px;min-height:2.5em}
   .pstep p{font-family:"Hanken Grotesk",sans-serif;font-size:14.5px;color:var(--muted);line-height:1.55;margin:0;padding-right:26px}
   @media(max-width:860px){.proceso .flow{grid-template-columns:1fr}.pstep{padding-bottom:26px}.pstep .prail{display:none}.pstep h4,.pstep p{padding-right:0}}
+  .capac{background:var(--navy)}
+  .capac .eyebrow{color:var(--copper);margin-bottom:20px}
+  .capac h2{color:#fff;margin-bottom:20px}
+  .capac .lead{color:rgba(255,255,255,.75);max-width:48em}
+  .capgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:50px}
+  .capcard{border:1px solid rgba(255,255,255,.14);border-radius:4px;padding:26px 24px}
+  .capcard .cicon{width:28px;height:28px;margin-bottom:16px;display:block}
+  .capcard h4{font-family:"Fraunces",serif;font-weight:400;font-size:17px;color:#fff;margin-bottom:9px}
+  .capcard p{color:rgba(255,255,255,.66);font-size:14px;line-height:1.55}
+  @media(max-width:820px){.capgrid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.capgrid{grid-template-columns:1fr}}
   .equipo{background:var(--paper-2)}
-  .tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,260px));justify-content:start;gap:36px;margin-top:52px}
+  .tgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:30px 24px;margin-top:52px}
   .tphoto{position:relative;width:100%;padding-bottom:116%;border-radius:6px;overflow:hidden;background:var(--navy);margin-bottom:14px}
   .tphoto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
   .tname{font-family:"Fraunces",serif;font-size:18px;color:var(--navy);margin-bottom:3px}
   .trole{color:var(--copper);font-size:12.5px;font-weight:600;letter-spacing:.01em}
-  @media(max-width:900px){.tgrid{grid-template-columns:repeat(2,minmax(0,240px))}}
-  @media(max-width:560px){.tgrid{grid-template-columns:1fr;gap:24px}}
+  @media(max-width:900px){.tgrid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:600px){.tgrid{grid-template-columns:repeat(2,1fr);gap:24px 18px}}
 
   .tmember{cursor:pointer}
   .tprofile{display:inline-block;margin-top:9px;font-size:12.5px;font-weight:600;letter-spacing:.02em;color:var(--copper)}
@@ -357,27 +368,57 @@
   .pmodal .pname{font-family:"Fraunces",serif;font-weight:400;font-size:24px;color:var(--navy);line-height:1.15}
   .pmodal .prole{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--copper);margin-top:6px}
   .pmodal .pbio{padding:20px 30px 32px;color:var(--text);font-size:15px;line-height:1.65}
-.logo-f{height:26px;width:auto;display:block;margin-bottom:16px}
 
-.pr-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:36px}
-@media(max-width:760px){.pr-grid{grid-template-columns:1fr}}
-.pr-fcard{position:relative;overflow:hidden;border-radius:6px;border-top:2px solid var(--copper);height:320px;isolation:isolate;transition:transform .45s ease,box-shadow .45s ease}
-.pr-fcard:hover{transform:translateY(-5px);box-shadow:0 26px 50px rgba(6,18,38,.40)}
-.pr-bg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0;transition:transform .7s ease}
-.pr-fcard:hover .pr-bg{transform:scale(1.07)}
-.pr-veil{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(11,33,64,.52) 0%,rgba(11,33,64,.72) 55%,rgba(11,33,64,.90) 100%);transition:background .45s ease}
-.pr-fcard:hover .pr-veil{background:linear-gradient(180deg,rgba(11,33,64,.60) 0%,rgba(11,33,64,.80) 55%,rgba(11,33,64,.95) 100%)}
-.pr-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
-.pr-body h3{font-family:"Fraunces",serif;font-size:21px;color:#fff;margin:0;line-height:1.2;text-shadow:0 2px 16px rgba(6,18,38,.55)}
-.pr-body p{margin:12px 0 0;color:rgba(255,255,255,.90);font-size:14.5px;line-height:1.6;opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease}
-.pr-fcard:hover .pr-body p{opacity:1;transform:none}
-@media(hover:none){.pr-body p{opacity:1;transform:none}}
+/* ===== Global Markets ===== */
+.mk-sec{background:var(--paper) url("/media/greek-pattern.svg")}
+.mk-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:38px;align-items:stretch}
+@media(max-width:760px){.mk-grid{grid-template-columns:1fr}}
+.mk-card{background:var(--paper-2);border:1px solid var(--line);border-top:2px solid var(--copper);border-radius:6px;padding:28px 30px}
+.mk-card h3{font-family:"Fraunces",serif;font-size:20px;color:var(--navy);margin:0 0 11px;line-height:1.28}
+.mk-card p{color:var(--text);font-size:15px;line-height:1.62;margin:0}
+.mk-fcard{position:relative;overflow:hidden;border-radius:6px;border-top:2px solid var(--copper);height:340px;isolation:isolate;transition:transform .45s ease,box-shadow .45s ease}
+.mk-fcard:hover{transform:translateY(-5px);box-shadow:0 26px 50px rgba(6,18,38,.40)}
+.mk-bg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0;transition:transform .7s ease}
+.mk-fcard:hover .mk-bg{transform:scale(1.07)}
+.mk-veil{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(11,33,64,.56) 0%,rgba(11,33,64,.74) 55%,rgba(11,33,64,.90) 100%);transition:background .45s ease}
+.mk-fcard:hover .mk-veil{background:linear-gradient(180deg,rgba(11,33,64,.64) 0%,rgba(11,33,64,.82) 55%,rgba(11,33,64,.95) 100%)}
+.mk-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
+.mk-body h3{font-family:"Fraunces",serif;font-size:20px;color:#fff;margin:0;line-height:1.28;text-shadow:0 2px 16px rgba(6,18,38,.55)}
+.mk-body p{margin:12px 0 0;color:rgba(255,255,255,.90);font-size:14.5px;line-height:1.6;opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease}
+.mk-fcard:hover .mk-body p{opacity:1;transform:none}
+@media(hover:none){.mk-body p{opacity:1;transform:none}}
+.mk-out{list-style:none;margin:36px 0 0;padding:0;border-top:1px solid var(--line)}
+.mk-out li{display:grid;grid-template-columns:250px 1fr;gap:26px;padding:18px 2px;border-bottom:1px solid var(--line);align-items:baseline}
+@media(max-width:640px){.mk-out li{grid-template-columns:1fr;gap:5px}}
+.mk-out .k{font-family:"Fraunces",serif;font-size:19px;color:var(--navy)}
+.mk-out .v{color:var(--text);font-size:15px;line-height:1.55}
+.mk-note{margin:26px 0 0;color:var(--muted);font-size:15px;font-style:italic}
+.mk-aud{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:38px;align-items:stretch}
+@media(max-width:820px){.mk-aud{grid-template-columns:1fr}}
+.mk-aud .mk-card h3{font-size:18px}
+.mk-modal-list{list-style:none;margin:40px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:0 34px}
+@media(max-width:640px){.mk-modal-list{grid-template-columns:1fr}}
+.mk-modal-list li{position:relative;padding:15px 0 15px 22px;border-top:1px solid var(--line);color:var(--text);font-size:15px;line-height:1.5}
+.mk-modal-list li::before{content:"";position:absolute;left:0;top:21px;width:8px;height:8px;background:var(--copper);border-radius:1px}
+.mk-modal-list b{color:var(--navy);font-weight:600}
+.mk-crm{margin-top:46px;background:var(--navy);border-radius:8px;border-left:3px solid var(--copper);padding:36px 40px}
+.mk-crm .eyebrow{color:#EB7838;display:block;margin-bottom:12px}
+.mk-crm h3{font-family:"Fraunces",serif;font-size:25px;color:#fff;margin:0 0 12px;line-height:1.2}
+.mk-crm p{color:rgba(255,255,255,.85);font-size:15.5px;line-height:1.65;margin:0;max-width:62em}
+/* logo Markets como texto (Montserrat + icono G) */
+.brand-txt{display:inline-flex;align-items:center;gap:9px;text-decoration:none;line-height:1}
+.brand-gi{height:23px;width:auto;display:block;color:#fff}
+.brand-wm{display:inline-flex;align-items:baseline;gap:8px;font-family:"Montserrat",sans-serif;color:#fff}
+.brand-wm b{font-weight:700;font-size:19px;letter-spacing:.02em}
+.brand-wm span{font-weight:300;font-size:18px;letter-spacing:.15em}
+
+.logo-f{height:26px;width:auto;display:block;margin-bottom:16px}
 </style>
 </head>
 <body>
 
 <nav><div class="wrap">
-  <a class="brand" href="global-companies.html"><img class="brand-logo" src="/media/global-properties-blanco.png" alt="Global Properties" width="2288" height="180"></a>
+  <a class="brand" href="global-companies.html"><img class="brand-logo" src="/media/global-markets-blanco.png" alt="Global Markets" width="2576" height="200"></a>
   <div class="nav-center">
     <a class="nav-box" href="global-wealth.html">Wealth</a>
     <a class="nav-box" href="global-planning.html">Planning</a>
@@ -400,70 +441,22 @@
   </div>
 </nav>
 
-<header class="hero">
-  <div class="hero-media">
-    <div class="hero-overlay">
-      <span class="eyebrow">Una división de Global Companies</span>
-      <h1>Su departamento, en las mejores manos.</h1>
-      <p class="lead">Administración completa y arriendo garantizado. Encontramos al arrendatario, gestionamos el contrato y le aseguramos la renta cada mes.</p>
-    </div>
-  </div>
-</header>
+<header class="hero"><div class="hero-media"><div class="hero-overlay"><span class="eyebrow">El departamento de estudios de Global Companies</span><h1>Research institucional, aumentado por inteligencia artificial.</h1><p class="lead">Global Markets es el cerebro de análisis de Global Companies: research de todos los mercados, con criterio de nivel institucional y una infraestructura tecnológica propia.</p></div></div></header>
 
-<section class="gestion"><div class="wrap">
-  <div class="sec-head"><span class="eyebrow">Qué hacemos</span><h2>Administración y arriendo, de principio a fin.</h2><p class="lead" style="color:var(--muted)">Nos especializamos en la gestión y el arriendo de departamentos, para que la propiedad rente sin convertirse en una carga.</p></div><div class="pr-grid"><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-1.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Administración confiable</h3><p>Gestión completa: contratos, cobros y relación con el arrendatario. Usted recibe la renta; del resto nos ocupamos nosotros.</p></div></div><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-2.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Arriendo garantizado</h3><p>Le aseguramos el pago de la renta cada mes, incluso ante vacancia o morosidad del arrendatario. Cero sobresaltos.</p></div></div><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-3.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Arriendo al mejor precio</h3><p>Publicamos, mostramos y seleccionamos al mejor arrendatario, al mejor precio de mercado, con contratos claros y ocupación rápida.</p></div></div><div class="pr-fcard"><div class="pr-bg" style="background-image:url('/media/properties-card-4.jpg')"></div><div class="pr-veil"></div><div class="pr-body"><h3>Mantención y reportes</h3><p>Coordinamos la mantención del departamento y la relación con la administración del edificio, y le entregamos reportes claros de pagos y gastos. Total transparencia.</p></div></div></div>
-  <p class="ipuente">Del arriendo a la administración, una sola división que responde. <span class="acc">Usted recibe la renta, sin sobresaltos.</span></p>
-</div></section>
+<section class="mk-sec"><div class="wrap"><div class="sec-head"><span class="eyebrow">Qué nos hace distintos</span><h2>El rigor de un comité de inversiones, ejecutado con disciplina y sin sesgos personales.</h2><p class="lead" style="color:var(--muted)">Nuestra infraestructura propia procesa en horas lo que a una mesa de research tradicional le tomaría semanas, y convierte cada hallazgo en aprendizaje acumulado.</p></div><div class="mk-grid"><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-1.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Un consejo de inversión que delibera, no una opinión aislada.</h3><p>El proceso no depende de un solo analista ni de un solo modelo. Un panel de especialistas (macro, renta variable, renta fija, riesgo, geopolítica, rotación sectorial, selección de acciones y divisas) analiza cada tema desde su ángulo, se contrasta entre sí y actualiza sus posturas frente al desacuerdo. Sobre ese debate, una capa de síntesis construye la visión final, la somete a un rol contrarian que la desafía con datos, y la deja trazable hasta su origen.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-2.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Conectados a las fuentes que mueven los mercados.</h3><p>Nos alimentamos en tiempo real de las principales fuentes de datos del mundo: bancos centrales (incluidas la Reserva Federal y el Banco Central de Chile), curvas de renta fija, fundamentales corporativos, flujos de fondos institucionales, valuaciones y volatilidad. No trabajamos con datos de segunda mano ni desactualizados.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-3.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Leemos las actas y el research de las grandes casas.</h3><p>Procesamos de forma sistemática la prensa financiera especializada y el research de las grandes casas globales, las actas de los principales bancos centrales, las llamadas de analistas y los movimientos de los grandes fondos. Toda esa inteligencia, que ningún profesional podría abarcar solo, se destila y llega ordenada a la mesa de decisión.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-4.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Memoria institucional que aprende.</h3><p>Cada decisión del comité, su fundamento y, crucialmente, su resultado posterior quedan registrados y se evalúan contra el mercado. El sistema conoce su propio track record antes de volver a decidir. No repetimos errores por olvido: la experiencia se acumula.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-5.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Cada recomendación, estresada contra la realidad.</h3><p>Antes de recomendar, simulamos. Cada cartera modelo se somete a escenarios prospectivos y a la réplica de crisis históricas (2008, 2020, el shock inflacionario de 2022) para cuantificar cuánto podría perder y bajo qué condiciones. Convicción con números, no con relato.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-6.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Control de calidad en cada entrega.</h3><p>Validadores de coherencia cruzada y filtros anti-invención aseguran que todo lo que publicamos esté fundado en datos verificables. Si un dato no existe, no se inventa.</p></div></div></div></div></section>
 
-<section class="estudios"><div class="wrap">
-  <div class="estudios-top">
-    <div class="sec-head">
-      <span class="eyebrow">Cómo trabajamos</span>
-      <h2>Activos reales, gestión profesional.</h2>
-      <p class="lead">Tratamos cada propiedad como un activo de inversión, no como un trámite: con criterio de rentabilidad y gestión rigurosa.</p>
-    </div>
-    <div class="estudios-img"><img src="/media/properties-estudios.jpg" alt="Interior de departamento moderno en tonos neutros" loading="lazy"></div>
-  </div>
-  <div class="pilares3">
-    <div class="pilar"><h4>Independencia</h4><p>Elegimos propiedades por su retorno y su riesgo, no por moda ni por corazonada.</p></div>
-    <div class="pilar"><h4>Gestión profesional</h4><p>Administración diaria del inmueble, para que rente sin sobresaltos.</p></div>
-    <div class="pilar"><h4>Transparencia</h4><p>Reportes claros de renta, gastos y resultado. El dueño siempre sabe cómo va su activo.</p></div>
-  </div>
-</div></section>
+<section class="mk-sec"><div class="wrap"><div class="sec-head"><span class="eyebrow">Qué producimos</span><h2>Del mapa macro al instrumento ejecutable.</h2></div><ul class="mk-out"><li><span class="k">Informe Macro</span><span class="v">El mapa del ciclo económico global y local.</span></li><li><span class="k">Renta Variable / Renta Fija</span><span class="v">El "por qué" de cada clase de activo.</span></li><li><span class="k">Asset Allocation</span><span class="v">La asignación estratégica, con simulación de riesgo y escenarios.</span></li><li><span class="k">Árbol de Decisión de Inversión</span><span class="v">El "qué y cuánto": del asset allocation al instrumento ejecutable (ETF, acción o bono) y a las carteras modelo por perfil de riesgo.</span></li><li><span class="k">Reportes diarios (AM/PM)</span><span class="v">El pulso del mercado cada jornada, en texto y en podcast.</span></li><li><span class="k">Selección de acciones</span><span class="v">Scoring fundamental, señales de flujos institucionales y tesis de inversión.</span></li></ul><div class="mk-crm"><span class="eyebrow">Y una plataforma para operarlo</span><h3>El CRM del asesor.</h3><p>El research no llega en un documento suelto. Global Markets incluye una plataforma donde el asesor gestiona a sus clientes, perfila su riesgo y construye sus carteras, con las recomendaciones del comité de inversiones integradas en el flujo de trabajo. La visión del consejo de análisis llega ordenada a cada cartera modelo, lista para revisar con el cliente.</p></div><p class="mk-note">Todo en español, con estándar de presentación de banca de inversión.</p></div></section>
 
-<section class="proceso"><div class="wrap">
-  <div class="sec-head">
-    <span class="eyebrow">El proceso</span>
-    <h2>Del análisis a la renta.</h2>
-    <p class="lead">Cada inversión inmobiliaria sigue el mismo camino ordenado.</p>
-  </div>
-  <div class="flow">
-    <div class="pstep"><div class="ptop"><span class="pnum">01</span><span class="prail"></span></div><h4>Análisis</h4><p>Estudiamos el mercado y la propiedad: ubicación, precio, potencial de renta y plusvalía.</p></div>
-    <div class="pstep"><div class="ptop"><span class="pnum">02</span><span class="prail"></span></div><h4>Adquisición</h4><p>Estructuramos y ejecutamos la compra, cuidando lo legal, lo tributario y el financiamiento.</p></div>
-    <div class="pstep"><div class="ptop"><span class="pnum">03</span><span class="prail"></span></div><h4>Arriendo</h4><p>Habilitamos y arrendamos la propiedad, con contratos y ocupación gestionados.</p></div>
-    <div class="pstep"><div class="ptop"><span class="pnum">04</span><span class="prail"></span></div><h4>Administración</h4><p>Operamos el activo en el tiempo: mantención, cobros y reportes de resultado.</p></div>
-  </div>
-</div></section>
-<section class="banda"><div class="wrap">
-  <p>Detrás de cada propiedad que renta, <span class="accent">un equipo que responde.</span></p>
-</div></section>
-<section class="equipo"><div class="wrap">
-  <div class="sec-head">
-    <span class="eyebrow">Equipo</span>
-    <h2>Un equipo con nombre y apellido.</h2>
-    <p class="lead" style="color:var(--muted)">Asesores con trayectoria en la banca y el mercado de capitales. Personas acreditadas, no un algoritmo.</p>
-  </div>
-  <div class="tgrid">
-    <div class="tmember" data-bio="Founding Partner en Global Companies. Biografía por completar."><div class="tphoto"><img src="data:image/jpeg;base64,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" alt=""></div><div class="tname">Por confirmar</div><div class="trole">Founding Partner</div><span class="tprofile">Ver perfil &rarr;</span></div>
-    <div class="tmember" data-bio="Founding Partner en Global Companies. Biografía por completar."><div class="tphoto"><img src="data:image/jpeg;base64,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" alt=""></div><div class="tname">Por confirmar</div><div class="trole">Founding Partner</div><span class="tprofile">Ver perfil &rarr;</span></div>
-  </div>
-</div></section>
+<section class="banda"><div class="wrap"><p>Convicción con números, <span class="accent">no con relato.</span></p></div></section>
+
+<section class="mk-sec"><div class="wrap"><div class="sec-head"><span class="eyebrow">Servicios</span><h2>Tercerice su departamento de estudios.</h2><p class="lead" style="color:var(--muted)">Montar y mantener un área de research con esta profundidad cuesta cientos de miles de dólares al año en talento, datos y tecnología. Nosotros ya la construimos. Global Markets la pone a disposición de otros profesionales.</p></div><div class="mk-aud"><div class="mk-card"><h3>Para asesores independientes</h3><p>Entregue a sus clientes reportes y carteras modelo de calidad institucional, con su marca. Deje de competir en información con las grandes casas: use la nuestra.</p></div><div class="mk-card"><h3>Para family offices</h3><p>Un departamento de estudios completo, on-demand, sin la estructura fija. Visión macro, asignación de activos y control de riesgo, con la memoria y la disciplina de un comité formal.</p></div><div class="mk-card"><h3>Para gestores y wealth managers</h3><p>Externalice total o parcialmente su research. Desde el feed de inteligencia diaria hasta el comité de inversiones mensual completo, con carteras modelo por perfil y simulación de escenarios.</p></div></div><ul class="mk-modal-list"><li><b>Suscripción a reportes.</b> Macro, mercados y asset allocation, periódicos.</li><li><b>Carteras modelo con monitoreo.</b> Asignación por perfil de riesgo, con rebalanceo y estrés de escenarios.</li><li><b>Research white-label.</b> Nuestro análisis, su marca.</li><li><b>Comité de inversiones as-a-service.</b> El departamento de estudios completo, tercerizado.</li></ul></div></section>
+
 
 <section class="contacto" id="contacto"><div class="wrap">
   <div class="chead">
     <span class="eyebrow">Contacto</span>
-    <h2 style="margin-top:16px">Conversemos sobre la gestión patrimonial.</h2>
-    <p class="lead">Sin compromiso. Una primera conversación para entender la situación de cada cliente y ver cómo podemos ayudar.</p>
+    <h2 style="margin-top:16px">Agende una demostración.</h2>
+    <p class="lead">Global Markets: la inteligencia de mercado de Global Companies, ahora a su disposición. Escríbanos para ver el research en acción.</p>
   </div>
   <div class="cwrap">
     <form class="cform" action="https://formspree.io/f/TU_ENDPOINT" method="POST">

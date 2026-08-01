@@ -37,13 +37,14 @@
 
   /* Nav */
   nav{border-bottom:1px solid rgba(255,255,255,.08);background:var(--navy);position:sticky;top:0;z-index:20}
-  nav .wrap{display:grid;grid-template-columns:1fr auto 1fr;column-gap:44px;align-items:center;height:76px}
+  nav .wrap{display:grid;grid-template-columns:1fr auto 1fr;column-gap:22px;align-items:center;height:76px}
   .brand{justify-self:start}
-  .nav-center{justify-self:center;display:flex;gap:11px}
+  .nav-center{justify-self:center;display:flex;gap:8px}
   .nav-cta{justify-self:end}
   .brand{display:inline-flex;align-items:center;text-decoration:none}
+  .brand-logo{height:20px;width:auto;display:block;color:#fff;max-width:none}
   .gword{display:inline-flex;align-items:center;font-family:"Montserrat",sans-serif;line-height:1;white-space:nowrap;letter-spacing:.05em}
-  .gword .gi{height:1.85em;width:1.85em;flex:none}
+  .gword .gi{height:1.55em;width:1.55em;flex:none}
   .gword .gdiv{width:5px;height:1.55em;margin:0 .5em;border-left:1px solid currentColor;border-right:1px solid currentColor;opacity:.4;flex:none}
   .gword .wm{display:flex;flex-direction:row;align-items:baseline;gap:.34em;line-height:1}
   .gword .w1{font-weight:600;letter-spacing:.03em}
@@ -56,17 +57,25 @@
   .nav-links{display:flex;gap:34px;align-items:center}
   .nav-links a{color:rgba(255,255,255,.72);text-decoration:none;font-size:14.5px;font-weight:500;transition:.2s}
   .nav-links a:hover{color:#fff}
-  .nav-box{border:1px solid rgba(255,255,255,.36);color:#fff;border-radius:2px;padding:9.6px 19.2px;font-size:11.6px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;transition:.2s}
+  .nav-box{border:1px solid rgba(255,255,255,.36);color:#fff;border-radius:2px;padding:7px 9px;min-width:90px;text-align:center;box-sizing:border-box;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;transition:.2s}
   .nav-box:hover{background:rgba(255,255,255,.10);color:#fff;border-color:rgba(255,255,255,.5)}
   .nav-right{justify-self:end;display:flex;gap:10px;align-items:center}
-  .nav-cta{border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:2px;padding:10px 20px;font-size:14px;font-weight:600;text-decoration:none;transition:.2s}
-  .nav-cta:hover{background:#fff;color:var(--navy);border-color:#fff}
-  .nav-cta-fill{background:var(--copper);border:1px solid var(--copper);color:#fff;border-radius:2px;padding:10px 20px;font-size:14px;font-weight:600;text-decoration:none;transition:.2s}
-  .nav-cta-fill:hover{background:#b8692e;border-color:#b8692e}
+  .nav-cta{background:#F2985E;border:1px solid #F2985E;color:#fff;border-radius:2px;padding:7px 13px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;transition:.2s}
+  .nav-cta:hover{background:#EB7838;border-color:#EB7838}
+  .nav-cta-fill{background:#F2985E;border:1px solid #F2985E;color:#fff;border-radius:2px;padding:7px 13px;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;transition:.2s}
+  .nav-cta-fill:hover{background:#EB7838;border-color:#EB7838}
 
   /* Hero */
   .hero{border-top:none;padding:0}
-  .hero-media{position:relative;min-height:66vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(180deg,rgba(9,26,52,.56),rgba(9,26,52,.48) 55%,rgba(9,26,52,.58)),url('/media/planning-hero.jpg') center 42%/cover no-repeat;overflow:hidden;border-bottom:1px solid var(--line)}
+  .hero-media{position:relative;min-height:66vh;display:flex;align-items:center;justify-content:center;text-align:center;background:var(--navy);overflow:hidden;border-bottom:1px solid var(--line)}
+.hero-slides{position:absolute;inset:0}
+.hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.2s ease}
+.hero-slide.is-active{opacity:1}
+.hero-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,26,52,.56),rgba(9,26,52,.48) 55%,rgba(9,26,52,.58))}
+.hero-overlay{z-index:2}
+.hero-dots{position:absolute;left:0;right:0;bottom:20px;z-index:3;display:flex;gap:9px;justify-content:center}
+.hero-dots button{width:9px;height:9px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer;transition:.3s}
+.hero-dots button.on{background:#fff;width:24px;border-radius:5px}
   .hero-overlay{position:relative;max-width:760px;padding:40px 32px}
   .hero-overlay .eyebrow{margin-bottom:18px;display:block;color:#F4C39B;text-shadow:0 1px 14px rgba(6,18,38,.55)}
   .hero-overlay h1{margin-bottom:18px;color:#fff;text-shadow:0 2px 26px rgba(6,18,38,.45)}
@@ -156,7 +165,8 @@
   .estudios-img img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(.92) contrast(1.02)}
   .estudios-img::after{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(9,26,52,.4),rgba(9,26,52,0) 58%);pointer-events:none}
   @media(max-width:820px){.estudios-top{grid-template-columns:1fr;gap:34px}}
-  .banda{position:relative;min-height:42vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(rgba(9,26,52,.80),rgba(9,26,52,.86)),url('/media/planning-band.jpg') center/cover;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden}
+  .banda{position:relative;min-height:58vh;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(rgba(11,33,64,.45),rgba(11,33,64,.55)),url('/media/planning-band.jpg') center center/cover fixed;border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden}
+@media(max-width:768px){.banda{background-attachment:scroll}}
   .banda .wrap{position:relative;z-index:1;max-width:860px}
   .banda p{font-family:"Fraunces",serif;font-weight:300;font-size:clamp(24px,3.4vw,40px);line-height:1.28;color:#fff;margin:0;text-shadow:0 2px 20px rgba(6,18,38,.5)}
   .banda .accent{color:var(--copper)}
@@ -170,7 +180,7 @@
   .pilar p{color:rgba(255,255,255,.66);font-size:14px;line-height:1.55}
   .estudios .cierre{margin-top:42px;color:#fff;font-size:var(--fs-lead)}
   /* ===== Sec 6 · Proceso ===== */
-  .proceso{background:var(--paper)}
+  .proceso{background:var(--paper) url("/media/greek-pattern.svg")}
   .etapas{margin-top:52px;border-top:1px solid var(--line)}
   .etapa{display:grid;grid-template-columns:52px 190px 1fr;gap:22px;padding:28px 0;border-bottom:1px solid var(--line);align-items:baseline}
   .etapa .num{font-family:"IBM Plex Mono",monospace;color:var(--copper);font-size:13px}
@@ -180,7 +190,7 @@
   @media(max-width:760px){.pilares3{grid-template-columns:1fr}.etapa{grid-template-columns:1fr;gap:4px}}
 
   /* ===== Contacto ===== */
-  .contacto{background:var(--paper-2);text-align:center}
+  .contacto{background:var(--paper-2) url("/media/greek-pattern.svg");text-align:center}
   .contacto h2{margin:0 auto 16px}
   .contacto .lead{margin:0 auto 30px;color:var(--muted);max-width:40em}
   .contacto .btn{border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:2px;padding:13px 28px;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;transition:.2s}
@@ -310,7 +320,7 @@
   }
 
   /* ===== Planning · Qué cubrimos ===== */
-  .gestion{background:var(--paper)}
+  .gestion{background:var(--paper) url("/media/greek-pattern.svg")}
   .gestion .gcols{display:grid;grid-template-columns:.82fr 1.18fr;gap:60px;align-items:start;border-top:1px solid var(--line);padding-top:30px}
   @media(max-width:860px){.gestion .gcols{grid-template-columns:1fr;gap:30px}}
   .ilist{margin-top:0;border-top:none}
@@ -318,10 +328,43 @@
   .iitem .k{font-family:"Fraunces",serif;font-size:21px;color:var(--navy)}
   .iitem .v{color:var(--text);font-size:16px;max-width:44em;line-height:1.55}
   .ipuente{margin:30px 0 0;font-size:17px;color:var(--muted);line-height:1.6;max-width:62em}
+.sgroup+.sgroup{margin-top:32px}
+.sgroup-h{border-top:2px solid var(--navy);padding-top:12px;margin-bottom:2px}
+.sgroup-h h3{font-family:"Fraunces",serif;font-size:22px;color:var(--navy);margin:0}
+.sgroup-h p{color:var(--muted);font-size:14.5px;margin:5px 0 0;line-height:1.5}
+.sgroup .ilist{margin-top:0}
+.sgroup .iitem{padding:16px 0}
+.gestion .sec-head{border-top:1px solid var(--line);padding-top:30px}
+.spanels{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:30px;align-items:stretch;grid-auto-rows:1fr}
+.spanel{background:var(--paper-2);border:1px solid var(--line);border-top:2px solid var(--copper);border-radius:6px;padding:26px 28px}
+.spanel h3{font-family:"Fraunces",serif;font-size:22px;color:var(--navy);margin:0 0 4px}
+.sp-intro{color:var(--muted);font-size:13.5px;margin:0 0 14px;line-height:1.5}
+.sp-list{list-style:none;margin:0;padding:0}
+.sp-list li{padding:14px 0;border-top:1px solid var(--line)}
+.sp-list li:first-child{border-top:none;padding-top:2px}
+.sp-k{display:block;font-weight:600;color:var(--navy);font-size:15.5px;margin-bottom:3px}
+.sp-v{display:block;color:var(--text);font-size:14px;line-height:1.5}
+.pl-fcard{position:relative;overflow:hidden;border-radius:6px;border-top:2px solid var(--copper);height:340px;isolation:isolate;transition:transform .45s ease,box-shadow .45s ease}
+.pl-fcard:hover{transform:translateY(-5px);box-shadow:0 26px 50px rgba(6,18,38,.40)}
+.pl-bg{position:absolute;inset:0;background-size:cover;background-position:center;z-index:0;transition:transform .7s ease}
+.pl-fcard:hover .pl-bg{transform:scale(1.07)}
+.pl-veil{position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(11,33,64,.56) 0%,rgba(11,33,64,.74) 55%,rgba(11,33,64,.90) 100%);transition:background .45s ease}
+.pl-fcard:hover .pl-veil{background:linear-gradient(180deg,rgba(11,33,64,.66) 0%,rgba(11,33,64,.84) 55%,rgba(11,33,64,.95) 100%)}
+.pl-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
+.pl-body h3{font-family:"Fraunces",serif;font-size:22px;color:#fff;margin:0;line-height:1.2;text-shadow:0 2px 16px rgba(6,18,38,.55)}
+.pl-reveal{opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease;margin-top:14px}
+.pl-fcard:hover .pl-reveal{opacity:1;transform:none}
+.pl-intro{color:rgba(255,255,255,.90);font-size:14px;line-height:1.55;margin:0 0 12px}
+.pl-reveal ul{list-style:none;margin:0;padding:0}
+.pl-reveal li{color:rgba(255,255,255,.85);font-size:13px;line-height:1.5;padding:7px 0;border-top:1px solid rgba(255,255,255,.14)}
+.pl-reveal li:first-child{border-top:none}
+.pl-reveal b{color:#fff;font-weight:600}
+@media(hover:none){.pl-reveal{opacity:1;transform:none}}
+@media(max-width:760px){.spanels{grid-template-columns:1fr}}
   .ipuente .acc{color:var(--copper);font-weight:600}
   @media(max-width:760px){.iitem{grid-template-columns:1fr;gap:6px}}
   /* ===== Wealth · Equipo ===== */
-  .proceso{background:var(--paper)}
+  .proceso{background:var(--paper) url("/media/greek-pattern.svg")}
   .proceso .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:54px}
   .pstep{position:relative}
   .pstep .ptop{display:flex;align-items:center;gap:14px;margin-bottom:22px}
@@ -355,22 +398,22 @@
   .pmodal .pname{font-family:"Fraunces",serif;font-weight:400;font-size:24px;color:var(--navy);line-height:1.15}
   .pmodal .prole{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--copper);margin-top:6px}
   .pmodal .pbio{padding:20px 30px 32px;color:var(--text);font-size:15px;line-height:1.65}
+.logo-f{height:26px;width:auto;display:block;margin-bottom:16px}
 </style>
 </head>
 <body>
 
 <nav><div class="wrap">
-  <a class="brand" href="global-companies.html">
-    <span class="gword"><svg class="gi" viewBox="26 123.5 40 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#EB7838" d="M 45.859375 160.464844 L 42.789062 160.464844 L 42.789062 137.101562 L 45.859375 137.101562 Z M 45.859375 160.464844 "/><path fill="currentColor" d="M 53.839844 140.195312 L 53.839844 144.832031 L 60.101562 144.832031 C 59.238281 149.546875 55.820312 153.386719 51.207031 155.042969 L 51.207031 159.902344 C 59.359375 157.792969 65.207031 150.761719 65.207031 142.511719 L 65.207031 140.195312 Z M 53.839844 140.195312 "/><path fill="#EB7838" d="M 48.132812 131.785156 L 48.132812 160.464844 L 48.277344 160.449219 C 49.285156 160.34375 50.253906 160.148438 51.203125 159.902344 L 51.203125 131.785156 Z M 48.132812 131.785156 "/><path fill="currentColor" d="M 61.285156 131.539062 C 57.644531 127.039062 52.128906 124.460938 46.15625 124.460938 C 35.652344 124.460938 27.105469 132.558594 27.105469 142.511719 C 27.105469 149.304688 31.105469 155.417969 37.316406 158.496094 L 37.316406 152.976562 C 34.003906 150.476562 32 146.664062 32 142.511719 C 32 135.117188 38.351562 129.101562 46.15625 129.101562 C 50.59375 129.101562 54.691406 131.015625 57.398438 134.359375 L 57.953125 135.046875 L 61.839844 132.222656 Z M 61.285156 131.539062 "/><path fill="#EB7838" d="M 37.316406 142.882812 L 37.316406 158.5 C 38.203125 158.9375 39.132812 159.3125 40.101562 159.621094 L 40.386719 159.714844 L 40.386719 142.882812 Z M 37.316406 142.882812 "/></svg><span class="gdiv"></span><span class="wm"><span class="w1">GLOBAL</span><span class="w2">PLANNING</span></span></span>
-  </a>
+  <a class="brand" href="global-companies.html"><img class="brand-logo" src="/media/global-planning-blanco.png" alt="Global Planning" width="1578" height="180"></a>
   <div class="nav-center">
     <a class="nav-box" href="global-wealth.html">Wealth</a>
     <a class="nav-box" href="global-planning.html">Planning</a>
     <a class="nav-box" href="global-properties.html">Properties</a>
+    <a class="nav-box" href="global-markets.html">Markets</a>
   </div>
   <div class="nav-right">
-    <a class="nav-cta" href="/portal/login">Portal Clientes</a>
-    <a class="nav-cta-fill" href="/login">Acceso Asesores</a>
+    <a class="nav-cta-fill" href="/portal/login">Portal Clientes</a>
+    <a class="nav-cta" href="/login">Acceso Asesores</a>
   </div>
   <button class="hamb" aria-label="Abrir menú"><span></span><span></span><span></span></button>
   </div>
@@ -378,36 +421,25 @@
     <a href="global-wealth.html">Wealth</a>
     <a href="global-planning.html">Planning</a>
     <a href="global-properties.html">Properties</a>
+    <a href="global-markets.html">Markets</a>
     <a href="/portal/login">Portal Clientes</a>
     <a href="/login">Acceso Asesores</a>
   </div>
 </nav>
 
 <header class="hero">
-  <div class="hero-media">
+  <div class="hero-media"><div class="hero-slides"><div class="hero-slide is-active" style="background-image:url(&#39;/media/planning-hero-1.jpg&#39;)"></div><div class="hero-slide" style="background-image:url(&#39;/media/planning-hero-2.jpg&#39;)"></div><div class="hero-slide" style="background-image:url(&#39;/media/planning-hero-3.jpg&#39;)"></div></div><div class="hero-veil"></div>
     <div class="hero-overlay">
       <span class="eyebrow">Una división de Global Companies</span>
-      <h1>Un patrimonio protegido, ordenado y preparado para el futuro.</h1>
-      <p class="lead">Planificar es anticiparse: protección, ahorro y orden tributario, coordinados en una sola estrategia.</p>
+      <h1>Un patrimonio estructurado y protegido, dentro y fuera de Chile.</h1>
+      <p class="lead">Inversión, propiedades, protección y sucesión, estructuradas en una sola estrategia patrimonial, dentro y fuera de Chile.</p>
     </div>
-  </div>
+  <div class="hero-dots"><button class="on" aria-label="Foto 1"></button><button aria-label="Foto 2"></button><button aria-label="Foto 3"></button></div></div>
 </header>
 
 <section class="gestion"><div class="wrap">
-  <div class="gcols">
-  <div class="sec-head">
-    <span class="eyebrow">Qué cubrimos</span>
-    <h2>Cada frente del patrimonio, cubierto.</h2>
-    <p class="lead" style="color:var(--muted)">Coordinamos protección, ahorro y orden tributario según los objetivos y el horizonte de cada cliente.</p>
-  </div>
-  <div class="ilist">
-    <div class="iitem"><span class="k">Protección</span><span class="v">Seguros de vida y salud, para que un imprevisto no desarme lo construido.</span></div>
-    <div class="iitem"><span class="k">Ahorro y previsión</span><span class="v">APV y planificación de la jubilación, para llegar al retiro con el nivel de vida buscado.</span></div>
-    <div class="iitem"><span class="k">Optimización tributaria</span><span class="v">Estructurar el patrimonio para pagar lo justo, hoy y en el tiempo.</span></div>
-    <div class="iitem"><span class="k">Orden contable</span><span class="v">Cuentas claras y al día, base de cualquier buena decisión.</span></div>
-  </div>
-  </div>
-  <p class="ipuente">La protección y el orden no se piensan por separado: van junto a las inversiones y las propiedades. <span class="acc">Una sola estrategia.</span></p>
+  <div class="sec-head"><span class="eyebrow">Qué cubrimos</span><h2>Cada frente del patrimonio, cubierto.</h2><p class="lead" style="color:var(--muted)">De la inversión a la sucesión: coordinamos cada frente del patrimonio según los objetivos y el horizonte de cada cliente.</p></div><div class="spanels"><div class="pl-fcard"><div class="pl-bg" style="background-image:url('/media/plan-card-1.jpg')"></div><div class="pl-veil"></div><div class="pl-body"><h3>Inversión</h3><div class="pl-reveal"><p class="pl-intro">Productos de inversión locales e internacionales, según los objetivos de cada cliente.</p><ul><li><b>Inversión internacional</b> — ahorro e inversión en dólares, en jurisdicciones de primera categoría (Estados Unidos y Reino Unido).</li><li><b>Inversión en Chile</b> — instrumentos y fondos del mercado local, para mantener parte del patrimonio en pesos.</li></ul></div></div></div><div class="pl-fcard"><div class="pl-bg" style="background-image:url('/media/plan-card-2.jpg')"></div><div class="pl-veil"></div><div class="pl-body"><h3>Inmobiliario</h3><div class="pl-reveal"><p class="pl-intro">Renta y plusvalía, en Chile y Estados Unidos.</p><ul><li><b>Departamentos de inversión</b> — con buen potencial de renta y plusvalía.</li><li><b>Terrenos</b> — en el sur de Chile.</li><li><b>Fondos inmobiliarios</b> — edificios de renta en Chile y Estados Unidos.</li></ul></div></div></div><div class="pl-fcard"><div class="pl-bg" style="background-image:url('/media/plan-card-3.jpg')"></div><div class="pl-veil"></div><div class="pl-body"><h3>Seguros</h3><div class="pl-reveal"><p class="pl-intro">Protección para la familia y el patrimonio, sin conflictos de interés.</p><ul><li><b>Seguros de vida</b> — con o sin componente de ahorro.</li><li><b>Seguros de salud</b> — cobertura nacional e internacional.</li></ul></div></div></div><div class="pl-fcard"><div class="pl-bg" style="background-image:url('/media/plan-card-4.jpg')"></div><div class="pl-veil"></div><div class="pl-body"><h3>Estructuración patrimonial</h3><div class="pl-reveal"><p class="pl-intro">Sociedades, sucesión y pensiones, ordenadas y optimizadas.</p><ul><li><b>Herencia y sucesión</b> — holdings familiares, donaciones en vida, testamentos.</li><li><b>Sociedades</b> — de inversión, inmobiliarias, holdings, en el extranjero.</li><li><b>Pensiones</b> — privadas en dólares, APV, timing de jubilación.</li></ul></div></div></div></div>
+  <p class="ipuente">La inversión, la protección y la estructura no se piensan por separado, dentro y fuera de Chile. <span class="acc">Una sola estrategia.</span></p>
 </div></section>
 
 <section class="estudios"><div class="wrap">
@@ -440,7 +472,7 @@
   </div>
 </div></section>
 <section class="banda"><div class="wrap">
-  <p>Lo que te tomó una vida construir <span class="accent">merece un plan que lo proteja.</span></p>
+  <p>Lo que tomó una vida construir <span class="accent">merece un plan que lo proteja.</span></p>
 </div></section>
 <section class="equipo"><div class="wrap">
   <div class="sec-head">
@@ -493,7 +525,7 @@
 <footer><div class="wrap">
   <div class="fgrid">
     <div class="brand-f">
-      <span class="gword gword-int"><svg class="gi" viewBox="26 123.5 40 38" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#EB7838" d="M 45.859375 160.464844 L 42.789062 160.464844 L 42.789062 137.101562 L 45.859375 137.101562 Z M 45.859375 160.464844 "/><path fill="currentColor" d="M 53.839844 140.195312 L 53.839844 144.832031 L 60.101562 144.832031 C 59.238281 149.546875 55.820312 153.386719 51.207031 155.042969 L 51.207031 159.902344 C 59.359375 157.792969 65.207031 150.761719 65.207031 142.511719 L 65.207031 140.195312 Z M 53.839844 140.195312 "/><path fill="#EB7838" d="M 48.132812 131.785156 L 48.132812 160.464844 L 48.277344 160.449219 C 49.285156 160.34375 50.253906 160.148438 51.203125 159.902344 L 51.203125 131.785156 Z M 48.132812 131.785156 "/><path fill="currentColor" d="M 61.285156 131.539062 C 57.644531 127.039062 52.128906 124.460938 46.15625 124.460938 C 35.652344 124.460938 27.105469 132.558594 27.105469 142.511719 C 27.105469 149.304688 31.105469 155.417969 37.316406 158.496094 L 37.316406 152.976562 C 34.003906 150.476562 32 146.664062 32 142.511719 C 32 135.117188 38.351562 129.101562 46.15625 129.101562 C 50.59375 129.101562 54.691406 131.015625 57.398438 134.359375 L 57.953125 135.046875 L 61.839844 132.222656 Z M 61.285156 131.539062 "/><path fill="#EB7838" d="M 37.316406 142.882812 L 37.316406 158.5 C 38.203125 158.9375 39.132812 159.3125 40.101562 159.621094 L 40.386719 159.714844 L 40.386719 142.882812 Z M 37.316406 142.882812 "/></svg><span class="wm"><span class="w1">LOBAL</span><span class="w2">COMPANIES</span></span></span>
+      <img class="logo-f" src="/media/global-companies-blanco.png" alt="Global Companies" width="2663" height="180">
       <p>Grupo de asesoría patrimonial independiente. Inversiones, protección y propiedades, coordinadas con método e independencia.</p>
     </div>
     <div class="fcol">
@@ -501,6 +533,7 @@
       <a href="global-wealth.html">Global Wealth</a>
       <a href="global-planning.html">Global Planning</a>
       <a href="global-properties.html">Global Properties</a>
+      <a href="global-markets.html">Global Markets</a>
     </div>
     <div class="fcol">
       <h5>Marco regulatorio</h5>
@@ -550,5 +583,5 @@ n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('cli
   document.addEventListener("keydown",function(e){if(e.key==="Escape")close();});
 })();
 </script>
-</body>
+<script>(function(){var m=document.querySelector('.hero-media');if(!m)return;var sl=m.querySelectorAll('.hero-slide'),dt=m.querySelectorAll('.hero-dots button');if(sl.length<2)return;var i=0,t;function go(n){sl[i].classList.remove('is-active');if(dt[i])dt[i].classList.remove('on');i=(n+sl.length)%sl.length;sl[i].classList.add('is-active');if(dt[i])dt[i].classList.add('on');}var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;function stop(){if(t){clearInterval(t);t=0;}}function play(){stop();t=setInterval(function(){go(i+1);},5000);}dt.forEach(function(b,k){b.addEventListener('click',function(){go(k);play();});});m.addEventListener('mouseenter',stop);m.addEventListener('mouseleave',play);play();})();</script></body>
 </html>
