@@ -384,9 +384,9 @@
 .mk-fcard:hover .mk-veil{background:linear-gradient(180deg,rgba(11,33,64,.64) 0%,rgba(11,33,64,.82) 55%,rgba(11,33,64,.95) 100%)}
 .mk-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
 .mk-body h3{font-family:"Fraunces",serif;font-size:20px;color:#fff;margin:0;line-height:1.28;text-shadow:0 2px 16px rgba(6,18,38,.55)}
-.mk-body p{margin:12px 0 0;color:rgba(255,255,255,.90);font-size:14.5px;line-height:1.6;opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease}
-.mk-fcard:hover .mk-body p{opacity:1;transform:none}
-@media(hover:none){.mk-body p{opacity:1;transform:none}}
+.mk-body p{margin:12px 0 0;color:rgba(255,255,255,.90);font-size:14.5px;line-height:1.6;transition:opacity .45s ease,transform .45s ease}
+
+@media (hover:hover) and (pointer:fine){.mk-body p{opacity:0;transform:translateY(10px)}.mk-fcard:hover .mk-body p{opacity:1;transform:none}}
 .mk-out{list-style:none;margin:36px 0 0;padding:0;border-top:1px solid var(--line)}
 .mk-out li{display:grid;grid-template-columns:250px 1fr;gap:26px;padding:18px 2px;border-bottom:1px solid var(--line);align-items:baseline}
 @media(max-width:640px){.mk-out li{grid-template-columns:1fr;gap:5px}}

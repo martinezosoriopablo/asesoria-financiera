@@ -352,14 +352,14 @@
 .pl-fcard:hover .pl-veil{background:linear-gradient(180deg,rgba(11,33,64,.66) 0%,rgba(11,33,64,.84) 55%,rgba(11,33,64,.95) 100%)}
 .pl-body{position:absolute;inset:0;z-index:2;padding:26px 28px;color:#fff;display:flex;flex-direction:column;justify-content:flex-start}
 .pl-body h3{font-family:"Fraunces",serif;font-size:22px;color:#fff;margin:0;line-height:1.2;text-shadow:0 2px 16px rgba(6,18,38,.55)}
-.pl-reveal{opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease;margin-top:14px}
-.pl-fcard:hover .pl-reveal{opacity:1;transform:none}
+.pl-reveal{transition:opacity .45s ease,transform .45s ease;margin-top:14px}
+
 .pl-intro{color:rgba(255,255,255,.90);font-size:14px;line-height:1.55;margin:0 0 12px}
 .pl-reveal ul{list-style:none;margin:0;padding:0}
 .pl-reveal li{color:rgba(255,255,255,.85);font-size:13px;line-height:1.5;padding:7px 0;border-top:1px solid rgba(255,255,255,.14)}
 .pl-reveal li:first-child{border-top:none}
 .pl-reveal b{color:#fff;font-weight:600}
-@media(hover:none){.pl-reveal{opacity:1;transform:none}}
+@media (hover:hover) and (pointer:fine){.pl-reveal{opacity:0;transform:translateY(10px)}.pl-fcard:hover .pl-reveal{opacity:1;transform:none}}
 @media(max-width:760px){.spanels{grid-template-columns:1fr}}
   .ipuente .acc{color:var(--copper);font-weight:600}
   @media(max-width:760px){.iitem{grid-template-columns:1fr;gap:6px}}
