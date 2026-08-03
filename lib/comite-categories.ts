@@ -43,6 +43,7 @@ export const COMITE_CATEGORIES: ComiteCategory[] = [
   { id: "rv_desarrollados_ex_us", label: "RV Desarrollados ex-US",     role: "rv",   etfUS: "VEA",  etfUCITS: "IWDA" },
   { id: "rv_emergentes",          label: "RV Emergentes",              role: "rv",   etfUS: "VWO",  etfUCITS: "EIMI" },
   { id: "rv_chile",               label: "RV Chile",                   role: "rv",   etfUS: "ECH",  etfUCITS: null },
+  { id: "rv_usa_small_cap",       label: "RV USA Small Cap",           role: "rv",   etfUS: "IJR",  etfUCITS: null },
   // RF (fixed income)
   { id: "rf_ust_belly",           label: "UST 3-10yr Belly",           role: "rf",   etfUS: "IEF",  etfUCITS: "IDTM" },
   { id: "rf_ust_short",           label: "UST 1-3yr Short Duration",   role: "rf",   etfUS: "SHY",  etfUCITS: "IBTS" },
@@ -122,6 +123,10 @@ const SECONDARY_ETFS: Record<string, string> = {
   // cash_tbills
   SHV: "cash_tbills",
   GBIL: "cash_tbills",
+  // rv_usa_small_cap
+  IJR: "rv_usa_small_cap",
+  VB: "rv_usa_small_cap",
+  IJH: "rv_usa_small_cap",
 };
 
 Object.assign(ETF_TO_CATEGORY, SECONDARY_ETFS);
@@ -270,6 +275,7 @@ export const PREFERRED_TO_COMITE: Record<string, string[]> = {
   rv_desarrollados_ex_us: ["RV Internacional", "RV Europa", "RV Desarrollados"],
   rv_emergentes:          ["RV Emergentes", "RV Asia", "RV Internacional"],
   rv_chile:               ["RV Nacional"],
+  rv_usa_small_cap:       ["RV USA", "RV Internacional"],
   rf_ust_belly:           ["RF Internacional", "RF USA", "RF Global"],
   rf_ust_short:           ["RF Corto Plazo", "RF Internacional", "Money Market"],
   rf_ig_corp:             ["RF Internacional", "RF Corporativa", "RF USA"],
@@ -281,3 +287,28 @@ export const PREFERRED_TO_COMITE: Record<string, string[]> = {
   alt_reits:              ["Alternativos", "Real Estate", "REITs"],
   cash_tbills:            ["Money Market", "Liquidez"],
 };
+
+// ── Normalización de id de categoría ─────────────────────────────────────
+// model_portfolios guarda la categoría SIN prefijo de rol (ej. "usa_large_cap",
+// "ust_belly", "gold", "tbills") o con ids pass-through (ej. "rv_small_cap_us").
+// resolveCategoria() devuelve la ComiteCategory canónica desde cualquiera de esas formas.
+const ROLE_PREFIX = /^(rv|rf|alt|cash)_/;
+
+// Índice por id "pelado" (sin rv_/rf_/alt_/cash_). Primer match gana
+// (RV antes que RF para "chile", por el orden de COMITE_CATEGORIES).
+const strippedIndex = new Map<string, ComiteCategory>();
+for (const c of COMITE_CATEGORIES) {
+  const key = c.id.replace(ROLE_PREFIX, "");
+  if (!strippedIndex.has(key)) strippedIndex.set(key, c);
+}
+
+// Alias para ids cuyo stem no coincide con el id canónico.
+const CATEGORY_ALIASES: Record<string, string> = {
+  rv_small_cap_us: "rv_usa_small_cap",
+  small_cap_us: "rv_usa_small_cap",
+};
+
+export function resolveCategoria(rawId: string): ComiteCategory | undefined {
+  const aliased = CATEGORY_ALIASES[rawId] ?? rawId;
+  return getCategoryById(aliased) || strippedIndex.get(aliased.replace(ROLE_PREFIX, ""));
+}

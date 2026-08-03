@@ -5,14 +5,15 @@ import {
   mapClientProfile,
   PREFERRED_TO_COMITE,
   getCategoryById,
+  resolveCategoria,
   type HoldingForClassification,
 } from "./comite-categories";
 
 // ── COMITE_CATEGORIES structure ──────────────────────────────────────────
 
 describe("COMITE_CATEGORIES", () => {
-  it("has exactly 14 entries", () => {
-    expect(COMITE_CATEGORIES).toHaveLength(14);
+  it("has exactly 15 entries", () => {
+    expect(COMITE_CATEGORIES).toHaveLength(15);
   });
 
   it("every entry has required fields", () => {
@@ -434,5 +435,35 @@ describe("PREFERRED_TO_COMITE", () => {
     for (const cat of COMITE_CATEGORIES) {
       expect(PREFERRED_TO_COMITE[cat.id]).toBeDefined();
     }
+  });
+});
+
+// ── resolveCategoria ────────────────────────────────────────────────────
+
+describe("resolveCategoria", () => {
+  it("acepta el id canónico con prefijo", () => {
+    expect(resolveCategoria("rv_usa_large_cap")?.id).toBe("rv_usa_large_cap");
+    expect(resolveCategoria("cash_tbills")?.id).toBe("cash_tbills");
+  });
+
+  it("normaliza el id sin prefijo (como lo guarda model_portfolios)", () => {
+    expect(resolveCategoria("usa_large_cap")?.id).toBe("rv_usa_large_cap");
+    expect(resolveCategoria("ust_belly")?.id).toBe("rf_ust_belly");
+    expect(resolveCategoria("gold")?.id).toBe("alt_gold");
+    expect(resolveCategoria("tbills")?.id).toBe("cash_tbills");
+  });
+
+  it("resuelve small cap por alias (rv_small_cap_us / small_cap_us → rv_usa_small_cap)", () => {
+    expect(resolveCategoria("rv_small_cap_us")?.id).toBe("rv_usa_small_cap");
+    expect(resolveCategoria("small_cap_us")?.id).toBe("rv_usa_small_cap");
+    expect(getCategoryById("rv_usa_small_cap")?.role).toBe("rv");
+  });
+
+  it("devuelve undefined para categoría desconocida", () => {
+    expect(resolveCategoria("categoria_inexistente")).toBeUndefined();
+  });
+
+  it("small cap tiene entrada en PREFERRED_TO_COMITE", () => {
+    expect(PREFERRED_TO_COMITE["rv_usa_small_cap"]).toContain("RV USA");
   });
 });
