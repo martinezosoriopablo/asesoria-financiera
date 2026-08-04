@@ -38,6 +38,7 @@ export interface RecomendacionRow {
   comite: ComiteColumn;
   misFondos: MiFondoOption[];
   decision: Decision;
+  sin_categoria?: boolean; // true = el comité trajo una categoría que no resuelve; se conserva con aviso
 }
 
 export interface CarteraPosition {

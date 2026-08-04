@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos } from "./resolve";
+import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow } from "./resolve";
 import type { ComiteColumn, MiFondoOption, RecomendacionRow } from "./types";
 
 describe("roleToClase", () => {
@@ -93,5 +93,19 @@ describe("deriveCartera + sumaPesos", () => {
 
   it("sumaPesos suma los pesos de las decisiones", () => {
     expect(sumaPesos(rows)).toBe(100);
+  });
+});
+
+describe("buildUnresolvedRow", () => {
+  it("conserva una posición sin categoría con su peso y la marca sin_categoria", () => {
+    const row = buildUnresolvedRow("categoria_rara", 7.5);
+    expect(row.sin_categoria).toBe(true);
+    expect(row.categoria).toBe("categoria_rara");
+    expect(row.label).toBe("categoria_rara");
+    expect(row.role).toBe("cash"); // sin rol conocido → cash (no infla RV/RF)
+    expect(row.decision.fuente).toBe("caja");
+    expect(row.decision.porcentaje).toBe(7.5);
+    expect(row.comite.modelo_pct).toBe(7.5);
+    expect(row.misFondos).toEqual([]);
   });
 });

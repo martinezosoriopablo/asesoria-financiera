@@ -46,6 +46,21 @@ export function defaultDecision(input: {
     clase, custodian_type: custodio, porcentaje: comite.modelo_pct };
 }
 
+// Fila para una posición del comité cuya categoría NO resuelve a COMITE_CATEGORIES.
+// En vez de descartarla en silencio (dejando el total < 100%), se conserva con su
+// peso, rol "cash" (para no inflar RV/RF), sin fondos, y marcada sin_categoria.
+export function buildUnresolvedRow(rawCategoria: string, pct: number): RecomendacionRow {
+  return {
+    categoria: rawCategoria,
+    label: rawCategoria,
+    role: "cash",
+    comite: { etf_us: null, etf_ucits: null, modelo_pct: pct, vista: null, conviction: null },
+    misFondos: [],
+    decision: { fuente: "caja", ticker: null, nombre: "Sin categoría", clase: "Cash", custodian_type: null, porcentaje: pct },
+    sin_categoria: true,
+  };
+}
+
 interface PreferredFundInput {
   id: string;
   fund_run: string | null;

@@ -68,6 +68,11 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
 
   return (
     <div className="bg-white rounded-lg border border-gb-border shadow-sm">
+      {rows.some(r => r.sin_categoria) && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
+          Hay posiciones del comité sin categoría reconocida. Se incluyen con su peso para que el total cuadre, pero revisá el mapeo antes de guardar.
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
@@ -84,76 +89,94 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
               const etf = row.comite.etf_us || row.comite.etf_ucits;
               return (
                 <React.Fragment key={row.categoria}>
-                  <tr>
-                    {/* Comité */}
-                    <td className="px-3 py-2 align-top">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-gb-black">{row.label}</span>
-                        {vistaBadge(row.comite.vista)}
-                      </div>
-                      <div className="text-[10px] text-gb-gray mt-0.5">
-                        {row.comite.modelo_pct}% · {etf || "—"}{row.comite.conviction ? ` · conv. ${row.comite.conviction}` : ""}
-                      </div>
-                    </td>
-
-                    {/* Mis Fondos */}
-                    <td className="px-3 py-2 align-top">
-                      {row.misFondos.length === 0 ? (
-                        <span className="text-gb-gray italic">Sin equivalente en el custodio</span>
-                      ) : (
-                        <div className="space-y-1">
-                          {row.misFondos.slice(0, 3).map((f) => (
-                            <button
-                              key={f.fund_id}
-                              onClick={() => setDecision(row.categoria, {
-                                fuente: "mi_fondo", ticker: f.ticker ?? (f.fund_run ? String(f.fund_run) : null),
-                                nombre: f.nombre, custodian_type: f.custodian_type, clase: roleToClase(row.role),
-                              })}
-                              className="block w-full text-left px-2 py-1 rounded border border-gb-border hover:bg-slate-50"
-                            >
-                              <span className="font-medium text-gb-black">
-                                {f.isMapped && <span className="text-[9px] px-1 py-0 rounded bg-amber-100 text-amber-700 font-semibold mr-1">MI FONDO</span>}
-                                {f.nombre}
-                              </span>
-                              <span className="text-[10px] text-gb-gray"> · {f.custodian_type}{f.tac != null ? ` · TAC ${f.tac}%` : ""}</span>
-                            </button>
-                          ))}
+                  {row.sin_categoria ? (
+                    <tr className="bg-amber-50">
+                      <td className="px-3 py-2 align-top" colSpan={3}>
+                        <span className="text-amber-700 font-medium">⚠ Posición sin categoría: </span>
+                        <span className="text-gb-black">{row.label}</span>
+                        <span className="text-[10px] text-gb-gray"> — el comité trajo una categoría que no se reconoce; revisar el mapeo.</span>
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <input
+                          type="number" step="0.5" min="0" max="100"
+                          value={row.decision.porcentaje}
+                          onChange={(e) => setDecision(row.categoria, { porcentaje: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                          className="w-16 px-1 py-0.5 text-xs text-right border border-gb-border rounded"
+                        />
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      {/* Comité */}
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-gb-black">{row.label}</span>
+                          {vistaBadge(row.comite.vista)}
                         </div>
-                      )}
-                    </td>
+                        <div className="text-[10px] text-gb-gray mt-0.5">
+                          {row.comite.modelo_pct}% · {etf || "—"}{row.comite.conviction ? ` · conv. ${row.comite.conviction}` : ""}
+                        </div>
+                      </td>
 
-                    {/* Decisión */}
-                    <td className="px-3 py-2 align-top">
-                      <div className="font-medium text-gb-black">{row.decision.nombre}</div>
-                      <div className="text-[10px] text-gb-gray mt-0.5 flex items-center gap-2">
-                        <span className="px-1 py-0 rounded bg-slate-100">{row.decision.fuente}</span>
-                        {etf && (
-                          <button className="text-blue-600 hover:underline"
-                            onClick={() => setDecision(row.categoria, { fuente: "comite_etf", ticker: etf, nombre: etf, clase: roleToClase(row.role) })}>
-                            usar ETF comité
-                          </button>
+                      {/* Mis Fondos */}
+                      <td className="px-3 py-2 align-top">
+                        {row.misFondos.length === 0 ? (
+                          <span className="text-gb-gray italic">Sin equivalente en el custodio</span>
+                        ) : (
+                          <div className="space-y-1">
+                            {row.misFondos.slice(0, 3).map((f) => (
+                              <button
+                                key={f.fund_id}
+                                onClick={() => setDecision(row.categoria, {
+                                  fuente: "mi_fondo", ticker: f.ticker ?? (f.fund_run ? String(f.fund_run) : null),
+                                  nombre: f.nombre, custodian_type: f.custodian_type, clase: roleToClase(row.role),
+                                })}
+                                className="block w-full text-left px-2 py-1 rounded border border-gb-border hover:bg-slate-50"
+                              >
+                                <span className="font-medium text-gb-black">
+                                  {f.isMapped && <span className="text-[9px] px-1 py-0 rounded bg-amber-100 text-amber-700 font-semibold mr-1">MI FONDO</span>}
+                                  {f.nombre}
+                                </span>
+                                <span className="text-[10px] text-gb-gray"> · {f.custodian_type}{f.tac != null ? ` · TAC ${f.tac}%` : ""}</span>
+                              </button>
+                            ))}
+                          </div>
                         )}
-                        <button className="text-gb-gray hover:underline"
-                          onClick={() => setDecision(row.categoria, { fuente: "caja", ticker: null, nombre: "Caja", clase: roleToClase(row.role) })}>
-                          caja
-                        </button>
-                        <button className="text-blue-600 hover:underline flex items-center gap-0.5"
-                          onClick={() => { setSearchingCat(isSearching ? null : row.categoria); setQuery(""); setResults([]); }}>
-                          <Search className="w-3 h-3" /> buscar
-                        </button>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Peso */}
-                    <td className="px-3 py-2 text-right align-top">
-                      <input
-                        type="number" step="0.5" min="0" max="100"
-                        value={row.decision.porcentaje}
-                        onChange={(e) => setDecision(row.categoria, { porcentaje: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
-                        className="w-16 px-1 py-0.5 text-xs text-right border border-gb-border rounded"
-                      />
-                    </td>
-                  </tr>
+                      {/* Decisión */}
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-medium text-gb-black">{row.decision.nombre}</div>
+                        <div className="text-[10px] text-gb-gray mt-0.5 flex items-center gap-2">
+                          <span className="px-1 py-0 rounded bg-slate-100">{row.decision.fuente}</span>
+                          {etf && (
+                            <button className="text-blue-600 hover:underline"
+                              onClick={() => setDecision(row.categoria, { fuente: "comite_etf", ticker: etf, nombre: etf, clase: roleToClase(row.role) })}>
+                              usar ETF comité
+                            </button>
+                          )}
+                          <button className="text-gb-gray hover:underline"
+                            onClick={() => setDecision(row.categoria, { fuente: "caja", ticker: null, nombre: "Caja", clase: roleToClase(row.role) })}>
+                            caja
+                          </button>
+                          <button className="text-blue-600 hover:underline flex items-center gap-0.5"
+                            onClick={() => { setSearchingCat(isSearching ? null : row.categoria); setQuery(""); setResults([]); }}>
+                            <Search className="w-3 h-3" /> buscar
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Peso */}
+                      <td className="px-3 py-2 text-right align-top">
+                        <input
+                          type="number" step="0.5" min="0" max="100"
+                          value={row.decision.porcentaje}
+                          onChange={(e) => setDecision(row.categoria, { porcentaje: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                          className="w-16 px-1 py-0.5 text-xs text-right border border-gb-border rounded"
+                        />
+                      </td>
+                    </tr>
+                  )}
 
                   {/* Buscador inline */}
                   {isSearching && (

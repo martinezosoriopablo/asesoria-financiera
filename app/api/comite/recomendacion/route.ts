@@ -7,7 +7,7 @@ import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { mapClientProfile, resolveCategoria } from "@/lib/comite-categories";
-import { resolveMisFondos, defaultDecision } from "@/lib/recomendacion/resolve";
+import { resolveMisFondos, defaultDecision, buildUnresolvedRow } from "@/lib/recomendacion/resolve";
 import type { CustodianType, RecomendacionRow } from "@/lib/recomendacion/types";
 
 export async function GET(request: NextRequest) {
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       const pct = Number(p.modelo_pct) || 0;
       if (pct <= 0) continue;
       const cat = resolveCategoria(p.categoria);
-      if (!cat) continue; // (Task 2 reemplaza este continue)
+      if (!cat) { rows.push(buildUnresolvedRow(p.categoria, pct)); continue; }
       const comite = {
         etf_us: p.etf_us ?? cat.etfUS, etf_ucits: p.etf_ucits ?? cat.etfUCITS,
         modelo_pct: pct, vista: p.vista ?? null, conviction: p.conviction ?? null,
