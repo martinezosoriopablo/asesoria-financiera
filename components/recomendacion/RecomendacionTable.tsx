@@ -152,12 +152,12 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
                           <span className="px-1 py-0 rounded bg-slate-100">{row.decision.fuente}</span>
                           {etf && (
                             <button className="text-blue-600 hover:underline"
-                              onClick={() => setDecision(row.categoria, { fuente: "comite_etf", ticker: etf, nombre: etf, clase: roleToClase(row.role) })}>
+                              onClick={() => setDecision(row.categoria, { fuente: "comite_etf", ticker: etf, nombre: etf, clase: roleToClase(row.role), tac: null, rent_12m: null })}>
                               usar ETF comité
                             </button>
                           )}
                           <button className="text-gb-gray hover:underline"
-                            onClick={() => setDecision(row.categoria, { fuente: "caja", ticker: null, nombre: "Caja", clase: roleToClase(row.role) })}>
+                            onClick={() => setDecision(row.categoria, { fuente: "caja", ticker: null, nombre: "Caja", clase: roleToClase(row.role), tac: null, rent_12m: null })}>
                             caja
                           </button>
                           <button className="text-blue-600 hover:underline flex items-center gap-0.5"
@@ -204,6 +204,7 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
                                   setDecision(row.categoria, {
                                     fuente: "custom", ticker: r.ticker ?? (r.fo_run ? String(r.fo_run) : null),
                                     nombre: r.nombre, clase: roleToClase(row.role),
+                                    tac: r.tac ?? null, rent_12m: r.rent_12m ?? null,
                                   });
                                   setSearchingCat(null); setQuery(""); setResults([]);
                                 }}
