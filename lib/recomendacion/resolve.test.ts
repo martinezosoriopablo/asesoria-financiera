@@ -71,6 +71,23 @@ describe("resolveMisFondos", () => {
     const res = resolveMisFondos({ categoria: "rv_usa_large_cap", custodios: ["internacional"], preferredFunds: funds, mappings: [] });
     expect(res).toEqual([]);
   });
+
+  it("matchea etiquetas largas del asesor contra códigos cortos del comité (Renta Variable USA ↔ RV USA)", () => {
+    // Datos reales: advisor_preferred_funds.category usa etiquetas largas
+    // ("Renta Variable USA"), no los códigos cortos ("RV USA") de PREFERRED_TO_COMITE.
+    const longFunds = [
+      { id: "L1", fund_run: "1", ticker: null, nombre: "AGF USA largo", custodian_type: "agf" as const, category: "Renta Variable USA", tac: 1.1, rent_12m: 6 },
+      { id: "L2", fund_run: "2", ticker: null, nombre: "AGF Intl largo", custodian_type: "agf" as const, category: "Renta Variable Internacional", tac: 0.8, rent_12m: 7 },
+      { id: "L3", fund_run: "3", ticker: null, nombre: "AGF RF largo", custodian_type: "agf" as const, category: "Renta Fija Internacional", tac: 0.5, rent_12m: 4 },
+    ];
+    // rv_usa_large_cap quiere ["RV Internacional","RV USA","RV Global"] → L1 (USA) + L2 (Internacional); L3 es RF, excluido.
+    const res = resolveMisFondos({ categoria: "rv_usa_large_cap", custodios: ["agf"], preferredFunds: longFunds, mappings: [] });
+    expect(res.map(f => f.fund_id).sort()).toEqual(["L1", "L2"]);
+
+    // Y una categoría RF matchea la etiqueta larga "Renta Fija Internacional".
+    const resRf = resolveMisFondos({ categoria: "rf_ig_corp", custodios: ["agf"], preferredFunds: longFunds, mappings: [] });
+    expect(resRf.map(f => f.fund_id)).toEqual(["L3"]);
+  });
 });
 
 describe("deriveCartera + sumaPesos", () => {

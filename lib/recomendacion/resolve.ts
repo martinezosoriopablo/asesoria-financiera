@@ -1,7 +1,20 @@
 import { PREFERRED_TO_COMITE, type ComiteRole } from "@/lib/comite-categories";
+import { normalizeText } from "@/lib/text";
 import type {
   CarteraPosition, ComiteColumn, CustodianType, Decision, MiFondoOption, RecomendacionRow,
 } from "./types";
+
+// Normaliza una etiqueta de categoría de fondo para comparar el vocabulario del
+// asesor (advisor_preferred_funds.category, ej. "Renta Variable USA") contra los
+// códigos cortos de PREFERRED_TO_COMITE (ej. "RV USA"). Sin esto, ningún fondo
+// matchea cuando el asesor guarda etiquetas largas → "Mis Fondos" vacío → todo caja.
+function normCategoria(c: string): string {
+  return normalizeText(c || "")
+    .replace(/renta variable/g, "rv")
+    .replace(/renta fija/g, "rf")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const ROLE_TO_CLASE: Record<ComiteRole, string> = {
   rv: "Renta Variable",
@@ -85,7 +98,8 @@ export function resolveMisFondos(input: {
   mappings: MappingInput[];
 }): MiFondoOption[] {
   const { categoria, custodios, preferredFunds, mappings } = input;
-  const wantedCategories = PREFERRED_TO_COMITE[categoria] || [];
+  // Comparación normalizada: tolera "Renta Variable USA" ≡ "RV USA", acentos y mayúsculas.
+  const wanted = new Set((PREFERRED_TO_COMITE[categoria] || []).map(normCategoria));
   const custodioSet = new Set(custodios);
 
   // IDs mapeados explícitamente para esta categoría y algún custodio del cliente
@@ -95,7 +109,7 @@ export function resolveMisFondos(input: {
 
   const candidates = preferredFunds.filter(f =>
     custodioSet.has(f.custodian_type) &&
-    (mappedIds.has(f.id) || wantedCategories.includes(f.category))
+    (mappedIds.has(f.id) || wanted.has(normCategoria(f.category)))
   );
 
   const toOption = (f: PreferredFundInput): MiFondoOption => ({
