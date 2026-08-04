@@ -12,9 +12,9 @@ export default function RecomendacionSelectorPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gb-black">Radiografia</h1>
+        <h1 className="text-2xl font-semibold text-gb-black">Recomendación</h1>
         <p className="text-sm text-gb-gray mt-1">
-          Compara las posiciones del cliente contra el portafolio modelo del comite
+          Radiografía del cliente y construcción de la recomendación desde el comité
         </p>
       </div>
       <div className="max-w-md">
