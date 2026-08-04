@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow } from "./resolve";
+import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow, weightedMetrics } from "./resolve";
 import type { ComiteColumn, MiFondoOption, RecomendacionRow } from "./types";
 
 describe("roleToClase", () => {
@@ -107,5 +107,31 @@ describe("buildUnresolvedRow", () => {
     expect(row.decision.porcentaje).toBe(7.5);
     expect(row.comite.modelo_pct).toBe(7.5);
     expect(row.misFondos).toEqual([]);
+  });
+});
+
+describe("weightedMetrics", () => {
+  const mk = (fuente: "mi_fondo" | "caja", porcentaje: number, tac: number | null, rent: number | null): RecomendacionRow => ({
+    categoria: "x", label: "x", role: "rv",
+    comite: { etf_us: null, etf_ucits: null, modelo_pct: porcentaje, vista: null, conviction: null },
+    misFondos: [],
+    decision: { fuente, ticker: null, nombre: "n", clase: "Renta Variable", custodian_type: "agf", porcentaje, tac, rent_12m: rent },
+  });
+
+  it("pondera TAC/rent solo sobre las filas con dato y reporta cobertura", () => {
+    const rows = [mk("mi_fondo", 60, 1.0, 8), mk("mi_fondo", 20, 2.0, 4), mk("caja", 20, null, null)];
+    const r = weightedMetrics(rows);
+    // TAC ponderado sobre 80%: (1.0*60 + 2.0*20)/80 = 1.25
+    expect(r.tac).toBeCloseTo(1.25, 4);
+    // rent ponderada sobre 80%: (8*60 + 4*20)/80 = 7
+    expect(r.rent12m).toBeCloseTo(7, 4);
+    expect(r.coverage).toBeCloseTo(0.8, 4); // 80 de 100
+  });
+
+  it("sin filas con dato → null y cobertura 0", () => {
+    const r = weightedMetrics([mk("caja", 100, null, null)]);
+    expect(r.tac).toBeNull();
+    expect(r.rent12m).toBeNull();
+    expect(r.coverage).toBe(0);
   });
 });

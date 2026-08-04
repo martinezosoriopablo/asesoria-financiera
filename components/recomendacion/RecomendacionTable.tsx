@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback } from "react";
 import { Search, X, Loader } from "lucide-react";
 import type { RecomendacionRow, Decision } from "@/lib/recomendacion/types";
-import { roleToClase } from "@/lib/recomendacion/resolve";
+import { roleToClase, weightedMetrics } from "@/lib/recomendacion/resolve";
 
 interface SearchResult {
   id: string;
@@ -130,6 +130,7 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
                                 onClick={() => setDecision(row.categoria, {
                                   fuente: "mi_fondo", ticker: f.ticker ?? (f.fund_run ? String(f.fund_run) : null),
                                   nombre: f.nombre, custodian_type: f.custodian_type, clase: roleToClase(row.role),
+                                  tac: f.tac, rent_12m: f.rent_12m,
                                 })}
                                 className="block w-full text-left px-2 py-1 rounded border border-gb-border hover:bg-slate-50"
                               >
@@ -246,6 +247,18 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
             <span key={clase}>{clase}: <span className="font-medium text-gb-black">{(porRol[clase] || 0).toFixed(1)}%</span></span>
           ))}
         </div>
+        {(() => {
+          const wm = weightedMetrics(rows);
+          return (
+            <div className="flex items-center gap-3 text-xs text-gb-gray">
+              <span>TAC: <span className="font-medium text-gb-black">{wm.tac != null ? `${wm.tac.toFixed(2)}%` : "—"}</span></span>
+              <span>Rent 12M: <span className="font-medium text-gb-black">{wm.rent12m != null ? `${wm.rent12m.toFixed(1)}%` : "—"}</span></span>
+              {wm.coverage < 0.999 && wm.tac != null && (
+                <span className="text-[10px]">(sobre {(wm.coverage * 100).toFixed(0)}% de la cartera)</span>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

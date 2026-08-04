@@ -29,6 +29,8 @@ export interface Decision {
   clase: string; // "Renta Variable" | "Renta Fija" | "Alternativos" | "Cash"
   custodian_type: CustodianType | null;
   porcentaje: number;
+  tac?: number | null;       // solo cuando fuente = mi_fondo (para el ponderado del footer)
+  rent_12m?: number | null;
 }
 
 export interface RecomendacionRow {

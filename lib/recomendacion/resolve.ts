@@ -28,7 +28,8 @@ export function defaultDecision(input: {
   // Prioridad 1: si hay un fondo del asesor disponible, usarlo (aplica a todos los custodios)
   if (best) {
     return { fuente: "mi_fondo", ticker: best.ticker, nombre: best.nombre,
-      clase, custodian_type: best.custodian_type, porcentaje: comite.modelo_pct };
+      clase, custodian_type: best.custodian_type, porcentaje: comite.modelo_pct,
+      tac: best.tac, rent_12m: best.rent_12m };
   }
 
   // Prioridad 2: sin fondo del asesor.
@@ -119,4 +120,21 @@ export function deriveCartera(rows: RecomendacionRow[]): CarteraPosition[] {
 
 export function sumaPesos(rows: RecomendacionRow[]): number {
   return rows.reduce((acc, r) => acc + (r.decision.porcentaje || 0), 0);
+}
+
+// TAC y rent 12M ponderados por peso, SOLO sobre las decisiones que tienen el dato
+// (típicamente "mi_fondo"). coverage = fracción de la cartera con dato (0..1).
+export function weightedMetrics(rows: RecomendacionRow[]): { tac: number | null; rent12m: number | null; coverage: number } {
+  let tacSum = 0, tacW = 0, rentSum = 0, rentW = 0, totalW = 0;
+  for (const r of rows) {
+    const w = r.decision.porcentaje || 0;
+    totalW += w;
+    if (r.decision.tac != null) { tacSum += r.decision.tac * w; tacW += w; }
+    if (r.decision.rent_12m != null) { rentSum += r.decision.rent_12m * w; rentW += w; }
+  }
+  return {
+    tac: tacW > 0 ? tacSum / tacW : null,
+    rent12m: rentW > 0 ? rentSum / rentW : null,
+    coverage: totalW > 0 ? tacW / totalW : 0,
+  };
 }

@@ -8,6 +8,7 @@ import { successResponse, errorResponse, handleApiError } from "@/lib/api-respon
 import { applyRateLimit } from "@/lib/rate-limit";
 import { mapClientProfile, resolveCategoria } from "@/lib/comite-categories";
 import { resolveMisFondos, defaultDecision, buildUnresolvedRow } from "@/lib/recomendacion/resolve";
+import { getFichaMetrics } from "@/lib/comite/ficha-metrics";
 import type { CustodianType, RecomendacionRow } from "@/lib/recomendacion/types";
 
 export async function GET(request: NextRequest) {
@@ -66,8 +67,7 @@ export async function GET(request: NextRequest) {
     if (!modelo) return successResponse({ ok: false, reason: "sin_modelo", perfil_modelo: perfilModelo });
 
     // 4. Fondos preferidos del asesor + mapeos categoría→fondo por custodio
-    //    (advisor_preferred_funds no tiene columna TAC; se deja null — enriquecer TAC
-    //    vía fund_fichas/vw_fondos_completo es un follow-up.)
+    //    TAC/rent 12M se enriquecen desde vw_fondos_completo (FM) / fi_fichas (FI) via getFichaMetrics.
     const { data: preferred } = await supabase
       .from("advisor_preferred_funds")
       .select("id, fund_run, ticker, fund_name, custodian_type, category")
@@ -77,11 +77,15 @@ export async function GET(request: NextRequest) {
       .select("categoria, custodian_type, preferred_fund_id")
       .eq("advisor_id", advisor!.id);
 
-    const preferredFunds = (preferred || []).map(f => ({
-      id: f.id as string, fund_run: (f.fund_run as string) ?? null, ticker: (f.ticker as string) ?? null,
-      nombre: (f.fund_name as string) || "", custodian_type: f.custodian_type as CustodianType,
-      category: (f.category as string) || "", tac: null as number | null, rent_12m: null as number | null,
-    }));
+    const fichaMetrics = await getFichaMetrics(supabase, (preferred || []).map(f => f.fund_run as string));
+    const preferredFunds = (preferred || []).map(f => {
+      const m = fichaMetrics.get(f.fund_run as string);
+      return {
+        id: f.id as string, fund_run: (f.fund_run as string) ?? null, ticker: (f.ticker as string) ?? null,
+        nombre: (f.fund_name as string) || "", custodian_type: f.custodian_type as CustodianType,
+        category: (f.category as string) || "", tac: m?.tac ?? null, rent_12m: m?.rent_12m ?? null,
+      };
+    });
     const mappingRows = (mappings || []).map(m => ({
       categoria: m.categoria as string, custodian_type: m.custodian_type as CustodianType,
       preferred_fund_id: m.preferred_fund_id as string,
