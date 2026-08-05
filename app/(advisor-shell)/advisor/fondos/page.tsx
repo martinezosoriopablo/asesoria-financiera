@@ -714,6 +714,7 @@ export default function AdvisorFondosPage() {
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Instrumento</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Tipo</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Categoria</th>
+                  <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Sector</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Custodio</th>
                   <th className="text-right text-xs font-semibold text-gb-gray px-4 py-3">TAC</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Benef. Tributario</th>
@@ -766,6 +767,18 @@ export default function AdvisorFondosPage() {
                           onSave={(val) => handleUpdateField(fund.id, "category", val)}
                           className="text-sm"
                         />
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {instrumentType === "stock" ? (
+                        <EditableCell
+                          value={fund.sector || ""}
+                          placeholder="ej. Technology"
+                          onSave={(val) => handleUpdateField(fund.id, "sector", val)}
+                          className="text-sm"
+                        />
+                      ) : (
+                        <span className="text-xs text-gb-gray">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
