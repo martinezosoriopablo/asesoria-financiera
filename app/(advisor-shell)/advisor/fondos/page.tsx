@@ -14,6 +14,9 @@ import {
   Check,
 } from "lucide-react";
 
+type InstrumentType = "fund" | "stock" | "bond";
+type CustodianType = "agf" | "corredora" | "internacional";
+
 interface PreferredFund {
   id: string;
   fund_run: string;
@@ -26,7 +29,31 @@ interface PreferredFund {
   objetivo: string | null;
   horizonte: string | null;
   tolerancia_riesgo: string | null;
+  ticker: string | null;
+  instrument_type: InstrumentType | null;
+  sector: string | null;
+  custodian_type: CustodianType | null;
 }
+
+const INSTRUMENT_TYPE_LABELS: Record<InstrumentType, string> = {
+  fund: "Fondo",
+  stock: "Acción",
+  bond: "Bono",
+};
+
+const CUSTODIAN_LABELS: Record<CustodianType, string> = {
+  agf: "AGF / Fondos",
+  corredora: "Corredora Nacional",
+  internacional: "Custodio Internacional",
+};
+
+// Sugerencias de sector (mismo vocabulario que lib/sector-mapping.ts) — el campo
+// es texto libre, esto solo alimenta el datalist para consistencia.
+const SECTOR_SUGGESTIONS = [
+  "Technology", "Healthcare", "Financial Services", "Consumer Cyclical",
+  "Consumer Defensive", "Energy", "Industrials", "Communication Services",
+  "Utilities", "Real Estate", "Basic Materials",
+];
 
 interface SearchResult {
   id: string;
@@ -137,6 +164,28 @@ function CategorySelect({
   );
 }
 
+// Custodio dropdown — saves on change (determina en qué sleeves/columna del
+// medio "directo" aparece el instrumento, según el custodio del cliente).
+function CustodianSelect({
+  value,
+  onSave,
+}: {
+  value: CustodianType;
+  onSave: (val: CustodianType) => void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onSave(e.target.value as CustodianType)}
+      className="text-sm rounded px-1 py-0.5 border border-transparent hover:border-gb-border focus:border-blue-300 focus:ring-1 focus:ring-blue-400 focus:outline-none bg-transparent cursor-pointer transition-colors text-gb-black"
+    >
+      {(Object.keys(CUSTODIAN_LABELS) as CustodianType[]).map((c) => (
+        <option key={c} value={c}>{CUSTODIAN_LABELS[c]}</option>
+      ))}
+    </select>
+  );
+}
+
 export default function AdvisorFondosPage() {
   const { advisor, loading: authLoading } = useAdvisor();
   const [funds, setFunds] = useState<PreferredFund[]>([]);
@@ -150,6 +199,17 @@ export default function AdvisorFondosPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [viewingObjective, setViewingObjective] = useState<PreferredFund | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<InstrumentType | "all">("all");
+
+  // Modal "Agregar": tab "fondo" (buscar en CMF) o "manual" (acción/bono directo)
+  const [addMode, setAddMode] = useState<"fondo" | "manual">("fondo");
+  const [manualTipo, setManualTipo] = useState<"stock" | "bond">("stock");
+  const [manualTicker, setManualTicker] = useState("");
+  const [manualNombre, setManualNombre] = useState("");
+  const [manualCategory, setManualCategory] = useState("");
+  const [manualSector, setManualSector] = useState("");
+  const [manualCustodian, setManualCustodian] = useState<CustodianType>("internacional");
+  const [manualSaving, setManualSaving] = useState(false);
 
   const fetchFunds = useCallback(async () => {
     try {
@@ -233,6 +293,48 @@ export default function AdvisorFondosPage() {
     }
   };
 
+  const resetManualForm = () => {
+    setManualTipo("stock");
+    setManualTicker("");
+    setManualNombre("");
+    setManualCategory("");
+    setManualSector("");
+    setManualCustodian("internacional");
+  };
+
+  const handleAddManual = async () => {
+    if (!manualTicker.trim()) return;
+    setManualSaving(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/advisor/preferred-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: manualTicker.trim().toUpperCase(),
+          fund_name: manualNombre.trim() || manualTicker.trim().toUpperCase(),
+          instrument_type: manualTipo,
+          category: manualCategory.trim() || null,
+          sector: manualTipo === "stock" ? (manualSector.trim() || null) : null,
+          custodian_type: manualCustodian,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchFunds();
+        resetManualForm();
+        setShowSearch(false);
+      } else {
+        setActionError(data.error || "Error al agregar instrumento");
+      }
+    } catch (error) {
+      console.error("Error adding manual instrument:", error);
+      setActionError("Error al agregar instrumento");
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
   const handleDelete = async (fundId: string) => {
     setDeleting(fundId);
     try {
@@ -251,7 +353,11 @@ export default function AdvisorFondosPage() {
     }
   };
 
-  const handleUpdateField = async (fundId: string, field: "category" | "notes", value: string) => {
+  const handleUpdateField = async (
+    fundId: string,
+    field: "category" | "notes" | "sector",
+    value: string
+  ) => {
     setSaving(fundId);
     try {
       const res = await fetch("/api/advisor/preferred-funds", {
@@ -273,6 +379,30 @@ export default function AdvisorFondosPage() {
     }
   };
 
+  const handleUpdateCustodian = async (fundId: string, value: CustodianType) => {
+    setSaving(fundId);
+    try {
+      const res = await fetch("/api/advisor/preferred-funds", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: fundId, custodian_type: value }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFunds((prev) => prev.map((f) => (f.id === fundId ? { ...f, custodian_type: value } : f)));
+      }
+    } catch (error) {
+      console.error("Error updating custodian:", error);
+      setActionError("Error al actualizar custodio");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const filteredFunds = typeFilter === "all"
+    ? funds
+    : funds.filter((f) => (f.instrument_type ?? "fund") === typeFilter);
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -293,20 +423,39 @@ export default function AdvisorFondosPage() {
               Mis Fondos Preferidos
             </h1>
             <p className="text-sm text-gb-gray mt-0.5">
-              Fondos que se priorizan en recomendaciones de cartera generadas por IA
+              Fondos, acciones y bonos que se priorizan en recomendaciones de cartera generadas por IA
             </p>
           </div>
           <button
             onClick={() => {
               setShowSearch(true);
+              setAddMode("fondo");
               setSearchResults([]);
               setSearchTerm("");
+              resetManualForm();
             }}
             className="flex items-center gap-1.5 px-4 py-2 bg-gb-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Agregar Fondo
+            Agregar
           </button>
+        </div>
+
+        {/* Filtro por tipo */}
+        <div className="flex items-center gap-1.5 mb-4">
+          {(["all", "fund", "stock", "bond"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                typeFilter === t
+                  ? "bg-gb-black text-white"
+                  : "bg-gray-100 text-gb-gray hover:bg-gray-200"
+              }`}
+            >
+              {t === "all" ? "Todos" : INSTRUMENT_TYPE_LABELS[t]}
+            </button>
+          ))}
         </div>
 
         {/* Error banner */}
@@ -322,7 +471,9 @@ export default function AdvisorFondosPage() {
           <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-24">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[70vh] flex flex-col">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gb-border">
-                <h2 className="text-base font-semibold text-gb-black">Buscar Fondo</h2>
+                <h2 className="text-base font-semibold text-gb-black">
+                  {addMode === "fondo" ? "Buscar Fondo" : "Agregar Acción / Bono"}
+                </h2>
                 <button
                   onClick={() => setShowSearch(false)}
                   className="p-1.5 rounded-md hover:bg-gray-100 text-gb-gray"
@@ -331,6 +482,26 @@ export default function AdvisorFondosPage() {
                 </button>
               </div>
 
+              <div className="flex items-center gap-1.5 px-5 pt-3">
+                <button
+                  onClick={() => setAddMode("fondo")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    addMode === "fondo" ? "bg-gb-black text-white" : "bg-gray-100 text-gb-gray hover:bg-gray-200"
+                  }`}
+                >
+                  Fondo (buscar CMF)
+                </button>
+                <button
+                  onClick={() => setAddMode("manual")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    addMode === "manual" ? "bg-gb-black text-white" : "bg-gray-100 text-gb-gray hover:bg-gray-200"
+                  }`}
+                >
+                  Acción / Bono
+                </button>
+              </div>
+
+              {addMode === "fondo" && (
               <div className="px-5 py-3 border-b border-gb-border">
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
@@ -354,7 +525,106 @@ export default function AdvisorFondosPage() {
                   </button>
                 </div>
               </div>
+              )}
 
+              {addMode === "manual" && (
+              <div className="px-5 py-4 border-b border-gb-border space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gb-gray mb-1">Tipo</label>
+                    <select
+                      value={manualTipo}
+                      onChange={(e) => setManualTipo(e.target.value as "stock" | "bond")}
+                      className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gb-black/10"
+                    >
+                      <option value="stock">Acción</option>
+                      <option value="bond">Bono</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gb-gray mb-1">Custodio</label>
+                    <select
+                      value={manualCustodian}
+                      onChange={(e) => setManualCustodian(e.target.value as CustodianType)}
+                      className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gb-black/10"
+                    >
+                      {(Object.keys(CUSTODIAN_LABELS) as CustodianType[]).map((c) => (
+                        <option key={c} value={c}>{CUSTODIAN_LABELS[c]}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gb-gray mb-1">
+                    {manualTipo === "stock" ? "Ticker" : "Ticker / ISIN / CUSIP"}
+                  </label>
+                  <input
+                    type="text"
+                    value={manualTicker}
+                    onChange={(e) => setManualTicker(e.target.value)}
+                    placeholder={manualTipo === "stock" ? "ej. NVDA" : "ej. 912828YK0"}
+                    className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gb-black/10 font-mono"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gb-gray mb-1">Nombre</label>
+                  <input
+                    type="text"
+                    value={manualNombre}
+                    onChange={(e) => setManualNombre(e.target.value)}
+                    placeholder="ej. NVIDIA Corp"
+                    className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gb-black/10"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gb-gray mb-1">Categoría (sleeve)</label>
+                  <input
+                    type="text"
+                    value={manualCategory}
+                    onChange={(e) => setManualCategory(e.target.value)}
+                    placeholder={manualTipo === "stock" ? "ej. RV USA" : "ej. UST belly"}
+                    className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gb-black/10"
+                  />
+                  <p className="text-[11px] text-gb-gray mt-1">
+                    Debe coincidir con el sleeve del comité (ej. &quot;RV USA&quot;, &quot;UST belly&quot;) para que el instrumento aparezca en la columna del medio.
+                  </p>
+                </div>
+
+                {manualTipo === "stock" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gb-gray mb-1">Sector</label>
+                    <input
+                      type="text"
+                      list="sector-suggestions"
+                      value={manualSector}
+                      onChange={(e) => setManualSector(e.target.value)}
+                      placeholder="ej. Technology"
+                      className="w-full px-3 py-2 border border-gb-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gb-black/10"
+                    />
+                    <datalist id="sector-suggestions">
+                      {SECTOR_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+                    </datalist>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={handleAddManual}
+                    disabled={manualSaving || !manualTicker.trim()}
+                    className="px-4 py-2 bg-gb-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  >
+                    {manualSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    {manualSaving ? "Agregando..." : "Agregar"}
+                  </button>
+                </div>
+              </div>
+              )}
+
+              {addMode === "fondo" && (
               <div className="flex-1 overflow-y-auto px-5 py-3">
                 {searchResults.length === 0 && !searching && (
                   <p className="text-sm text-gb-gray text-center py-8">
@@ -413,6 +683,7 @@ export default function AdvisorFondosPage() {
                   );
                 })}
               </div>
+              )}
             </div>
           </div>
         )}
@@ -430,13 +701,20 @@ export default function AdvisorFondosPage() {
               Agrega fondos para que se prioricen en las recomendaciones de cartera.
             </p>
           </div>
+        ) : filteredFunds.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gb-border p-12 text-center">
+            <Star className="w-10 h-10 text-gb-gray/40 mx-auto mb-3" />
+            <p className="text-gb-gray text-sm">No hay instrumentos de este tipo.</p>
+          </div>
         ) : (
           <div className="bg-white rounded-xl border border-gb-border overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gb-border bg-gray-50/50">
-                  <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Fondo</th>
+                  <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Instrumento</th>
+                  <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Tipo</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Categoria</th>
+                  <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Custodio</th>
                   <th className="text-right text-xs font-semibold text-gb-gray px-4 py-3">TAC</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Benef. Tributario</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Nota</th>
@@ -444,7 +722,9 @@ export default function AdvisorFondosPage() {
                 </tr>
               </thead>
               <tbody>
-                {funds.map((fund) => (
+                {filteredFunds.map((fund) => {
+                  const instrumentType: InstrumentType = fund.instrument_type ?? "fund";
+                  return (
                   <tr
                     key={fund.id}
                     className={`border-b border-gb-border last:border-0 hover:bg-gray-50/50 transition-colors ${saving === fund.id ? "opacity-60" : ""}`}
@@ -452,18 +732,46 @@ export default function AdvisorFondosPage() {
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-gb-black flex items-center gap-2">
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                          fund.fund_run.endsWith("-FI") ? "bg-indigo-100 text-indigo-700" : "bg-teal-100 text-teal-700"
+                          instrumentType === "stock" ? "bg-purple-100 text-purple-700"
+                          : instrumentType === "bond" ? "bg-amber-100 text-amber-700"
+                          : fund.fund_run.endsWith("-FI") ? "bg-indigo-100 text-indigo-700" : "bg-teal-100 text-teal-700"
                         }`}>
-                          {fund.fund_run.endsWith("-FI") ? "FI" : "FM"}
+                          {instrumentType === "stock" ? (fund.ticker || "ACCIÓN")
+                            : instrumentType === "bond" ? (fund.ticker || "BONO")
+                            : (fund.fund_run.endsWith("-FI") ? "FI" : "FM")}
                         </span>
-                        {fund.fund_name || "-"}
+                        {fund.fund_name || fund.ticker || "-"}
                       </p>
-                      <p className="text-[11px] text-gb-gray mt-0.5 ml-8 font-mono">{fund.fund_run}</p>
+                      {instrumentType === "fund" ? (
+                        <p className="text-[11px] text-gb-gray mt-0.5 ml-8 font-mono">{fund.fund_run}</p>
+                      ) : (
+                        fund.sector && (
+                          <p className="text-[11px] text-gb-gray mt-0.5 ml-8">Sector: {fund.sector}</p>
+                        )
+                      )}
                     </td>
                     <td className="px-4 py-3">
-                      <CategorySelect
-                        value={fund.category || ""}
-                        onSave={(val) => handleUpdateField(fund.id, "category", val)}
+                      <span className="text-xs text-gb-gray">{INSTRUMENT_TYPE_LABELS[instrumentType]}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {instrumentType === "fund" ? (
+                        <CategorySelect
+                          value={fund.category || ""}
+                          onSave={(val) => handleUpdateField(fund.id, "category", val)}
+                        />
+                      ) : (
+                        <EditableCell
+                          value={fund.category || ""}
+                          placeholder="ej. RV USA"
+                          onSave={(val) => handleUpdateField(fund.id, "category", val)}
+                          className="text-sm"
+                        />
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <CustodianSelect
+                        value={fund.custodian_type || "agf"}
+                        onSave={(val) => handleUpdateCustodian(fund.id, val)}
                       />
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -524,7 +832,8 @@ export default function AdvisorFondosPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -117,6 +117,13 @@ function formatBeneficio(ficha: {
   return tags.length > 0 ? tags.join(", ") : null;
 }
 
+const INSTRUMENT_TYPES = ["fund", "stock", "bond"] as const;
+type InstrumentType = (typeof INSTRUMENT_TYPES)[number];
+
+function isInstrumentType(value: unknown): value is InstrumentType {
+  return typeof value === "string" && (INSTRUMENT_TYPES as readonly string[]).includes(value);
+}
+
 // POST - Add a fund to preferred list
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "preferred-funds-post", { limit: 10, windowSeconds: 60 });
@@ -129,14 +136,24 @@ export async function POST(request: NextRequest) {
 
   return handleApiError("preferred-funds-post", async () => {
     const body = await request.json();
-    const { fund_run, fund_name, category, notes, ticker, instrument_type, expense_ratio, description, custodian_type } = body;
+    const { fund_run, fund_name, category, notes, ticker, instrument_type, sector, expense_ratio, description, custodian_type } = body;
 
     if (!fund_run && !ticker) {
       return NextResponse.json({ error: "fund_run o ticker requerido" }, { status: 400 });
     }
 
-    // For ETFs/stocks/bonds, generate a placeholder fund_run from ticker
-    const effectiveFundRun = fund_run || `ETF-${ticker}`;
+    if (instrument_type !== undefined && !isInstrumentType(instrument_type)) {
+      return NextResponse.json({ error: "instrument_type inválido (fund|stock|bond)" }, { status: 400 });
+    }
+
+    const effectiveType: InstrumentType = instrument_type || "fund";
+    // Sector solo aplica a acciones — para fondos/bonos se fuerza a null aunque venga en el body.
+    const effectiveSector = effectiveType === "stock" ? (sector || null) : null;
+
+    // For stocks/bonds without fund_run, generate a placeholder key from tipo+ticker
+    // (ETF- se mantiene para no romper el flujo existente de fondos/ETF vía ticker).
+    const typePrefix = effectiveType === "fund" ? "ETF" : effectiveType.toUpperCase();
+    const effectiveFundRun = fund_run || `${typePrefix}-${ticker}`;
 
     const { data, error } = await supabase
       .from("advisor_preferred_funds")
@@ -147,7 +164,8 @@ export async function POST(request: NextRequest) {
         category: category || null,
         notes: notes || null,
         ticker: ticker || null,
-        instrument_type: instrument_type || "fund",
+        instrument_type: effectiveType,
+        sector: effectiveSector,
         expense_ratio: expense_ratio ?? null,
         description: description || null,
         custodian_type: custodian_type || "agf",
@@ -172,10 +190,14 @@ export async function PATCH(request: NextRequest) {
   const supabase = createAdminClient();
 
   return handleApiError("preferred-funds-patch", async () => {
-    const { id, category, notes, ticker, instrument_type, expense_ratio, description, custodian_type } = await request.json();
+    const { id, category, notes, ticker, instrument_type, sector, expense_ratio, description, custodian_type } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: "id requerido" }, { status: 400 });
+    }
+
+    if (instrument_type !== undefined && !isInstrumentType(instrument_type)) {
+      return NextResponse.json({ error: "instrument_type inválido (fund|stock|bond)" }, { status: 400 });
     }
 
     const updates: Record<string, unknown> = {};
@@ -186,6 +208,23 @@ export async function PATCH(request: NextRequest) {
     if (expense_ratio !== undefined) updates.expense_ratio = expense_ratio;
     if (description !== undefined) updates.description = description || null;
     if (custodian_type !== undefined) updates.custodian_type = custodian_type;
+
+    // Sector solo se guarda para acciones. El tipo efectivo es el que viene en este
+    // PATCH o, si no cambia, el que ya está en BD (para no dejar sector "colgado"
+    // si el asesor cambia el tipo de stock a bond/fund sin tocar sector explícitamente).
+    if (sector !== undefined || (instrument_type !== undefined && instrument_type !== "stock")) {
+      let effectiveType: InstrumentType | undefined = instrument_type;
+      if (effectiveType === undefined) {
+        const { data: existing } = await supabase
+          .from("advisor_preferred_funds")
+          .select("instrument_type")
+          .eq("id", id)
+          .eq("advisor_id", advisor!.id)
+          .single();
+        effectiveType = (existing?.instrument_type as InstrumentType | undefined) ?? "fund";
+      }
+      updates.sector = effectiveType === "stock" ? (sector || null) : null;
+    }
 
     const { error } = await supabase
       .from("advisor_preferred_funds")
