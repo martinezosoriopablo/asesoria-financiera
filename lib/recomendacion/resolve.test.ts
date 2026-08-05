@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow, weightedMetrics, buildSectorVistaLookup } from "./resolve";
 import { resolveMisInstrumentos } from "./resolve";
-import type { ComiteColumn, MiFondoOption, MiInstrumentoOption, RecomendacionRow } from "./types";
+import type { ComiteColumn, MiInstrumentoOption, RecomendacionRow } from "./types";
 
 describe("roleToClase", () => {
   it("mapea roles del comité a la clase de cartera_recomendada", () => {
