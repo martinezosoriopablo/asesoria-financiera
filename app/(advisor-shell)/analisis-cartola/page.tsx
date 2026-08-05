@@ -392,6 +392,13 @@ function AnalisisCartolaContent() {
                   {BAND_LABELS[recommendedAllocation.band] || recommendedAllocation.band}
                 </span>
                 <p className="text-xs text-gb-gray mt-1">Puntaje: {clientProfile.puntaje_riesgo}/100</p>
+                <Link
+                  href={`/recomendacion/${clientProfile.id}`}
+                  className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                >
+                  Ir a Recomendación
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
 

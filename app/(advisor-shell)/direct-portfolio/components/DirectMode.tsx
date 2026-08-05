@@ -4,6 +4,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   Save,
@@ -86,6 +87,17 @@ export default function DirectMode({ portfolioId, clientId }: DirectModeProps) {
     }
     fetchClients();
   }, []);
+
+  // Preload del cliente si se llega con ?client=<email> en la URL (deep-link uniforme
+  // con las otras pestañas del Portfolio Designer). Resuelve email → id contra la lista.
+  const searchParams = useSearchParams();
+  const clientParam = searchParams.get("client");
+  useEffect(() => {
+    if (clientParam && !selectedClientId && clients.length > 0) {
+      const match = clients.find((c) => c.email?.toLowerCase() === clientParam.toLowerCase());
+      if (match) setSelectedClientId(match.id);
+    }
+  }, [clientParam, clients, selectedClientId]);
 
   // Cargar portafolio existente
   useEffect(() => {

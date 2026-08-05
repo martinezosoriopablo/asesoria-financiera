@@ -3,7 +3,8 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   getBenchmarkFromScore,
   AssetAllocation,
@@ -186,7 +187,8 @@ function getAlternativeNeutralWeightForBlock(
 // -------------------- Componente principal --------------------
 
 export default function ModelMode() {
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const [email, setEmail] = useState(searchParams.get("client") || "");
   const [includeAlternatives, setIncludeAlternatives] = useState(false);
   const [universe, setUniverse] = useState<BenchmarkUniverse>("global");
   const [loading, setLoading] = useState(false);
@@ -382,6 +384,16 @@ export default function ModelMode() {
       setLoading(false);
     }
   };
+
+  // Preload automático si se llega con ?client=<email> (deep-link desde la ficha del cliente).
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!autoLoadedRef.current && email) {
+      autoLoadedRef.current = true;
+      handleLoad();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ----------- Guardar modelo en Supabase -----------
   const handleSaveModel = async () => {
