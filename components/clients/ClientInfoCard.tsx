@@ -698,6 +698,13 @@ export default function ClientInfoCard({
             Perfil de Riesgo / Cartola
           </Link>
           <Link
+            href={`/recomendacion/${client.id}`}
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+          >
+            <Target className="w-4 h-4" />
+            Recomendación
+          </Link>
+          <Link
             href={`/portfolio-comparison?client=${client.email}`}
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
           >
@@ -712,7 +719,7 @@ export default function ClientInfoCard({
             Construir Modelo
           </Link>
           <Link
-            href={`/analisis-fondos?client=${client.email}`}
+            href="/fund-center"
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
           >
             <TrendingUp className="w-4 h-4" />
