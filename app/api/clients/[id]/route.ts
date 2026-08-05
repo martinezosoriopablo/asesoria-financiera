@@ -5,6 +5,7 @@ import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedC
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { logAuditEvent } from "@/lib/audit";
+import { parseVehiculos } from "@/lib/recomendacion/vehiculos";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -404,6 +405,11 @@ export async function PATCH(
         return errorResponse("Modo de seleccion no valido", 400);
       }
       updateData.fund_selection_mode = body.fund_selection_mode;
+    }
+
+    // Handle recomendacion_vehiculos (config de vehículo por clase: rv/rf/alt)
+    if (body.recomendacion_vehiculos !== undefined) {
+      updateData.recomendacion_vehiculos = parseVehiculos(body.recomendacion_vehiculos);
     }
 
     if (Object.keys(updateData).length === 0) {
