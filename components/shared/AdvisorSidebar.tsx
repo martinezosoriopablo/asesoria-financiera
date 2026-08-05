@@ -21,6 +21,7 @@ import {
   LogOut,
   Settings,
   RefreshCw,
+  Upload,
   ArrowRightLeft,
   FileText,
   LineChart,
@@ -308,6 +309,14 @@ export default function AdvisorSidebar({
                     >
                       <RefreshCw className="w-4 h-4" />
                       Sincronizacion de Datos
+                    </Link>
+                    <Link
+                      href="/admin/nav-upload"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gb-gray hover:text-gb-black hover:bg-gb-light transition-colors"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Importar Valores Cuota
                     </Link>
                   </>
                 )}
