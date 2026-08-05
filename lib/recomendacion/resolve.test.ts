@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow, weightedMetrics } from "./resolve";
+import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow, weightedMetrics, buildSectorVistaLookup } from "./resolve";
 import type { ComiteColumn, MiFondoOption, RecomendacionRow } from "./types";
 
 describe("roleToClase", () => {
@@ -150,5 +150,27 @@ describe("weightedMetrics", () => {
     expect(r.tac).toBeNull();
     expect(r.rent12m).toBeNull();
     expect(r.coverage).toBe(0);
+  });
+});
+
+describe("buildSectorVistaLookup", () => {
+  const sleeves = [
+    { sector: "technology", region: "us", vista: "OW", conviction: "MEDIA", etf_us: "XLK" },
+    { sector: "energy", region: "us", vista: "UW", conviction: "ALTA", etf_us: "XLE" },
+  ];
+  it("devuelve la vista del sector (case-insensitive)", () => {
+    const look = buildSectorVistaLookup(sleeves);
+    expect(look("technology")).toBe("OW");
+    expect(look("Technology")).toBe("OW");
+    expect(look("energy")).toBe("UW");
+  });
+  it("sector desconocido o null → null", () => {
+    const look = buildSectorVistaLookup(sleeves);
+    expect(look("healthcare")).toBeNull();
+    expect(look(null)).toBeNull();
+  });
+  it("sleeves vacío → siempre null", () => {
+    const look = buildSectorVistaLookup([]);
+    expect(look("technology")).toBeNull();
   });
 });

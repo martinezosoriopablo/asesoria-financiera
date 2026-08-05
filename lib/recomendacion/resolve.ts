@@ -16,6 +16,17 @@ function normCategoria(c: string): string {
     .trim();
 }
 
+interface SleeveSector { sector?: string | null; vista?: string | null }
+
+// Construye un lookup sector → vista desde model_portfolios.sleeves.
+export function buildSectorVistaLookup(sleeves: SleeveSector[] | null | undefined): (sector: string | null) => string | null {
+  const map = new Map<string, string>();
+  for (const s of sleeves || []) {
+    if (s.sector && s.vista) map.set(s.sector.toLowerCase(), s.vista);
+  }
+  return (sector: string | null) => (sector ? map.get(sector.toLowerCase()) ?? null : null);
+}
+
 const ROLE_TO_CLASE: Record<ComiteRole, string> = {
   rv: "Renta Variable",
   rf: "Renta Fija",
