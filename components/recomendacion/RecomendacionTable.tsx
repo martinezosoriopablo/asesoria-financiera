@@ -124,23 +124,30 @@ export default function RecomendacionTable({ rows, setDecision, totalPeso }: Pro
                           <span className="text-gb-gray italic">Sin equivalente en el custodio</span>
                         ) : (
                           <div className="space-y-1">
-                            {row.misFondos.slice(0, 3).map((f) => (
-                              <button
-                                key={f.fund_id}
-                                onClick={() => setDecision(row.categoria, {
-                                  fuente: "mi_fondo", ticker: f.ticker ?? (f.fund_run ? String(f.fund_run) : null),
-                                  nombre: f.nombre, custodian_type: f.custodian_type, clase: roleToClase(row.role),
-                                  tac: f.tac, rent_12m: f.rent_12m,
-                                })}
-                                className="block w-full text-left px-2 py-1 rounded border border-gb-border hover:bg-slate-50"
-                              >
-                                <span className="font-medium text-gb-black">
-                                  {f.isMapped && <span className="text-[9px] px-1 py-0 rounded bg-amber-100 text-amber-700 font-semibold mr-1">MI FONDO</span>}
-                                  {f.nombre}
-                                </span>
-                                <span className="text-[10px] text-gb-gray"> · {f.custodian_type}{f.tac != null ? ` · TAC ${f.tac}%` : ""}</span>
-                              </button>
-                            ))}
+                            {row.misFondos.slice(0, 3).map((f) => {
+                              const fuente = f.tipo === "etf" ? "comite_etf" : f.tipo === "stock" ? "accion" : f.tipo === "bond" ? "bono" : "mi_fondo";
+                              const badge = f.origen === "actual" ? `YA LO TIENE${f.weight_pct != null ? ` ${f.weight_pct.toFixed(1)}%` : ""}`
+                                : f.tipo === "stock" ? "MI ACCIÓN" : f.tipo === "bond" ? "MI BONO" : f.isMapped ? "MI FONDO" : null;
+                              return (
+                                <button
+                                  key={f.fund_id}
+                                  onClick={() => setDecision(row.categoria, {
+                                    fuente, ticker: f.ticker ?? (f.fund_run ? String(f.fund_run) : null),
+                                    nombre: f.nombre, custodian_type: f.custodian_type, clase: roleToClase(row.role),
+                                    tac: f.tac, rent_12m: f.rent_12m, sector: f.sector ?? null,
+                                  })}
+                                  className="block w-full text-left px-2 py-1 rounded border border-gb-border hover:bg-slate-50"
+                                >
+                                  <span className="font-medium text-gb-black">
+                                    {badge && <span className="text-[9px] px-1 py-0 rounded bg-amber-100 text-amber-700 font-semibold mr-1">{badge}</span>}
+                                    {f.nombre}
+                                  </span>
+                                  <span className="text-[10px] text-gb-gray"> · {f.custodian_type}
+                                    {f.vista_comite ? ` · comité ${f.vista_comite}` : ""}
+                                    {f.tac != null ? ` · TAC ${f.tac}%` : ""}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </td>
