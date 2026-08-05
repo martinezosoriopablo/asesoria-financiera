@@ -87,6 +87,23 @@ export default function RecomendacionConstruir({ clientId }: { clientId: string 
               </label>
             ))}
           </span>
+          <span className="flex items-center gap-2 flex-wrap">
+            Vehículo:
+            {(["rv", "rf", "alt"] as const).map((clase) => (
+              <span key={clase} className="flex items-center gap-1">
+                <span className="uppercase text-[10px] text-gb-gray">{clase}</span>
+                <select
+                  value={rec.vehiculos[clase]}
+                  onChange={(e) => rec.setVehiculo(clase, e.target.value as "fondos" | "etf" | "directo")}
+                  className="text-xs border border-gb-border rounded px-1 py-0.5"
+                >
+                  <option value="fondos">Fondos</option>
+                  <option value="etf">ETF</option>
+                  <option value="directo">Directo</option>
+                </select>
+              </span>
+            ))}
+          </span>
         </div>
         <button
           onClick={handleSave}
