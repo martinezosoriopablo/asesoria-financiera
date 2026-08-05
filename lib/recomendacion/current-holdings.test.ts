@@ -11,6 +11,12 @@ describe("detectDirectTipo", () => {
   it("fondo (RUN numérico) → null", () => {
     expect(detectDirectTipo({ fundName: "FM BCI", securityId: "9226", marketValue: 100, assetClass: "fund" })).toBeNull();
   });
+  it("bono por sola forma de CUSIP (sin cupón/vencimiento)", () => {
+    expect(detectDirectTipo({ fundName: "IBM 2035", securityId: "459200HU8", marketValue: 100 })).toBe("bond");
+  });
+  it("acción por solo ticker alfabético (sin assetClass)", () => {
+    expect(detectDirectTipo({ fundName: "Apple", securityId: "AAPL", marketValue: 100 })).toBe("stock");
+  });
 });
 
 describe("classifyDirectHoldingsBySleeve", () => {

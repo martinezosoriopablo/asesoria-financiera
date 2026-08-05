@@ -1,4 +1,5 @@
 import { classifyHolding, type HoldingForClassification } from "@/lib/comite-categories";
+import { inferInstrumentType } from "@/lib/instrument-type";
 import type { CustodianType } from "./types";
 
 export interface DirectHolding {
@@ -16,17 +17,11 @@ type RawHolding = HoldingForClassification & {
 };
 
 // Detecta si un holding es un instrumento DIRECTO (acción/bono) o no (fondo/ETF/caja → null).
+// (Delegamos en lib/instrument-type.ts — la utilidad canónica del repo — en vez
+//  de reimplementar la detección; ver CLAUDE.md: no duplicar utilidades compartidas.)
 export function detectDirectTipo(h: RawHolding): "stock" | "bond" | null {
-  const sid = (h.securityId || "").trim().toUpperCase();
-  const asset = (h.assetClass || "").toLowerCase();
-  // Bono: cupón+vencimiento, o CUSIP alfanumérico de 9 con dígitos y letras.
-  const cusipBond = /^[A-Z0-9]{9}$/.test(sid) && /\d/.test(sid) && /[A-Z]/.test(sid);
-  if ((h.couponRate != null && h.maturityDate) || asset === "bond" || cusipBond) return "bond";
-  // Fondo: RUN numérico, o assetClass fondo/etf.
-  if (/^\d+$/.test(sid) || asset === "fund" || asset === "etf") return null;
-  // Acción: assetClass equity, o ticker puramente alfabético (2-6 letras, con o sin sufijo .SN).
-  if (asset === "equity" || /^[A-Z]{1,6}(\.[A-Z]{1,3})?$/.test(sid)) return "stock";
-  return null;
+  const t = inferInstrumentType(h);
+  return t === "bond" || t === "stock" ? t : null;
 }
 
 // Agrupa los holdings directos por sleeve (categoryId de classifyHolding).
