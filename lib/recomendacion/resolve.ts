@@ -1,7 +1,8 @@
 import { PREFERRED_TO_COMITE, type ComiteRole } from "@/lib/comite-categories";
 import { normalizeText } from "@/lib/text";
+import type { DirectHolding } from "./current-holdings";
 import type {
-  CarteraPosition, ComiteColumn, CustodianType, Decision, MiFondoOption, RecomendacionRow,
+  CarteraPosition, ComiteColumn, CustodianType, Decision, MiFondoOption, MiInstrumentoOption, RecomendacionRow, Vehiculo,
 } from "./types";
 
 // Normaliza una etiqueta de categoría de fondo para comparar el vocabulario del
@@ -95,11 +96,25 @@ interface PreferredFundInput {
   category: string;       // categoría del asesor (ej. "RV Internacional")
   tac: number | null;
   rent_12m: number | null;
+  instrument_type?: "fund" | "stock" | "bond";
+  sector?: string | null;
 }
 interface MappingInput {
   categoria: string;      // id de COMITE_CATEGORIES
   custodian_type: MiFondoOption["custodian_type"];
   preferred_fund_id: string;
+}
+
+// Match category (etiqueta del asesor) → sleeve del comité, con normalización.
+// Dos caminos: (1) vocabulario genérico de fondos preferidos (PREFERRED_TO_COMITE,
+// ej. "RV USA" para rv_usa_large_cap); (2) para acciones/bonos preferidos el
+// asesor suele tagear directo con el nombre del sleeve (ej. "UST belly" para
+// rf_ust_belly) — se compara contra el id sin prefijo de rol y con "_" → " ".
+export function matchesSleeve(category: string, sleeveId: string): boolean {
+  const wanted = new Set((PREFERRED_TO_COMITE[sleeveId] || []).map(normCategoria));
+  if (wanted.has(normCategoria(category))) return true;
+  const sleeveLabel = sleeveId.replace(/^(rv|rf|alt|cash)_/, "").replace(/_/g, " ");
+  return normCategoria(category) === normCategoria(sleeveLabel);
 }
 
 export function resolveMisFondos(input: {
@@ -109,31 +124,82 @@ export function resolveMisFondos(input: {
   mappings: MappingInput[];
 }): MiFondoOption[] {
   const { categoria, custodios, preferredFunds, mappings } = input;
-  // Comparación normalizada: tolera "Renta Variable USA" ≡ "RV USA", acentos y mayúsculas.
-  const wanted = new Set((PREFERRED_TO_COMITE[categoria] || []).map(normCategoria));
   const custodioSet = new Set(custodios);
-
-  // IDs mapeados explícitamente para esta categoría y algún custodio del cliente
   const mappedIds = new Set(
     mappings.filter(m => m.categoria === categoria && custodioSet.has(m.custodian_type)).map(m => m.preferred_fund_id)
   );
-
   const candidates = preferredFunds.filter(f =>
+    (f.instrument_type ?? "fund") === "fund" &&
     custodioSet.has(f.custodian_type) &&
-    (mappedIds.has(f.id) || wanted.has(normCategoria(f.category)))
+    (mappedIds.has(f.id) || matchesSleeve(f.category, categoria))
   );
-
-  const toOption = (f: PreferredFundInput): MiFondoOption => ({
+  const toOption = (f: PreferredFundInput): MiInstrumentoOption => ({
     fund_id: f.id, fund_run: f.fund_run, ticker: f.ticker, nombre: f.nombre,
     custodian_type: f.custodian_type, tac: f.tac, rent_12m: f.rent_12m, isMapped: mappedIds.has(f.id),
+    tipo: "fund", origen: "preferido", sector: null, vista_comite: null, weight_pct: null,
   });
+  return candidates.map(toOption).sort((a, b) => {
+    if (a.isMapped !== b.isMapped) return a.isMapped ? -1 : 1;
+    return (a.tac ?? Infinity) - (b.tac ?? Infinity);
+  });
+}
 
-  return candidates
-    .map(toOption)
-    .sort((a, b) => {
-      if (a.isMapped !== b.isMapped) return a.isMapped ? -1 : 1;  // mapped primero
-      return (a.tac ?? Infinity) - (b.tac ?? Infinity);           // luego menor TAC
-    });
+function etfOption(etf: string, custodio: MiInstrumentoOption["custodian_type"]): MiInstrumentoOption {
+  return { fund_id: `etf:${etf}`, fund_run: null, ticker: etf, nombre: etf, custodian_type: custodio,
+    tac: null, rent_12m: null, isMapped: false, tipo: "etf", origen: "comite", sector: null, vista_comite: null, weight_pct: null };
+}
+
+// Resuelve la columna del medio ("Mis Instrumentos") según el vehículo elegido
+// para el rol (fondos / etf / directo). Generaliza resolveMisFondos (que sigue
+// siendo el caso "fondos") agregando ETF del comité y, para "directo", los
+// holdings actuales del cliente + instrumentos preferidos (acciones/bonos)
+// tageados con la vista del comité (sector para RV, duración/vista del sleeve para RF).
+export function resolveMisInstrumentos(input: {
+  sleeveId: string;
+  role: ComiteRole;
+  vehiculo: Vehiculo;
+  custodios: MiInstrumentoOption["custodian_type"][];
+  preferred: PreferredFundInput[];
+  currentDirect: DirectHolding[];
+  comiteEtfUs: string | null;
+  comiteEtfUcits: string | null;
+  bondVista: string | null;
+  sectorVista: (sector: string | null) => string | null;
+  mappings: MappingInput[];
+}): MiInstrumentoOption[] {
+  const { sleeveId, role, vehiculo, custodios, preferred, currentDirect, comiteEtfUs, comiteEtfUcits, bondVista, sectorVista, mappings } = input;
+  const custodioSet = new Set(custodios);
+
+  if (vehiculo === "fondos") {
+    return resolveMisFondos({ categoria: sleeveId, custodios, preferredFunds: preferred, mappings });
+  }
+
+  if (vehiculo === "etf") {
+    const etf = comiteEtfUs || comiteEtfUcits;
+    return etf ? [etfOption(etf, custodios[0] ?? "internacional")] : [];
+  }
+
+  // directo: RF → bonos, resto → acciones
+  const wantType: "stock" | "bond" = role === "rf" ? "bond" : "stock";
+  const vistaFor = (sector: string | null) => (wantType === "bond" ? bondVista : sectorVista(sector));
+
+  const current: MiInstrumentoOption[] = currentDirect
+    .filter(h => h.tipo === wantType)
+    .map(h => ({
+      fund_id: `hold:${h.ticker || h.nombre}`, fund_run: null, ticker: h.ticker, nombre: h.nombre,
+      custodian_type: h.custodian_type, tac: null, rent_12m: null, isMapped: false,
+      tipo: wantType, origen: "actual", sector: h.sector, vista_comite: vistaFor(h.sector), weight_pct: h.weight_pct,
+    }));
+
+  const pref: MiInstrumentoOption[] = preferred
+    .filter(p => (p.instrument_type ?? "fund") === wantType && custodioSet.has(p.custodian_type) && matchesSleeve(p.category, sleeveId))
+    .map(p => ({
+      fund_id: p.id, fund_run: p.fund_run, ticker: p.ticker, nombre: p.nombre,
+      custodian_type: p.custodian_type, tac: p.tac, rent_12m: p.rent_12m, isMapped: false,
+      tipo: wantType, origen: "preferido", sector: p.sector ?? null, vista_comite: vistaFor(p.sector ?? null), weight_pct: null,
+    }));
+
+  return [...current, ...pref]; // actuales primero (default = mantener)
 }
 
 export function deriveCartera(rows: RecomendacionRow[]): CarteraPosition[] {

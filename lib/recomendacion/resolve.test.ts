@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow, weightedMetrics, buildSectorVistaLookup } from "./resolve";
+import { resolveMisInstrumentos } from "./resolve";
 import type { ComiteColumn, MiFondoOption, RecomendacionRow } from "./types";
 
 describe("roleToClase", () => {
@@ -150,6 +151,48 @@ describe("weightedMetrics", () => {
     expect(r.tac).toBeNull();
     expect(r.rent12m).toBeNull();
     expect(r.coverage).toBe(0);
+  });
+});
+
+describe("resolveMisInstrumentos", () => {
+  const preferred = [
+    { id: "f1", fund_run: "100", ticker: null, nombre: "AGF USA", custodian_type: "agf" as const, category: "RV USA", tac: 1.2, rent_12m: 7, instrument_type: "fund" as const, sector: null },
+    { id: "s1", fund_run: null, ticker: "NVDA", nombre: "Nvidia", custodian_type: "internacional" as const, category: "RV USA", tac: null, rent_12m: null, instrument_type: "stock" as const, sector: "technology" },
+    { id: "b1", fund_run: null, ticker: "912828XY9", nombre: "UST 2030", custodian_type: "internacional" as const, category: "UST belly", tac: null, rent_12m: null, instrument_type: "bond" as const, sector: null },
+  ];
+  const sectorVista = (s: string | null) => (s === "technology" ? "OW" : null);
+
+  it("vehículo fondos → solo fondos preferidos (ignora acciones/bonos)", () => {
+    const r = resolveMisInstrumentos({ sleeveId: "rv_usa_large_cap", role: "rv", vehiculo: "fondos", custodios: ["agf"], preferred, currentDirect: [], comiteEtfUs: "VOO", comiteEtfUcits: "CSPX", bondVista: null, sectorVista, mappings: [] });
+    expect(r.map(o => o.fund_id)).toEqual(["f1"]);
+    expect(r[0].tipo ?? "fund").toBe("fund");
+  });
+
+  it("vehículo etf → el ETF del comité", () => {
+    const r = resolveMisInstrumentos({ sleeveId: "rv_usa_large_cap", role: "rv", vehiculo: "etf", custodios: ["internacional"], preferred, currentDirect: [], comiteEtfUs: "VOO", comiteEtfUcits: "CSPX", bondVista: null, sectorVista, mappings: [] });
+    expect(r).toHaveLength(1);
+    expect(r[0].ticker).toBe("VOO");
+    expect(r[0].tipo).toBe("etf");
+    expect(r[0].origen).toBe("comite");
+  });
+
+  it("vehículo directo RV → holdings actuales + acciones preferidas, tageadas con vista de sector", () => {
+    const current = [{ ticker: "AAPL", nombre: "Apple", tipo: "stock" as const, sector: "technology", weight_pct: 12, custodian_type: "internacional" as const }];
+    const r = resolveMisInstrumentos({ sleeveId: "rv_usa_large_cap", role: "rv", vehiculo: "directo", custodios: ["internacional"], preferred, currentDirect: current, comiteEtfUs: "VOO", comiteEtfUcits: "CSPX", bondVista: null, sectorVista, mappings: [] });
+    // primero el actual (para "mantener"), luego la preferida
+    expect(r.map(o => o.ticker)).toEqual(["AAPL", "NVDA"]);
+    expect(r[0].origen).toBe("actual");
+    expect(r[0].weight_pct).toBe(12);
+    expect(r[0].vista_comite).toBe("OW");   // tech OW
+    expect(r[1].origen).toBe("preferido");
+    expect(r[1].vista_comite).toBe("OW");
+  });
+
+  it("vehículo directo RF → bonos, tageados con la vista de duración del sleeve", () => {
+    const r = resolveMisInstrumentos({ sleeveId: "rf_ust_belly", role: "rf", vehiculo: "directo", custodios: ["internacional"], preferred, currentDirect: [], comiteEtfUs: "IEF", comiteEtfUcits: "IDTM", bondVista: "N", sectorVista, mappings: [] });
+    expect(r.map(o => o.ticker)).toEqual(["912828XY9"]);
+    expect(r[0].tipo).toBe("bond");
+    expect(r[0].vista_comite).toBe("N");
   });
 });
 
