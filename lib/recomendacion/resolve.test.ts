@@ -89,6 +89,17 @@ describe("resolveMisFondos", () => {
     const resRf = resolveMisFondos({ categoria: "rf_ig_corp", custodios: ["agf"], preferredFunds: longFunds, mappings: [] });
     expect(resRf.map(f => f.fund_id)).toEqual(["L3"]);
   });
+
+  it("un FONDO tageado 'Chile' NO matchea ni rv_chile ni rf_chile (fallback de sleeve-label es solo para directo)", () => {
+    // Antes de acotar el fallback a includeSleeveLabel=true, "Chile" colapsaba
+    // contra el label de rv_chile/rf_chile (ambos quitan el prefijo de rol → "chile")
+    // y un fondo tageado así aparecía en Mis Fondos para las DOS categorías.
+    const chileFund = [
+      { id: "c1", fund_run: "1", ticker: null, nombre: "Fondo Chile", custodian_type: "agf" as const, category: "Chile", tac: 1.0, rent_12m: 5 },
+    ];
+    expect(resolveMisFondos({ categoria: "rv_chile", custodios: ["agf"], preferredFunds: chileFund, mappings: [] })).toEqual([]);
+    expect(resolveMisFondos({ categoria: "rf_chile", custodios: ["agf"], preferredFunds: chileFund, mappings: [] })).toEqual([]);
+  });
 });
 
 describe("deriveCartera + sumaPesos", () => {

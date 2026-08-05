@@ -110,9 +110,11 @@ interface MappingInput {
 // ej. "RV USA" para rv_usa_large_cap); (2) para acciones/bonos preferidos el
 // asesor suele tagear directo con el nombre del sleeve (ej. "UST belly" para
 // rf_ust_belly) — se compara contra el id sin prefijo de rol y con "_" → " ".
-export function matchesSleeve(category: string, sleeveId: string): boolean {
+export function matchesSleeve(category: string, sleeveId: string, includeSleeveLabel = false): boolean {
   const wanted = new Set((PREFERRED_TO_COMITE[sleeveId] || []).map(normCategoria));
   if (wanted.has(normCategoria(category))) return true;
+  if (!includeSleeveLabel) return false;
+  // Fallback SOLO para instrumentos directos tageados con el nombre del sleeve (ej. "UST belly").
   const sleeveLabel = sleeveId.replace(/^(rv|rf|alt|cash)_/, "").replace(/_/g, " ");
   return normCategoria(category) === normCategoria(sleeveLabel);
 }
@@ -192,7 +194,7 @@ export function resolveMisInstrumentos(input: {
     }));
 
   const pref: MiInstrumentoOption[] = preferred
-    .filter(p => (p.instrument_type ?? "fund") === wantType && custodioSet.has(p.custodian_type) && matchesSleeve(p.category, sleeveId))
+    .filter(p => (p.instrument_type ?? "fund") === wantType && custodioSet.has(p.custodian_type) && matchesSleeve(p.category, sleeveId, true))
     .map(p => ({
       fund_id: p.id, fund_run: p.fund_run, ticker: p.ticker, nombre: p.nombre,
       custodian_type: p.custodian_type, tac: p.tac, rent_12m: p.rent_12m, isMapped: false,
