@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { roleToClase, defaultDecision, resolveMisFondos, deriveCartera, sumaPesos, buildUnresolvedRow, weightedMetrics, buildSectorVistaLookup } from "./resolve";
 import { resolveMisInstrumentos } from "./resolve";
-import type { ComiteColumn, MiFondoOption, RecomendacionRow } from "./types";
+import type { ComiteColumn, MiFondoOption, MiInstrumentoOption, RecomendacionRow } from "./types";
 
 describe("roleToClase", () => {
   it("mapea roles del comité a la clase de cartera_recomendada", () => {
@@ -14,33 +14,43 @@ describe("roleToClase", () => {
 
 describe("defaultDecision", () => {
   const comite: ComiteColumn = { etf_us: "VOO", etf_ucits: "CSPX", modelo_pct: 22, vista: "UW", conviction: "MEDIA" };
-  const miFondo: MiFondoOption = { fund_id: "f1", fund_run: "9226", ticker: null, nombre: "FM BCI USA", custodian_type: "agf", tac: 1.2, rent_12m: 8, isMapped: true };
+  const fondo: MiInstrumentoOption = { fund_id: "f1", fund_run: "9226", ticker: null, nombre: "FM BCI USA", custodian_type: "agf", tac: 1.2, rent_12m: 8, isMapped: true, tipo: "fund", origen: "preferido", sector: null, vista_comite: null, weight_pct: null };
 
-  it("AGF con mi fondo → usa el fondo", () => {
-    const d = defaultDecision({ categoria: "rv_usa_large_cap", role: "rv", comite, misFondos: [miFondo], custodio: "agf" });
+  it("fondos: con fondo → mi_fondo", () => {
+    const d = defaultDecision({ role: "rv", comite, opciones: [fondo], custodio: "agf", vehiculo: "fondos" });
     expect(d.fuente).toBe("mi_fondo");
     expect(d.nombre).toBe("FM BCI USA");
-    expect(d.custodian_type).toBe("agf");
-    expect(d.porcentaje).toBe(22);
-    expect(d.clase).toBe("Renta Variable");
   });
 
-  it("AGF sin mi fondo → sin equivalente = caja (peso a decidir por el asesor)", () => {
-    const d = defaultDecision({ categoria: "rv_usa_large_cap", role: "rv", comite, misFondos: [], custodio: "agf" });
-    expect(d.fuente).toBe("caja");
-    expect(d.ticker).toBeNull();
-    expect(d.porcentaje).toBe(22);
-  });
-
-  it("internacional sin mi fondo → ETF del comité (US preferido)", () => {
-    const d = defaultDecision({ categoria: "rv_usa_large_cap", role: "rv", comite, misFondos: [], custodio: "internacional" });
+  it("etf: opción etf → comite_etf", () => {
+    const etf: MiInstrumentoOption = { fund_id: "etf:VOO", fund_run: null, ticker: "VOO", nombre: "VOO", custodian_type: "internacional", tac: null, rent_12m: null, isMapped: false, tipo: "etf", origen: "comite", sector: null, vista_comite: null, weight_pct: null };
+    const d = defaultDecision({ role: "rv", comite, opciones: [etf], custodio: "internacional", vehiculo: "etf" });
     expect(d.fuente).toBe("comite_etf");
     expect(d.ticker).toBe("VOO");
   });
 
-  it("internacional con mi fondo → prioriza mi fondo", () => {
-    const d = defaultDecision({ categoria: "rv_usa_large_cap", role: "rv", comite, misFondos: [miFondo], custodio: "internacional" });
-    expect(d.fuente).toBe("mi_fondo");
+  it("directo: default = mantener lo actual (acción)", () => {
+    const actual: MiInstrumentoOption = { fund_id: "hold:AAPL", fund_run: null, ticker: "AAPL", nombre: "Apple", custodian_type: "internacional", tac: null, rent_12m: null, isMapped: false, tipo: "stock", origen: "actual", sector: "technology", vista_comite: "OW", weight_pct: 12 };
+    const d = defaultDecision({ role: "rv", comite, opciones: [actual], custodio: "internacional", vehiculo: "directo" });
+    expect(d.fuente).toBe("accion");
+    expect(d.nombre).toBe("Apple");
+    expect(d.sector).toBe("technology");
+  });
+
+  it("directo sin opciones → caja (no cae a ETF)", () => {
+    const d = defaultDecision({ role: "rv", comite, opciones: [], custodio: "internacional", vehiculo: "directo" });
+    expect(d.fuente).toBe("caja");
+  });
+
+  it("fondos sin fondo + internacional → ETF del comité (fallback histórico)", () => {
+    const d = defaultDecision({ role: "rv", comite, opciones: [], custodio: "internacional", vehiculo: "fondos" });
+    expect(d.fuente).toBe("comite_etf");
+    expect(d.ticker).toBe("VOO");
+  });
+
+  it("fondos sin fondo + AGF → caja", () => {
+    const d = defaultDecision({ role: "rv", comite, opciones: [], custodio: "agf", vehiculo: "fondos" });
+    expect(d.fuente).toBe("caja");
   });
 });
 

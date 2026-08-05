@@ -2,7 +2,7 @@ import { PREFERRED_TO_COMITE, type ComiteRole } from "@/lib/comite-categories";
 import { normalizeText } from "@/lib/text";
 import type { DirectHolding } from "./current-holdings";
 import type {
-  CarteraPosition, ComiteColumn, CustodianType, Decision, MiFondoOption, MiInstrumentoOption, RecomendacionRow, Vehiculo,
+  CarteraPosition, ComiteColumn, CustodianType, Decision, DecisionFuente, MiFondoOption, MiInstrumentoOption, RecomendacionRow, Vehiculo,
 } from "./types";
 
 // Normaliza una etiqueta de categoría de fondo para comparar el vocabulario del
@@ -39,37 +39,41 @@ export function roleToClase(role: ComiteRole): string {
   return ROLE_TO_CLASE[role];
 }
 
+function fuenteForOption(opt: MiInstrumentoOption): DecisionFuente {
+  switch (opt.tipo) {
+    case "etf": return "comite_etf";
+    case "stock": return "accion";
+    case "bond": return "bono";
+    default: return "mi_fondo";
+  }
+}
+
 export function defaultDecision(input: {
-  categoria: string;
   role: ComiteRole;
   comite: ComiteColumn;
-  misFondos: MiFondoOption[];
+  opciones: MiInstrumentoOption[];
   custodio: CustodianType;
+  vehiculo: Vehiculo;
 }): Decision {
-  const { role, comite, misFondos, custodio } = input;
+  const { role, comite, opciones, custodio, vehiculo } = input;
   const clase = roleToClase(role);
-  const best = misFondos[0]; // ya viene ordenado (mapped primero, luego mejor TAC)
+  const best = opciones[0]; // en directo, el actual viene primero (default = mantener)
 
-  // Prioridad 1: si hay un fondo del asesor disponible, usarlo (aplica a todos los custodios)
   if (best) {
-    return { fuente: "mi_fondo", ticker: best.ticker, nombre: best.nombre,
-      clase, custodian_type: best.custodian_type, porcentaje: comite.modelo_pct,
-      tac: best.tac, rent_12m: best.rent_12m };
+    return {
+      fuente: fuenteForOption(best),
+      ticker: best.ticker ?? (best.fund_run ? String(best.fund_run) : null),
+      nombre: best.nombre, clase, custodian_type: best.custodian_type,
+      porcentaje: comite.modelo_pct, tac: best.tac, rent_12m: best.rent_12m, sector: best.sector ?? null,
+    };
   }
 
-  // Prioridad 2: sin fondo del asesor.
-  // internacional/corredora pueden comprar el ETF del comité en bolsa.
-  if (custodio === "internacional" || custodio === "corredora") {
+  // Sin opción: solo en modo no-directo, internacional/corredora pueden usar el ETF del comité.
+  if (vehiculo !== "directo" && (custodio === "internacional" || custodio === "corredora")) {
     const etf = comite.etf_us || comite.etf_ucits;
-    if (etf) {
-      return { fuente: "comite_etf", ticker: etf, nombre: etf,
-        clase, custodian_type: custodio, porcentaje: comite.modelo_pct };
-    }
+    if (etf) return { fuente: "comite_etf", ticker: etf, nombre: etf, clase, custodian_type: custodio, porcentaje: comite.modelo_pct };
   }
-
-  // AGF sin equivalente (o categoría sin ETF): default a caja, el asesor decide.
-  return { fuente: "caja", ticker: null, nombre: "Caja",
-    clase, custodian_type: custodio, porcentaje: comite.modelo_pct };
+  return { fuente: "caja", ticker: null, nombre: "Caja", clase, custodian_type: custodio, porcentaje: comite.modelo_pct };
 }
 
 // Fila para una posición del comité cuya categoría NO resuelve a COMITE_CATEGORIES.
