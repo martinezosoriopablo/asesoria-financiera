@@ -563,6 +563,6 @@ v.addEventListener('loadeddata',go,{once:false});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)go();});
 })();
 </script>
-<script>(function(){var s=document.querySelector(".proposito");if(!s)return;if(!("IntersectionObserver" in window)){s.classList.add("in");return;}var o=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){s.classList.add("in");o.disconnect();}});},{threshold:.15,rootMargin:"0px 0px -15% 0px"});o.observe(s);})();</script>
+<script>(function(){var s=document.querySelector(".proposito");if(!s)return;if(!("IntersectionObserver" in window)){s.classList.add("in");return;}var o=new IntersectionObserver(function(es){es.forEach(function(e){s.classList.toggle("in",e.isIntersecting);});},{threshold:.15,rootMargin:"0px 0px -15% 0px"});o.observe(s);})();</script>
 </body>
 </html>
