@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ClientInfoCard from "@/components/clients/ClientInfoCard";
+import JourneyStepper from "@/components/clients/JourneyStepper";
 import { useClientData } from "./hooks/useClientData";
 import { useClientModals } from "./hooks/useClientModals";
 
@@ -194,6 +195,18 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
             </button>
           </div>
         </div>
+
+        <JourneyStepper
+          client={{
+            id: client.id,
+            email: client.email,
+            perfil_riesgo: client.perfil_riesgo ?? null,
+            puntaje_riesgo: client.puntaje_riesgo ?? null,
+            tiene_portfolio: client.tiene_portfolio ?? null,
+            cartera_recomendada: client.cartera_recomendada ?? null,
+            next_questionnaire_date: client.next_questionnaire_date ?? null,
+          }}
+        />
 
         {/* Share client modal */}
         {showShareModal && (

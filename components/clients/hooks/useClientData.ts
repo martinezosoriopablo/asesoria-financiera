@@ -31,6 +31,7 @@ export interface Client {
   questionnaire_frequency?: string;
   last_questionnaire_date?: string;
   next_questionnaire_date?: string;
+  cartera_recomendada?: unknown;
   fund_selection_mode?: string;
   servicios_adicionales?: {
     seguros?: { activo: boolean; poliza?: string; cobertura?: string; beneficiarios?: string; notas?: string };
