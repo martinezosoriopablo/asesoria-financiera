@@ -53,9 +53,12 @@ export default function JourneyStepper({ client }: { client: JourneyClient }) {
               Continuar → {current.label}
             </Link>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium text-gb-success bg-green-50">
+            <Link
+              href={`/clients/${client.id}/seguimiento`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium text-gb-success bg-green-50 hover:bg-green-100 transition-colors"
+            >
               <Check className="w-4 h-4" /> Todo al día
-            </span>
+            </Link>
           )}
         </div>
       </div>
