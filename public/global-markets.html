@@ -80,7 +80,7 @@
   /* Portal / Acceso + idioma, en la misma línea del nav */
   .navbtn{background:var(--copper);border:1px solid var(--copper);color:#fff;border-radius:2px;padding:7px 14px;min-width:116px;text-align:center;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;transition:.2s}
   .navbtn:hover{background:#D0682E;border-color:#D0682E}
-  .langtog{background:transparent;border:1px solid rgba(255,255,255,.36);color:#fff;border-radius:2px;padding:7px 10px;font-size:12px;font-weight:600;letter-spacing:.06em;line-height:1;cursor:pointer;transition:.2s;font-family:inherit}
+  .langtog{background:transparent;border:1px solid rgba(255,255,255,.36);color:#fff;border-radius:2px;padding:7px 10px;font-size:12px;font-weight:600;letter-spacing:.06em;line-height:1;cursor:pointer;transition:.2s;font-family:inherit;text-decoration:none;display:inline-block}
   .langtog:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.75)}
 
   /* Hero */
@@ -453,7 +453,7 @@
   <div class="nav-right">
     <a class="navbtn" href="/portal/login">Portal Clientes</a>
     <a class="navbtn" href="/login">Acceso Asesores</a>
-    <button class="langtog" type="button" aria-label="Cambiar idioma">ES</button>
+    <a class="langtog" href="en/global-markets.html" aria-label="View in English">EN</a>
   </div>
   <button class="hamb" aria-label="Abrir menú"><span></span><span></span><span></span></button>
   </div>
@@ -527,7 +527,7 @@
       <a href="global-wealth.html">Global Wealth</a>
       <a href="global-planning.html">Global Planning</a>
       <a href="global-properties.html">Global Properties</a>
-      <a href="global-markets.html">Global Markets</a>
+      <a href="global-markets.html">Global Markets</a><a href="global-corporate.html">Global Corporate</a>
     </div>
     <div class="fcol">
       <h5>Marco regulatorio</h5>
@@ -551,8 +551,6 @@
 if(!h)return;
 h.addEventListener('click',function(){n.classList.toggle('open');});
 n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('click',function(){n.classList.remove('open');});});
-var lt=document.querySelector('.langtog');
-if(lt){lt.addEventListener('click',function(){lt.textContent=(lt.textContent.trim()==='ES')?'EN':'ES';});}
 })();
 </script>
 <div class="pmodal" id="pmodal" role="dialog" aria-modal="true">
