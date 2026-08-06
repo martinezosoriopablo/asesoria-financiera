@@ -15,7 +15,6 @@ import {
   Target,
   BarChart3,
   Briefcase,
-  LineChart,
   Send,
   ExternalLink,
   Upload,
@@ -679,31 +678,10 @@ export default function ClientInfoCard({
       {/* Report configuration */}
       <ReportConfigPanel clientId={client.id} />
 
-      {/* Quick actions */}
+      {/* Más herramientas (los hitos del journey viven en el stepper de arriba) */}
       <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-gb-black mb-3">Acciones</h2>
+        <h2 className="text-sm font-semibold text-gb-black mb-3">Más herramientas</h2>
         <div className="space-y-1">
-          <Link
-            href={`/clients/${client.id}/seguimiento`}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <LineChart className="w-4 h-4" />
-            Seguimiento de Cartolas
-          </Link>
-          <Link
-            href={`/analisis-cartola?client=${client.email}`}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <Shield className="w-4 h-4" />
-            Perfil de Riesgo / Cartola
-          </Link>
-          <Link
-            href={`/recomendacion/${client.id}`}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <Target className="w-4 h-4" />
-            Recomendación
-          </Link>
           <Link
             href={`/portfolio-comparison?client=${client.email}`}
             className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-blue-600 hover:bg-blue-50 transition-colors"
