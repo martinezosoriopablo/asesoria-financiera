@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Check, ArrowRight, AlertTriangle } from "lucide-react";
+import { Check, AlertTriangle } from "lucide-react";
 import { computeJourneySteps, type JourneyClient, type JourneyStep } from "@/lib/clients/journey";
 
 function NodeCircle({ step, index }: { step: JourneyStep; index: number }) {
@@ -38,7 +38,7 @@ export default function JourneyStepper({ client }: { client: JourneyClient }) {
                   </span>
                 </Link>
                 {i < steps.length - 1 && (
-                  <div className={`h-0.5 w-8 shrink-0 ${steps[i].status === "done" ? "bg-gb-success" : "bg-gb-border"}`} />
+                  <div className={`h-0.5 w-8 shrink-0 ${step.status === "done" ? "bg-gb-success" : "bg-gb-border"}`} />
                 )}
               </React.Fragment>
             ))}
@@ -51,7 +51,6 @@ export default function JourneyStepper({ client }: { client: JourneyClient }) {
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium text-white bg-gb-primary hover:bg-gb-primary/90 transition-colors"
             >
               Continuar → {current.label}
-              <ArrowRight className="w-4 h-4" />
             </Link>
           ) : (
             <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium text-gb-success bg-green-50">
