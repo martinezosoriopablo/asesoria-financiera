@@ -43,6 +43,8 @@
 
   /* Sistema tipográfico (roles fijos) */
   .eyebrow{font-size:var(--fs-eyebrow);letter-spacing:.24em;text-transform:uppercase;color:var(--copper);font-weight:600}
+  .eyebrow .home-link{color:inherit;text-decoration:none;transition:.2s}
+  .eyebrow .home-link:hover{text-decoration:underline;text-underline-offset:3px}
   h1{font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:var(--fs-h1);line-height:1.08;letter-spacing:-.01em;color:var(--navy)}
   h2{font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:var(--fs-h2);line-height:1.15;color:var(--navy)}
   .lead{font-size:var(--fs-lead);color:var(--text);line-height:1.65;max-width:34em}
@@ -453,7 +455,7 @@
 <header class="hero">
   <div class="hero-media"><div class="hero-slides"><div class="hero-slide is-active" style="background-image:url(&#39;/media/planning-hero-1.jpg&#39;)"></div><div class="hero-slide" style="background-image:url(&#39;/media/planning-hero-2.jpg&#39;)"></div><div class="hero-slide" style="background-image:url(&#39;/media/planning-hero-3.jpg&#39;)"></div></div><div class="hero-veil"></div>
     <div class="hero-overlay">
-      <span class="eyebrow">Una división de Global Companies</span>
+      <span class="eyebrow">Una división de <a class="home-link" href="global-companies.html">Global Companies</a></span>
       <h1>Protección, orden y estrategia para construir tu patrimonio.</h1>
       <p class="lead">Inversión, propiedades y protección, estructuradas en una sola estrategia patrimonial.</p>
     </div>

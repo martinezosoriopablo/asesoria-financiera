@@ -44,6 +44,8 @@
 
   /* Sistema tipográfico (roles fijos) */
   .eyebrow{font-size:var(--fs-eyebrow);letter-spacing:.24em;text-transform:uppercase;color:var(--copper);font-weight:600}
+  .eyebrow .home-link{color:inherit;text-decoration:none;transition:.2s}
+  .eyebrow .home-link:hover{text-decoration:underline;text-underline-offset:3px}
   h1{font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:var(--fs-h1);line-height:1.08;letter-spacing:-.01em;color:var(--navy)}
   h2{font-family:"Source Serif 4",Georgia,serif;font-weight:400;font-size:var(--fs-h2);line-height:1.15;color:var(--navy)}
   .lead{font-size:var(--fs-lead);color:var(--text);line-height:1.65;max-width:34em}
@@ -427,7 +429,7 @@
 <header class="hero">
   <div class="hero-media">
     <div class="hero-overlay">
-      <span class="eyebrow">A division of Global Companies</span>
+      <span class="eyebrow">A division of <a class="home-link" href="global-companies.html">Global Companies</a></span>
       <h1>Your apartment, in the best hands.</h1>
       <p class="lead">Full administration and guaranteed rent. We find the tenant, manage the contract, and secure your rental income every month.</p>
     </div>
