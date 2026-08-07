@@ -83,7 +83,7 @@ function build(forEmail){
 }
 function render(){g('preview').innerHTML=build(false);g('code').value=build(true);}
 function toggleCode(){const c=g('code');c.style.display=c.style.display==='block'?'none':'block';}
-function copyRich(){const html=build(false);const blob=new Blob([html],{type:'text/html'});
+function copyRich(){const html=build(true);const blob=new Blob([html],{type:'text/html'});
   navigator.clipboard.write([new ClipboardItem({'text/html':blob,'text/plain':new Blob([html],{type:'text/plain'})})]).then(()=>{g('ok').textContent='¡Copiada! Pégala en tu correo.';setTimeout(()=>g('ok').textContent='',3000);},()=>{toggleCode();g('ok').textContent='Copia el HTML de abajo.';});}
 g('f_marca').addEventListener('change',onMarca);
 document.querySelectorAll('input').forEach(i=>i.addEventListener('input',render));

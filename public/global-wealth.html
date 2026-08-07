@@ -361,12 +361,12 @@
   .presencia .eyebrow{color:var(--copper);display:block;margin-bottom:18px}
   .presencia h2{color:#fff;margin-bottom:16px}
   .presencia .lead{color:rgba(255,255,255,.75);margin:0 auto;max-width:44em}
-  .globe-wrap{position:relative;width:100%;max-width:620px;margin:26px auto 0;aspect-ratio:1/1}
+  .globe-wrap{position:relative;width:100%;max-width:434px;margin:26px auto 0;aspect-ratio:1/1}
   .globe-canvas{width:100%;height:100%;display:block}
   .globe-legend{list-style:none;margin:30px auto 0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;max-width:840px}
   .globe-legend li{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.82);font-size:15px;font-family:"DM Sans",sans-serif}
   .globe-legend li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--copper);flex:none;box-shadow:0 0 8px rgba(235,120,56,.7)}
-  @media(max-width:600px){.globe-wrap{max-width:360px}}
+  @media(max-width:600px){.globe-wrap{max-width:260px}}
   .capgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:50px}
   .capcard{border:1px solid rgba(255,255,255,.14);border-radius:4px;padding:26px 24px}
   .capcard .cicon{width:28px;height:28px;margin-bottom:16px;display:block}
@@ -633,7 +633,7 @@ n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('cli
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   var MW=180,MH=90,MB=atob("gAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgAP8AAAAAAAAAAAAAAAAAAAAAAAAP+D///wAAAAAAAAAAAAAAAAAAAAAAAB4P///wAAYAAAAAAAAAAAAAAAAAAAAAAAf//wAAAAAAAAD/wAAAAAAAAADAAAAAP//wAAAAAEDT///cH8AAAAAADfwD8AH//gAAAAAMH///////AAAH///P4Q3wD/+AAAH8AF3////////94P////79j4H/gAAAf/3///////////+f//////B4D8AeAA//////////////Af/////8A8D4AYAB//////////////Af/////wHAA4AAAH7////////////4AP8H///gHwAAAAAH///////////+cAABwD///4H+AAAAGD7/////////8A4AAAAA////H/AAAAODz/////////wB4AAAAAf/////wAAAfP//////////+BwAAAAAP/////wAAAX////////////AgAAAAAH////+YAAAB////////////AAAAAAAD//9/8cAAAD///////////4AAAAAAAD/////AAAAB//7////////wAAAAAAAD////wAAAAP9vwPf//////jAAAAAAAD////gAAAAPg33Pv/////+AAAAAAAAD///+AAAAAfADf/v/////8GAAAAAAAB///+AAAAAPABf/v/////sMAAAAAAAA///8AAAAAH+AA///////M8AAAAAAAAf//4AAAAAP/AB///////hgAAAAAAAAP//wAAAAAf/z1///////gAAAAAAAAAH/8wAAAAAf//////////gAAAAAAAAAF/AQAAAAB///+/v/////AAAAAAAAAAC/AAAAAAB///+/0/////AAAAAAAAAAAfAQAAAAD////f+D///8AAAAAAAAAAAfGMAAAAH////P+B///wAAAAAAAAAAAPuAgAAAD////v+A/j+gAAAAAAAAAAAH8AAAAAD////n4A+B+AgAAAAAAAAAAAfAAAAAH////3wAcA/AgAAAAAAAAAAAHgAAAAH////+AAcAfAAAAAAAAAAAAABhwAAAD////9gAcAXAQAAAAAAAAAAAA//AAAB/////gAMASAYAAAAAAAAAAAAH/gAAA/////gACAQAYAAAAAAAAAAAAH/8AAAfP///AAAAoGAAAAAAAAAAAAAH/+AAAAB//+AAAA8OAAAAAAAAAAAAAP//AAAAB//8AAAAc+AAAAAAAAAAAAAP//wAAAD//4AAAAM9hgAAAAAAAAAAAP//+AAAB//wAAAAOdg+AAAAAAAAAAAP///AAAA//wAAAAGAAPgAAAAAAAAAAP///gAAA//wAAAABwAPgAAAAAAAAAAH///gAAA//wAAAAAAACQAAAAAAAAAAH///AAAAf/wAAAAAAAAAAAAAAAAAAAD//+AAAA//wgAAAAADyAAAAAAAAAAAB//+AAAA//xgAAAAAPzAAAAAAAAAAAA//+AAAA//jgAAAAAf/gAAAAAAAAAAAf/8AAAA//DgAAAAA//gAAAAAAAAAAAf/8AAAAf/DAAAAAH//wAAAAAAAAAAAf/wAAAAf/HAAAAAP//4AAAAAAAAAAAf/AAAAAf+CAAAAAP//8AAAAAAAAAAAf/AAAAAP8AAAAAAH//8AAAAAAAAAAA//AAAAAP8AAAAAAH//8AAAAAAAAAAA/+AAAAAH4AAAAAAH//8AAAAAAAAAAA/8AAAAAHwAAAAAAHwf4AAAAAAAAAAA/4AAAAAAAAAAAAAAAH4AAAAAAAAAAB/wAAAAAAAAAAAAAAADwAEAAAAAAAAB/AAAAAAAAAAAAAAAAAAAEAAAAAAAAB8AAAAAAAAAAAAAAAAAwAYAAAAAAAAB8AAAAAAAAAAAAAAAAAAAwAAAAAAAAB4AAAAAAAAAAAAAAAAAABgAAAAAAAAB4AAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGAAAAAAAAAeAA////8AAAAAAAAAAAAvAAAAAAADP//n//////gAAAAAAAAAB/AAAAf//////////////AAAAAEAH+P/AAAP//////////////8AAAD///////AAB///////////////4AgB/////////Af////////////////h////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////");
   function isLand(lat,lon){var x=Math.floor((lon+180)/360*MW);if(x<0)x=0;if(x>=MW)x=MW-1;var y=Math.floor((90-lat)/180*MH);if(y<0)y=0;if(y>=MH)y=MH-1;var idx=y*MW+x;return (MB.charCodeAt(idx>>3)>>(7-(idx&7)))&1;}
-  var cities=[{n:'Panamá',lat:8.98,lon:-79.52},{n:'Perú',lat:-12.05,lon:-77.04},{n:'Chile',lat:-33.45,lon:-70.66},{n:'España',lat:40.42,lon:-3.70},{n:'Uruguay',lat:-34.9,lon:-56.16},{n:'Argentina',lat:-34.6,lon:-58.38},{n:'Miami',lat:25.76,lon:-80.19},{n:'Colombia',lat:4.71,lon:-74.07},{n:'México',lat:19.43,lon:-99.13},{n:'Inglaterra',lat:51.51,lon:-0.13},{n:'Paraguay',lat:-25.28,lon:-57.63}];
+  var cities=[{n:'Panamá',lat:8.98,lon:-79.52},{n:'Perú',lat:-12.05,lon:-77.04},{n:'Chile',lat:-33.45,lon:-70.66},{n:'España',lat:40.42,lon:-3.70},{n:'Uruguay',lat:-34.9,lon:-56.16},{n:'Argentina',lat:-34.6,lon:-58.38,ldy:18},{n:'Miami',lat:25.76,lon:-80.19},{n:'Colombia',lat:4.71,lon:-74.07},{n:'México',lat:19.43,lon:-99.13},{n:'Inglaterra',lat:51.51,lon:-0.13},{n:'Paraguay',lat:-25.28,lon:-57.63}];
   var DPR=Math.min(window.devicePixelRatio||1,2);
   var size=0,R=0,cx=0,cy=0,rot=1.10,TILT=-0.28,CT=Math.cos(TILT),ST=Math.sin(TILT);
   function rad(d){return d*Math.PI/180;}
@@ -650,7 +650,7 @@ n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('cli
     for(var c=0;c<cities.length;c++){var q=proj(cities[c].lat,cities[c].lon);if(q.z<=0.03)continue;var op=Math.min(1,(q.z-0.03)*2.4);
       ctx.beginPath();ctx.arc(q.x,q.y,7,0,Math.PI*2);ctx.fillStyle='rgba(235,120,56,'+(0.20*op)+')';ctx.fill();
       ctx.beginPath();ctx.arc(q.x,q.y,3.3,0,Math.PI*2);ctx.fillStyle='rgba(242,146,86,'+op+')';ctx.fill();
-      if(q.z>0.55){var lop=Math.min(1,(q.z-0.55)/0.22);ctx.fillStyle='rgba(255,255,255,'+lop+')';ctx.shadowColor='rgba(6,18,38,.8)';ctx.shadowBlur=6;ctx.fillText(cities[c].n,q.x+10,q.y);ctx.shadowBlur=0;}
+      if(q.z>0.55){var lop=Math.min(1,(q.z-0.55)/0.22);ctx.fillStyle='rgba(255,255,255,'+lop+')';ctx.shadowColor='rgba(6,18,38,.8)';ctx.shadowBlur=6;ctx.fillText(cities[c].n,q.x+10,q.y+(cities[c].ldy||0));ctx.shadowBlur=0;}
     }
   }
   var running=false,raf=null;
