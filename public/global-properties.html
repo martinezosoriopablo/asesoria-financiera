@@ -54,6 +54,9 @@
   nav .wrap{display:grid;grid-template-columns:1fr auto 1fr;column-gap:22px;align-items:center;height:76px;max-width:1500px;padding:0 clamp(24px,3.5vw,56px)}
   .brand{justify-self:start}
   .nav-center{justify-self:center;display:flex;gap:6px}
+  .nav-home{display:inline-flex;align-items:center;justify-content:center;color:rgba(255,255,255,.72);padding:0 4px;transition:.2s}
+  .nav-home svg{width:18px;height:18px;display:block}
+  .nav-home:hover{color:#fff}
   .nav-cta{justify-self:end}
   .brand{display:inline-flex;align-items:center;text-decoration:none}
   .brand-logo{height:20px;width:auto;display:block;color:#fff;max-width:none}
@@ -400,7 +403,7 @@
 
 <nav><div class="wrap">
   <a class="brand" href="global-companies.html"><img class="brand-logo" src="/media/global-properties-blanco.svg" alt="Global Properties"></a>
-  <div class="nav-center">
+  <div class="nav-center"><a class="nav-home" href="global-companies.html" aria-label="Global Companies (inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3.5l9 7"/><path d="M5.5 9.5v10h13v-10"/></svg></a>
     <a class="nav-box" href="global-wealth.html">Wealth</a>
     <a class="nav-box" href="global-planning.html">Planning</a>
     <a class="nav-box" href="global-properties.html">Properties</a>
@@ -415,6 +418,7 @@
   <button class="hamb" aria-label="Abrir menú"><span></span><span></span><span></span></button>
   </div>
   <div class="mobile-menu">
+    <a href="global-companies.html">Global Companies</a>
     <a href="global-wealth.html">Wealth</a>
     <a href="global-planning.html">Planning</a>
     <a href="global-properties.html">Properties</a>
@@ -428,7 +432,7 @@
 <header class="hero">
   <div class="hero-media">
     <div class="hero-overlay">
-      <span class="eyebrow">Una división de <a class="home-link" href="global-companies.html">Global Companies</a></span>
+      <span class="eyebrow">Una división de Global Companies</span>
       <h1>Su departamento, en las mejores manos.</h1>
       <p class="lead">Administración completa y arriendo garantizado. Encontramos al arrendatario, gestionamos el contrato y le aseguramos la renta cada mes.</p>
     </div>

@@ -54,6 +54,9 @@
   nav .wrap{display:grid;grid-template-columns:1fr auto 1fr;column-gap:22px;align-items:center;height:76px;max-width:1500px;padding:0 clamp(24px,3.5vw,56px)}
   .brand{justify-self:start}
   .nav-center{justify-self:center;display:flex;gap:6px}
+  .nav-home{display:inline-flex;align-items:center;justify-content:center;color:rgba(255,255,255,.72);padding:0 4px;transition:.2s}
+  .nav-home svg{width:18px;height:18px;display:block}
+  .nav-home:hover{color:#fff}
   .nav-cta{justify-self:end}
   .brand{display:inline-flex;align-items:center;text-decoration:none}
   .brand-logo{height:20px;width:auto;display:block;color:#fff;max-width:none}
@@ -445,7 +448,7 @@
 
 <nav><div class="wrap">
   <a class="brand" href="global-companies.html"><img class="brand-logo" src="/media/global-markets-blanco.svg" alt="Global Markets"></a>
-  <div class="nav-center">
+  <div class="nav-center"><a class="nav-home" href="global-companies.html" aria-label="Global Companies (inicio)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3.5l9 7"/><path d="M5.5 9.5v10h13v-10"/></svg></a>
     <a class="nav-box" href="global-wealth.html">Wealth</a>
     <a class="nav-box" href="global-planning.html">Planning</a>
     <a class="nav-box" href="global-properties.html">Properties</a>
@@ -460,6 +463,7 @@
   <button class="hamb" aria-label="Abrir menú"><span></span><span></span><span></span></button>
   </div>
   <div class="mobile-menu">
+    <a href="global-companies.html">Global Companies</a>
     <a href="global-wealth.html">Wealth</a>
     <a href="global-planning.html">Planning</a>
     <a href="global-properties.html">Properties</a>
@@ -470,7 +474,7 @@
   </div>
 </nav>
 
-<header class="hero"><div class="hero-media"><div class="hero-overlay"><span class="eyebrow">El departamento de estudios de <a class="home-link" href="global-companies.html">Global Companies</a></span><h1>Research institucional, aumentado por inteligencia artificial.</h1><p class="lead">Global Markets es el cerebro de análisis de Global Companies: research de todos los mercados, con criterio de nivel institucional y una infraestructura tecnológica propia.</p></div></div></header>
+<header class="hero"><div class="hero-media"><div class="hero-overlay"><span class="eyebrow">El departamento de estudios de Global Companies</span><h1>Research institucional, aumentado por inteligencia artificial.</h1><p class="lead">Global Markets es el cerebro de análisis de Global Companies: research de todos los mercados, con criterio de nivel institucional y una infraestructura tecnológica propia.</p></div></div></header>
 
 <section class="mk-sec"><div class="wrap"><div class="sec-head"><span class="eyebrow">Qué nos hace distintos</span><h2>El rigor de un comité de inversiones, ejecutado con disciplina y sin sesgos personales.</h2><p class="lead" style="color:var(--muted)">La tecnología ordena, procesa y no se cansa; el criterio de inversión y la decisión final son humanos. Nuestra infraestructura propia procesa en horas lo que a una mesa de research tradicional le tomaría semanas.</p></div><div class="mk-grid"><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-1.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Comité de inversión</h3><p>La decisión no depende de una sola mirada ni de un solo modelo. Cada tema se analiza desde múltiples ángulos —macro, renta variable, renta fija, riesgo— que se contrastan entre sí hasta llegar a una visión fundamentada. El desacuerdo se resuelve con datos, no con jerarquía.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-2.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Datos en tiempo real</h3><p>Nos alimentamos en tiempo real de las principales fuentes de datos del mundo: bancos centrales, curvas de renta fija, fundamentales corporativos, flujos de fondos institucionales, valuaciones y volatilidad. No trabajamos con datos de segunda mano ni desactualizados.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-3.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Research global</h3><p>Procesamos de forma sistemática la prensa financiera especializada y el research de las grandes casas globales, las actas de los principales bancos centrales, las llamadas de analistas y los movimientos de los grandes fondos. Toda esa inteligencia, que ningún profesional podría abarcar solo, se destila y llega ordenada a la mesa de decisión.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-4.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Disciplina y consistencia</h3><p>Cada decisión queda documentada con su fundamento. El proceso es sistemático y repetible: la misma disciplina se aplica en cada ciclo, sin improvisación ni sesgos de memoria.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-5.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Pruebas de estrés</h3><p>Antes de recomendar, simulamos. Cada cartera modelo se somete a escenarios prospectivos y a la réplica de crisis históricas (2008, 2020, el shock inflacionario de 2022) para cuantificar cuánto podría perder y bajo qué condiciones. Convicción con números, no con relato.</p></div></div><div class="mk-fcard"><div class="mk-bg" style="background-image:url('/media/mk-card-6.jpg')"></div><div class="mk-veil"></div><div class="mk-body"><h3>Control de calidad</h3><p>Todo lo que publicamos está fundado en datos verificables. Si un dato no existe, no se afirma.</p></div></div></div></div></section>
 
