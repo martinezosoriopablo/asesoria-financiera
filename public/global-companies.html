@@ -433,7 +433,7 @@ footer{background:var(--navy);color:rgba(255,255,255,.6);padding:64px 0 40px;bor
     </ul>
     <a class="prop-cta" href="#contacto">Contáctanos</a>
   </div>
-  <figure class="prop-img pzl"><div class="puzzleWrap"><img class="puzzleSvg pzl-gif" alt="Wealth, Planning, Properties, Markets y Corporate: cinco piezas de una sola estrategia" src="/media/puzzle-assembled.png" data-gif="/media/puzzle-animacion.gif" data-poster="/media/puzzle-assembled.png"></div></figure>
+  <figure class="prop-img pzl"><div class="puzzleWrap"><img class="puzzleSvg pzl-gif" alt="Wealth, Planning, Properties, Markets y Corporate: cinco piezas de una sola estrategia" src="/media/puzzle-assembled.png" data-gif="/media/puzzle-animacion-lento.gif" data-poster="/media/puzzle-assembled.png"></div></figure>
 </div></div></section>
 
 
@@ -602,7 +602,7 @@ if(!h)return;
 h.addEventListener('click',function(){n.classList.toggle('open');});
 n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('click',function(){n.classList.remove('open');});});
 var w=document.querySelector('.puzzleWrap');
-if(w){var g=w.querySelector('.pzl-gif');if(g){var GIF=g.getAttribute('data-gif'),POS=g.getAttribute('data-poster');function play(){g.src=GIF+(GIF.indexOf('?')<0?'?':'&')+'t='+Date.now();setTimeout(function(){g.src=POS;},720);}if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)play();});},{threshold:.35});io.observe(w);}else{play();}}}
+if(w){var g=w.querySelector('.pzl-gif');if(g){var GIF=g.getAttribute('data-gif'),POS=g.getAttribute('data-poster');function play(){g.src=GIF+(GIF.indexOf('?')<0?'?':'&')+'t='+Date.now();setTimeout(function(){g.src=POS;},1350);}if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)play();});},{threshold:.35});io.observe(w);}else{play();}}}
 })();
 </script>
 <script>

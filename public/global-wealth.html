@@ -660,7 +660,7 @@ n.querySelectorAll('.mobile-menu a').forEach(function(a){a.addEventListener('cli
     }
   }
   var running=false,raf=null;
-  function frame(){if(!reduce)rot+=0.0018;draw();if(running)raf=requestAnimationFrame(frame);}
+  function frame(){if(!reduce)rot+=0.0034;draw();if(running)raf=requestAnimationFrame(frame);}
   function start(){if(running)return;if(reduce){draw();return;}running=true;raf=requestAnimationFrame(frame);}
   function stop(){running=false;if(raf)cancelAnimationFrame(raf);}
   resize();draw();
