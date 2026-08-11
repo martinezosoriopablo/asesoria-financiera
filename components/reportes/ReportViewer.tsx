@@ -19,7 +19,7 @@ export default function ReportViewer({ reportId }: { reportId: string }) {
       {r.content_html && <iframe sandbox="allow-same-origin" srcDoc={r.content_html} className="w-full h-[60vh] border rounded" />}
       {r.pdf_signed_url && <iframe src={r.pdf_signed_url} className="w-full h-[60vh] border rounded" />}
       {r.audio_url && <audio controls src={r.audio_url} className="w-full" />}
-      {r.payload && !r.content_html && (
+      {!!r.payload && !r.content_html && (
         <pre className="text-xs bg-gb-light p-3 rounded overflow-auto max-h-[60vh]">{JSON.stringify(r.payload, null, 2)}</pre>
       )}
     </div>
