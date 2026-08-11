@@ -10,11 +10,12 @@ interface DistributionResult {
 export async function distributeDailyReport(reportId: string): Promise<DistributionResult> {
   const supabase = createAdminClient();
 
-  // Fetch the report
+  // Fetch the report (type='diario' desde el repositorio unificado)
   const { data: report, error: reportError } = await supabase
-    .from("daily_reports")
+    .from("reports")
     .select("*")
     .eq("id", reportId)
+    .eq("type", "diario")
     .single();
 
   if (reportError || !report) {
@@ -34,7 +35,7 @@ export async function distributeDailyReport(reportId: string): Promise<Distribut
   if (!configs || configs.length === 0) {
     // Mark as distributed even if no recipients
     await supabase
-      .from("daily_reports")
+      .from("reports")
       .update({ distributed: true, distributed_at: new Date().toISOString(), recipients_count: 0 })
       .eq("id", reportId);
     return { sent: 0, errors: 0, recipients: [] };
@@ -50,19 +51,19 @@ export async function distributeDailyReport(reportId: string): Promise<Distribut
 
   if (!clients || clients.length === 0) {
     await supabase
-      .from("daily_reports")
+      .from("reports")
       .update({ distributed: true, distributed_at: new Date().toISOString(), recipients_count: 0 })
       .eq("id", reportId);
     return { sent: 0, errors: 0, recipients: [] };
   }
 
   // Add podcast link to HTML if exists
-  let htmlContent = report.html_content;
-  if (report.podcast_url) {
+  let htmlContent = report.content_html;
+  if (report.audio_url) {
     htmlContent += `
       <div style="text-align: center; margin: 32px 0; padding: 20px; background-color: #F7F6F2; border-radius: 12px;">
         <p style="color: #6E7787; font-size: 14px; margin: 0 0 12px 0;">🎧 Escucha el podcast del día</p>
-        <a href="${report.podcast_url}"
+        <a href="${report.audio_url}"
            style="background-color: #0B2140; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
           Reproducir Podcast
         </a>
@@ -82,7 +83,7 @@ export async function distributeDailyReport(reportId: string): Promise<Distribut
     const emails = batch.map(client => ({
       from: `Global <${process.env.SENDER_EMAIL || "noreply@global.cl"}>`,
       to: client.email!,
-      subject: report.subject,
+      subject: report.title,
       html: htmlContent,
     }));
 
@@ -102,7 +103,7 @@ export async function distributeDailyReport(reportId: string): Promise<Distribut
 
   // Mark as distributed
   await supabase
-    .from("daily_reports")
+    .from("reports")
     .update({
       distributed: true,
       distributed_at: new Date().toISOString(),

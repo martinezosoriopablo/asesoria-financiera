@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS reports (
   pdf_url       text,
   audio_url     text,
   usos          text[],
+  -- Tracking de distribución (para reportes con uso 'distribucion', ej. el diario).
+  distributed      boolean NOT NULL DEFAULT false,
+  distributed_at   timestamptz,
+  recipients_count int NOT NULL DEFAULT 0,
   uploaded_by   uuid REFERENCES advisors(id),
   created_at    timestamptz DEFAULT now(),
   updated_at    timestamptz DEFAULT now()

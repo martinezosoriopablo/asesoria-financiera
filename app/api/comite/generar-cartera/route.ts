@@ -137,11 +137,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Obtener los 4 reportes del comité
-    const { data: reports, error: reportsError } = await supabase
-      .from("comite_reports")
-      .select("type, content, report_date")
-      .in("type", ["macro", "rv", "rf", "asset_allocation"]);
+    // 2. Obtener los reportes marcados como insumo de cartera (vigentes, repositorio unificado).
+    const { data: reportRows, error: reportsError } = await supabase
+      .from("vw_reports_vigentes")
+      .select("type, content_html, payload, report_date, usos_efectivos")
+      .contains("usos_efectivos", ["insumo_cartera"]);
 
     if (reportsError) {
       console.error("Error fetching reports:", reportsError);
@@ -151,11 +151,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!reports || reports.length < 4) {
+    const reports = (reportRows || []).map((r) => ({
+      type: r.type as string,
+      content: (r.content_html as string | null) ?? (r.payload ? JSON.stringify(r.payload) : ""),
+      report_date: r.report_date as string,
+    }));
+
+    if (reports.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: `Faltan reportes del comité. Subidos: ${reports?.length || 0}/4`,
+          error: "No hay reportes del comité marcados como insumo de cartera. Súbelos en el Repositorio de reportes.",
         },
         { status: 400 }
       );

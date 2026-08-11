@@ -93,12 +93,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Otherwise, generate with AI
-    // 1. Get monthly report
-    const { data: report } = await sb
-      .from("monthly_reports")
-      .select("id, title, html_content")
-      .eq("month", month)
-      .single();
+    // 1. Get monthly report (cierre_mensual vigente del mes, desde el repositorio unificado)
+    const { data: reportRow } = await sb
+      .from("vw_reports_vigentes")
+      .select("id, title, content_html, period")
+      .eq("type", "cierre_mensual")
+      .eq("period", month)
+      .maybeSingle();
+    const report = reportRow
+      ? { id: reportRow.id, title: reportRow.title, html_content: reportRow.content_html }
+      : null;
 
     if (!report) {
       return errorResponse(`No hay reporte mensual para ${month}. Súbalo primero.`, 400);

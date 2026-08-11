@@ -82,46 +82,19 @@ export async function POST(request: NextRequest) {
       podcastUrl = urlData.publicUrl;
     }
 
-    // Check for existing report (upsert)
-    const { data: existing } = await supabase
-      .from("daily_reports")
-      .select("id")
-      .eq("report_date", reportDate)
-      .eq("period", period)
-      .maybeSingle();
-
+    // Inserta una versión nueva en el repositorio unificado (type='diario').
+    // La vigente es siempre la última por (report_date, period) — sin upsert.
     let reportId: string;
-
-    if (existing) {
-      // Update existing report
+    {
       const { data, error } = await supabase
-        .from("daily_reports")
-        .update({
-          subject,
-          html_content: html,
-          podcast_url: podcastUrl ?? undefined,
-          distributed: false,
-          distributed_at: null,
-          recipients_count: 0,
-        })
-        .eq("id", existing.id)
-        .select("id")
-        .single();
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-      reportId = data.id;
-    } else {
-      // Insert new report
-      const { data, error } = await supabase
-        .from("daily_reports")
+        .from("reports")
         .insert({
+          type: "diario",
           report_date: reportDate,
           period,
-          subject,
-          html_content: html,
-          podcast_url: podcastUrl,
+          title: subject,
+          content_html: html,
+          audio_url: podcastUrl,
         })
         .select("id")
         .single();
