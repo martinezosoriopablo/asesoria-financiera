@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ClientInfoCard from "@/components/clients/ClientInfoCard";
+import PatrimonioSection from "@/components/clients/patrimonio/PatrimonioSection";
 import { useClientData } from "./hooks/useClientData";
 import { useClientModals } from "./hooks/useClientModals";
 
@@ -702,6 +703,10 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <PatrimonioSection clientId={client.id} />
         </div>
       </div>
     </div>
