@@ -262,16 +262,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Delete existing rows for this report_date (upsert)
+    // Reemplaza las carteras de este report_date en el repositorio unificado (type='cartera_modelo').
     await supabase
-      .from("model_portfolios")
+      .from("reports")
       .delete()
+      .eq("type", "cartera_modelo")
       .eq("report_date", reportDate);
 
+    const reportRows = dbRows.map((r) => ({
+      type: "cartera_modelo",
+      report_date: r.report_date,
+      perfil: r.perfil,
+      title: `Cartera modelo ${r.perfil}`,
+      payload: { posiciones: r.posiciones, sleeves: r.sleeves, nota_comite: r.nota_comite },
+      uploaded_by: r.created_by,
+    }));
+
     const { data, error } = await supabase
-      .from("model_portfolios")
-      .insert(dbRows)
-      .select("id, perfil, version, report_date");
+      .from("reports")
+      .insert(reportRows)
+      .select("id, perfil, report_date");
 
     if (error) {
       console.error("Error inserting model portfolios:", error);

@@ -29,10 +29,11 @@ export async function GET(request: NextRequest) {
 
     // Debe existir el reporte de mercados del mes (contexto para la narrativa)
     const { data: report } = await admin
-      .from("monthly_reports")
+      .from("vw_reports_vigentes")
       .select("id")
-      .eq("month", month)
-      .single();
+      .eq("type", "cierre_mensual")
+      .eq("period", month)
+      .maybeSingle();
     if (!report) {
       return NextResponse.json({ month, generated: 0, reason: "sin reporte mensual de mercados" });
     }

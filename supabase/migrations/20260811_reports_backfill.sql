@@ -39,7 +39,7 @@ INSERT INTO reports (type, title, report_date, perfil, payload, created_at)
 SELECT 'cartera_modelo',
        'Cartera modelo ' || mp.perfil,
        mp.report_date, mp.perfil,
-       jsonb_build_object('posiciones', mp.posiciones, 'sleeves', mp.sleeves),
+       jsonb_build_object('posiciones', mp.posiciones, 'sleeves', mp.sleeves, 'nota_comite', mp.nota_comite),
        COALESCE(mp.created_at, now())
 FROM model_portfolios mp
 WHERE NOT EXISTS (
