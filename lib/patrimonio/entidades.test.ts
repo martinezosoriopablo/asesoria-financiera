@@ -21,6 +21,11 @@ describe("pickAllowed", () => {
     expect(out).not.toHaveProperty("created_by");
     expect(out).not.toHaveProperty("hack");
   });
+  it("convierte string vacío a null (evita violar CHECK/tipo en DB)", () => {
+    const out = pickAllowed("activos", { tipo: "apv", regimen: "", saldo_monto: 100 });
+    expect(out.regimen).toBeNull();
+    expect(out.saldo_monto).toBe(100);
+  });
 });
 
 describe("validateFor", () => {

@@ -77,8 +77,10 @@ export function validateActivo(input: Record<string, unknown>): ValidationResult
   if (!ACTIVO_TIPOS.includes(input.tipo as string)) errors.push("Tipo de activo inválido");
   errors.push(...validateMoney(input.saldo_monto as number, input.saldo_moneda as string, "Saldo"));
   errors.push(...validateMoney(input.aporte_monto as number, input.aporte_moneda as string, "Aporte"));
-  if (input.regimen !== null && input.regimen !== undefined && input.tipo !== "apv") {
-    errors.push("Régimen: solo aplica a APV");
+  const regimen = input.regimen === "" ? null : input.regimen;
+  if (regimen !== null && regimen !== undefined) {
+    if (input.tipo !== "apv") errors.push("Régimen: solo aplica a APV");
+    else if (regimen !== "A" && regimen !== "B") errors.push("Régimen: debe ser A o B");
   }
   if (input.aporte_monto !== null && input.aporte_monto !== undefined && !input.aporte_periodicidad) {
     errors.push("Aporte: falta la periodicidad");

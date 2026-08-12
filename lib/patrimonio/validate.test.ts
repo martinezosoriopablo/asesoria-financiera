@@ -61,6 +61,12 @@ describe("validateActivo", () => {
       .toContain("Régimen: solo aplica a APV");
     expect(validateActivo({ tipo: "apv", regimen: "A" }).ok).toBe(true);
   });
+  it("acepta régimen vacío como ausente", () => {
+    expect(validateActivo({ tipo: "apv", regimen: "" }).ok).toBe(true);
+  });
+  it("rechaza régimen que no sea A/B en APV", () => {
+    expect(validateActivo({ tipo: "apv", regimen: "C" }).errors).toContain("Régimen: debe ser A o B");
+  });
   it("si hay aporte exige periodicidad", () => {
     expect(validateActivo({ tipo: "ahorro_periodico", aporte_monto: 5, aporte_moneda: "UF" }).errors)
       .toContain("Aporte: falta la periodicidad");

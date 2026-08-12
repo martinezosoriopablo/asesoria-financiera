@@ -65,12 +65,14 @@ export const ACTIVO_FIELDS: FieldDef[] = [
 export const GRUPOS: {
   key: EntidadKey; titulo: string; icono: string;
   fields: FieldDef[]; tipos: { value: string; label: string }[];
+  defaults?: Record<string, unknown>;
 }[] = [
   { key: "seguros", titulo: "Seguros", icono: "🛡️", fields: SEGURO_FIELDS,
     tipos: [
       { value: "vida", label: "Vida" }, { value: "salud", label: "Salud" },
       { value: "vida_con_ahorro", label: "Vida con ahorro" }, { value: "otros", label: "Otros" },
-    ] },
+    ],
+    defaults: { prima_periodicidad: "mensual" } },
   { key: "inmuebles", titulo: "Inmuebles", icono: "🏢", fields: INMUEBLE_FIELDS,
     tipos: [
       { value: "inversion", label: "Inversión (arrienda)" }, { value: "habitacion", label: "Habitación (vive)" },
@@ -80,5 +82,6 @@ export const GRUPOS: {
       { value: "apv", label: "APV" }, { value: "afp", label: "AFP" },
       { value: "ahorro_periodico", label: "Ahorro periódico" },
       { value: "cuenta_ahorro", label: "Cuenta ahorro" }, { value: "otro", label: "Otro" },
-    ] },
+    ],
+    defaults: { aporte_periodicidad: "mensual" } },
 ];

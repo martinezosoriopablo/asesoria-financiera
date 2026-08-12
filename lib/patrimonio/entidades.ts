@@ -47,7 +47,7 @@ export function resolveTabla(entidad: string): string | null {
 export function pickAllowed(entidad: EntidadKey, body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of CAMPOS[entidad]) {
-    if (k in body) out[k] = body[k];
+    if (k in body) out[k] = body[k] === "" ? null : body[k];
   }
   return out;
 }

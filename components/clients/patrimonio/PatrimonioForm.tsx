@@ -26,8 +26,8 @@ export default function PatrimonioForm({ fields, value, onChange }: Props) {
             {f.type === "money" ? (
               <MoneyInput
                 monto={(value[`${f.key}_monto`] as number) ?? null}
-                moneda={(value[`${f.key}_moneda`] as string) ?? null}
-                onMonto={(v) => onChange({ [`${f.key}_monto`]: v })}
+                moneda={(value[`${f.key}_moneda`] as string) ?? "UF"}
+                onMonto={(v) => onChange({ [`${f.key}_monto`]: v, [`${f.key}_moneda`]: (value[`${f.key}_moneda`] as string) ?? "UF" })}
                 onMoneda={(v) => onChange({ [`${f.key}_moneda`]: v })}
               />
             ) : f.type === "switch" ? (

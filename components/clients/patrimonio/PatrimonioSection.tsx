@@ -28,7 +28,7 @@ export default function PatrimonioSection({ clientId }: { clientId: string }) {
   const startNew = (entidad: EntidadKey) => {
     const g = GRUPOS.find((x) => x.key === entidad)!;
     setErr(null);
-    setDraft({ entidad, value: { tipo: g.tipos[0].value } });
+    setDraft({ entidad, value: { tipo: g.tipos[0].value, ...(g.defaults ?? {}) } });
   };
   const startEdit = (entidad: EntidadKey, item: Item) => { setErr(null); setDraft({ entidad, value: { ...item } }); };
 
