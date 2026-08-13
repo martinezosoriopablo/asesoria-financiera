@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Loader, Plus, Trash2, Wallet } from "lucide-react";
 import { GRUPOS } from "./schemas";
 import PatrimonioForm from "./PatrimonioForm";
+import PatrimonioResumen from "@/components/clients/patrimonio/PatrimonioResumen";
 import { EntidadKey } from "@/lib/patrimonio/entidades";
 
 type Item = Record<string, unknown> & { id: string; tipo: string };
@@ -15,12 +16,16 @@ export default function PatrimonioSection({ clientId }: { clientId: string }) {
   const [draft, setDraft] = useState<{ entidad: EntidadKey; value: Record<string, unknown> } | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = useCallback(() => {
     setLoading(true);
     fetch(`/api/clients/${clientId}/patrimonio`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setData({ seguros: d.seguros, inmuebles: d.inmuebles, activos: d.activos }); })
+      .then((d) => {
+        if (d.success) setData({ seguros: d.seguros, inmuebles: d.inmuebles, activos: d.activos });
+        setRefreshKey((k) => k + 1);
+      })
       .finally(() => setLoading(false));
   }, [clientId]);
   useEffect(() => { load(); }, [load]);
@@ -57,6 +62,8 @@ export default function PatrimonioSection({ clientId }: { clientId: string }) {
 
   return (
     <div className="rounded-lg border border-gb-border border-l-4 border-l-gb-primary bg-white p-5 shadow-sm">
+      <PatrimonioResumen clientId={clientId} refreshKey={refreshKey} />
+
       <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-gb-black">
         <Wallet className="h-4 w-4 text-gb-primary" /> Patrimonio
       </h2>
