@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const portfolioCLP = snap.data ? Number(snap.data.total_value) : null;
 
     const summary = computePatrimonioSummary(
-      { seguros: seg.data ?? [], inmuebles: inm.data ?? [], activos: act.data ?? [] } as never,
+      { seguros: seg.data ?? [], inmuebles: inm.data ?? [], activos: act.data ?? [] },
       portfolioCLP,
       { usd: rates.usd, eur: 0, uf: rates.uf }
     );
