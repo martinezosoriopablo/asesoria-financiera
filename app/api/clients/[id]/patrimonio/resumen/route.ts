@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (seg.error || inm.error || act.error) return errorResponse("Error al cargar el patrimonio", 500);
 
     const rates = await getCurrentRates(); // { usd, uf, ... } (getCurrentRates no entrega eur; el feature solo usa CLP/UF/USD)
-    const portfolioCLP = snap.data ? Number(snap.data.total_value) : null;
+    const portfolioCLP = (!snap.error && snap.data?.total_value != null) ? Number(snap.data.total_value) : null;
 
     const summary = computePatrimonioSummary(
       { seguros: seg.data ?? [], inmuebles: inm.data ?? [], activos: act.data ?? [] },

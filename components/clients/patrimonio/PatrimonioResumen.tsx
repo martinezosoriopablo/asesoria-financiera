@@ -33,26 +33,38 @@ function fmt(clpValue: number, moneda: Moneda, rates: ExchangeRates): string {
 export default function PatrimonioResumen({ clientId, refreshKey = 0 }: { clientId: string; refreshKey?: number }) {
   const [data, setData] = useState<Resumen | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [moneda, setMoneda] = useState<Moneda>("UF");
   const [incluirCasa, setIncluirCasa] = useState(true);
 
   useEffect(() => {
     setLoading(true);
+    setError(false);
     fetch(`/api/clients/${clientId}/patrimonio/resumen`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setData(d as Resumen); })
+      .then((d) => { if (d.success) setData(d as Resumen); else setError(true); })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [clientId, refreshKey]);
 
   if (loading) {
     return <div className="mb-4 flex justify-center rounded-lg border border-gb-border bg-white py-6"><Loader className="h-5 w-5 animate-spin text-gb-gray" /></div>;
   }
+  if (error && !data) {
+    return <div className="mb-5 rounded-lg border border-gb-border p-4 text-xs text-gb-gray">No se pudo cargar el resumen de patrimonio.</div>;
+  }
   if (!data) return null;
 
   const rates = data.rates;
   const neto = incluirCasa ? data.patrimonioNeto : data.patrimonioInvertible;
+  const activosMostrados = incluirCasa ? data.activos.total : data.activos.total - data.activos.casa_habitacion;
+  const pasivosMostrados = incluirCasa ? data.pasivos.credito_total : data.pasivos.credito_total - data.pasivos.credito_casa_habitacion;
   const flujo = data.flujoPasivoMensual;
   const activosVisibles = Object.entries(data.activos).filter(([k]) => k !== "total") as [string, number][];
+
+  if (data.activos.total === 0 && data.pasivos.credito_total === 0 && data.flujoPasivoMensual === 0) {
+    return <div className="mb-5 rounded-lg border border-gb-border p-4 text-xs text-gb-gray">Aún no hay datos de patrimonio cargados.</div>;
+  }
 
   return (
     <div className="mb-5 rounded-lg border border-gb-border border-l-4 border-l-gb-primary bg-white p-5 shadow-sm">
@@ -77,7 +89,7 @@ export default function PatrimonioResumen({ clientId, refreshKey = 0 }: { client
             </button>
           </div>
           <div className="font-mono text-2xl font-semibold text-gb-black">{fmt(neto, moneda, rates)}</div>
-          <div className="mt-1 text-[11px] text-gb-gray">Activos {fmt(data.activos.total, moneda, rates)} · Pasivos −{fmt(data.pasivos.credito_total, moneda, rates)}</div>
+          <div className="mt-1 text-[11px] text-gb-gray">Activos {fmt(activosMostrados, moneda, rates)} · Pasivos −{fmt(pasivosMostrados, moneda, rates)}</div>
         </div>
         <div className="rounded-lg border border-gb-border p-4">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-gb-gray">Flujo pasivo mensual</span>
