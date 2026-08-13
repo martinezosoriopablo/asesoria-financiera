@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import { SEED_TYPES, requiredScopeFields } from "./catalog";
 
 describe("catalog", () => {
-  it("has the 10 curated types", () => {
+  it("has the 12 curated types", () => {
     expect(SEED_TYPES.map((t) => t.id).sort()).toEqual([
       "arbol_decision", "asset_allocation", "cartera_modelo", "cierre_mensual",
-      "diario", "macro", "rf", "rv", "sectorial", "seleccion_acciones",
+      "diario", "macro", "mensual", "rf", "rv", "sectorial", "seleccion_acciones",
+      "semanal",
     ]);
   });
 

@@ -9,6 +9,8 @@ export const SEED_TYPES: ReportTypeDef[] = [
   { id: "sectorial", label: "Análisis sectorial/coyuntura", scopeKey: "date", defaultUsos: ["distribucion", "insumo_cartera"], formatos: ["html", "pdf"] },
   { id: "seleccion_acciones", label: "Selección de acciones", scopeKey: "date", defaultUsos: ["insumo_cartera"], formatos: ["html", "pdf"] },
   { id: "diario", label: "Reporte diario (AM/PM)", scopeKey: "period", defaultUsos: ["distribucion"], formatos: ["html", "mp3"] },
+  { id: "semanal", label: "Reporte semanal", scopeKey: "period", defaultUsos: ["distribucion"], formatos: ["html", "pdf", "mp3"] },
+  { id: "mensual", label: "Reporte mensual", scopeKey: "month", defaultUsos: ["distribucion"], formatos: ["html", "pdf"] },
   { id: "cierre_mensual", label: "Cierre mensual", scopeKey: "month", defaultUsos: ["insumo_cierre", "distribucion"], formatos: ["html", "pdf"] },
   { id: "cartera_modelo", label: "Cartera modelo", scopeKey: "perfil", defaultUsos: [], formatos: ["json"] },
 ];
