@@ -16,6 +16,8 @@ export interface Seguro {
   cobertura_monto: number | null;
   cobertura_moneda: Moneda | null;
   cobertura_desc: string | null;
+  deducible_monto: number | null;
+  deducible_moneda: Moneda | null;
   beneficiarios: string | null;
   devuelve_prima: boolean;
   devolucion_pct: number | null;

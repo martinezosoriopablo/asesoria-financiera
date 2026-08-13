@@ -23,6 +23,7 @@ export const SEGURO_FIELDS: FieldDef[] = [
   { key: "prima", label: "Prima", type: "money", width: "third" },
   { key: "prima_periodicidad", label: "Periodicidad", type: "select", options: PERIODICIDAD, width: "third" },
   { key: "cobertura", label: "Monto asegurado", type: "money", width: "third" },
+  { key: "deducible", label: "Deducible", type: "money", width: "third", showIf: (v) => v.tipo === "salud" },
   { key: "cobertura_desc", label: "¿Qué cubre?", type: "text", width: "third" },
   { key: "beneficiarios", label: "Beneficiarios", type: "text", width: "full" },
   { key: "devuelve_prima", label: "Devuelve prima al final", type: "switch", width: "third" },

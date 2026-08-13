@@ -37,6 +37,7 @@ export function validateSeguro(input: Record<string, unknown>): ValidationResult
   if (!SEGURO_TIPOS.includes(input.tipo as string)) errors.push("Tipo de seguro inválido");
   errors.push(...validateMoney(input.prima_monto as number, input.prima_moneda as string, "Prima"));
   errors.push(...validateMoney(input.cobertura_monto as number, input.cobertura_moneda as string, "Cobertura"));
+  errors.push(...validateMoney(input.deducible_monto as number, input.deducible_moneda as string, "Deducible"));
   errors.push(...validateMoney(input.componente_ahorro_monto as number, input.componente_ahorro_moneda as string, "Ahorro"));
   const pct = input.devolucion_pct as number | null | undefined;
   if (pct !== null && pct !== undefined && (pct < 0 || pct > 100)) {

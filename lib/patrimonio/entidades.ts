@@ -14,6 +14,7 @@ const CAMPOS: Record<EntidadKey, string[]> = {
   seguros: [
     "tipo", "compania", "numero_poliza", "prima_monto", "prima_moneda",
     "prima_periodicidad", "cobertura_monto", "cobertura_moneda", "cobertura_desc",
+    "deducible_monto", "deducible_moneda",
     "beneficiarios", "devuelve_prima", "devolucion_pct", "fecha_inicio", "fecha_termino",
     "componente_ahorro_monto", "componente_ahorro_moneda", "notas",
   ],
