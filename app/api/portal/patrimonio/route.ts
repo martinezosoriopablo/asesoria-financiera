@@ -35,16 +35,23 @@ export async function GET(request: NextRequest) {
     const rates = await getCurrentRates(); // { usd, uf, ... } (sin eur)
     const portfolioCLP = (!snap.error && snap.data?.total_value != null) ? Number(snap.data.total_value) : null;
 
+    // Strip advisor-internal fields before sending to client
+    const strip = (rows: Record<string, unknown>[] | null) =>
+      (rows ?? []).map(({ notas: _n, created_by: _c, ...rest }) => rest) as any[];
+    const seguros = strip(seg.data);
+    const inmuebles = strip(inm.data);
+    const activos = strip(act.data);
+
     const resumen = computePatrimonioSummary(
-      { seguros: seg.data ?? [], inmuebles: inm.data ?? [], activos: act.data ?? [] },
+      { seguros, inmuebles, activos },
       portfolioCLP,
       { usd: rates.usd, eur: 0, uf: rates.uf }
     );
 
     return successResponse({
-      seguros: seg.data ?? [],
-      inmuebles: inm.data ?? [],
-      activos: act.data ?? [],
+      seguros,
+      inmuebles,
+      activos,
       resumen,
       rates: { usd: rates.usd, eur: 0, uf: rates.uf },
     });
