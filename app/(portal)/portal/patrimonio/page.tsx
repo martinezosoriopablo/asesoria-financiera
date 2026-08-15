@@ -23,7 +23,9 @@ export default function MiPatrimonioPage() {
   const seguros = (data?.seguros as Record<string, unknown>[]) ?? [];
   const inmuebles = (data?.inmuebles as Record<string, unknown>[]) ?? [];
   const activos = (data?.activos as Record<string, unknown>[]) ?? [];
-  const vacio = !error && seguros.length === 0 && inmuebles.length === 0 && activos.length === 0;
+  const resumen = data?.resumen as { activos?: { total?: number } } | undefined;
+  const sinItems = seguros.length === 0 && inmuebles.length === 0 && activos.length === 0;
+  const vacio = !error && sinItems && (!resumen || !resumen.activos || (resumen.activos.total ?? 0) === 0);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
