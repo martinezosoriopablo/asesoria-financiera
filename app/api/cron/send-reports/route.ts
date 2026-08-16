@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/auth/api-auth";
 import { Resend } from "resend";
 import { createNotification } from "@/lib/notifications";
 import { handleApiError } from "@/lib/api-response";
+import { advisorContactEmail } from "@/lib/advisor-email";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       // Get advisor info
       const { data: advisor } = await supabase
         .from("advisors")
-        .select("id, nombre, apellido, email, company_name")
+        .select("id, nombre, apellido, email, company_name, contact_email")
         .eq("id", client.asesor_id)
         .single();
 
@@ -185,6 +186,7 @@ export async function GET(request: NextRequest) {
       await resend.emails.send({
         from: `${advisor.company_name || "Global"} <${process.env.RESEND_FROM_EMAIL || "noreply@global.cl"}>`,
         to: client.email,
+        replyTo: advisorContactEmail(advisor) || undefined,
         subject: `Reporte de portafolio — ${new Date().toLocaleDateString("es-CL", { day: "numeric", month: "long" })}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { createNotification } from "@/lib/notifications";
 import { handleApiError } from "@/lib/api-response";
+import { advisorContactEmail } from "@/lib/advisor-email";
 
 export const dynamic = "force-dynamic";
 
@@ -244,19 +245,19 @@ export async function POST(req: NextRequest) {
       if (!advisorEmail && client?.asesor_id) {
         const { data: advisor } = await supabase
           .from("advisors")
-          .select("email")
+          .select("email, contact_email")
           .eq("id", client.asesor_id)
           .single();
-        advisorEmail = advisor?.email || null;
+        advisorEmail = advisorContactEmail(advisor);
       }
 
       if (!advisorEmail) {
         const { data: firstAdvisor } = await supabase
           .from("advisors")
-          .select("email")
+          .select("email, contact_email")
           .limit(1)
           .single();
-        advisorEmail = firstAdvisor?.email || null;
+        advisorEmail = advisorContactEmail(firstAdvisor);
       }
 
       if (advisorEmail) {

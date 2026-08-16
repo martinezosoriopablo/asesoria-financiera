@@ -4,6 +4,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { buildRadiografiaHTML, type RadiografiaEmailData } from "@/lib/radiografia-email";
 import { Resend } from "resend";
+import { advisorContactEmail } from "@/lib/advisor-email";
 
 export const maxDuration = 30;
 
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: `Global <${senderEmail}>`,
       to: recipientEmail,
+      replyTo: advisorContactEmail(advisor) || undefined,
       subject: `Radiografia de Cartera — ${radiografiaData.clientName} — ${radiografiaData.reportDate}`,
       html,
     });

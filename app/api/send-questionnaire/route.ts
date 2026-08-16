@@ -5,6 +5,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { escapeHtml } from "@/lib/sanitize";
 import { handleApiError } from "@/lib/api-response";
+import { advisorContactEmail } from "@/lib/advisor-email";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (advisorEmail) {
       const { data: advisor } = await supabase
         .from("advisors")
-        .select("nombre, apellido, email, company_name, logo_url")
+        .select("nombre, apellido, email, company_name, logo_url, contact_email")
         .eq("email", advisorEmail)
         .single();
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
         advisorName = `${advisor.nombre} ${advisor.apellido}`;
         companyName = advisor.company_name || "";
         logoUrl = advisor.logo_url || "";
-        replyTo = advisor.email;
+        replyTo = advisorContactEmail(advisor) || replyTo;
       }
     }
 
