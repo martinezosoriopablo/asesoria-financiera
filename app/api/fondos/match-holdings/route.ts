@@ -16,6 +16,7 @@ import { sanitizeSearchInput } from "@/lib/sanitize";
 import { getResumenAccion } from "@/lib/bolsa-santiago/client";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { detectSerieCode } from "@/lib/fund-utils";
+import { stripAccents } from "@/lib/text";
 import { handleApiError } from "@/lib/api-response";
 
 interface HoldingInput {
@@ -250,10 +251,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Holdings array is required" });
     }
 
-    // Detect the AGF from the cartola source
+    // Detect the AGF from the cartola source.
+    // stripAccents: los valores del dropdown vienen con tilde (ej. "Itaú AGF") y las
+    // keys de AGF_NAME_MAP no ("itau"), así que sin normalizar `"itaú agf".includes("itau")`
+    // es false → el AGF de Itaú nunca se detectaba → cartera sin universo → sin precio/serie.
     const sourceNames = Array.isArray(cartolaSource) ? cartolaSource : cartolaSource ? [cartolaSource] : [];
     const detectedAgfKey = sourceNames
-      .map(s => s.toLowerCase().trim())
+      .map(s => stripAccents(s.toLowerCase().trim()))
       .reduce<string | null>((found, s) => {
         if (found) return found;
         return Object.keys(AGF_NAME_MAP).find(agf => s.includes(agf)) || null;
