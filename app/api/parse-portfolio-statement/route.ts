@@ -322,6 +322,18 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // Solo en el path de PDF protegido (texto extraído) la tabla llega APLANADA y a
+    // veces con los valores de una fila en ORDEN INVERTIDO respecto de los encabezados.
+    // Eso hacía que fondos mutuos invirtieran "Cantidad Cuotas" ↔ "Valor Cuota" (ej.
+    // cartolas Itaú AGF con clave). Aviso explícito para que mapee por etiqueta, no por
+    // posición. NO se añade al path de documento (imagen), donde las columnas se ven bien.
+    const flattenedTextNote: { type: string; text: string } | null = password
+      ? {
+          type: "text",
+          text: `ATENCIÓN — El contenido anterior fue EXTRAÍDO como TEXTO PLANO de un PDF protegido, por lo que los valores de una fila pueden aparecer en ORDEN INVERTIDO o distinto al de los encabezados de la tabla. NO mapees por posición ni por magnitud: mapea SIEMPRE por la ETIQUETA de columna. En particular para FONDOS MUTUOS, "Cantidad"/"Cantidad Cuotas"/"N° Cuotas" = quantity (número de cuotas) y "Valor Cuota"/"Valor de la Cuota" = marketPrice (precio unitario), aunque la cantidad de cuotas sea el número mayor.`,
+        }
+      : null;
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -337,6 +349,7 @@ export async function POST(request: NextRequest) {
             role: "user",
             content: [
               contentBlock,
+              ...(flattenedTextNote ? [flattenedTextNote] : []),
               {
                 type: "text",
                 text: `Analiza esta cartola o estado de cuenta de inversiones y extrae los datos como JSON.
@@ -443,6 +456,13 @@ La descripción del bono suele tener esta estructura:
   Línea 3: CUSIP, cantidad, precios, etc.
 DEBES descomponer la línea 1 en: fundName="AT&T INC", couponRate=4.75, maturityDate="2046-05-15"
 DEBES extraer el rating de la línea 2 en: creditRating="BBB"
+
+REGLAS PARA FONDOS (assetType = "fund") — CRÍTICO, NO CONFUNDIR CANTIDAD Y VALOR CUOTA:
+- "quantity" = el NÚMERO DE CUOTAS / UNIDADES que posee el cliente (la CANTIDAD). Columnas típicas: "Cuotas", "N° Cuotas", "Nº de Cuotas", "Cantidad de Cuotas", "Cantidad", "Unidades", "Participaciones". NO es un precio.
+- "marketPrice" = el VALOR CUOTA (precio por UNA cuota / NAV por unidad). Columnas típicas: "Valor Cuota", "V. Cuota", "Valor de la Cuota", "Valor Unitario", "Precio", "NAV". Es el PRECIO por cuota, NO la cantidad.
+- "marketValue" = valor total del holding (columnas "Total", "Total U.M.", "Monto", "Saldo"; normalmente cuotas × valor cuota).
+- "unitCost" = el VALOR CUOTA DE COMPRA (precio de adquisición por cuota), si aparece.
+- MAPEA POR ETIQUETA, NUNCA POR MAGNITUD: el número bajo "Valor Cuota" es SIEMPRE el precio unitario aunque sea MAYOR que la cantidad de cuotas; el número bajo "Cantidad"/"Cantidad Cuotas" es SIEMPRE el número de cuotas aunque sea el número mayor. NO decidas cuál es cuál según cuál número parece más grande o más "de precio". Ej.: "Cantidad Cuotas"=116.647,4741 y "Valor Cuota"=1.391,6465 → quantity=116647.4741, marketPrice=1391.6465 (aunque la cantidad sea el número mayor). Ojo: NO uses marketValue ≈ quantity × marketPrice para decidir el orden — el producto es el mismo invertido o no, así que no distingue; usa SOLO la etiqueta de la columna.
 
 REGLAS PARA "estIncomeYield" y "estAnnualIncome":
 - "estIncomeYield": Rendimiento estimado anual (%). Aparece como "Est. Income Yield", "Yield", "Income Yield" en la cartola. Para bonos es el cupón / precio. Para acciones/ETFs es el dividend yield. Si no aparece, usar null.
