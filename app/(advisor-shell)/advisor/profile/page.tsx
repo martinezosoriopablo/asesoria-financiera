@@ -17,6 +17,7 @@ interface AdvisorProfile {
   bio?: string;
   linkedin_url?: string;
   preferred_ai_model?: string;
+  contact_email: string | null;
 }
 
 export default function AdvisorProfilePage() {
@@ -87,6 +88,7 @@ export default function AdvisorProfilePage() {
           bio: profile.bio,
           linkedin_url: profile.linkedin_url,
           preferred_ai_model: profile.preferred_ai_model,
+          contact_email: profile.contact_email,
         }),
       });
       const data = await res.json();
@@ -269,6 +271,22 @@ export default function AdvisorProfilePage() {
                 />
               </div>
               <p className="text-xs text-gb-gray mt-1">El email no se puede modificar</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gb-dark mb-1.5">Correo de contacto (para notificaciones y respuestas)</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
+                <input
+                  type="email"
+                  value={profile.contact_email || ""}
+                  onChange={(e) => setProfile({ ...profile, contact_email: e.target.value })}
+                  placeholder="contacto@tudominio.cl"
+                  className="w-full pl-9 pr-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                  disabled={saving}
+                />
+              </div>
+              <p className="text-xs text-gb-gray mt-1">Si lo dejas vacío, se usa tu correo de acceso.</p>
             </div>
 
             <div>

@@ -26,6 +26,7 @@ export interface AdvisorProfile {
   company_name?: string | null;
   parent_advisor_id?: string | null;
   activo: boolean;   // Usando 'activo' (columna existente en DB)
+  contact_email?: string | null;
 }
 
 export interface AuthResult {
@@ -112,7 +113,7 @@ export async function requireAdvisor(): Promise<{
 
     const { data: advisor, error: advisorError } = await supabaseAdmin
       .from("advisors")
-      .select("id, email, nombre, apellido, rol, logo_url, company_name, parent_advisor_id, activo")
+      .select("id, email, nombre, apellido, rol, logo_url, company_name, parent_advisor_id, activo, contact_email")
       .eq("email", user!.email)
       .single();
 

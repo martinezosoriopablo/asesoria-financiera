@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { escapeHtml } from "@/lib/sanitize";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
+import { advisorContactEmail } from "@/lib/advisor-email";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -182,6 +183,7 @@ export async function POST(req: NextRequest) {
     const { data: emailData, error: resendError } = await resend.emails.send({
       from: `Global <${senderEmail}>`,
       to: client.email,
+      replyTo: advisorContactEmail(advisor) || undefined,
       subject: emailSubject,
       html: `
         <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
