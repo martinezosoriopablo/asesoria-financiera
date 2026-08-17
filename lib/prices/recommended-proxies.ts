@@ -32,7 +32,7 @@ function normalizeClass(clase: string): string | null {
   if (c === "renta fija") return "renta fija";
   if (c === "alternativos" || c === "alternativas" || c === "instrumentos alternativos")
     return "alternativos";
-  if (c === "caja" || c === "liquidez" || c === "efectivo") return "caja";
+  if (c === "caja" || c === "liquidez" || c === "efectivo" || c === "cash") return "caja";
   return null;
 }
 
