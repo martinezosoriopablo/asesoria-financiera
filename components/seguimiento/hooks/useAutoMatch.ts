@@ -66,7 +66,12 @@ export function useAutoMatch(options: UseAutoMatchOptions) {
     const controller = new AbortController();
 
     async function autoMatchHoldings() {
-      if (holdings.length === 0) return;
+      // Nada que matchear → marca completo (evita que el botón Guardar, ahora
+      // gateado por autoMatchComplete, quede trabado si no hay holdings).
+      if (holdings.length === 0) {
+        setAutoMatchComplete(true);
+        return;
+      }
       if (editMode) {
         setAutoMatchComplete(true);
         return;
