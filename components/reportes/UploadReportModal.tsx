@@ -18,6 +18,7 @@ export default function UploadReportModal({ type, onClose, onDone }: {
   const [month, setMonth] = useState(""); // YYYY-MM
   const [perfil, setPerfil] = useState("");
   const [html, setHtml] = useState("");
+  const [htmlFile, setHtmlFile] = useState<File | null>(null);
   const [json, setJson] = useState("");
   const [pdf, setPdf] = useState<File | null>(null);
   const [mp3, setMp3] = useState<File | null>(null);
@@ -40,7 +41,10 @@ export default function UploadReportModal({ type, onClose, onDone }: {
       if (sk === "period") fd.append("period", period);
       if (sk === "perfil") fd.append("perfil", perfil);
     }
-    if (has("html") && html.trim()) fd.append("html", html);
+    if (has("html")) {
+      if (htmlFile) fd.append("html", htmlFile);          // archivo tiene prioridad
+      else if (html.trim()) fd.append("html", html);       // fallback: texto pegado
+    }
     if (has("json") && json.trim()) fd.append("payload", json);
     if (has("pdf") && pdf) fd.append("pdf", pdf);
     if (has("mp3") && mp3) fd.append("mp3", mp3);
@@ -97,10 +101,25 @@ export default function UploadReportModal({ type, onClose, onDone }: {
           </label>
         )}
         {has("html") && (
-          <label className="block text-sm mb-2">
-            HTML
-            <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={4} className="block border rounded px-2 py-1 w-full font-mono text-xs" />
-          </label>
+          <div className="mb-2">
+            <label className="block text-sm">
+              HTML — subir archivo
+              <input
+                type="file"
+                accept=".html,.htm,text/html"
+                onChange={(e) => setHtmlFile(e.target.files?.[0] ?? null)}
+                className="block w-full mt-1"
+              />
+            </label>
+            {htmlFile ? (
+              <p className="text-xs text-gb-gray mt-1">Se usará el archivo: <span className="font-medium">{htmlFile.name}</span></p>
+            ) : (
+              <label className="block text-sm mt-2">
+                <span className="text-gb-gray">o pega el HTML</span>
+                <textarea value={html} onChange={(e) => setHtml(e.target.value)} rows={4} className="block border rounded px-2 py-1 w-full font-mono text-xs" />
+              </label>
+            )}
+          </div>
         )}
         {has("json") && (
           <label className="block text-sm mb-2">
