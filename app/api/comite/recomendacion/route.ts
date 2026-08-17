@@ -24,6 +24,37 @@ function resolveCategoria(catId: string): ComiteCategory | undefined {
   return getCategoryById(catId) || strippedIndex.get(catId.replace(ROLE_PREFIX, ""));
 }
 
+// Las posiciones del cartera_modelo existen en DOS esquemas: el viejo
+// (categoria/modelo_pct/etf_us/etf_ucits/vista) y el nuevo, ago 2026
+// (clase/peso_pct/ticker_us/ticker_ucits/view) SIN campo `categoria`.
+// Índices para derivar la ComiteCategory desde el ticker (robusto) o la etiqueta.
+const byTicker = new Map<string, ComiteCategory>();
+const byLabelNorm = new Map<string, ComiteCategory>();
+const normLbl = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+for (const c of COMITE_CATEGORIES) {
+  if (c.etfUS) byTicker.set(c.etfUS.toUpperCase(), c);
+  if (c.etfUCITS) byTicker.set(c.etfUCITS.toUpperCase(), c);
+  byLabelNorm.set(normLbl(c.label), c);
+}
+// Resuelve la categoría de una posición tolerando ambos esquemas: primero por
+// `categoria` (viejo), luego por ticker US/UCITS, luego por la etiqueta `clase`.
+function resolvePosCategory(raw: Record<string, unknown>): ComiteCategory | undefined {
+  const catId = (raw.categoria as string) || "";
+  if (catId) { const c = resolveCategoria(catId); if (c) return c; }
+  for (const key of ["etf_us", "ticker_us", "etf_ucits", "ticker_ucits"]) {
+    const t = raw[key];
+    if (typeof t === "string" && t) { const c = byTicker.get(t.toUpperCase()); if (c) return c; }
+  }
+  const clase = (raw.clase ?? raw.label ?? raw.description) as string | undefined;
+  if (clase) {
+    const n = normLbl(clase);
+    if (byLabelNorm.has(n)) return byLabelNorm.get(n);
+    for (const [k, c] of byLabelNorm) if (n.startsWith(k)) return c; // "rv usa large cap" ⊂ "rv usa large cap s p 500"
+  }
+  return undefined;
+}
+
 export async function GET(request: NextRequest) {
   const rl = await applyRateLimit(request, "comite-recomendacion", { limit: 30 });
   if (rl) return rl;
@@ -105,27 +136,30 @@ export async function GET(request: NextRequest) {
       preferred_fund_id: m.preferred_fund_id as string,
     }));
 
-    // 5. Componer filas por posición del comité con modelo_pct > 0
-    const posiciones = (modelo.posiciones || []) as Array<{
-      categoria: string; modelo_pct?: number; etf_us?: string | null; etf_ucits?: string | null;
-      vista?: string | null; conviction?: string | null;
-    }>;
+    // 5. Componer filas por posición del comité con peso > 0.
+    //    Tolera ambos esquemas: peso_pct/ticker_us/ticker_ucits/view (nuevo) y
+    //    modelo_pct/etf_us/etf_ucits/vista (viejo). La categoría se deriva por
+    //    ticker/etiqueta cuando no viene el campo `categoria`.
+    const posiciones = (modelo.posiciones || []) as Array<Record<string, unknown>>;
 
     const rows: RecomendacionRow[] = [];
-    for (const p of posiciones) {
-      const pct = Number(p.modelo_pct) || 0;
+    for (const raw of posiciones) {
+      const pct = Number(raw.modelo_pct ?? raw.peso_pct) || 0;
       if (pct <= 0) continue;
-      const cat = resolveCategoria(p.categoria);
+      const cat = resolvePosCategory(raw);
       if (!cat) continue;
       const comite = {
-        etf_us: p.etf_us ?? cat.etfUS, etf_ucits: p.etf_ucits ?? cat.etfUCITS,
-        modelo_pct: pct, vista: p.vista ?? null, conviction: p.conviction ?? null,
+        etf_us: ((raw.etf_us ?? raw.ticker_us) as string | null) ?? cat.etfUS,
+        etf_ucits: ((raw.etf_ucits ?? raw.ticker_ucits) as string | null) ?? cat.etfUCITS,
+        modelo_pct: pct,
+        vista: (raw.vista ?? raw.view ?? null) as string | null,
+        conviction: (raw.conviction ?? null) as string | null,
       };
-      const misFondos = resolveMisFondos({ categoria: p.categoria, custodios, preferredFunds, mappings: mappingRows });
+      const misFondos = resolveMisFondos({ categoria: cat.id, custodios, preferredFunds, mappings: mappingRows });
       // custodio del default: el del mejor fondo si existe, si no el primero del cliente
       const custodioDefault = misFondos[0]?.custodian_type || custodios[0];
-      const decision = defaultDecision({ categoria: p.categoria, role: cat.role, comite, misFondos, custodio: custodioDefault });
-      rows.push({ categoria: p.categoria, label: cat.label, role: cat.role, comite, misFondos, decision });
+      const decision = defaultDecision({ categoria: cat.id, role: cat.role, comite, misFondos, custodio: custodioDefault });
+      rows.push({ categoria: cat.id, label: cat.label, role: cat.role, comite, misFondos, decision });
     }
 
     return successResponse({
