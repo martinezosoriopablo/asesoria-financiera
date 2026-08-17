@@ -18,7 +18,7 @@ describe("resolveHostRoute", () => {
     expect(resolveHostRoute("globalwealth.cl", "/")).toEqual({ kind: "rewrite", path: "/global-wealth.html" });
     expect(resolveHostRoute("globalplanning.cl", "/")).toEqual({ kind: "rewrite", path: "/global-planning.html" });
     expect(resolveHostRoute("globalmarkets.cl", "/")).toEqual({ kind: "rewrite", path: "/global-markets.html" });
-    expect(resolveHostRoute("globalpropierties.cl", "/")).toEqual({ kind: "rewrite", path: "/global-properties.html" });
+    expect(resolveHostRoute("globalproperties.cl", "/")).toEqual({ kind: "rewrite", path: "/global-properties.html" });
     expect(resolveHostRoute("globalcorporates.cl", "/")).toEqual({ kind: "rewrite", path: "/global-corporate.html" });
     expect(resolveHostRoute("globalcompanies.cl", "/")).toEqual({ kind: "rewrite", path: "/global-companies.html" });
   });
@@ -26,8 +26,8 @@ describe("resolveHostRoute", () => {
     expect(resolveHostRoute("www.globalmarkets.cl", "/")).toEqual({ kind: "rewrite", path: "/global-markets.html" });
   });
   it("301-redirects the property alias", () => {
-    expect(resolveHostRoute("globalproperty.cl", "/")).toEqual({ kind: "redirect", url: "https://globalpropierties.cl/" });
-    expect(resolveHostRoute("www.globalproperty.cl", "/")).toEqual({ kind: "redirect", url: "https://globalpropierties.cl/" });
+    expect(resolveHostRoute("globalproperty.cl", "/")).toEqual({ kind: "redirect", url: "https://globalproperties.cl/" });
+    expect(resolveHostRoute("www.globalproperty.cl", "/")).toEqual({ kind: "redirect", url: "https://globalproperties.cl/" });
   });
   it("falls back to master home for unknown host", () => {
     expect(resolveHostRoute("asesoria-financiera.vercel.app", "/")).toEqual({ kind: "rewrite", path: "/global-companies.html" });

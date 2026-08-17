@@ -18,6 +18,7 @@ import {
   Lock,
   Search,
   User,
+  Wallet,
 } from "lucide-react";
 import GlobalLogo from "@/components/landing/GlobalLogo";
 
@@ -34,6 +35,7 @@ interface PortalSidebarProps {
 const NAV_ITEMS = [
   { href: "/portal/bienvenida", label: "Inicio", icon: Home },
   { href: "/portal/dashboard", label: "Mi Portafolio", icon: LayoutDashboard },
+  { href: "/portal/patrimonio", label: "Mi Patrimonio", icon: Wallet },
   { href: "/portal/radiografia", label: "Radiografia", icon: Search },
   { href: "/portal/mis-servicios", label: "Mis Servicios", icon: Briefcase },
   { href: "/portal/reportes", label: "Reportes", icon: FileText, badgeKey: "reports" as const },

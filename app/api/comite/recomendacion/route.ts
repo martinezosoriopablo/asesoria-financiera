@@ -73,11 +73,15 @@ export async function GET(request: NextRequest) {
       custodioAsumido = true;
     }
 
-    // 3. Cartera-modelo del comité (report_date más reciente)
-    const { data: modelo } = await supabase
-      .from("model_portfolios").select("report_date, posiciones")
-      .eq("perfil", perfilModelo).order("report_date", { ascending: false }).limit(1).maybeSingle();
-    if (!modelo) return successResponse({ ok: false, reason: "sin_modelo", perfil_modelo: perfilModelo });
+    // 3. Cartera-modelo del comité (vigente por perfil, desde el repositorio unificado)
+    const { data: carteraRow } = await supabase
+      .from("vw_reports_vigentes").select("report_date, payload")
+      .eq("type", "cartera_modelo").eq("perfil", perfilModelo).maybeSingle();
+    if (!carteraRow) return successResponse({ ok: false, reason: "sin_modelo", perfil_modelo: perfilModelo });
+    const modelo = {
+      report_date: carteraRow.report_date as string,
+      posiciones: ((carteraRow.payload as { posiciones?: unknown })?.posiciones ?? []) as unknown,
+    };
 
     // 4. Fondos preferidos del asesor + mapeos categoría→fondo por custodio
     //    (advisor_preferred_funds no tiene columna TAC; se deja null — enriquecer TAC

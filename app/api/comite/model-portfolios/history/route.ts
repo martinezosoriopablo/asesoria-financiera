@@ -14,10 +14,11 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   return handleApiError("comite-model-portfolios-history-get", async () => {
 
-    // Get distinct report_dates with count of profiles
+    // Get distinct report_dates with count of profiles (repositorio unificado)
     const { data, error } = await supabase
-      .from("model_portfolios")
-      .select("report_date, version, perfil, created_at")
+      .from("reports")
+      .select("report_date, perfil, created_at")
+      .eq("type", "cartera_modelo")
       .order("report_date", { ascending: false });
 
     if (error) {

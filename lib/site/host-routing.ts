@@ -8,12 +8,12 @@ const DIVISION_BY_HOST: Record<string, string> = {
   "globalwealth.cl": "/global-wealth.html",
   "globalplanning.cl": "/global-planning.html",
   "globalmarkets.cl": "/global-markets.html",
-  "globalpropierties.cl": "/global-properties.html",
+  "globalproperties.cl": "/global-properties.html",
   "globalcorporates.cl": "/global-corporate.html",
 };
 
 const REDIRECT_BY_HOST: Record<string, string> = {
-  "globalproperty.cl": "https://globalpropierties.cl/",
+  "globalproperty.cl": "https://globalproperties.cl/",
 };
 
 const MASTER_HOME = "/global-companies.html";

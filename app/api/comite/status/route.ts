@@ -24,14 +24,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Obtener reportes del comité (los más recientes de cada tipo)
-    const { data: reports, error } = await supabase
-      .from("comite_reports")
-      .select("id, type, filename, uploaded_at, updated_at")
-      .order("uploaded_at", { ascending: false });
+    // Reportes vigentes (repositorio unificado). vw_reports_vigentes ya devuelve
+    // la versión más reciente por tipo (para tipos date-scoped, una por tipo).
+    const { data: rows, error } = await supabase
+      .from("vw_reports_vigentes")
+      .select("id, type, title, created_at, updated_at")
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching comite reports:", error);
+      console.error("Error fetching reports:", error);
       return NextResponse.json(
         { success: false, error: "Error al obtener reportes" },
         { status: 500 }
@@ -40,7 +41,14 @@ export async function GET(request: NextRequest) {
 
     // Agrupar por tipo (solo el más reciente de cada uno)
     const latestByType = new Map<string, ComiteReportStatus>();
-    for (const report of reports || []) {
+    for (const r of rows || []) {
+      const report: ComiteReportStatus = {
+        id: r.id as string,
+        type: r.type as string,
+        filename: (r.title as string | null) ?? (r.type as string),
+        uploaded_at: r.created_at as string,
+        updated_at: r.updated_at as string,
+      };
       if (!latestByType.has(report.type)) {
         latestByType.set(report.type, report);
       }

@@ -234,25 +234,22 @@ export async function POST(request: NextRequest) {
     if (perfilRiesgo) {
       const modelPerfil = mapClientProfile(perfilRiesgo);
 
-      // Get latest model portfolio for this profile
-      const { data: latestDate } = await supabase
-        .from("model_portfolios")
-        .select("report_date")
-        .order("report_date", { ascending: false })
-        .limit(1)
-        .single();
+      // Get model portfolio vigente for this profile (repositorio unificado)
+      const { data: carteraRow } = await supabase
+        .from("vw_reports_vigentes")
+        .select("payload, report_date")
+        .eq("type", "cartera_modelo")
+        .eq("perfil", modelPerfil)
+        .maybeSingle();
 
-      if (latestDate) {
-        const { data: model } = await supabase
-          .from("model_portfolios")
-          .select("perfil, posiciones, nota_comite, report_date")
-          .eq("report_date", latestDate.report_date)
-          .eq("perfil", modelPerfil)
-          .single();
-
-        if (model) {
-          modelPortfolio = model as NonNullable<typeof modelPortfolio>;
-        }
+      if (carteraRow) {
+        const pl = (carteraRow.payload || {}) as { posiciones?: unknown; nota_comite?: unknown };
+        modelPortfolio = {
+          perfil: modelPerfil,
+          report_date: carteraRow.report_date,
+          posiciones: pl.posiciones ?? [],
+          nota_comite: pl.nota_comite ?? null,
+        } as NonNullable<typeof modelPortfolio>;
       }
 
       // Load fund mappings for this advisor

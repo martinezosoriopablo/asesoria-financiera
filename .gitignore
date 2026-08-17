@@ -59,3 +59,6 @@ supabase/.temp/
 
 # temp working files
 /tmp/
+
+# Visual companion (brainstorming) mockups
+.superpowers/

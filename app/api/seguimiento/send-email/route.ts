@@ -3,6 +3,7 @@ import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { Resend } from "resend";
+import { advisorContactEmail } from "@/lib/advisor-email";
 
 export async function POST(request: NextRequest) {
   const blocked = await applyRateLimit(request, "seguimiento-send-email", { limit: 5 });
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: `Global <${senderEmail}>`,
       to: recipientEmail,
+      replyTo: advisorContactEmail(advisor) || undefined,
       subject: subject || "Reporte de Seguimiento",
       html,
     });

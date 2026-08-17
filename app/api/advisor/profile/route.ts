@@ -35,13 +35,18 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
 
     // Campos permitidos para actualización (whitelist)
-    const allowedFields = ['nombre', 'apellido', 'telefono', 'especialidad', 'bio', 'linkedin_url', 'preferred_ai_model'];
+    const allowedFields = ['nombre', 'apellido', 'telefono', 'especialidad', 'bio', 'linkedin_url', 'preferred_ai_model', 'contact_email'];
     const updateData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];
       }
+    }
+
+    // contact_email vacío se guarda como null (fallback al email de login)
+    if (updateData.contact_email === '') {
+      updateData.contact_email = null;
     }
 
     // Actualizar solo el perfil del asesor autenticado
