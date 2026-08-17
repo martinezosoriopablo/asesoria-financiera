@@ -489,8 +489,17 @@ export async function POST(request: NextRequest) {
                   }
                 }
               }
-              // Sort by name score (highest first) to pick the best among price matches
-              priceMatches.sort((a, b) => b.nameScore - a.nameScore);
+              // Un match DIRECTO de precio (misma moneda) siempre es más confiable que
+              // uno inferido por ratio CLP/USD. Ordena: directos (sin `currency`) primero,
+              // luego por nameScore. Sin esto, el +1 de bonus del match-USD podía sepultar
+              // el match exacto correcto (high) bajo un falso match de moneda (medium), y
+              // como useAutoMatch solo auto-aplica "high", el holding quedaba sin match.
+              priceMatches.sort((a, b) => {
+                const aCurr = a.currency ? 1 : 0;
+                const bCurr = b.currency ? 1 : 0;
+                if (aCurr !== bCurr) return aCurr - bCurr; // directos (0) antes que USD (1)
+                return b.nameScore - a.nameScore;
+              });
               const best = priceMatches[0];
               const isCurrencyMatch = !!best.currency; // matched via CLP/USD conversion
 
