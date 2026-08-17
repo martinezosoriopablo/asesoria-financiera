@@ -19,6 +19,7 @@ interface PreferredFund {
   fund_run: string;
   fund_name: string | null;
   category: string | null;
+  custodian_type: string | null;
   notes: string | null;
   added_at: string;
   tac: number | null;
@@ -251,7 +252,7 @@ export default function AdvisorFondosPage() {
     }
   };
 
-  const handleUpdateField = async (fundId: string, field: "category" | "notes", value: string) => {
+  const handleUpdateField = async (fundId: string, field: "category" | "notes" | "custodian_type", value: string) => {
     setSaving(fundId);
     try {
       const res = await fetch("/api/advisor/preferred-funds", {
@@ -437,6 +438,7 @@ export default function AdvisorFondosPage() {
                 <tr className="border-b border-gb-border bg-gray-50/50">
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Fondo</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Categoria</th>
+                  <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Custodio</th>
                   <th className="text-right text-xs font-semibold text-gb-gray px-4 py-3">TAC</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Benef. Tributario</th>
                   <th className="text-left text-xs font-semibold text-gb-gray px-4 py-3">Nota</th>
@@ -465,6 +467,18 @@ export default function AdvisorFondosPage() {
                         value={fund.category || ""}
                         onSave={(val) => handleUpdateField(fund.id, "category", val)}
                       />
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={fund.custodian_type || "agf"}
+                        onChange={(e) => handleUpdateField(fund.id, "custodian_type", e.target.value)}
+                        disabled={saving === fund.id}
+                        className="text-sm border border-gb-border rounded px-2 py-1 bg-white focus:border-gb-accent focus:outline-none"
+                      >
+                        <option value="agf">AGF</option>
+                        <option value="corredora">Corredora</option>
+                        <option value="internacional">Internacional</option>
+                      </select>
                     </td>
                     <td className="px-4 py-3 text-right">
                       {fund.tac != null && !isNaN(Number(fund.tac)) ? (
