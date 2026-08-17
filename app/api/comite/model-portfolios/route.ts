@@ -100,26 +100,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Delete existing rows for this report_date (upsert approach)
+    // Reemplaza las carteras de este report_date en el repositorio unificado (type='cartera_modelo').
     await supabase
-      .from("model_portfolios")
+      .from("reports")
       .delete()
+      .eq("type", "cartera_modelo")
       .eq("report_date", body.report_date);
 
-    // Insert new rows
+    // Insert new rows (payload = {posiciones, sleeves, nota_comite})
     const rows = perfilKeys.map((perfil) => ({
+      type: "cartera_modelo",
       report_date: body.report_date,
       perfil,
-      posiciones: body.perfiles[perfil].posiciones,
-      sleeves: body.perfiles[perfil].sleeves || [],
-      nota_comite: body.perfiles[perfil].nota_comite || null,
-      created_by: advisor!.id,
+      title: `Cartera modelo ${perfil}`,
+      payload: {
+        posiciones: body.perfiles[perfil].posiciones,
+        sleeves: body.perfiles[perfil].sleeves || [],
+        nota_comite: body.perfiles[perfil].nota_comite || null,
+      },
+      uploaded_by: advisor!.id,
     }));
 
     const { data, error } = await supabase
-      .from("model_portfolios")
+      .from("reports")
       .insert(rows)
-      .select("id, perfil, version, report_date");
+      .select("id, perfil, report_date");
 
     if (error) {
       console.error("Error inserting model portfolios:", error);
@@ -148,22 +153,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const perfil = searchParams.get("perfil");
 
-  // Get the latest report_date
-  const { data: latest } = await supabase
-    .from("model_portfolios")
-    .select("report_date")
-    .order("report_date", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (!latest) {
-    return NextResponse.json({ success: true, models: [], report_date: null });
-  }
-
+  // Carteras vigentes (repositorio unificado): la más reciente por perfil.
   let query = supabase
-    .from("model_portfolios")
-    .select("*")
-    .eq("report_date", latest.report_date)
+    .from("vw_reports_vigentes")
+    .select("id, perfil, report_date, payload")
+    .eq("type", "cartera_modelo")
     .order("perfil");
 
   if (perfil) {
@@ -175,9 +169,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
+  const models = (data || []).map((r) => {
+    const pl = (r.payload || {}) as { posiciones?: unknown; sleeves?: unknown; nota_comite?: unknown };
+    return {
+      id: r.id,
+      perfil: r.perfil,
+      report_date: r.report_date,
+      posiciones: pl.posiciones ?? [],
+      sleeves: pl.sleeves ?? [],
+      nota_comite: pl.nota_comite ?? null,
+    };
+  });
+
   return NextResponse.json({
     success: true,
-    models: data || [],
-    report_date: latest.report_date,
+    models,
+    report_date: models[0]?.report_date ?? null,
   });
 }

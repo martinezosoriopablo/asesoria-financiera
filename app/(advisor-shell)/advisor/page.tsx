@@ -6,7 +6,6 @@ import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import WeeklyCalendar from "@/components/dashboard/WeeklyCalendar";
 import NewMeetingForm from "@/components/dashboard/NewMeetingForm";
 import GoogleCalendarConnect from "@/components/dashboard/GoogleCalendarConnect";
-import ComiteReportsPanel from "@/components/comite/ComiteReportsPanel";
 import {
   Users,
   UserCheck,
@@ -459,9 +458,17 @@ export default function AdvisorDashboard() {
             </div>
           </div>
 
-          {/* Comite Reports */}
+          {/* Repositorio de reportes */}
           <div className="animate-fade-in-up" style={{ animationDelay: "300ms" }}>
-            <ComiteReportsPanel />
+            <Link
+              href="/advisor/reportes"
+              className="block bg-white border border-gb-border rounded-lg p-5 hover:border-gb-primary transition-colors"
+            >
+              <div className="font-medium text-gb-black">Repositorio de reportes</div>
+              <div className="text-sm text-gb-gray mt-1">
+                Sube, versiona y define el uso de los reportes del comité (distribución, insumo de cartera, cierre).
+              </div>
+            </Link>
           </div>
         </div>
       </div>

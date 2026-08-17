@@ -337,31 +337,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 9. Load model portfolio ──────────────────────────────────────────
-    const { data: latestDate } = await supabase
-      .from("model_portfolios")
-      .select("report_date")
-      .order("report_date", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (!latestDate) {
-      return errorResponse("No se encontraron carteras modelo", 404);
-    }
-
-    const { data: modelRow } = await supabase
-      .from("model_portfolios")
-      .select("perfil, posiciones, sleeves, nota_comite, report_date")
-      .eq("report_date", latestDate.report_date)
+    // ── 9. Load model portfolio (cartera_modelo vigente del perfil, repositorio unificado) ──
+    const { data: carteraRow } = await supabase
+      .from("vw_reports_vigentes")
+      .select("payload, report_date")
+      .eq("type", "cartera_modelo")
       .eq("perfil", perfilModelo)
-      .single();
+      .maybeSingle();
 
-    if (!modelRow) {
+    if (!carteraRow) {
       return errorResponse(
         `No se encontró cartera modelo para el perfil "${perfilModelo}"`,
         404
       );
     }
+
+    const modelPayload = (carteraRow.payload || {}) as {
+      posiciones?: ModelPosicion[];
+      sleeves?: Array<Record<string, unknown>>;
+      nota_comite?: unknown;
+    };
+    const modelRow = {
+      perfil: perfilModelo,
+      report_date: carteraRow.report_date as string,
+      posiciones: modelPayload.posiciones ?? [],
+      sleeves: modelPayload.sleeves ?? [],
+      nota_comite: modelPayload.nota_comite ?? null,
+    };
 
     const posiciones = (modelRow.posiciones || []) as ModelPosicion[];
     const sleeves = (modelRow.sleeves || []) as Array<Record<string, unknown>>;

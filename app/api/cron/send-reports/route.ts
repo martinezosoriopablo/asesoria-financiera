@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       if (config.send_asset_allocation) comiteTypes.push("asset_allocation");
 
       const { data: comiteReports } = await supabase
-        .from("comite_reports")
+        .from("vw_reports_vigentes")
         .select("type, title, report_date")
         .in("type", comiteTypes.length > 0 ? comiteTypes : ["macro"]);
 

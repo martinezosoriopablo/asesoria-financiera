@@ -125,10 +125,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (sendAll || config?.send_rf) comiteTypes.push("rf");
     if (sendAll || config?.send_asset_allocation) comiteTypes.push("asset_allocation");
 
-    const { data: comiteReports } = await supabase
-      .from("comite_reports")
-      .select("type, title, content, report_date")
+    const { data: comiteRows } = await supabase
+      .from("vw_reports_vigentes")
+      .select("type, title, content_html, report_date")
       .in("type", comiteTypes.length > 0 ? comiteTypes : ["macro", "rv", "rf", "asset_allocation"]);
+    const comiteReports = (comiteRows || []).map((r) => ({
+      type: r.type as string,
+      title: r.title as string | null,
+      content: (r.content_html as string | null) ?? "",
+      report_date: r.report_date as string | null,
+    }));
 
     // 6. Build snapshot summary
     const snapshotSummary = latestSnapshot ? {
