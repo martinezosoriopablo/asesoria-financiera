@@ -22,6 +22,7 @@ import {
   Loader,
   Send,
   CheckCircle,
+  Link as LinkIcon,
   Shield,
   TrendingUp,
   AlertTriangle,
@@ -137,6 +138,7 @@ function AnalisisCartolaContent() {
   const [email, setEmail] = useState(clientEmailParam);
   const [sendingQuestionnaire, setSendingQuestionnaire] = useState(false);
   const [questionnaireSent, setQuestionnaireSent] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Client profile
   const [clientProfile, setClientProfile] = useState<ClientRiskProfile | null>(null);
@@ -283,6 +285,26 @@ function AnalisisCartolaContent() {
     }
   }
 
+  async function copyQuestionnaireLink() {
+    if (!email) return;
+    try {
+      const params = new URLSearchParams({ email });
+      if (advisor?.email) params.set("advisor", advisor.email);
+      const res = await fetch(`/api/questionnaire-link?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok || !data.link) {
+        alert("Error generando link: " + (data.error || res.status));
+        return;
+      }
+      await navigator.clipboard.writeText(data.link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch (err) {
+      console.error("Error copying questionnaire link:", err);
+      alert("No se pudo copiar el link");
+    }
+  }
+
   // Composition from snapshot (already classified by seguimiento)
   const holdings = (snapshot?.holdings || []) as SnapshotHolding[];
   const composition = (() => {
@@ -370,6 +392,15 @@ function AnalisisCartolaContent() {
                 <Send className="w-4 h-4" />
               )}
               {questionnaireSent ? "Enviado" : "Enviar Cuestionario"}
+            </button>
+            <button
+              onClick={copyQuestionnaireLink}
+              disabled={!email}
+              title="Copia el link del cuestionario para completarlo sin depender del correo"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gb-border text-gb-black rounded-md hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              {linkCopied ? <CheckCircle className="w-4 h-4 text-gb-success" /> : <LinkIcon className="w-4 h-4" />}
+              {linkCopied ? "Link copiado" : "Copiar link"}
             </button>
           </div>
         </div>
