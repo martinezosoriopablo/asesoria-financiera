@@ -6,54 +6,13 @@ import { NextRequest } from "next/server";
 import { requireClientAccess, createAdminClient } from "@/lib/auth/api-auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { applyRateLimit } from "@/lib/rate-limit";
-import { COMITE_CATEGORIES, mapClientProfile, getCategoryById, type ComiteCategory } from "@/lib/comite-categories";
+import { mapClientProfile, deriveCategoryFromPosition } from "@/lib/comite-categories";
 import { resolveMisFondos, defaultDecision } from "@/lib/recomendacion/resolve";
 import type { CustodianType, RecomendacionRow } from "@/lib/recomendacion/types";
 
-// Los model_portfolios guardan la categoría SIN el prefijo de rol (ej. "usa_large_cap",
-// "ust_belly", "gold", "tbills"), mientras COMITE_CATEGORIES usa el id con prefijo
-// (rv_usa_large_cap, rf_ust_belly, alt_gold, cash_tbills). Normalizamos para matchear
-// (mismo criterio que la Radiografía). Índice por id "pelado" (sin rv_/rf_/alt_/cash_).
-const ROLE_PREFIX = /^(rv|rf|alt|cash)_/;
-const strippedIndex = new Map<string, ComiteCategory>();
-for (const c of COMITE_CATEGORIES) {
-  const key = c.id.replace(ROLE_PREFIX, "");
-  if (!strippedIndex.has(key)) strippedIndex.set(key, c); // primer match (RV antes que RF para "chile")
-}
-function resolveCategoria(catId: string): ComiteCategory | undefined {
-  return getCategoryById(catId) || strippedIndex.get(catId.replace(ROLE_PREFIX, ""));
-}
-
-// Las posiciones del cartera_modelo existen en DOS esquemas: el viejo
-// (categoria/modelo_pct/etf_us/etf_ucits/vista) y el nuevo, ago 2026
-// (clase/peso_pct/ticker_us/ticker_ucits/view) SIN campo `categoria`.
-// Índices para derivar la ComiteCategory desde el ticker (robusto) o la etiqueta.
-const byTicker = new Map<string, ComiteCategory>();
-const byLabelNorm = new Map<string, ComiteCategory>();
-const normLbl = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-for (const c of COMITE_CATEGORIES) {
-  if (c.etfUS) byTicker.set(c.etfUS.toUpperCase(), c);
-  if (c.etfUCITS) byTicker.set(c.etfUCITS.toUpperCase(), c);
-  byLabelNorm.set(normLbl(c.label), c);
-}
-// Resuelve la categoría de una posición tolerando ambos esquemas: primero por
-// `categoria` (viejo), luego por ticker US/UCITS, luego por la etiqueta `clase`.
-function resolvePosCategory(raw: Record<string, unknown>): ComiteCategory | undefined {
-  const catId = (raw.categoria as string) || "";
-  if (catId) { const c = resolveCategoria(catId); if (c) return c; }
-  for (const key of ["etf_us", "ticker_us", "etf_ucits", "ticker_ucits"]) {
-    const t = raw[key];
-    if (typeof t === "string" && t) { const c = byTicker.get(t.toUpperCase()); if (c) return c; }
-  }
-  const clase = (raw.clase ?? raw.label ?? raw.description) as string | undefined;
-  if (clase) {
-    const n = normLbl(clase);
-    if (byLabelNorm.has(n)) return byLabelNorm.get(n);
-    for (const [k, c] of byLabelNorm) if (n.startsWith(k)) return c; // "rv usa large cap" ⊂ "rv usa large cap s p 500"
-  }
-  return undefined;
-}
+// La derivación de categoría (tolerante a ambos esquemas del cartera_modelo:
+// categoria/etf_us viejo y clase/ticker_us nuevo) vive en lib/comite-categories
+// (deriveCategoryFromPosition), compartida con model-portfolios y fund-mapping.
 
 export async function GET(request: NextRequest) {
   const rl = await applyRateLimit(request, "comite-recomendacion", { limit: 30 });
@@ -146,7 +105,7 @@ export async function GET(request: NextRequest) {
     for (const raw of posiciones) {
       const pct = Number(raw.modelo_pct ?? raw.peso_pct) || 0;
       if (pct <= 0) continue;
-      const cat = resolvePosCategory(raw);
+      const cat = deriveCategoryFromPosition(raw);
       if (!cat) continue;
       const comite = {
         etf_us: ((raw.etf_us ?? raw.ticker_us) as string | null) ?? cat.etfUS,

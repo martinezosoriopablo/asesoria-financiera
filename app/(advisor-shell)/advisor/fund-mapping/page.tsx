@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 
 interface Position {
   categoria: string;
+  label?: string | null;
   peso: number;
   etf_ref?: string;
 }
@@ -58,7 +59,9 @@ export default function FundMappingPage() {
         const allPositions = new Map<string, Position>();
         for (const model of modelsData.models) {
           for (const pos of model.posiciones || []) {
-            if (!allPositions.has(pos.categoria)) {
+            // Ignora posiciones sin categoría (esquema no reconocido) para no
+            // generar keys undefined/duplicadas en la tabla.
+            if (pos.categoria && !allPositions.has(pos.categoria)) {
               allPositions.set(pos.categoria, pos);
             }
           }
@@ -185,12 +188,12 @@ export default function FundMappingPage() {
               </tr>
             </thead>
             <tbody>
-              {categories.map((cat) => (
+              {categories.map((cat, i) => (
                 <tr
-                  key={cat.categoria}
+                  key={cat.categoria ?? i}
                   className="border-b border-gb-border/50 hover:bg-gray-50"
                 >
-                  <td className="py-3 px-3 font-medium">{cat.categoria}</td>
+                  <td className="py-3 px-3 font-medium">{cat.label || cat.categoria}</td>
                   <td className="py-3 px-2 text-center text-gb-gray">
                     {cat.peso}%
                   </td>

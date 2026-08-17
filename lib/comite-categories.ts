@@ -126,6 +126,44 @@ const SECONDARY_ETFS: Record<string, string> = {
 
 Object.assign(ETF_TO_CATEGORY, SECONDARY_ETFS);
 
+// ── Derivar la categoría de una posición del cartera_modelo ──────────────
+// Tolera AMBOS esquemas de posición: viejo (categoria/etf_us/etf_ucits) y el
+// nuevo, ago 2026 (clase/ticker_us/ticker_ucits, SIN campo `categoria`).
+// Orden: `categoria` (con/sin prefijo de rol) → ticker US/UCITS → etiqueta `clase`.
+const ROLE_PREFIX_RE = /^(rv|rf|alt|cash)_/;
+const _strippedCat = new Map<string, ComiteCategory>();
+const _byLabelNorm = new Map<string, ComiteCategory>();
+const _normLbl = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+for (const c of COMITE_CATEGORIES) {
+  const k = c.id.replace(ROLE_PREFIX_RE, "");
+  if (!_strippedCat.has(k)) _strippedCat.set(k, c);
+  _byLabelNorm.set(_normLbl(c.label), c);
+}
+export function deriveCategoryFromPosition(
+  raw: Record<string, unknown>
+): ComiteCategory | undefined {
+  const catId = (raw.categoria as string) || "";
+  if (catId) {
+    const c = getCategoryById(catId) || _strippedCat.get(catId.replace(ROLE_PREFIX_RE, ""));
+    if (c) return c;
+  }
+  for (const key of ["etf_us", "ticker_us", "etf_ucits", "ticker_ucits"]) {
+    const t = raw[key];
+    if (typeof t === "string" && t) {
+      const id = ETF_TO_CATEGORY[t.toUpperCase()] || ETF_TO_CATEGORY[t];
+      if (id) { const c = getCategoryById(id); if (c) return c; }
+    }
+  }
+  const clase = (raw.clase ?? raw.label ?? raw.description) as string | undefined;
+  if (clase) {
+    const n = _normLbl(clase);
+    if (_byLabelNorm.has(n)) return _byLabelNorm.get(n);
+    for (const [k, c] of _byLabelNorm) if (n.startsWith(k)) return c;
+  }
+  return undefined;
+}
+
 // ── Classify holding ─────────────────────────────────────────────────────
 
 export function classifyHolding(h: HoldingForClassification): ClassifiedHolding {
