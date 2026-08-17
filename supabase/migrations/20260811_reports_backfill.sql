@@ -5,7 +5,7 @@
 -- (evita violar la FK reports.type; conserva reportes de tipos custom legacy).
 INSERT INTO report_types (id, label, scope_key, default_usos, formatos, is_custom, orden)
 SELECT DISTINCT c.type, initcap(replace(c.type,'_',' ')), 'date',
-       '{distribucion,insumo_cartera}', '{html,pdf}', true, 200
+       '{distribucion,insumo_cartera}'::text[], '{html,pdf}'::text[], true, 200
 FROM comite_reports c
 WHERE NOT EXISTS (SELECT 1 FROM report_types rt WHERE rt.id = c.type)
 ON CONFLICT (id) DO NOTHING;
