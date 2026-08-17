@@ -756,13 +756,18 @@ export default function ReviewSnapshotModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || holdings.length === 0 || loadingRates || totalInCLP <= 0}
+              disabled={saving || holdings.length === 0 || loadingRates || totalInCLP <= 0 || !autoMatchComplete}
               className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
               {saving ? (
                 <>
                   <Loader className="w-4 h-4 animate-spin" />
                   {savingMsg}
+                </>
+              ) : !autoMatchComplete ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Buscando fondos…
                 </>
               ) : (
                 <>
