@@ -47,8 +47,19 @@ export async function ingestReport(
   if (htmlField instanceof File) content_html = await htmlField.text();
   else if (typeof htmlField === "string" && htmlField.trim()) content_html = htmlField;
 
-  const payloadRaw = form.get("payload") as string | null;
-  const payload = payloadRaw ? JSON.parse(payloadRaw) : null;
+  // payload: acepta archivo .json (File) o string JSON.
+  const payloadField = form.get("payload");
+  const payloadRaw = payloadField instanceof File
+    ? await payloadField.text()
+    : (typeof payloadField === "string" ? payloadField : null);
+  let payload = null;
+  if (payloadRaw && payloadRaw.trim()) {
+    try {
+      payload = JSON.parse(payloadRaw);
+    } catch {
+      throw new Error("El JSON de la cartera no es válido (revisa el archivo/formato).");
+    }
+  }
 
   const pdfFile = form.get("pdf") as File | null;
   const mp3File = form.get("mp3") as File | null;

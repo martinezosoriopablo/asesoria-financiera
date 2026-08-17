@@ -20,6 +20,7 @@ export default function UploadReportModal({ type, onClose, onDone }: {
   const [html, setHtml] = useState("");
   const [htmlFile, setHtmlFile] = useState<File | null>(null);
   const [json, setJson] = useState("");
+  const [jsonFile, setJsonFile] = useState<File | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [mp3, setMp3] = useState<File | null>(null);
   const [usos, setUsos] = useState<string[]>(type.default_usos);
@@ -45,7 +46,10 @@ export default function UploadReportModal({ type, onClose, onDone }: {
       if (htmlFile) fd.append("html", htmlFile);          // archivo tiene prioridad
       else if (html.trim()) fd.append("html", html);       // fallback: texto pegado
     }
-    if (has("json") && json.trim()) fd.append("payload", json);
+    if (has("json")) {
+      if (jsonFile) fd.append("payload", jsonFile);        // archivo tiene prioridad
+      else if (json.trim()) fd.append("payload", json);    // fallback: texto pegado
+    }
     if (has("pdf") && pdf) fd.append("pdf", pdf);
     if (has("mp3") && mp3) fd.append("mp3", mp3);
     if (usosTouched) fd.append("usos", JSON.stringify(usos));
@@ -122,10 +126,25 @@ export default function UploadReportModal({ type, onClose, onDone }: {
           </div>
         )}
         {has("json") && (
-          <label className="block text-sm mb-2">
-            JSON
-            <textarea value={json} onChange={(e) => setJson(e.target.value)} rows={4} className="block border rounded px-2 py-1 w-full font-mono text-xs" />
-          </label>
+          <div className="mb-2">
+            <label className="block text-sm">
+              JSON — subir archivo
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={(e) => setJsonFile(e.target.files?.[0] ?? null)}
+                className="block w-full mt-1"
+              />
+            </label>
+            {jsonFile ? (
+              <p className="text-xs text-gb-gray mt-1">Se usará el archivo: <span className="font-medium">{jsonFile.name}</span></p>
+            ) : (
+              <label className="block text-sm mt-2">
+                <span className="text-gb-gray">o pega el JSON</span>
+                <textarea value={json} onChange={(e) => setJson(e.target.value)} rows={4} className="block border rounded px-2 py-1 w-full font-mono text-xs" />
+              </label>
+            )}
+          </div>
         )}
         {has("pdf") && (
           <label className="block text-sm mb-2">
