@@ -75,14 +75,14 @@
   --color-gl-gold2: var(--gl-gold2);
   --color-gl-ink-light: var(--gl-ink-light);
   --color-gl-muted-light: var(--gl-muted-light);
-  --font-sans: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
-  --font-serif: 'Fraunces', Georgia, serif;
-  --font-mono: 'IBM Plex Mono', Consolas, monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-mono: 'JetBrains Mono', Consolas, monospace;
 }
 
 body {
   background: var(--background);
-  font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -146,4 +146,20 @@ a, button {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 0.375rem;
+}
+
+/* Site-aligned type helpers (opt-in — mirror the marketing site's language) */
+.eyebrow {
+  font-size: 13px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gb-primary);
+  font-weight: 600;
+}
+
+.h-display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--gb-black);
 }

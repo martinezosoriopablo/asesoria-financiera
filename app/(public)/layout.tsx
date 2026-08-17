@@ -1,20 +1,20 @@
-import { Fraunces, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { Source_Serif_4, Inter, JetBrains_Mono } from "next/font/google";
 
-const fraunces = Fraunces({
+const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
   variable: "--font-display",
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
 
-const hanken = Hanken_Grotesk({
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-body",
   weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const plexMono = IBM_Plex_Mono({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-data",
   weight: ["400", "500"],
@@ -23,7 +23,7 @@ const plexMono = IBM_Plex_Mono({
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${fraunces.variable} ${hanken.variable} ${plexMono.variable}`}>
+    <div className={`${sourceSerif.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       {children}
     </div>
   );
