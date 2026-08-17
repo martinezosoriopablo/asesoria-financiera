@@ -5,7 +5,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { stripAccents } from "@/lib/text";
-import { mapClientProfile } from "@/lib/comite-categories";
+import { mapClientProfile, deriveCategoryFromPosition, type ComiteRole } from "@/lib/comite-categories";
+
+// El "actual" del cliente se agrega en buckets simples (getCategoriaSimple), así que
+// el peso del modelo (categoría detallada del comité) se compara contra el bucket de su rol.
+const ROLE_TO_SIMPLE: Record<ComiteRole, string> = {
+  rv: "Renta Variable",
+  rf: "Renta Fija",
+  alt: "Alternativos",
+  cash: "Renta Fija",
+};
 import { handleApiError } from "@/lib/api-response";
 import { tokenizeFundName, scoreFundMatch } from "@/lib/fund-matching";
 
@@ -774,17 +783,25 @@ export async function POST(request: NextRequest) {
       }
 
       const deviations = mp.posiciones.map((pos) => {
-        const actualWeight = actualByCategory.get(pos.categoria) || 0;
-        const deviation = actualWeight - pos.peso;
-        const mappedFund = fundMappings.find((m) => m.categoria === pos.categoria);
+        // Tolera ambos esquemas del cartera_modelo (viejo categoria/peso/etf_ref y
+        // nuevo clase/peso_pct/ticker_us). El "actual" se compara por bucket de rol
+        // porque analyzedHoldings se agregan en buckets simples (getCategoriaSimple).
+        const raw = pos as unknown as Record<string, unknown>;
+        const cat = deriveCategoryFromPosition(raw);
+        const target = Number(raw.peso_pct ?? raw.peso ?? raw.modelo_pct) || 0;
+        const catLabel = cat?.label ?? (raw.clase as string) ?? (raw.categoria as string) ?? "";
+        const bucket = cat ? ROLE_TO_SIMPLE[cat.role] : ((raw.categoria as string) || "");
+        const actualWeight = actualByCategory.get(bucket) || 0;
+        const deviation = actualWeight - target;
+        const mappedFund = fundMappings.find((m) => m.categoria === (cat?.id ?? (raw.categoria as string)));
         return {
-          categoria: pos.categoria,
-          targetWeight: pos.peso,
+          categoria: catLabel,
+          targetWeight: target,
           actualWeight: Math.round(actualWeight * 10) / 10,
           deviation: Math.round(deviation * 10) / 10,
           estado: deviation > 2 ? "SOBREPONDERADO" : deviation < -2 ? "SUBPONDERADO" : "EN_RANGO",
-          etfRef: pos.etf_ref || null,
-          tesis: pos.tesis || null,
+          etfRef: ((raw.ticker_us ?? raw.ticker_ucits ?? raw.etf_ref ?? raw.etf_us) as string) || null,
+          tesis: ((raw.justificacion ?? raw.tesis) as string) || null,
           mappedFund: mappedFund ? {
             fundName: mappedFund.advisor_preferred_funds.fund_name,
             ticker: mappedFund.advisor_preferred_funds.ticker,
