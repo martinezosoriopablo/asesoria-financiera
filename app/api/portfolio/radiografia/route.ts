@@ -13,6 +13,7 @@ import {
   classifyHolding,
   mapClientProfile,
   getCategoryById,
+  deriveCategoryFromPosition,
   type HoldingForClassification,
   type ComiteRole,
 } from "@/lib/comite-categories";
@@ -42,13 +43,18 @@ interface EnrichedHolding extends SnapshotHolding {
 }
 
 interface ModelPosicion {
-  categoria: string; // label like "RV USA Large Cap"
+  categoria?: string; // label like "RV USA Large Cap"
   role?: string;
-  modelo_pct: number;
+  modelo_pct?: number;
+  peso_pct?: number;  // esquema nuevo (ago 2026)
   vista?: "OW" | "UW" | "N";
+  view?: "OW" | "UW" | "N"; // esquema nuevo
   conviction?: string | null;
   etf_us?: string;
   etf_ucits?: string;
+  ticker_us?: string;
+  ticker_ucits?: string;
+  clase?: string;
   justificacion?: string;
 }
 
@@ -371,9 +377,13 @@ export async function POST(request: NextRequest) {
     // Build categoria → posicion map for matching
     // Model stores short IDs (e.g. "usa_large_cap"), COMITE_CATEGORIES uses
     // prefixed IDs (e.g. "rv_usa_large_cap"). Build a lookup that maps both.
+    // Índice por id canónico del catálogo (rv_usa_large_cap…), derivado por
+    // categoria/ticker/etiqueta — tolera el esquema nuevo (clase/ticker_us sin categoria).
     const posicionByCat = new Map<string, ModelPosicion>();
     for (const pos of posiciones) {
-      posicionByCat.set(pos.categoria, pos);
+      const c = deriveCategoryFromPosition(pos as unknown as Record<string, unknown>);
+      const key = c?.id ?? pos.categoria;
+      if (key) posicionByCat.set(key, pos);
     }
 
     // Build COMITE_CATEGORIES.id → ModelPosicion by stripping role prefix
@@ -435,7 +445,7 @@ export async function POST(request: NextRequest) {
     const categories: CategoryResult[] = COMITE_CATEGORIES.map((cat) => {
       // Match model posicion by category id
       const posicion = findPosicion(cat);
-      const targetPct = posicion?.modelo_pct ?? 0;
+      const targetPct = (posicion?.peso_pct ?? posicion?.modelo_pct) ?? 0;
       const actualValueCLP = actualByCat.get(cat.id) || 0;
       const actualPct = totalValueCLP > 0
         ? Math.round((actualValueCLP / totalValueCLP) * 10000) / 100
@@ -445,7 +455,7 @@ export async function POST(request: NextRequest) {
       const estado: CategoryResult["estado"] =
         deltaPp > 2 ? "SOBREPONDERADO" : deltaPp < -2 ? "SUBPONDERADO" : "EN_RANGO";
 
-      const vista = (posicion?.vista as "OW" | "UW" | "N") || "N";
+      const vista = ((posicion?.view ?? posicion?.vista) as "OW" | "UW" | "N") || "N";
       const conviction = posicion?.conviction ?? null;
 
       // Current holdings in this category
