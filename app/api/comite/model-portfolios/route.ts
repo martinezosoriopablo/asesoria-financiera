@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdvisor, createAdminClient } from "@/lib/auth/api-auth";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-response";
+import { deriveCategoryFromPosition } from "@/lib/comite-categories";
 
 interface PositionInput {
   categoria: string;
@@ -171,11 +172,27 @@ export async function GET(request: NextRequest) {
 
   const models = (data || []).map((r) => {
     const pl = (r.payload || {}) as { posiciones?: unknown; sleeves?: unknown; nota_comite?: unknown };
+    // Normaliza cada posición: adjunta `categoria` (id de catálogo) + `label` +
+    // campos canónicos, tolerando el esquema nuevo (clase/ticker_us/peso_pct) y el
+    // viejo (categoria/etf_us/modelo_pct). Sin esto, consumidores como fund-mapping
+    // ven categoria=undefined (keys duplicadas, mapeo roto).
+    const posiciones = (Array.isArray(pl.posiciones) ? pl.posiciones : []).map((p) => {
+      const raw = (p ?? {}) as Record<string, unknown>;
+      const cat = deriveCategoryFromPosition(raw);
+      return {
+        ...raw,
+        categoria: cat?.id ?? ((raw.categoria as string) || null),
+        label: cat?.label ?? ((raw.clase as string) || null),
+        modelo_pct: Number(raw.modelo_pct ?? raw.peso_pct) || 0,
+        etf_us: ((raw.etf_us ?? raw.ticker_us) as string | null) ?? cat?.etfUS ?? null,
+        etf_ucits: ((raw.etf_ucits ?? raw.ticker_ucits) as string | null) ?? cat?.etfUCITS ?? null,
+      };
+    });
     return {
       id: r.id,
       perfil: r.perfil,
       report_date: r.report_date,
-      posiciones: pl.posiciones ?? [],
+      posiciones,
       sleeves: pl.sleeves ?? [],
       nota_comite: pl.nota_comite ?? null,
     };
