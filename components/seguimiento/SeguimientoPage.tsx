@@ -405,6 +405,7 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
             recommendation={seg.recommendation}
             latestSnapshotHoldings={snapshots.length > 0 ? (snapshots[snapshots.length - 1].holdings as any) : null}
             clientId={clientId}
+            clientRut={(client as { rut?: string | null })?.rut ?? null}
             executions={seg.executions}
             onExecutionSaved={seg.fetchExecutions}
           />

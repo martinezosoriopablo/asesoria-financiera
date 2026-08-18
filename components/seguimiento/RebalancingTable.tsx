@@ -18,6 +18,7 @@ interface RebalancingTableProps {
     valor?: number; percentOfPortfolio?: number;
   }> | null;
   clientId: string;
+  clientRut?: string | null;
   executions: Array<{
     id: string; ticker: string; nombre: string; asset_class: string;
     action: string; target_percent: number | null; actual_percent: number | null;
@@ -31,6 +32,7 @@ export default function RebalancingTable({
   recommendation,
   latestSnapshotHoldings,
   clientId,
+  clientRut,
   executions,
   onExecutionSaved,
 }: RebalancingTableProps) {
@@ -108,6 +110,45 @@ export default function RebalancingTable({
 
   const sortedRows = rows.sort((a, b) => Math.abs(b.diffPct) - Math.abs(a.diffPct));
 
+  // ── Informe CMF (.txt) ────────────────────────────────────────────────
+  // Genera un archivo plano de ancho fijo con los movimientos (compras/ventas)
+  // del rebalanceo, estilo informe regulatorio: 01=encabezado, 02=detalle.
+  const claseCmf = (c: string): string =>
+    c === "Renta Variable" || c === "Equity" ? "RV"
+      : c === "Renta Fija" || c === "Fixed Income" ? "RF"
+      : c === "Balanceado" || c === "Balanced" ? "BL" : "AL";
+  const padR = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s.padEnd(n, " "));
+  const zeros = (v: number, n: number) => String(Math.round(Math.abs(v))).slice(0, n).padStart(n, "0");
+  const rutCmf = (String(clientRut || "0").replace(/[.\-]/g, "").toUpperCase()).padStart(10, "0").slice(-10);
+
+  const exportCmf = () => {
+    const movs = sortedRows.filter(r => r.action === "comprar" || r.action === "vender");
+    const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const montoTotal = zeros(totalMV, 15);
+    const header = "01" + rutCmf + fecha + "CLP" + zeros(movs.length, 3) + montoTotal;
+    const lines = movs.map((r, i) => {
+      const monto = (Math.abs(r.diffPct) / 100) * totalMV;
+      return "02"
+        + zeros(i + 1, 4)
+        + padR((r.ticker || "").toUpperCase(), 11)
+        + (r.action === "vender" ? "V" : "C")
+        + claseCmf(r.clase)
+        + zeros(monto, 15)
+        + zeros(Math.abs(r.diffPct) * 100, 6);
+    });
+    const content = [header, ...lines].join("\r\n") + "\r\n";
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CMF_MOVIMIENTOS_${rutCmf}_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  const movCount = sortedRows.filter(r => r.action === "comprar" || r.action === "vender").length;
+
   return (
     <>
       <div className="mb-6">
@@ -130,6 +171,15 @@ export default function RebalancingTable({
                 <span className="w-2 h-2 rounded-full bg-gray-400" />
                 {rows.filter(r => r.action === "mantener").length} mantener
               </span>
+              <button
+                onClick={exportCmf}
+                disabled={movCount === 0}
+                title="Descarga el informe de movimientos en formato plano CMF (.txt)"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-300 bg-white text-blue-700 font-medium hover:bg-blue-100 disabled:opacity-40 transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Informe CMF (.txt)
+              </button>
             </div>
           </div>
           <div className="p-4 overflow-x-auto">
