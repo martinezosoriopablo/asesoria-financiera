@@ -8,13 +8,13 @@ Vercel → proyecto `asesoria-financiera` → Settings → Domains → Add, uno 
 - `globalwealth.cl` y `www.globalwealth.cl`
 - `globalplanning.cl` y `www.globalplanning.cl`
 - `globalmarkets.cl` y `www.globalmarkets.cl`
-- `globalpropierties.cl` y `www.globalpropierties.cl`
+- `globalproperties.cl` y `www.globalproperties.cl`
 - `globalcorporates.cl` y `www.globalcorporates.cl`
 - `globalproperty.cl` y `www.globalproperty.cl`
 
 Para cada `www.*`: usar la opción **Redirect to** el apex correspondiente.
 Para `globalproperty.cl` (apex y www): el 301 real lo hace el middleware; en Vercel basta
-con agregarlo apuntando al proyecto (o Redirect a `globalpropierties.cl` si se prefiere en el borde).
+con agregarlo apuntando al proyecto (o Redirect a `globalproperties.cl` si se prefiere en el borde).
 
 ## 2. DNS en NIC Chile (por cada dominio)
 En el panel de zona DNS de cada dominio:
@@ -31,8 +31,8 @@ Dashboard → Authentication → URL Configuration:
 
 ## 4. Verificación en vivo (por dominio)
 - `https://globalwealth.cl/` muestra Wealth con esa URL en la barra.
-- `https://globalmarkets.cl/`, `.../planning`, `globalpropierties.cl/`, `globalcorporates.cl/` idem.
-- `https://globalproperty.cl/` redirige (301) a `https://globalpropierties.cl/`.
+- `https://globalmarkets.cl/`, `.../planning`, `globalproperties.cl/`, `globalcorporates.cl/` idem.
+- `https://globalproperty.cl/` redirige (301) a `https://globalproperties.cl/`.
 - `https://www.<dominio>/` redirige al apex.
 - Botón **Portal Clientes / Acceso Asesores** desde cualquier dominio abre el login en
   `globalcompanies.cl` y la sesión funciona.
