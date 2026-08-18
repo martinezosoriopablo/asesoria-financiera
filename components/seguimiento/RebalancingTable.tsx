@@ -44,6 +44,18 @@ export default function RebalancingTable({
 
   const holdings = latestSnapshotHoldings;
 
+  // Los holdings del snapshot NO traen percentOfPortfolio (es un campo calculado, no
+  // se persiste). Lo derivamos del valor de mercado (CLP) para que el rebalanceo pueda
+  // mostrar las posiciones ACTUALES (si no, todas quedan en 0% y se saltan por el filtro
+  // < 0.5% → no se ve nada de lo que el cliente tenía).
+  const totalMV = holdings.reduce((s, h) => s + (h.marketValueCLP ?? h.marketValue ?? h.valor ?? 0), 0);
+  const pctOf = (h: (typeof holdings)[number]): number =>
+    typeof h.percentOfPortfolio === "number" && h.percentOfPortfolio > 0
+      ? h.percentOfPortfolio
+      : totalMV > 0
+        ? ((h.marketValueCLP ?? h.marketValue ?? h.valor ?? 0) / totalMV) * 100
+        : 0;
+
   // Build rebalancing rows
   const rows: Array<{
     nombre: string; ticker: string; clase: string;
@@ -57,7 +69,7 @@ export default function RebalancingTable({
       h.securityId === pos.ticker ||
       (h.fundName || h.name || h.nombre || "").toLowerCase().includes(pos.nombre.toLowerCase().substring(0, 10))
     );
-    const actualPct = match?.percentOfPortfolio || 0;
+    const actualPct = match ? pctOf(match) : 0;
     const diffPct = pos.porcentaje - actualPct;
     rows.push({
       nombre: pos.nombre,
@@ -72,7 +84,7 @@ export default function RebalancingTable({
 
   // Holdings in actual but not recommended (sell)
   holdings.forEach(h => {
-    const pct = h.percentOfPortfolio || 0;
+    const pct = pctOf(h);
     if (pct < 0.5) return;
     const name = h.fundName || h.name || h.nombre || "";
     const inRec = cartera.some(pos =>
