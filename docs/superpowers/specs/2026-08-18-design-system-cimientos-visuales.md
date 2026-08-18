@@ -22,8 +22,8 @@ La plataforma (CRM del asesor) funciona (v1.0) pero cada página inventó su pro
 ## Alcance (esta Fase)
 
 **Incluye:**
-1. Crear 4 primitivos en `components/shared/`: `PageContainer`, `PageHeader`, `Card`, `Button`.
-2. Documentar la **regla de paleta** (operativa) + (opcional) una regla de ESLint que la sostenga.
+1. Crear **5 primitivos** en `components/shared/`: `PageContainer`, `PageHeader`, `Card`, `Button`, `Input`.
+2. Documentar la **regla de paleta** (operativa) + una **regla de ESLint** que la sostenga (incluida en esta fase).
 3. **Migrar 4 páginas** a los primitivos + paleta: `advisor/page.tsx` (dashboard), `clients/new/page.tsx`, `analisis-cartola/page.tsx`, `components/portfolio/ComparisonModeV2.tsx` (portfolio-designer).
 
 **NO incluye (fases/pasadas posteriores):**
@@ -33,7 +33,7 @@ La plataforma (CRM del asesor) funciona (v1.0) pero cada página inventó su pro
 - Portal del cliente (`app/(portal)/`).
 - Dark mode del CRM (el shell del asesor es light-only por diseño; los primitivos usan los tokens light `--gb-*`).
 
-## Los 4 primitivos
+## Los 5 primitivos
 
 Todos en `components/shared/`, client components solo si necesitan interacción (Button no la necesita; son presentacionales). Usan los tokens `--gb-*` / clases Tailwind del proyecto — **cero hex hardcodeado**.
 
@@ -110,6 +110,22 @@ Estilos (radius ~3px = `rounded-[3px]`, `text-sm font-semibold px-5 py-2.5`, `di
 
 Nota: NO se toca el token global `--gb-primary` (sigue siendo copper para otros usos como el focus outline); el botón primario usa `--gb-black` (navy) explícitamente.
 
+### 5. `Input` (`components/shared/Input.tsx`)
+
+Campo de formulario consistente. Reemplaza los inputs ad-hoc con `border-slate-300`/`focus:ring-blue-500` (que chocan con el outline copper global).
+
+```tsx
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  hint?: string;
+}
+```
+Estructura (usa `forwardRef` para compatibilidad con formularios):
+- Opcional `label`: `<label className="block text-xs font-medium text-gb-dark mb-1.5">`.
+- Input: `w-full border border-gb-border rounded-[3px] px-3 py-2.5 text-sm text-gb-black bg-white placeholder:text-gb-gray/60 focus:border-gb-primary focus:outline-none focus:ring-1 focus:ring-gb-primary/30 transition-colors disabled:opacity-60`.
+- Opcional `hint`: `<p className="text-xs text-gb-gray mt-1">`.
+- Focus en copper (`--gb-primary`), consistente con el outline global del proyecto (elimina el `focus:ring-blue-500` fuera de marca).
+
 ## Regla de paleta (operativa)
 
 Documentar en un comentario de cabecera compartido y aplicar en la migración:
@@ -120,8 +136,12 @@ Documentar en un comentario de cabecera compartido y aplicar en la migración:
 - **Neutros (`gb-gray`, `gb-border`, `gb-light`/`background`)** para todo lo demás: chips, badges, fondos de sección → gris/off-white en vez de `bg-blue-50`/`bg-teal-50`/etc.
 - **Chips de clase de activo** (RV/RF/ALT/Caja): chip neutro `bg-background text-gb-gray border border-gb-border` (no 4 colores).
 
-### (Opcional) Guard de ESLint
-Regla `no-restricted-syntax` / plugin tailwind que prohíba en `app/(advisor-shell)/**` y `components/**` (excepto archivos de charts/`*Chart*`) las clases: `bg-(blue|indigo|purple|teal|emerald|sky|violet|slate|amber|green|red)-(50|100|200|...)` y `bg-gradient-*`. Verde/rojo de mercado se permiten vía los tokens `gb-success`/`gb-danger`. Si el guard es muy ruidoso al inicio, se documenta como convención y se agrega en una pasada posterior.
+### Guard de ESLint (incluido)
+Regla que prohíba clases de color crudas fuera de marca en el shell del asesor. Implementación pragmática con `eslint` + una regla `no-restricted-syntax` sobre `Literal`/`JSXAttribute` (o el plugin de Tailwind si ya está) que matchee `bg-(blue|indigo|purple|teal|emerald|sky|violet|slate|amber|green|red)-(50|100|200|300|400|500|600|700|800|900)` y `bg-gradient-`, con `message` explicando la regla de paleta.
+- **Scope:** `app/(advisor-shell)/**` y `components/**`.
+- **Excepción:** archivos de gráficos (`**/*Chart*.tsx`, `components/**/charts/**`) — las paletas categóricas de datos están permitidas (CLAUDE.md).
+- Verde/rojo de mercado se usan vía los tokens `gb-success`/`gb-danger`, no vía `green-*/red-*` crudos.
+- **Rollout del guard:** se agrega al config de ESLint pero, para no romper el lint del código aún-no-migrado, se activa con `overrides` SOLO sobre los archivos ya migrados en esta fase (las 4 páginas + `components/shared/**`). En fases siguientes se amplía el glob a medida que se migran más páginas. Así el guard sostiene lo migrado sin bloquear el resto.
 
 ## Migración de las 4 páginas
 
@@ -146,9 +166,9 @@ Para cada página: (1) envolver el contenido en `PageContainer` (con `wide` si e
 
 ## Criterios de éxito
 
-1. Existen `PageContainer`, `PageHeader`, `Card`, `Button` en `components/shared/`, usando solo tokens del proyecto.
+1. Existen `PageContainer`, `PageHeader`, `Card`, `Button`, `Input` en `components/shared/`, usando solo tokens del proyecto.
 2. Las 4 páginas usan los primitivos; **no queda ninguna clase de color fuera de marca** (`bg-blue-50`, gradientes, `bg-teal-600`, badges multicolor) en ellas.
 3. El look de las 4 páginas es sobrio y consistente con el mockup aprobado y con el sitio de marketing (botón navy, esquinas sobrias, cobre acento, eyebrows con tracking amplio).
 4. Cero cambios funcionales: cada acción/botón/flujo hace exactamente lo mismo que antes.
 5. `tsc` limpio; suite sin regresiones.
-6. (Si se incluye) el guard de ESLint corre sin falsos positivos en el código migrado.
+6. El guard de ESLint está activo sobre `components/shared/**` + las 4 páginas migradas y corre sin falsos positivos; `npm run lint` pasa.
