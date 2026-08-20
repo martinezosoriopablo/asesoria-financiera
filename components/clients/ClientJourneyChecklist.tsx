@@ -35,7 +35,7 @@ export default function ClientJourneyChecklist({ client }: Props) {
           const ctas = ctaHref(s.key, client);
           return (
             <li key={s.key} className={`flex items-center gap-3 rounded-md border p-3 ${s.isNext ? "border-gb-primary bg-gb-primary-light/40" : "border-gb-border"}`}>
-              <span className={`w-6 h-6 shrink-0 grid place-items-center rounded-full text-xs font-semibold ${s.done ? "bg-gb-success text-white" : "bg-background text-gb-gray border border-gb-border"}`}>
+              <span className={`w-6 h-6 shrink-0 grid place-items-center rounded-full text-xs font-semibold ${s.done ? "bg-gb-black text-white" : "bg-background text-gb-gray border border-gb-border"}`}>
                 {s.done ? "✓" : i + 1}
               </span>
               <span className={`flex-1 text-sm ${s.done ? "text-gb-gray line-through" : "text-gb-black font-medium"}`}>{s.label}</span>

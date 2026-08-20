@@ -20,6 +20,9 @@ describe("suggestFundCategory", () => {
   it("Balanceado → Balanceado", () => {
     expect(suggestFundCategory("Balanceado", "ETF SINGULAR CORE 40/60")).toBe("Balanceado");
   });
+  it("RF + Latinoamericana Local Currency → Renta Fija Internacional (no Nacional por 'local')", () => {
+    expect(suggestFundCategory("Renta Fija", "COMPASS DEUDA LATINOAMERICANA LOCAL CURRENCY")).toBe("Renta Fija Internacional");
+  });
   it("sin familia reconocible → null", () => {
     expect(suggestFundCategory("Otros", "algo raro")).toBeNull();
   });

@@ -12,12 +12,27 @@ export interface JourneyStep {
   isNext: boolean;
 }
 
+// Una recomendación "real" es un JSONB no-null con al menos una posición en `cartera`.
+// Un objeto vacío ({} o {cartera:[]}) NO cuenta (evita falsos "journey completo").
+// Mismo criterio que la migración 20260327_recommendation_versions.sql.
+export function hasRealRecommendation(carteraRecomendada: unknown): boolean {
+  if (!carteraRecomendada || typeof carteraRecomendada !== "object") return false;
+  const cartera = (carteraRecomendada as { cartera?: unknown }).cartera;
+  if (Array.isArray(cartera)) return cartera.length > 0;
+  // Sin sub-array `cartera`: cualquier objeto no vacío se considera recomendación.
+  return Object.keys(carteraRecomendada as object).length > 0;
+}
+
 export function computeJourneySteps(c: JourneyClient): JourneyStep[] {
   const done = {
     datos: true,
     perfil: !!(c.perfil_riesgo && c.perfil_riesgo.trim()),
     cartola: !!c.tiene_portfolio,
     recomendacion: !!c.tiene_cartera_recomendada,
+    // NOTA: "comparar" comparte señal con "recomendacion" — no existe un flag
+    // propio de "el asesor abrió la comparación". El 5º paso se marca ✓ al haber
+    // recomendación. Si en el futuro se registra la acción de comparar, darle su
+    // propia señal aquí.
     comparar: !!c.tiene_cartera_recomendada,
   };
   const labels: Record<JourneyStep["key"], string> = {

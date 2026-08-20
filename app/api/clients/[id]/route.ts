@@ -5,6 +5,7 @@ import { requireAdvisor, createAdminClient, getSubordinateAdvisorIds, getSharedC
 import { applyRateLimit } from "@/lib/rate-limit";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api-response";
 import { logAuditEvent } from "@/lib/audit";
+import { hasRealRecommendation } from "@/lib/journey/steps";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -141,7 +142,7 @@ export async function GET(
 
     const clientWithFlags = {
       ...client,
-      tiene_cartera_recomendada: !!(client as { cartera_recomendada?: unknown }).cartera_recomendada,
+      tiene_cartera_recomendada: hasRealRecommendation((client as { cartera_recomendada?: unknown }).cartera_recomendada),
     };
 
     return successResponse({ client: clientWithFlags, associatedClients: associatedClients || [], parentClient });

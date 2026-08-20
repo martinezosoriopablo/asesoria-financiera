@@ -379,7 +379,7 @@ export default function AdvisorFondosPage() {
                         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
                           typeFilter === opt
                             ? "bg-gb-black text-white"
-                            : "bg-gray-100 text-gb-gray hover:bg-gray-200"
+                            : "bg-gb-light text-gb-gray border border-gb-border hover:bg-gb-border/60"
                         }`}
                       >
                         {opt === "all" ? "Todos" : opt}

@@ -30,7 +30,7 @@ import {
   Loader,
   Bell,
 } from "lucide-react";
-import { computeJourneySteps } from "@/lib/journey/steps";
+import { computeJourneySteps, hasRealRecommendation } from "@/lib/journey/steps";
 
 interface Stats {
   total_clientes: number;
@@ -165,13 +165,18 @@ export default function AdvisorDashboard() {
       ]);
       const statsData = await statsRes.json();
       const meetingsData = await meetingsRes.json();
-      const clientsData = await clientsRes.json();
       if (statsData.success) setStats(statsData.stats);
       else throw new Error(statsData.error || "Error cargando estadísticas");
       if (meetingsData.success) setMeetings(meetingsData.meetings);
       else throw new Error(meetingsData.error || "Error cargando reuniones");
-      // Lista de clientes con journey incompleto: no bloquea el dashboard si falla
-      if (clientsData.success) setClients(clientsData.clients || []);
+      // Lista de clientes con journey incompleto: secundaria, NO bloquea el dashboard
+      // si falla (parseo aislado — una respuesta no-JSON o de red no rompe la vista).
+      try {
+        const clientsData = await clientsRes.json();
+        if (clientsData.success) setClients(clientsData.clients || []);
+      } catch {
+        /* la lista de journey es opcional; el dashboard funciona sin ella */
+      }
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Error cargando datos del dashboard");
     } finally {
@@ -224,7 +229,7 @@ export default function AdvisorDashboard() {
       const steps = computeJourneySteps({
         perfil_riesgo: c.perfil_riesgo,
         tiene_portfolio: c.tiene_portfolio,
-        tiene_cartera_recomendada: !!c.cartera_recomendada,
+        tiene_cartera_recomendada: hasRealRecommendation(c.cartera_recomendada),
       });
       return steps.some((s) => !s.done);
     })

@@ -1,8 +1,9 @@
 import { stripAccents } from "@/lib/text";
 
-const NACIONAL = /\b(chile|nacional|ipsa|chileno|clp|local)\b/;
+const NACIONAL = /\b(chile|nacional|ipsa|chileno|clp)\b/;
 const USA = /\b(usa|s&p|sp500|s p 500|nasdaq|estados unidos|ee\.?uu)\b/;
-const INTL = /\b(global|internacional|latam|mundial|world|emergentes|emerging|europa|asia)\b/;
+// "local currency" (deuda EM en moneda local) y "latinoamericana" son INTERNACIONAL, no nacional.
+const INTL = /\b(global|internacional|latam|latinoamerica|latinoamericano|latinoamericana|local currency|mundial|world|emergentes?|emerging|europa|asia)\b/;
 
 export function suggestFundCategory(familia: string | null | undefined, fundName: string): string | null {
   const fam = stripAccents((familia ?? "").toLowerCase());
