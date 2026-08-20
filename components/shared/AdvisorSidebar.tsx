@@ -119,12 +119,19 @@ export default function AdvisorSidebar({
     >
       {/* Logo */}
       <div className={`border-b border-white/10 shrink-0 ${collapsed ? "px-2 py-4" : "px-5 py-4"}`}>
-        <Link href="/advisor" className="flex items-center gap-2.5 overflow-hidden">
-          <GlobalLogo variant="light" className={collapsed ? "h-7 w-auto" : "h-8 w-auto"} />
-          {!collapsed && (
-            <span className="text-lg text-white tracking-[0.1em] font-medium">
-              GLOBAL
-            </span>
+        <Link href="/advisor" className="flex items-center overflow-hidden">
+          {collapsed ? (
+            <GlobalLogo variant="light" className="h-7 w-auto" />
+          ) : (
+            <Image
+              src="/media/global-markets-blanco.svg"
+              alt="Global Markets"
+              width={189}
+              height={15}
+              className="h-4 w-auto"
+              priority
+              unoptimized
+            />
           )}
         </Link>
         {!collapsed && (

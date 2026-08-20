@@ -26,7 +26,7 @@ Rule: navy dominates; copper/gold are accents (never large fills); azure for act
 - Azure `#5AA0E6` (`--gb-info`; links/CTA/single-series chart lines) · Up `#2ECC8F` (`--gb-success`) · Down `#EF5B5B` (`--gb-danger`)
 - Emails/PDFs (no CSS vars) hardcode these hex directly. Chart **categorical** palettes (per-asset-class color maps, multi-series arrays) are data colors — NOT brand chrome — leave them.
 
-Fonts: **Fraunces** (serif display/numbers), **Hanken Grotesk** (UI/body), **IBM Plex Mono** (data). In email/HTML where webfonts may not load, fall back to Georgia / Arial / Consolas.
+Fonts (advisor app + client portal + marketing site, aligned Aug 2026): **Source Serif 4** (serif display/numbers), **Inter** (UI/body), **JetBrains Mono** (data). Loaded via the `<link>` in `app/layout.tsx` and the `--font-serif`/`--font-sans`/`--font-mono` tokens in `app/globals.css` (the `(public)` route group loads the same families via `next/font`). Previously Fraunces / Hanken Grotesk / IBM Plex Mono — do NOT reintroduce those. Emails/PDFs use their own system-font stack (`-apple-system, …, sans-serif` + `monospace`), not the webfonts, so where webfonts may not load the fallback is Georgia / Arial / Consolas.
 
 Logo: inline SVG in `components/landing/GlobalLogo.tsx` — G icon with copper `#EB7838` bars, `currentColor` paths (white on dark via `variant="light"`, navy `#0B2140` on light via `variant="dark"`). `GBrandMark.tsx` is a simplified G+bars mark. Master brand = **Global Companies**; Wealth / Planning / Properties / Markets are the four service lines (Markets = departamento de estudios / research aumentado por IA).
 

@@ -4,6 +4,11 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
+import PageContainer from "@/components/shared/PageContainer";
+import PageHeader from "@/components/shared/PageHeader";
+import Card from "@/components/shared/Card";
+import Button from "@/components/shared/Button";
+import Input from "@/components/shared/Input";
 import {
   ArrowLeft,
   User,
@@ -209,90 +214,72 @@ export default function NewClientPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Page Header */}
-      <div className="bg-white border-b border-gb-border">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Link
-            href="/clients"
-            className="flex items-center gap-2 text-gb-gray hover:text-gb-black transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">Volver a Clientes</span>
-          </Link>
+  const selectClassName =
+    "w-full border border-gb-border rounded-[3px] px-3 py-2.5 text-sm text-gb-black bg-white focus:border-gb-primary focus:outline-none focus:ring-1 focus:ring-gb-primary/30 transition-colors";
+  const errorInputClassName = (hasError: boolean) =>
+    `w-full border rounded-[3px] px-3 py-2.5 text-sm text-gb-black bg-white placeholder:text-gb-gray/60 focus:outline-none focus:ring-1 focus:ring-gb-primary/30 transition-colors ${hasError ? "border-gb-danger bg-gb-danger/5 focus:border-gb-danger" : "border-gb-border focus:border-gb-primary"}`;
 
-          <h1 className="text-2xl font-semibold text-gb-black flex items-center gap-3">
-            <User className="w-6 h-6 text-gb-accent" />
-            Nuevo Cliente
-          </h1>
-          <p className="text-sm text-gb-gray mt-1">
-            Completa la información del nuevo cliente
-          </p>
-        </div>
-      </div>
+  return (
+    <PageContainer>
+      <Link
+        href="/clients"
+        className="flex items-center gap-2 text-gb-gray hover:text-gb-black transition-colors mb-4"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span className="text-sm font-medium">Volver a Clientes</span>
+      </Link>
+
+      <PageHeader
+        title="Nuevo Cliente"
+        subtitle="Completa la información del nuevo cliente"
+      />
 
       {/* Form */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md p-8">
+      <form onSubmit={handleSubmit}>
+        <Card>
           {/* Error Message */}
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800 text-sm">{error}</p>
+            <div className="mb-6 bg-gb-danger/10 border border-gb-danger/30 rounded-md p-4">
+              <p className="text-gb-danger text-sm">{error}</p>
             </div>
           )}
 
           {/* Información Personal */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-blue-600" />
+            <h2 className="text-xl font-bold text-gb-black mb-4 flex items-center gap-2">
+              <User className="w-5 h-5 text-gb-primary" />
               Información Personal
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                type="text"
+                name="nombre"
+                value={formData.nombre}
+                onChange={handleChange}
+                required
+                label="Nombre *"
+                placeholder="Juan"
+              />
+              <Input
+                type="text"
+                name="apellido"
+                value={formData.apellido}
+                onChange={handleChange}
+                required
+                label="Apellido *"
+                placeholder="Pérez"
+              />
+              <Input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                label="Email *"
+                placeholder="juan.perez@email.com"
+              />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Nombre *
-                </label>
-                <input
-                  type="text"
-                  name="nombre"
-                  value={formData.nombre}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Juan"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Apellido *
-                </label>
-                <input
-                  type="text"
-                  name="apellido"
-                  value={formData.apellido}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Pérez"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="juan.perez@email.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Teléfono
                 </label>
                 <input
@@ -300,15 +287,15 @@ export default function NewClientPage() {
                   name="telefono"
                   value={formData.telefono}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.telefono ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                  className={errorInputClassName(!!fieldErrors.telefono)}
                   placeholder="+56912345678"
                 />
                 {fieldErrors.telefono && (
-                  <p className="mt-1 text-sm text-red-600">{fieldErrors.telefono}</p>
+                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.telefono}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   RUT
                 </label>
                 <input
@@ -316,15 +303,15 @@ export default function NewClientPage() {
                   name="rut"
                   value={formData.rut}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.rut ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                  className={errorInputClassName(!!fieldErrors.rut)}
                   placeholder="12.345.678-9"
                 />
                 {fieldErrors.rut && (
-                  <p className="mt-1 text-sm text-red-600">{fieldErrors.rut}</p>
+                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.rut}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Fecha de Nacimiento
                 </label>
                 <input
@@ -332,10 +319,10 @@ export default function NewClientPage() {
                   name="fecha_nacimiento"
                   value={formData.fecha_nacimiento}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.fecha_nacimiento ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                  className={errorInputClassName(!!fieldErrors.fecha_nacimiento)}
                 />
                 {fieldErrors.fecha_nacimiento && (
-                  <p className="mt-1 text-sm text-red-600">{fieldErrors.fecha_nacimiento}</p>
+                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.fecha_nacimiento}</p>
                 )}
               </div>
             </div>
@@ -343,13 +330,13 @@ export default function NewClientPage() {
 
           {/* Información Financiera */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-600" />
+            <h2 className="text-xl font-bold text-gb-black mb-4 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-gb-primary" />
               Información Financiera
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Patrimonio Estimado (CLP)
                 </label>
                 <input
@@ -357,15 +344,15 @@ export default function NewClientPage() {
                   name="patrimonio_estimado"
                   value={formData.patrimonio_estimado}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.patrimonio_estimado ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                  className={errorInputClassName(!!fieldErrors.patrimonio_estimado)}
                   placeholder="50000000"
                 />
                 {fieldErrors.patrimonio_estimado && (
-                  <p className="mt-1 text-sm text-red-600">{fieldErrors.patrimonio_estimado}</p>
+                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.patrimonio_estimado}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Ingreso Mensual (CLP)
                 </label>
                 <input
@@ -373,11 +360,11 @@ export default function NewClientPage() {
                   name="ingreso_mensual"
                   value={formData.ingreso_mensual}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.ingreso_mensual ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                  className={errorInputClassName(!!fieldErrors.ingreso_mensual)}
                   placeholder="3000000"
                 />
                 {fieldErrors.ingreso_mensual && (
-                  <p className="mt-1 text-sm text-red-600">{fieldErrors.ingreso_mensual}</p>
+                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.ingreso_mensual}</p>
                 )}
               </div>
             </div>
@@ -385,33 +372,28 @@ export default function NewClientPage() {
 
           {/* Perfil de Inversión */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-purple-600" />
+            <h2 className="text-xl font-bold text-gb-black mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-gb-primary" />
               Perfil de Inversión
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                type="text"
+                name="objetivo_inversion"
+                value={formData.objetivo_inversion}
+                onChange={handleChange}
+                label="Objetivo de Inversión"
+                placeholder="Crecimiento moderado"
+              />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Objetivo de Inversión
-                </label>
-                <input
-                  type="text"
-                  name="objetivo_inversion"
-                  value={formData.objetivo_inversion}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Crecimiento moderado"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Horizonte Temporal
                 </label>
                 <select
                   name="horizonte_temporal"
                   value={formData.horizonte_temporal}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={selectClassName}
                 >
                   <option value="corto_plazo">Corto Plazo (1-3 años)</option>
                   <option value="mediano_plazo">Mediano Plazo (3-7 años)</option>
@@ -423,24 +405,24 @@ export default function NewClientPage() {
 
           {/* Perfil de Riesgo */}
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-orange-600" />
+            <h2 className="text-xl font-bold text-gb-black mb-4 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-gb-primary" />
               Perfil de Riesgo
-              <span className="text-xs font-normal text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">estimado</span>
+              <span className="text-xs font-normal text-gb-warning bg-gb-warning/10 px-2 py-0.5 rounded-full">estimado</span>
             </h2>
             <p className="text-xs text-gb-gray -mt-2 mb-4">
               Estimacion inicial. Se actualizara automaticamente cuando el cliente complete el cuestionario.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Clasificación
                 </label>
                 <select
                   name="perfil_riesgo"
                   value={formData.perfil_riesgo}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={selectClassName}
                 >
                   <option value="">Seleccionar...</option>
                   <option value="defensivo">Defensivo</option>
@@ -450,23 +432,18 @@ export default function NewClientPage() {
                   <option value="muy_agresivo">Muy Agresivo</option>
                 </select>
               </div>
+              <Input
+                type="number"
+                name="puntaje_riesgo"
+                value={formData.puntaje_riesgo}
+                onChange={handleChange}
+                min="0"
+                max="100"
+                label="Puntaje (0-100)"
+                placeholder="50"
+              />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Puntaje (0-100)
-                </label>
-                <input
-                  type="number"
-                  name="puntaje_riesgo"
-                  value={formData.puntaje_riesgo}
-                  onChange={handleChange}
-                  min="0"
-                  max="100"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-gb-black mb-2">
                   Tolerancia Pérdida (%)
                 </label>
                 <input
@@ -475,11 +452,11 @@ export default function NewClientPage() {
                   value={formData.tolerancia_perdida}
                   onChange={handleChange}
                   step="0.1"
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${fieldErrors.tolerancia_perdida ? "border-red-400 bg-red-50" : "border-slate-300"}`}
+                  className={errorInputClassName(!!fieldErrors.tolerancia_perdida)}
                   placeholder="10.0"
                 />
                 {fieldErrors.tolerancia_perdida && (
-                  <p className="mt-1 text-sm text-red-600">{fieldErrors.tolerancia_perdida}</p>
+                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.tolerancia_perdida}</p>
                 )}
               </div>
             </div>
@@ -487,7 +464,7 @@ export default function NewClientPage() {
 
           {/* Notas */}
           <div className="mb-8">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-sm font-medium text-gb-black mb-2">
               Notas Adicionales
             </label>
             <textarea
@@ -495,18 +472,14 @@ export default function NewClientPage() {
               value={formData.notas}
               onChange={handleChange}
               rows={4}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className={selectClassName}
               placeholder="Información adicional sobre el cliente..."
             />
           </div>
 
           {/* Buttons */}
           <div className="flex gap-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gb-primary text-white font-semibold rounded-lg hover:bg-gb-primary-dark transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
+            <Button type="submit" disabled={loading} className="flex-1">
               {loading ? (
                 <>
                   <Loader className="w-5 h-5 animate-spin" />
@@ -518,20 +491,20 @@ export default function NewClientPage() {
                   Guardar Cliente
                 </>
               )}
-            </button>
+            </Button>
             <Link
               href="/clients"
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-[3px] px-5 py-2.5 text-sm font-semibold bg-transparent text-gb-info border border-gb-border hover:bg-gb-light transition-colors"
             >
               Cancelar
             </Link>
           </div>
 
-          <p className="text-sm text-slate-500 mt-4 text-center">
+          <p className="text-sm text-gb-gray mt-4 text-center">
             * Campos obligatorios
           </p>
-        </form>
-      </div>
-    </div>
+        </Card>
+      </form>
+    </PageContainer>
   );
 }
