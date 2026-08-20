@@ -146,6 +146,7 @@ export default function AdvisorFondosPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [typeFilter, setTypeFilter] = useState<"all" | "FM" | "FI">("all");
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -285,6 +286,10 @@ export default function AdvisorFondosPage() {
 
   if (!advisor) return null;
 
+  const filteredSearchResults = searchResults.filter(
+    (r) => typeFilter === "all" || r.tipo === typeFilter
+  );
+
   return (
     <main className="max-w-6xl mx-auto px-5 py-8">
         {/* Header */}
@@ -303,12 +308,22 @@ export default function AdvisorFondosPage() {
               setShowSearch(true);
               setSearchResults([]);
               setSearchTerm("");
+              setTypeFilter("all");
             }}
             className="flex items-center gap-1.5 px-4 py-2 bg-gb-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Agregar Fondo
           </button>
+        </div>
+
+        {/* Info box */}
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p className="text-sm text-amber-800">
+            <strong>Modo de seleccion por cliente:</strong> En la ficha de cada cliente puedes configurar
+            si la IA debe usar solo tus fondos preferidos, preferirlos con fallback al universo CMF,
+            o usar todos los fondos disponibles.
+          </p>
         </div>
 
         {/* Error banner */}
@@ -355,6 +370,23 @@ export default function AdvisorFondosPage() {
                     {searching ? <Loader className="w-4 h-4 animate-spin" /> : "Buscar"}
                   </button>
                 </div>
+                {searchResults.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-3">
+                    {(["all", "FM", "FI"] as const).map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => setTypeFilter(opt)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          typeFilter === opt
+                            ? "bg-gb-black text-white"
+                            : "bg-gray-100 text-gb-gray hover:bg-gray-200"
+                        }`}
+                      >
+                        {opt === "all" ? "Todos" : opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-3">
@@ -365,12 +397,17 @@ export default function AdvisorFondosPage() {
                       : "Ingrese al menos 2 caracteres para buscar"}
                   </p>
                 )}
+                {searchResults.length > 0 && filteredSearchResults.length === 0 && !searching && (
+                  <p className="text-sm text-gb-gray text-center py-8">
+                    Ningun fondo {typeFilter} entre los resultados
+                  </p>
+                )}
                 {searching && (
                   <div className="flex items-center justify-center py-8">
                     <Loader className="w-5 h-5 text-gb-gray animate-spin" />
                   </div>
                 )}
-                {searchResults.map((result) => {
+                {filteredSearchResults.map((result) => {
                   const fundRun = `${result.fo_run}-${result.fm_serie}`;
                   const alreadyAdded = funds.some((f) => f.fund_run === fundRun);
                   return (
@@ -571,15 +608,6 @@ export default function AdvisorFondosPage() {
             </table>
           </div>
         )}
-
-        {/* Info box */}
-        <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <p className="text-sm text-amber-800">
-            <strong>Modo de seleccion por cliente:</strong> En la ficha de cada cliente puedes configurar
-            si la IA debe usar solo tus fondos preferidos, preferirlos con fallback al universo CMF,
-            o usar todos los fondos disponibles.
-          </p>
-        </div>
 
         {/* Objective/detail modal */}
         {viewingObjective && (
