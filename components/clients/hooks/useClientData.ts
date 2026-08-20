@@ -19,6 +19,7 @@ export interface Client {
   puntaje_riesgo: number;
   tolerancia_perdida: number;
   tiene_portfolio: boolean;
+  tiene_cartera_recomendada?: boolean;
   portfolio_data: Record<string, unknown>;
   status: string;
   notas: string;
