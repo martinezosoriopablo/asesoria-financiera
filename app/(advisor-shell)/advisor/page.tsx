@@ -6,6 +6,10 @@ import { useAdvisor } from "@/lib/hooks/useAdvisor";
 import WeeklyCalendar from "@/components/dashboard/WeeklyCalendar";
 import NewMeetingForm from "@/components/dashboard/NewMeetingForm";
 import GoogleCalendarConnect from "@/components/dashboard/GoogleCalendarConnect";
+import PageContainer from "@/components/shared/PageContainer";
+import PageHeader from "@/components/shared/PageHeader";
+import Card from "@/components/shared/Card";
+import Button from "@/components/shared/Button";
 import {
   Users,
   UserCheck,
@@ -94,13 +98,8 @@ function getTypeIcon(tipo: string) {
   }
 }
 
-function getTypeBadgeClass(tipo: string): string {
-  switch (tipo?.toLowerCase()) {
-    case "virtual": return "bg-blue-100 text-blue-700";
-    case "llamada": return "bg-emerald-100 text-emerald-700";
-    case "recordatorio": return "bg-amber-100 text-amber-700";
-    default: return "bg-purple-100 text-purple-700";
-  }
+function getTypeBadgeClass(): string {
+  return "bg-background text-gb-gray border border-gb-border";
 }
 
 function getClientName(meeting: Meeting): string {
@@ -212,26 +211,27 @@ export default function AdvisorDashboard() {
     { label: "AUM Total", value: formatCurrency(stats?.aum_total ?? 0), icon: DollarSign, highlight: true, subtitle: sinCartola > 0 ? `+ ${sinCartola} sin cartola` : null },
   ];
 
+  const dateLabel = formatDate();
+  const dateLabelCap = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+
   return (
-    <div className="max-w-6xl mx-auto px-5 py-8">
+    <PageContainer>
       {/* Greeting */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gb-black">
-          {getGreeting()}, {advisor.name.split(" ")[0]}
-        </h1>
-        <p className="text-sm text-gb-gray capitalize mt-0.5">{formatDate()}</p>
-      </div>
+      <PageHeader
+        title={`${getGreeting()}, ${advisor.name.split(" ")[0]}`}
+        subtitle={dateLabelCap}
+      />
 
       {/* Error state */}
       {fetchError && !loading && (
-        <div className="mb-8 flex items-center gap-3 px-5 py-4 bg-red-50 border border-red-200 rounded-xl">
-          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+        <div className="mb-8 flex items-center gap-3 px-5 py-4 bg-gb-danger/10 border border-gb-danger/30 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-gb-danger shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-red-800">{fetchError}</p>
+            <p className="text-sm font-medium text-gb-danger">{fetchError}</p>
           </div>
           <button
             onClick={() => fetchData()}
-            className="shrink-0 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+            className="shrink-0 px-3 py-1.5 text-sm font-medium text-gb-danger bg-gb-danger/10 hover:bg-gb-danger/20 rounded-lg transition-colors"
           >
             Reintentar
           </button>
@@ -246,31 +246,25 @@ export default function AdvisorDashboard() {
           {STAT_CARDS.map((s, i) => {
             const Icon = s.icon;
             return (
-              <div
-                key={s.label}
-                className={`rounded-xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md animate-fade-in-up ${
-                  s.highlight
-                    ? "bg-gb-primary text-white border-gb-primary-dark"
-                    : "bg-white border-gb-border"
-                }`}
-                style={{ animationDelay: `${i * 60}ms` }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className={`text-xs font-semibold uppercase tracking-wide ${s.highlight ? "text-white/70" : "text-gb-gray"}`}>
-                    {s.label}
-                  </span>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.highlight ? "bg-white/20" : "bg-gb-primary-light"}`}>
-                    <Icon className={`w-4 h-4 ${s.highlight ? "text-white" : "text-gb-primary"}`} />
+              <div key={s.label} className="animate-fade-in-up" style={{ animationDelay: `${i * 60}ms` }}>
+                <Card highlight={s.highlight} className="h-full transition-all hover:-translate-y-0.5 hover:shadow-md">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className={`text-xs font-semibold uppercase tracking-wide ${s.highlight ? "text-white/70" : "text-gb-gray"}`}>
+                      {s.label}
+                    </span>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.highlight ? "bg-white/20" : "bg-gb-primary-light"}`}>
+                      <Icon className={`w-4 h-4 ${s.highlight ? "text-white" : "text-gb-primary"}`} />
+                    </div>
                   </div>
-                </div>
-                <p className={`text-2xl font-bold ${s.highlight ? "text-white" : "text-gb-black"}`}>
-                  {s.value}
-                </p>
-                {s.subtitle && (
-                  <p className={`text-[11px] mt-0.5 ${s.highlight ? "text-white/60" : "text-gb-gray"}`}>
-                    {s.subtitle}
+                  <p className={`text-2xl font-bold ${s.highlight ? "text-white" : "text-gb-black"}`}>
+                    {s.value}
                   </p>
-                )}
+                  {s.subtitle && (
+                    <p className={`text-[11px] mt-0.5 ${s.highlight ? "text-white/60" : "text-gb-gray"}`}>
+                      {s.subtitle}
+                    </p>
+                  )}
+                </Card>
               </div>
             );
           })}
@@ -294,13 +288,13 @@ export default function AdvisorDashboard() {
                 )}
               </h2>
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => { setEditingMeeting({ prefillTipo: "recordatorio" }); setShowNewMeeting(true); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
                 >
                   <Bell className="w-3.5 h-3.5" />
                   Recordatorio
-                </button>
+                </Button>
                 <button
                   onClick={() => setShowNewMeeting(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gb-primary text-white rounded-lg hover:bg-gb-primary-dark transition-colors"
@@ -342,7 +336,7 @@ export default function AdvisorDashboard() {
                               </span>
                             </div>
                             <p className="text-xs text-gb-gray mb-2">{meeting.titulo || "Reunion"}</p>
-                            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${getTypeBadgeClass(meeting.tipo)}`}>
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${getTypeBadgeClass()}`}>
                               {getTypeIcon(meeting.tipo)}
                               {meeting.tipo || "Presencial"}
                             </span>
@@ -358,10 +352,10 @@ export default function AdvisorDashboard() {
                             </button>
                             <button
                               onClick={() => handleDeleteMeeting(meeting)}
-                              className="p-1.5 rounded-md hover:bg-red-50 transition-colors"
+                              className="p-1.5 rounded-md hover:bg-gb-danger/10 transition-colors"
                               title="Eliminar"
                             >
-                              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                              <Trash2 className="w-3.5 h-3.5 text-gb-danger" />
                             </button>
                           </div>
                         </div>
@@ -418,13 +412,13 @@ export default function AdvisorDashboard() {
               </h2>
               <div className="space-y-2">
                 {stats.reuniones_pendientes > 0 && (
-                  <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div className="flex items-center gap-3 p-3 bg-gb-warning/10 border border-gb-warning/30 rounded-lg">
+                    <Clock className="w-4 h-4 text-gb-warning shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-amber-800">
+                      <p className="text-sm font-medium text-gb-black">
                         {stats.reuniones_pendientes} reunion(es) pendiente(s)
                       </p>
-                      <p className="text-xs text-amber-600">Esta semana</p>
+                      <p className="text-xs text-gb-warning">Esta semana</p>
                     </div>
                   </div>
                 )}
@@ -472,6 +466,6 @@ export default function AdvisorDashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
