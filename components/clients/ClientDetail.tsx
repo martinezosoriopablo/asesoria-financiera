@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ClientInfoCard from "@/components/clients/ClientInfoCard";
+import ClientJourneyChecklist from "@/components/clients/ClientJourneyChecklist";
 import PatrimonioSection from "@/components/clients/patrimonio/PatrimonioSection";
 import { useClientData } from "./hooks/useClientData";
 import { useClientModals } from "./hooks/useClientModals";
@@ -536,6 +537,8 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
             </div>
           </div>
         )}
+
+        <ClientJourneyChecklist client={client} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column */}
