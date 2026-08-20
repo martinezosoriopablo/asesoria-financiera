@@ -30,6 +30,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import ClientSelector, { type ClientOption } from "@/components/shared/ClientSelector";
+import PageContainer from "@/components/shared/PageContainer";
+import PageHeader from "@/components/shared/PageHeader";
+import Card from "@/components/shared/Card";
+import Button from "@/components/shared/Button";
 
 interface ClientRiskProfile {
   id: string;
@@ -348,191 +352,184 @@ function AnalisisCartolaContent() {
     : [];
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-5 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gb-black">Cartola & Perfil de Riesgo</h1>
-          <p className="text-sm text-gb-gray mt-0.5">
-            Analiza la cartola inicial del cliente y compara con su perfil de riesgo ideal
-          </p>
+    <PageContainer>
+      <PageHeader
+        title="Cartola & Perfil de Riesgo"
+        subtitle="Analiza la cartola inicial del cliente y compara con su perfil de riesgo ideal"
+      />
+
+      {/* Client selector + questionnaire */}
+      <Card className="mb-6">
+        <h2 className="text-sm font-semibold text-gb-black mb-3">Cliente</h2>
+        <div className="flex items-center gap-3">
+          <ClientSelector
+            value={clientProfile?.id || null}
+            onChange={(client: ClientOption | null) => {
+              if (client) {
+                setEmail(client.email);
+                setQuestionnaireSent(false);
+              } else {
+                setEmail("");
+                setClientProfile(null);
+                setRecommendedAllocation(null);
+                setSnapshot(null);
+              }
+            }}
+            placeholder="Seleccionar cliente..."
+            className="flex-1 max-w-sm"
+            showRiskProfile={true}
+          />
+          {loadingProfile && <Loader className="w-4 h-4 animate-spin text-gb-gray" />}
+          <Button onClick={sendQuestionnaire} disabled={!email || sendingQuestionnaire}>
+            {sendingQuestionnaire ? (
+              <Loader className="w-4 h-4 animate-spin" />
+            ) : questionnaireSent ? (
+              <CheckCircle className="w-4 h-4" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            {questionnaireSent ? "Enviado" : "Enviar Cuestionario"}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={copyQuestionnaireLink}
+            disabled={!email}
+            title="Copia el link del cuestionario para completarlo sin depender del correo"
+          >
+            {linkCopied ? <CheckCircle className="w-4 h-4 text-gb-success" /> : <LinkIcon className="w-4 h-4" />}
+            {linkCopied ? "Link copiado" : "Copiar link"}
+          </Button>
         </div>
+      </Card>
 
-        {/* Client selector + questionnaire */}
-        <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 mb-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-gb-black mb-3">Cliente</h2>
-          <div className="flex items-center gap-3">
-            <ClientSelector
-              value={clientProfile?.id || null}
-              onChange={(client: ClientOption | null) => {
-                if (client) {
-                  setEmail(client.email);
-                  setQuestionnaireSent(false);
-                } else {
-                  setEmail("");
-                  setClientProfile(null);
-                  setRecommendedAllocation(null);
-                  setSnapshot(null);
-                }
-              }}
-              placeholder="Seleccionar cliente..."
-              className="flex-1 max-w-sm"
-              showRiskProfile={true}
-            />
-            {loadingProfile && <Loader className="w-4 h-4 animate-spin text-blue-500" />}
-            <button
-              onClick={sendQuestionnaire}
-              disabled={!email || sendingQuestionnaire}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-gb-primary text-white rounded-md hover:bg-gb-primary-dark disabled:opacity-40 transition-colors"
-            >
-              {sendingQuestionnaire ? (
-                <Loader className="w-4 h-4 animate-spin" />
-              ) : questionnaireSent ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              {questionnaireSent ? "Enviado" : "Enviar Cuestionario"}
-            </button>
-            <button
-              onClick={copyQuestionnaireLink}
-              disabled={!email}
-              title="Copia el link del cuestionario para completarlo sin depender del correo"
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-gb-border text-gb-black rounded-md hover:bg-gray-50 disabled:opacity-40 transition-colors"
-            >
-              {linkCopied ? <CheckCircle className="w-4 h-4 text-gb-success" /> : <LinkIcon className="w-4 h-4" />}
-              {linkCopied ? "Link copiado" : "Copiar link"}
-            </button>
-          </div>
-        </div>
-
-        {/* Risk Profile */}
-        {clientProfile && recommendedAllocation && (
-          <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 mb-6 shadow-sm">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-gb-black flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-indigo-500" />
-                  Perfil de Riesgo
-                </h2>
-                <p className="text-xs text-gb-gray mt-1">
-                  {clientProfile.nombre} {clientProfile.apellido}
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm font-semibold">
-                  {BAND_LABELS[recommendedAllocation.band] || recommendedAllocation.band}
-                </span>
-                <p className="text-xs text-gb-gray mt-1">Puntaje: {clientProfile.puntaje_riesgo}/100</p>
-              </div>
-            </div>
-
-            <h3 className="text-xs font-semibold text-gb-gray uppercase tracking-wide mb-3">
-              Portafolio Recomendado
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-                <p className="text-xs text-blue-600 font-medium">Renta Variable</p>
-                <p className="text-2xl font-bold text-blue-700">{recommendedAllocation.weights.equities}%</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                <p className="text-xs text-slate-600 font-medium">Renta Fija</p>
-                <p className="text-2xl font-bold text-slate-700">{recommendedAllocation.weights.fixedIncome}%</p>
-              </div>
-              <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
-                <p className="text-xs text-indigo-600 font-medium">Alternativos</p>
-                <p className="text-2xl font-bold text-indigo-700">{recommendedAllocation.weights.alternatives}%</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <p className="text-xs text-gray-600 font-medium">Liquidez</p>
-                <p className="text-2xl font-bold text-gray-700">{recommendedAllocation.weights.cash}%</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* No profile warning */}
-        {clientProfile && !clientProfile.puntaje_riesgo && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+      {/* Risk Profile */}
+      {clientProfile && recommendedAllocation && (
+        <Card className="mb-6">
+          <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm font-medium text-amber-800">Cliente sin perfil de riesgo</p>
-              <p className="text-xs text-amber-700 mt-1">
-                {clientProfile.nombre} aun no ha completado el cuestionario de perfil de inversor.
-                Enviale el cuestionario para obtener una recomendacion de portafolio personalizada.
+              <h2 className="text-sm font-semibold text-gb-black flex items-center gap-2">
+                <Shield className="w-4 h-4 text-gb-primary" />
+                Perfil de Riesgo
+              </h2>
+              <p className="text-xs text-gb-gray mt-1">
+                {clientProfile.nombre} {clientProfile.apellido}
               </p>
             </div>
+            <div className="text-right">
+              <span className="inline-block px-3 py-1 bg-background text-gb-gray border border-gb-border rounded-full text-sm font-semibold">
+                {BAND_LABELS[recommendedAllocation.band] || recommendedAllocation.band}
+              </span>
+              <p className="text-xs text-gb-gray mt-1">Puntaje: {clientProfile.puntaje_riesgo}/100</p>
+            </div>
           </div>
-        )}
 
-        {/* Portfolio Section */}
-        {clientProfile && (
-          <>
-            {loadingPortfolio ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader className="w-6 h-6 animate-spin text-teal-500" />
-              </div>
-            ) : snapshot && composition ? (
-              <>
-                {/* Portfolio Summary */}
-                <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-teal-500 p-5 mb-6 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-gb-black flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-teal-500" />
-                      Cartola Inicial
-                    </h2>
-                    <span className="text-xs text-gb-gray">
-                      {new Date(snapshot.snapshot_date).toLocaleDateString("es-CL")}
-                    </span>
+          <h3 className="text-xs font-semibold text-gb-gray uppercase tracking-wide mb-3">
+            Portafolio Recomendado
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gb-light rounded-md p-3">
+              <p className="text-xs text-gb-gray font-medium">Renta Variable</p>
+              <p className="text-2xl font-bold text-gb-black">{recommendedAllocation.weights.equities}%</p>
+            </div>
+            <div className="bg-gb-light rounded-md p-3">
+              <p className="text-xs text-gb-gray font-medium">Renta Fija</p>
+              <p className="text-2xl font-bold text-gb-black">{recommendedAllocation.weights.fixedIncome}%</p>
+            </div>
+            <div className="bg-gb-light rounded-md p-3">
+              <p className="text-xs text-gb-gray font-medium">Alternativos</p>
+              <p className="text-2xl font-bold text-gb-black">{recommendedAllocation.weights.alternatives}%</p>
+            </div>
+            <div className="bg-gb-light rounded-md p-3">
+              <p className="text-xs text-gb-gray font-medium">Liquidez</p>
+              <p className="text-2xl font-bold text-gb-black">{recommendedAllocation.weights.cash}%</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* No profile warning */}
+      {clientProfile && !clientProfile.puntaje_riesgo && (
+        <div className="bg-gb-warning/10 border border-gb-warning/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-gb-warning shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-gb-black">Cliente sin perfil de riesgo</p>
+            <p className="text-xs text-gb-warning mt-1">
+              {clientProfile.nombre} aun no ha completado el cuestionario de perfil de inversor.
+              Enviale el cuestionario para obtener una recomendacion de portafolio personalizada.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Portfolio Section */}
+      {clientProfile && (
+        <>
+          {loadingPortfolio ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader className="w-6 h-6 animate-spin text-gb-gray" />
+            </div>
+          ) : snapshot && composition ? (
+            <>
+              {/* Portfolio Summary */}
+              <Card className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-semibold text-gb-black flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-gb-primary" />
+                    Cartola Inicial
+                  </h2>
+                  <span className="text-xs text-gb-gray">
+                    {new Date(snapshot.snapshot_date).toLocaleDateString("es-CL")}
+                  </span>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gb-primary-light rounded-lg p-3">
+                    <p className="text-xs text-gb-primary font-medium">Valor Total</p>
+                    <p className="text-xl font-bold text-gb-primary">
+                      ${composition.totalValue.toLocaleString("es-CL", { minimumFractionDigits: 0 })}
+                    </p>
                   </div>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-teal-50 rounded-lg p-3 border border-teal-100">
-                      <p className="text-xs text-teal-600 font-medium">Valor Total</p>
-                      <p className="text-xl font-bold text-teal-700">
-                        ${composition.totalValue.toLocaleString("es-CL", { minimumFractionDigits: 0 })}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <p className="text-xs text-gray-600 font-medium">Posiciones</p>
-                      <p className="text-xl font-bold text-gray-700">{holdings.length}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <p className="text-xs text-gray-600 font-medium">Fuente</p>
-                      <p className="text-xl font-bold text-gray-700 capitalize">{snapshot.source || "cartola"}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <p className="text-xs text-gray-600 font-medium">Clases de Activo</p>
-                      <p className="text-xl font-bold text-gray-700">{Object.keys(composition.byClass).length}</p>
-                    </div>
+                  <div className="bg-gb-light rounded-lg p-3">
+                    <p className="text-xs text-gb-gray font-medium">Posiciones</p>
+                    <p className="text-xl font-bold text-gb-black">{holdings.length}</p>
                   </div>
-
-                  {/* Asset class breakdown */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {(["RV", "RF", "Alternativo", "Cash"] as const).map((cls) => {
-                      const data = composition.byClass[cls];
-                      return (
-                        <div key={cls} className="bg-gb-light rounded-md p-3">
-                          <p className="text-xs text-gb-gray">{ASSET_CLASS_LABELS[cls]}</p>
-                          <p className="text-lg font-semibold text-gb-black">
-                            {data ? `${data.percent.toFixed(1)}%` : "0%"}
-                          </p>
-                          {data && (
-                            <p className="text-xs text-gb-gray">
-                              ${data.value.toLocaleString("es-CL", { minimumFractionDigits: 0 })}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <div className="bg-gb-light rounded-lg p-3">
+                    <p className="text-xs text-gb-gray font-medium">Fuente</p>
+                    <p className="text-xl font-bold text-gb-black capitalize">{snapshot.source || "cartola"}</p>
+                  </div>
+                  <div className="bg-gb-light rounded-lg p-3">
+                    <p className="text-xs text-gb-gray font-medium">Clases de Activo</p>
+                    <p className="text-xl font-bold text-gb-black">{Object.keys(composition.byClass).length}</p>
                   </div>
                 </div>
 
+                {/* Asset class breakdown */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {(["RV", "RF", "Alternativo", "Cash"] as const).map((cls) => {
+                    const data = composition.byClass[cls];
+                    return (
+                      <div key={cls} className="bg-gb-light rounded-md p-3">
+                        <p className="text-xs text-gb-gray">{ASSET_CLASS_LABELS[cls]}</p>
+                        <p className="text-lg font-semibold text-gb-black">
+                          {data ? `${data.percent.toFixed(1)}%` : "0%"}
+                        </p>
+                        {data && (
+                          <p className="text-xs text-gb-gray">
+                            ${data.value.toLocaleString("es-CL", { minimumFractionDigits: 0 })}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
                 {/* Comparison: Recommended vs Actual */}
                 {recommendedAllocation && (
-                  <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-indigo-500 p-5 mb-6 shadow-sm">
+                  <Card className="mb-6">
                     <h2 className="text-base font-semibold text-gb-black mb-4 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-indigo-500" />
+                      <TrendingUp className="w-5 h-5 text-gb-primary" />
                       Comparacion: Recomendado vs Actual
                     </h2>
 
@@ -576,8 +573,8 @@ function AnalisisCartolaContent() {
                               <thead>
                                 <tr className="border-b border-gb-border">
                                   <th className="text-left py-2 pr-4 font-medium text-gb-gray">Clase de Activo</th>
-                                  <th className="text-right py-2 px-4 font-medium text-indigo-600">Recomendado</th>
-                                  <th className="text-right py-2 px-4 font-medium text-teal-600">Actual</th>
+                                  <th className="text-right py-2 px-4 font-medium text-gb-gray">Recomendado</th>
+                                  <th className="text-right py-2 px-4 font-medium text-gb-gray">Actual</th>
                                   <th className="text-right py-2 pl-4 font-medium text-gb-gray">Diferencia</th>
                                 </tr>
                               </thead>
@@ -585,15 +582,15 @@ function AnalisisCartolaContent() {
                                 {comparisonData.map((row) => (
                                   <tr key={row.name} className="border-b border-gb-border last:border-0">
                                     <td className="py-3 pr-4 font-medium text-gb-black">{row.name}</td>
-                                    <td className="py-3 px-4 text-right tabular-nums text-indigo-600 font-semibold">
+                                    <td className="py-3 px-4 text-right tabular-nums text-gb-gray font-semibold">
                                       {row.recomendado}%
                                     </td>
-                                    <td className="py-3 px-4 text-right tabular-nums text-teal-600 font-semibold">
+                                    <td className="py-3 px-4 text-right tabular-nums text-gb-black font-semibold">
                                       {row.actual}%
                                     </td>
                                     <td className={`py-3 pl-4 text-right tabular-nums font-semibold ${
-                                      Math.abs(row.diff) <= 5 ? "text-emerald-600" :
-                                      Math.abs(row.diff) <= 15 ? "text-amber-600" : "text-red-600"
+                                      Math.abs(row.diff) <= 5 ? "text-gb-success" :
+                                      Math.abs(row.diff) <= 15 ? "text-gb-warning" : "text-gb-danger"
                                     }`}>
                                       {row.diff > 0 ? "+" : ""}{row.diff}%
                                     </td>
@@ -617,12 +614,12 @@ function AnalisisCartolaContent() {
 
                           {/* Recommendations */}
                           {comparisonData.some((d) => Math.abs(d.diff) > 10) && (
-                            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                              <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4" />
+                            <div className="mt-4 p-4 bg-gb-warning/10 border border-gb-warning/30 rounded-lg">
+                              <h4 className="text-sm font-semibold text-gb-black mb-2 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-gb-warning" />
                                 Ajustes Sugeridos
                               </h4>
-                              <ul className="text-sm text-amber-700 space-y-1">
+                              <ul className="text-sm text-gb-gray space-y-1">
                                 {comparisonData.map((d) => {
                                   if (d.diff > 10) {
                                     return (
@@ -644,12 +641,12 @@ function AnalisisCartolaContent() {
                           )}
 
                           {comparisonData.every((d) => Math.abs(d.diff) <= 10) && (
-                            <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                              <h4 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
-                                <CheckCircle className="w-4 h-4" />
+                            <div className="mt-4 p-4 bg-gb-success/10 border border-gb-success/30 rounded-lg">
+                              <h4 className="text-sm font-semibold text-gb-black flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-gb-success" />
                                 Portafolio alineado con el perfil de riesgo
                               </h4>
-                              <p className="text-sm text-emerald-700 mt-1">
+                              <p className="text-sm text-gb-gray mt-1">
                                 La distribucion actual esta dentro del rango aceptable (+-10%) respecto al benchmark recomendado.
                               </p>
                             </div>
@@ -657,12 +654,12 @@ function AnalisisCartolaContent() {
                         </>
                       );
                     })()}
-                  </div>
+                  </Card>
                 )}
 
                 {/* Holdings table with ficha enrichment */}
                 {holdings.length > 0 && (
-                  <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-slate-400 p-5 mb-6 shadow-sm">
+                  <Card className="mb-6">
                     <h2 className="text-base font-semibold text-gb-black mb-3">Holdings ({holdings.length})</h2>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -715,12 +712,7 @@ function AnalisisCartolaContent() {
                                 </td>
                                 <td className="py-2 pr-3 text-gb-gray text-xs hidden lg:table-cell">{admin}</td>
                                 <td className="py-2 pr-3">
-                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                    assetLabel === "RV" ? "bg-indigo-50 text-indigo-700" :
-                                    assetLabel === "RF" ? "bg-slate-100 text-slate-700" :
-                                    assetLabel === "Alt" ? "bg-purple-50 text-purple-700" :
-                                    "bg-teal-50 text-teal-700"
-                                  }`}>
+                                  <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-background text-gb-gray border border-gb-border">
                                     {assetLabel}
                                   </span>
                                 </td>
@@ -730,7 +722,7 @@ function AnalisisCartolaContent() {
                                 <td className="py-2 pr-3 text-right tabular-nums text-gb-gray hidden md:table-cell">{pct.toFixed(1)}%</td>
                                 <td className="py-2 pr-3 text-right tabular-nums hidden md:table-cell">
                                   {tac != null ? (
-                                    <span className={tac > 3 ? "text-red-600 font-medium" : tac > 1.5 ? "text-amber-600" : "text-emerald-600"}>
+                                    <span className={tac > 3 ? "text-gb-danger font-medium" : tac > 1.5 ? "text-gb-warning" : "text-gb-success"}>
                                       {Number(tac).toFixed(2)}%
                                     </span>
                                   ) : (
@@ -739,7 +731,7 @@ function AnalisisCartolaContent() {
                                 </td>
                                 <td className="py-2 pr-3 text-right tabular-nums hidden md:table-cell">
                                   {rent12m != null ? (
-                                    <span className={Number(rent12m) >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                                    <span className={Number(rent12m) >= 0 ? "text-gb-success font-medium" : "text-gb-danger font-medium"}>
                                       {Number(rent12m) >= 0 ? "+" : ""}{Number(rent12m).toFixed(1)}%
                                     </span>
                                   ) : (
@@ -752,12 +744,12 @@ function AnalisisCartolaContent() {
                         </tbody>
                       </table>
                     </div>
-                  </div>
+                  </Card>
                 )}
 
                 {/* Charts */}
                 {assetClassData.length > 0 && (
-                  <div className="bg-white rounded-lg border border-gb-border border-l-4 border-l-blue-500 p-5 mb-6 shadow-sm">
+                  <Card className="mb-6">
                     <h2 className="text-base font-semibold text-gb-black mb-4">Composicion por Clase de Activo</h2>
                     <ResponsiveContainer width="100%" height={250}>
                       <PieChart>
@@ -779,12 +771,12 @@ function AnalisisCartolaContent() {
                         <Legend wrapperStyle={{ fontSize: 10 }} />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
+                  </Card>
                 )}
               </>
             ) : (
               /* No portfolio - link to seguimiento */
-              <div className="bg-white rounded-lg border border-gb-border p-8 mb-6 text-center">
+              <Card className="mb-6 text-center">
                 <Layers className="w-12 h-12 mx-auto mb-3 text-gb-gray opacity-30" />
                 <p className="text-sm font-medium text-gb-black mb-1">
                   {clientProfile.nombre} {clientProfile.apellido} no tiene cartola inicial
@@ -794,17 +786,16 @@ function AnalisisCartolaContent() {
                 </p>
                 <Link
                   href={`/clients/${clientProfile.id}/seguimiento`}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 rounded-[3px] px-5 py-2.5 text-sm font-semibold transition-colors bg-gb-black text-white hover:bg-gb-dark"
                 >
                   Ir a Seguimiento
                   <ArrowRight className="w-4 h-4" />
                 </Link>
-              </div>
+              </Card>
             )}
           </>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }
 
