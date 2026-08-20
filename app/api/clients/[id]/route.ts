@@ -139,7 +139,12 @@ export async function GET(
       parentClient = parent;
     }
 
-    return successResponse({ client, associatedClients: associatedClients || [], parentClient });
+    const clientWithFlags = {
+      ...client,
+      tiene_cartera_recomendada: !!(client as { cartera_recomendada?: unknown }).cartera_recomendada,
+    };
+
+    return successResponse({ client: clientWithFlags, associatedClients: associatedClients || [], parentClient });
   });
 }
 
