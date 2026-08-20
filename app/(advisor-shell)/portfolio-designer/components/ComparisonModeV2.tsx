@@ -43,6 +43,8 @@ import { GenerarCarteraButton } from "@/components/comite/CarteraRecomendada";
 import { findYahooSymbol } from "@/lib/yahoo-finance-mapping";
 import * as XLSX from "xlsx";
 import ClientSelector, { type ClientOption } from "@/components/shared/ClientSelector";
+import Card from "@/components/shared/Card";
+import Button from "@/components/shared/Button";
 
 // ============================================================
 // INTERFACES
@@ -1171,9 +1173,9 @@ export default function ComparisonModeV2() {
 
       {/* Upload error banner */}
       {uploadError && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center justify-between">
-          <p className="text-sm text-red-700">{uploadError}</p>
-          <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-600 ml-2">
+        <div className="p-3 bg-gb-danger/10 border border-gb-danger/30 rounded-md flex items-center justify-between">
+          <p className="text-sm text-gb-danger">{uploadError}</p>
+          <button onClick={() => setUploadError(null)} className="text-gb-danger/70 hover:text-gb-danger ml-2">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1182,7 +1184,7 @@ export default function ComparisonModeV2() {
       {/* ============================================================ */}
       {/* CLIENT SEARCH */}
       {/* ============================================================ */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+      <Card>
         <div className="flex gap-3 items-end">
           <ClientSelector
             value={client?.id || null}
@@ -1208,60 +1210,57 @@ export default function ComparisonModeV2() {
           />
           {searchingClient && (
             <div className="pb-2.5">
-              <Loader className="w-5 h-5 animate-spin text-gray-400" />
+              <Loader className="w-5 h-5 animate-spin text-gb-gray" />
             </div>
           )}
         </div>
 
         {clientNotFound && (
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-amber-800 text-sm">
+          <div className="mt-4 p-3 bg-gb-warning/10 border border-gb-warning/30 rounded-lg flex items-center gap-2 text-gb-warning text-sm">
             <AlertTriangle className="w-4 h-4" />
             Cliente no encontrado
           </div>
         )}
 
         {client && (
-          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="mt-4 p-4 bg-gb-light border border-gb-border rounded-lg">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white border border-gray-200 rounded-full flex items-center justify-center">
-                <User className="w-6 h-6 text-gray-400" />
+              <div className="w-12 h-12 bg-white border border-gb-border rounded-full flex items-center justify-center">
+                <User className="w-6 h-6 text-gb-gray" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">
+                <h3 className="font-semibold text-gb-black">
                   {client.nombre} {client.apellido}
                 </h3>
-                <p className="text-sm text-gray-500">{client.email}</p>
+                <p className="text-sm text-gb-gray">{client.email}</p>
               </div>
               {riskProfile && (
                 <div className="text-right">
-                  <div className="text-sm text-gray-500">Perfil de Riesgo</div>
-                  <div className="font-semibold text-gray-900">{riskProfile.profile_label}</div>
-                  <div className="text-xs text-gray-400">Score: {riskProfile.global_score}</div>
+                  <div className="text-sm text-gb-gray">Perfil de Riesgo</div>
+                  <div className="font-semibold text-gb-black">{riskProfile.profile_label}</div>
+                  <div className="text-xs text-gb-gray">Score: {riskProfile.global_score}</div>
                 </div>
               )}
               {totalInvestment > 0 && (
-                <div className="text-right border-l border-gray-200 pl-4">
-                  <div className="text-sm text-gray-500">Inversión Total</div>
-                  <div className="font-semibold text-gray-900">{fmtUSD(totalInvestment)}</div>
+                <div className="text-right border-l border-gb-border pl-4">
+                  <div className="text-sm text-gb-gray">Inversión Total</div>
+                  <div className="font-semibold text-gb-black">{fmtUSD(totalInvestment)}</div>
                 </div>
               )}
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* ============================================================ */}
       {/* GENERATE AI PORTFOLIO BUTTON */}
       {/* ============================================================ */}
       {client && (
         <div className="flex justify-center">
-          <button
-            onClick={() => setShowCarteraIA(true)}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl flex items-center gap-2"
-          >
+          <Button onClick={() => setShowCarteraIA(true)} className="px-6 py-3">
             <Sparkles className="w-5 h-5" />
             Generar Cartera con IA
-          </button>
+          </Button>
         </div>
       )}
 
@@ -1269,22 +1268,22 @@ export default function ComparisonModeV2() {
       {/* PROPOSED PORTFOLIO (TOP - MAIN FOCUS) */}
       {/* ============================================================ */}
       {(proposedPositions.length > 0 || client) && (
-        <div className="bg-white border-2 border-green-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gb-border rounded-xl shadow-sm overflow-hidden">
           <div
-            className="w-full px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 flex items-center justify-between hover:from-green-100 hover:to-emerald-100 transition-colors cursor-pointer"
+            className="w-full px-6 py-4 bg-gb-light flex items-center justify-between hover:bg-gb-border/40 transition-colors cursor-pointer"
           >
             <div
               className="flex items-center gap-3 flex-1"
               onClick={() => setProposedExpanded(!proposedExpanded)}
             >
-              <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gb-primary rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-white" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-bold text-gray-900">Portafolio Recomendado</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="text-lg font-bold text-gb-black">Portafolio Recomendado</h2>
+                <p className="text-sm text-gb-gray">
                   {proposedPositions.length} posiciones
-                  {carteraLoadedFromDB && <span className="ml-2 text-green-600">(guardado)</span>}
+                  {carteraLoadedFromDB && <span className="ml-2 text-gb-success">(guardado)</span>}
                 </p>
               </div>
             </div>
@@ -1292,7 +1291,7 @@ export default function ComparisonModeV2() {
               <button
                 onClick={() => saveCartera()}
                 disabled={savingCartera}
-                className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                className="px-3 py-1.5 text-sm font-medium text-gb-black bg-white border border-gb-border hover:bg-gb-light rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
               >
                 {savingCartera ? (
                   <Loader className="w-4 h-4 animate-spin" />
@@ -1301,8 +1300,8 @@ export default function ComparisonModeV2() {
                 )}
                 Guardar
               </button>
-              <button onClick={() => setProposedExpanded(!proposedExpanded)} className="p-1 hover:bg-green-100 rounded">
-                {proposedExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+              <button onClick={() => setProposedExpanded(!proposedExpanded)} className="p-1 hover:bg-gb-border/40 rounded">
+                {proposedExpanded ? <ChevronUp className="w-5 h-5 text-gb-gray" /> : <ChevronDown className="w-5 h-5 text-gb-gray" />}
               </button>
             </div>
           </div>
@@ -1311,11 +1310,11 @@ export default function ComparisonModeV2() {
             <div className="p-6">
               {proposedPositions.length === 0 ? (
                 <div className="text-center py-8">
-                  <PieChart className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500 mb-4">Sin posiciones todavía. Genera con IA o agrega fondos manualmente.</p>
+                  <PieChart className="w-10 h-10 text-gb-border mx-auto mb-3" />
+                  <p className="text-sm text-gb-gray mb-4">Sin posiciones todavía. Genera con IA o agrega fondos manualmente.</p>
                   <button
                     onClick={() => setShowFundSearch(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gb-black bg-gb-light hover:bg-gb-border/40 border border-gb-border rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     Buscar y agregar fondos
@@ -1325,14 +1324,14 @@ export default function ComparisonModeV2() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-2 text-gray-500 font-medium">Ticker</th>
-                      <th className="text-left py-3 px-2 text-gray-500 font-medium">Nombre</th>
-                      <th className="text-left py-3 px-2 text-gray-500 font-medium">Clase</th>
-                      <th className="text-right py-3 px-2 text-gray-500 font-medium">%</th>
-                      <th className="text-right py-3 px-2 text-gray-500 font-medium">TER</th>
-                      <th className="text-right py-3 px-2 text-gray-500 font-medium">1Y</th>
-                      <th className="text-center py-3 px-2 text-gray-500 font-medium min-w-[120px]">
+                    <tr className="border-b border-gb-border">
+                      <th className="text-left py-3 px-2 text-gb-gray font-medium">Ticker</th>
+                      <th className="text-left py-3 px-2 text-gb-gray font-medium">Nombre</th>
+                      <th className="text-left py-3 px-2 text-gb-gray font-medium">Clase</th>
+                      <th className="text-right py-3 px-2 text-gb-gray font-medium">%</th>
+                      <th className="text-right py-3 px-2 text-gb-gray font-medium">TER</th>
+                      <th className="text-right py-3 px-2 text-gb-gray font-medium">1Y</th>
+                      <th className="text-center py-3 px-2 text-gb-gray font-medium min-w-[120px]">
                         <div className="flex items-center justify-center gap-1">
                           <span>Datos</span>
                           <button
@@ -1340,10 +1339,10 @@ export default function ComparisonModeV2() {
                               e.stopPropagation();
                               setShowExcelHelp(true);
                             }}
-                            className="p-0.5 hover:bg-gray-100 rounded"
+                            className="p-0.5 hover:bg-gb-light rounded"
                             title="Ayuda formato Excel"
                           >
-                            <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
+                            <HelpCircle className="w-3.5 h-3.5 text-gb-gray hover:text-gb-info" />
                           </button>
                         </div>
                       </th>
@@ -1357,19 +1356,15 @@ export default function ComparisonModeV2() {
                       const ret1y = pos.manualReturn1Y ?? pos.fundData?.return_1y ?? null;
 
                       return (
-                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={idx} className="border-b border-gb-border/60 hover:bg-gb-light">
                           <td className="py-3 px-2">
-                            <span className="font-mono font-medium text-gray-900">{pos.ticker}</span>
+                            <span className="font-mono font-medium text-gb-black">{pos.ticker}</span>
                           </td>
                           <td className="py-3 px-2">
-                            <div className="text-gray-900">{pos.nombre}</div>
+                            <div className="text-gb-black">{pos.nombre}</div>
                           </td>
                           <td className="py-3 px-2">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              pos.clase === "Renta Variable" ? "bg-blue-100 text-blue-700" :
-                              pos.clase === "Renta Fija" ? "bg-emerald-100 text-emerald-700" :
-                              "bg-amber-100 text-amber-700"
-                            }`}>
+                            <span className="text-xs px-2 py-1 rounded-full bg-background text-gb-gray border border-gb-border">
                               {pos.clase === "Renta Variable" ? "RV" : pos.clase === "Renta Fija" ? "RF" : "ALT"}
                             </span>
                           </td>
@@ -1381,13 +1376,13 @@ export default function ComparisonModeV2() {
                                 const newVal = parseFloat(e.target.value) || 0;
                                 setProposedPositions(prev => prev.map((p, i) => i === idx ? { ...p, porcentaje: newVal } : p));
                               }}
-                              className="w-16 text-right font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
+                              className="w-16 text-right font-medium bg-transparent border-b border-transparent hover:border-gb-border focus:border-gb-info focus:outline-none py-1"
                             />
-                            <span className="text-gray-400">%</span>
+                            <span className="text-gb-gray">%</span>
                           </td>
                           <td className="py-3 px-2 text-right">
                             {pos.loading ? (
-                              <Loader className="w-4 h-4 animate-spin text-gray-400 ml-auto" />
+                              <Loader className="w-4 h-4 animate-spin text-gb-gray ml-auto" />
                             ) : (
                               <div className="flex items-center justify-end gap-1">
                                 <input
@@ -1399,15 +1394,15 @@ export default function ComparisonModeV2() {
                                     const newVal = parseFloat(e.target.value);
                                     setProposedPositions(prev => prev.map((p, i) => i === idx ? { ...p, manualTER: isNaN(newVal) ? undefined : newVal } : p));
                                   }}
-                                  className="w-14 text-right bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
+                                  className="w-14 text-right bg-transparent border-b border-transparent hover:border-gb-border focus:border-gb-info focus:outline-none py-1"
                                 />
-                                <span className="text-gray-400 text-xs">%</span>
+                                <span className="text-gb-gray text-xs">%</span>
                               </div>
                             )}
                           </td>
                           <td className="py-3 px-2 text-right">
                             {pos.loading ? (
-                              <Loader className="w-4 h-4 animate-spin text-gray-400 ml-auto" />
+                              <Loader className="w-4 h-4 animate-spin text-gb-gray ml-auto" />
                             ) : (
                               <div className="flex items-center justify-end gap-1">
                                 <input
@@ -1419,21 +1414,21 @@ export default function ComparisonModeV2() {
                                     const newVal = parseFloat(e.target.value);
                                     setProposedPositions(prev => prev.map((p, i) => i === idx ? { ...p, manualReturn1Y: isNaN(newVal) ? undefined : newVal } : p));
                                   }}
-                                  className={`w-16 text-right bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 ${
-                                    ret1y != null ? (ret1y >= 0 ? "text-green-600" : "text-red-600") : ""
+                                  className={`w-16 text-right bg-transparent border-b border-transparent hover:border-gb-border focus:border-gb-info focus:outline-none py-1 ${
+                                    ret1y != null ? (ret1y >= 0 ? "text-gb-success" : "text-gb-danger") : ""
                                   }`}
                                 />
-                                <span className="text-gray-400 text-xs">%</span>
+                                <span className="text-gb-gray text-xs">%</span>
                               </div>
                             )}
                           </td>
                           <td className="py-3 px-2 text-center">
                             {pos.loading ? (
-                              <Loader className="w-4 h-4 animate-spin text-gray-300 mx-auto" />
+                              <Loader className="w-4 h-4 animate-spin text-gb-border mx-auto" />
                             ) : hasHistoricalData || pos.manualHistoricalData ? (
                               <div className="flex items-center justify-center gap-1">
-                                <Check className="w-4 h-4 text-green-500" />
-                                <span className="text-xs text-green-600">
+                                <Check className="w-4 h-4 text-gb-success" />
+                                <span className="text-xs text-gb-success">
                                   {pos.manualHistoricalData ? "Excel" : "API"}
                                 </span>
                               </div>
@@ -1450,7 +1445,7 @@ export default function ComparisonModeV2() {
                                     ));
                                   }}
                                   placeholder="Proxy"
-                                  className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 focus:outline-none focus:border-amber-400 w-16 uppercase"
+                                  className="text-xs border border-gb-border rounded px-1.5 py-0.5 bg-gb-warning/10 text-gb-warning focus:outline-none focus:border-gb-warning w-16 uppercase"
                                 />
                                 <datalist id={`proxy-list-proposed-${idx}`}>
                                   {BENCHMARK_PROXIES.filter(b => b.clase === pos.clase || pos.clase === "Commodities" || pos.clase === "Alternativos").map(b => (
@@ -1459,10 +1454,10 @@ export default function ComparisonModeV2() {
                                 </datalist>
                                 <button
                                   onClick={() => openExcelModal(idx, "proposed")}
-                                  className="p-1 hover:bg-blue-100 rounded transition-colors"
+                                  className="p-1 hover:bg-gb-light rounded transition-colors"
                                   title="Cargar datos desde Excel"
                                 >
-                                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                                  <FileSpreadsheet className="w-4 h-4 text-gb-info" />
                                 </button>
                               </div>
                             )}
@@ -1470,7 +1465,7 @@ export default function ComparisonModeV2() {
                           <td className="py-3 px-1">
                             <button
                               onClick={() => removeProposedPosition(idx)}
-                              className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
+                              className="p-1 text-gb-border hover:text-gb-danger rounded transition-colors"
                               title="Eliminar posición"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1486,37 +1481,37 @@ export default function ComparisonModeV2() {
               {/* Add position button */}
               <button
                 onClick={() => setShowFundSearch(true)}
-                className="mt-3 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 border-dashed rounded-lg transition-colors w-full justify-center"
+                className="mt-3 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gb-black bg-gb-light hover:bg-gb-border/40 border border-gb-border border-dashed rounded-lg transition-colors w-full justify-center"
               >
                 <Plus className="w-4 h-4" />
                 Agregar posición
               </button>
 
               {/* Summary Stats */}
-              <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-sm text-gray-500 mb-1">TER Promedio Ponderado</div>
-                  <div className="text-2xl font-bold text-green-600">{proposedTER.toFixed(3)}%</div>
+              <div className="mt-6 pt-6 border-t border-gb-border grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-gb-light rounded-lg">
+                  <div className="text-sm text-gb-gray mb-1">TER Promedio Ponderado</div>
+                  <div className="text-2xl font-bold text-gb-black">{proposedTER.toFixed(3)}%</div>
                   {terDataCoverage < 1 && terDataCoverage > 0 && (
-                    <div className="text-xs text-amber-600 mt-1">
+                    <div className="text-xs text-gb-warning mt-1">
                       Basado en {Math.round(terDataCoverage * 100)}% del portafolio
                     </div>
                   )}
                   {terDataCoverage === 0 && proposedPositions.length > 0 && (
-                    <div className="text-xs text-amber-600 mt-1">
+                    <div className="text-xs text-gb-warning mt-1">
                       Sin datos TER - ingrese valores manualmente
                     </div>
                   )}
                 </div>
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-sm text-gray-500 mb-1">Retorno 1Y Esperado</div>
-                  <div className={`text-2xl font-bold ${proposed1YReturn >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                <div className="text-center p-4 bg-gb-light rounded-lg">
+                  <div className="text-sm text-gb-gray mb-1">Retorno 1Y Esperado</div>
+                  <div className={`text-2xl font-bold ${proposed1YReturn >= 0 ? "text-gb-success" : "text-gb-danger"}`}>
                     {fmtPct(proposed1YReturn)}
                   </div>
                 </div>
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-sm text-gray-500 mb-1">Posiciones</div>
-                  <div className="text-2xl font-bold text-purple-600">{proposedPositions.length}</div>
+                <div className="text-center p-4 bg-gb-light rounded-lg">
+                  <div className="text-sm text-gb-gray mb-1">Posiciones</div>
+                  <div className="text-2xl font-bold text-gb-black">{proposedPositions.length}</div>
                 </div>
               </div>
               </>)}
@@ -1529,21 +1524,21 @@ export default function ComparisonModeV2() {
       {/* CURRENT PORTFOLIO (MIDDLE - REFERENCE) */}
       {/* ============================================================ */}
       {currentHoldings.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gb-border rounded-xl shadow-sm overflow-hidden">
           <button
             onClick={() => setCurrentExpanded(!currentExpanded)}
-            className="w-full px-6 py-4 bg-gray-50 flex items-center justify-between hover:bg-gray-100 transition-colors"
+            className="w-full px-6 py-4 bg-gb-light flex items-center justify-between hover:bg-gb-border/40 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gray-400 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gb-black rounded-lg flex items-center justify-center">
                 <Wallet className="w-5 h-5 text-white" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-bold text-gray-900">Portafolio Actual</h2>
-                <p className="text-sm text-gray-500">{currentHoldings.length} posiciones - Referencia</p>
+                <h2 className="text-lg font-bold text-gb-black">Portafolio Actual</h2>
+                <p className="text-sm text-gb-gray">{currentHoldings.length} posiciones - Referencia</p>
               </div>
             </div>
-            {currentExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+            {currentExpanded ? <ChevronUp className="w-5 h-5 text-gb-gray" /> : <ChevronDown className="w-5 h-5 text-gb-gray" />}
           </button>
 
           {currentExpanded && (
@@ -1551,13 +1546,13 @@ export default function ComparisonModeV2() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-2 text-gray-500 font-medium">Fondo</th>
-                      <th className="text-left py-3 px-2 text-gray-500 font-medium">Clase</th>
-                      <th className="text-right py-3 px-2 text-gray-500 font-medium">%</th>
-                      <th className="text-right py-3 px-2 text-gray-500 font-medium">TER</th>
-                      <th className="text-right py-3 px-2 text-gray-500 font-medium">1Y</th>
-                      <th className="text-center py-3 px-2 text-gray-500 font-medium min-w-[120px]">
+                    <tr className="border-b border-gb-border">
+                      <th className="text-left py-3 px-2 text-gb-gray font-medium">Fondo</th>
+                      <th className="text-left py-3 px-2 text-gb-gray font-medium">Clase</th>
+                      <th className="text-right py-3 px-2 text-gb-gray font-medium">%</th>
+                      <th className="text-right py-3 px-2 text-gb-gray font-medium">TER</th>
+                      <th className="text-right py-3 px-2 text-gb-gray font-medium">1Y</th>
+                      <th className="text-center py-3 px-2 text-gb-gray font-medium min-w-[120px]">
                         <div className="flex items-center justify-center gap-1">
                           <span>Datos</span>
                           <button
@@ -1565,10 +1560,10 @@ export default function ComparisonModeV2() {
                               e.stopPropagation();
                               setShowExcelHelp(true);
                             }}
-                            className="p-0.5 hover:bg-gray-100 rounded"
+                            className="p-0.5 hover:bg-gb-light rounded"
                             title="Ayuda formato Excel"
                           >
-                            <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500" />
+                            <HelpCircle className="w-3.5 h-3.5 text-gb-gray hover:text-gb-info" />
                           </button>
                         </div>
                       </th>
@@ -1582,17 +1577,13 @@ export default function ComparisonModeV2() {
                       const ret1y = holding.manualReturn1Y ?? holding.yahooData?.return_1y ?? null;
 
                       return (
-                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                        <tr key={idx} className="border-b border-gb-border/60 hover:bg-gb-light">
                           <td className="py-3 px-2">
-                            <div className="font-medium text-gray-900 text-xs leading-tight">{holding.fundName}</div>
-                            <div className="text-xs text-gray-400">{holding.securityId}</div>
+                            <div className="font-medium text-gb-black text-xs leading-tight">{holding.fundName}</div>
+                            <div className="text-xs text-gb-gray">{holding.securityId}</div>
                           </td>
                           <td className="py-3 px-2">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              holding.assetClass === "Equity" ? "bg-blue-100 text-blue-700" :
-                              holding.assetClass === "Fixed Income" ? "bg-emerald-100 text-emerald-700" :
-                              "bg-gray-100 text-gray-700"
-                            }`}>
+                            <span className="text-xs px-2 py-1 rounded-full bg-background text-gb-gray border border-gb-border">
                               {holding.assetClass === "Equity" ? "RV" : holding.assetClass === "Fixed Income" ? "RF" : "ALT"}
                             </span>
                           </td>
@@ -1604,9 +1595,9 @@ export default function ComparisonModeV2() {
                                 const newVal = parseFloat(e.target.value) || 0;
                                 setCurrentHoldings(prev => prev.map((h, i) => i === idx ? { ...h, percentOfPortfolio: newVal } : h));
                               }}
-                              className="w-16 text-right font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
+                              className="w-16 text-right font-medium bg-transparent border-b border-transparent hover:border-gb-border focus:border-gb-info focus:outline-none py-1"
                             />
-                            <span className="text-gray-400">%</span>
+                            <span className="text-gb-gray">%</span>
                           </td>
                           <td className="py-3 px-2 text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -1619,9 +1610,9 @@ export default function ComparisonModeV2() {
                                   const newVal = parseFloat(e.target.value);
                                   setCurrentHoldings(prev => prev.map((h, i) => i === idx ? { ...h, manualTER: isNaN(newVal) ? undefined : newVal } : h));
                                 }}
-                                className="w-14 text-right bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1"
+                                className="w-14 text-right bg-transparent border-b border-transparent hover:border-gb-border focus:border-gb-info focus:outline-none py-1"
                               />
-                              <span className="text-gray-400 text-xs">%</span>
+                              <span className="text-gb-gray text-xs">%</span>
                             </div>
                           </td>
                           <td className="py-3 px-2 text-right">
@@ -1635,23 +1626,23 @@ export default function ComparisonModeV2() {
                                   const newVal = parseFloat(e.target.value);
                                   setCurrentHoldings(prev => prev.map((h, i) => i === idx ? { ...h, manualReturn1Y: isNaN(newVal) ? undefined : newVal } : h));
                                 }}
-                                className={`w-16 text-right bg-transparent border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none py-1 ${
-                                  ret1y != null ? (ret1y >= 0 ? "text-green-600" : "text-red-600") : ""
+                                className={`w-16 text-right bg-transparent border-b border-transparent hover:border-gb-border focus:border-gb-info focus:outline-none py-1 ${
+                                  ret1y != null ? (ret1y >= 0 ? "text-gb-success" : "text-gb-danger") : ""
                                 }`}
                               />
-                              <span className="text-gray-400 text-xs">%</span>
+                              <span className="text-gb-gray text-xs">%</span>
                             </div>
                           </td>
                           <td className="py-3 px-2 text-center">
                             {hasHistoricalData ? (
                               <div className="flex items-center justify-center gap-1">
-                                <Check className="w-4 h-4 text-green-500" />
-                                <span className="text-xs text-green-600">Excel</span>
+                                <Check className="w-4 h-4 text-gb-success" />
+                                <span className="text-xs text-gb-success">Excel</span>
                               </div>
                             ) : hasYahooData ? (
                               <div className="flex items-center justify-center gap-1">
-                                <Check className="w-4 h-4 text-green-500" />
-                                <span className="text-xs text-green-600">API</span>
+                                <Check className="w-4 h-4 text-gb-success" />
+                                <span className="text-xs text-gb-success">API</span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-1">
@@ -1666,7 +1657,7 @@ export default function ComparisonModeV2() {
                                     ));
                                   }}
                                   placeholder="Proxy"
-                                  className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 focus:outline-none focus:border-amber-400 w-16 uppercase"
+                                  className="text-xs border border-gb-border rounded px-1.5 py-0.5 bg-gb-warning/10 text-gb-warning focus:outline-none focus:border-gb-warning w-16 uppercase"
                                 />
                                 <datalist id={`proxy-list-current-${idx}`}>
                                   {BENCHMARK_PROXIES.map(b => (
@@ -1675,10 +1666,10 @@ export default function ComparisonModeV2() {
                                 </datalist>
                                 <button
                                   onClick={() => openExcelModal(idx, "current")}
-                                  className="p-1 hover:bg-blue-100 rounded transition-colors"
+                                  className="p-1 hover:bg-gb-light rounded transition-colors"
                                   title="Cargar datos desde Excel"
                                 >
-                                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                                  <FileSpreadsheet className="w-4 h-4 text-gb-info" />
                                 </button>
                               </div>
                             )}
@@ -1691,14 +1682,14 @@ export default function ComparisonModeV2() {
               </div>
 
               {/* Current Portfolio Summary */}
-              <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between text-sm">
+              <div className="mt-4 pt-4 border-t border-gb-border flex justify-between text-sm">
                 <div>
-                  <span className="text-gray-500">TER Estimado (fondos mutuos): </span>
-                  <span className="font-medium text-red-600">{effectiveCurrentTER.toFixed(3)}%</span>
+                  <span className="text-gb-gray">TER Estimado (fondos mutuos): </span>
+                  <span className="font-medium text-gb-danger">{effectiveCurrentTER.toFixed(3)}%</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Total: </span>
-                  <span className="font-bold">{fmtUSD(totalInvestment)}</span>
+                  <span className="text-gb-gray">Total: </span>
+                  <span className="font-bold text-gb-black">{fmtUSD(totalInvestment)}</span>
                 </div>
               </div>
             </div>
@@ -1710,56 +1701,56 @@ export default function ComparisonModeV2() {
       {/* COMPARISON SECTION (BOTTOM) */}
       {/* ============================================================ */}
       {proposedPositions.length > 0 && currentHoldings.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gb-border rounded-xl shadow-sm overflow-hidden">
           <button
             onClick={() => setComparisonExpanded(!comparisonExpanded)}
-            className="w-full px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50 flex items-center justify-between hover:from-blue-100 hover:to-purple-100 transition-colors"
+            className="w-full px-6 py-4 bg-gb-light flex items-center justify-between hover:bg-gb-border/40 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gb-black rounded-lg flex items-center justify-center">
                 <PieChart className="w-5 h-5 text-white" />
               </div>
               <div className="text-left">
-                <h2 className="text-lg font-bold text-gray-900">Comparación Final</h2>
-                <p className="text-sm text-gray-500">Costos y Rentabilidad</p>
+                <h2 className="text-lg font-bold text-gb-black">Comparación Final</h2>
+                <p className="text-sm text-gb-gray">Costos y Rentabilidad</p>
               </div>
             </div>
-            {comparisonExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+            {comparisonExpanded ? <ChevronUp className="w-5 h-5 text-gb-gray" /> : <ChevronDown className="w-5 h-5 text-gb-gray" />}
           </button>
 
           {comparisonExpanded && (
             <div className="p-6 space-y-6">
               {/* Cost Comparison */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-5 bg-red-50 rounded-xl border border-red-100">
+                <div className="p-5 bg-gb-danger/10 rounded-xl border border-gb-danger/20">
                   <div className="flex items-center gap-2 mb-2">
-                    <ArrowDownRight className="w-5 h-5 text-red-500" />
-                    <span className="text-sm font-medium text-red-700">Costo Actual</span>
+                    <ArrowDownRight className="w-5 h-5 text-gb-danger" />
+                    <span className="text-sm font-medium text-gb-danger">Costo Actual</span>
                   </div>
-                  <div className="text-3xl font-bold text-red-600">{effectiveCurrentTER.toFixed(3)}%</div>
-                  <div className="text-sm text-red-500 mt-1">
+                  <div className="text-3xl font-bold text-gb-danger">{effectiveCurrentTER.toFixed(3)}%</div>
+                  <div className="text-sm text-gb-danger/80 mt-1">
                     {fmtUSD(totalInvestment * effectiveCurrentTER / 100)} / año
                   </div>
                 </div>
 
-                <div className="p-5 bg-green-50 rounded-xl border border-green-100">
+                <div className="p-5 bg-gb-success/10 rounded-xl border border-gb-success/20">
                   <div className="flex items-center gap-2 mb-2">
-                    <ArrowUpRight className="w-5 h-5 text-green-500" />
-                    <span className="text-sm font-medium text-green-700">Costo Propuesto</span>
+                    <ArrowUpRight className="w-5 h-5 text-gb-success" />
+                    <span className="text-sm font-medium text-gb-success">Costo Propuesto</span>
                   </div>
-                  <div className="text-3xl font-bold text-green-600">{proposedTER.toFixed(3)}%</div>
-                  <div className="text-sm text-green-500 mt-1">
+                  <div className="text-3xl font-bold text-gb-success">{proposedTER.toFixed(3)}%</div>
+                  <div className="text-sm text-gb-success/80 mt-1">
                     {fmtUSD(totalInvestment * proposedTER / 100)} / año
                   </div>
                 </div>
 
-                <div className="p-5 bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl border border-green-200">
+                <div className="p-5 bg-gb-success/10 rounded-xl border border-gb-success/30">
                   <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle className="w-5 h-5 text-emerald-500" />
-                    <span className="text-sm font-medium text-emerald-700">Ahorro Anual</span>
+                    <CheckCircle className="w-5 h-5 text-gb-success" />
+                    <span className="text-sm font-medium text-gb-success">Ahorro Anual</span>
                   </div>
-                  <div className="text-3xl font-bold text-emerald-600">{costSavings.toFixed(3)}%</div>
-                  <div className="text-sm text-emerald-500 mt-1">
+                  <div className="text-3xl font-bold text-gb-success">{costSavings.toFixed(3)}%</div>
+                  <div className="text-sm text-gb-success/80 mt-1">
                     {fmtUSD(totalInvestment * costSavings / 100)} / año
                   </div>
                 </div>
@@ -1768,11 +1759,11 @@ export default function ComparisonModeV2() {
               {/* Historical Chart */}
               <div className="mt-8">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900">Evolución Histórica (Base 100)</h3>
+                  <h3 className="font-semibold text-gb-black">Evolución Histórica (Base 100)</h3>
                   <button
                     onClick={fetchHistoricalComparison}
                     disabled={loadingHistorical}
-                    className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    className="text-sm text-gb-info hover:text-gb-primary flex items-center gap-1"
                   >
                     <RefreshCw className={`w-4 h-4 ${loadingHistorical ? "animate-spin" : ""}`} />
                     Actualizar
@@ -1781,7 +1772,7 @@ export default function ComparisonModeV2() {
 
                 {loadingHistorical ? (
                   <div className="h-64 flex items-center justify-center">
-                    <Loader className="w-8 h-8 animate-spin text-gray-400" />
+                    <Loader className="w-8 h-8 animate-spin text-gb-gray" />
                   </div>
                 ) : historicalData.length > 0 ? (
                   <div className="h-64">
@@ -1833,7 +1824,7 @@ export default function ComparisonModeV2() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-64 flex items-center justify-center text-gray-400">
+                  <div className="h-64 flex items-center justify-center text-gb-gray">
                     <div className="text-center">
                       <PieChart className="w-12 h-12 mx-auto mb-2 opacity-50" />
                       <p>No hay datos históricos disponibles</p>
@@ -1850,20 +1841,20 @@ export default function ComparisonModeV2() {
       {/* REBALANCING SUMMARY */}
       {/* ============================================================ */}
       {showRebalanceSummary && rebalanceSummary.length > 0 && (
-        <div className="bg-white border-2 border-blue-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between">
+        <div className="bg-white border border-gb-border rounded-xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 bg-gb-light flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gb-black rounded-lg flex items-center justify-center">
                 <RefreshCw className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Resumen de Rebalanceo</h2>
-                <p className="text-sm text-gray-500">Acciones necesarias para alinear el portafolio</p>
+                <h2 className="text-lg font-bold text-gb-black">Resumen de Rebalanceo</h2>
+                <p className="text-sm text-gb-gray">Acciones necesarias para alinear el portafolio</p>
               </div>
             </div>
             <button
               onClick={() => setShowRebalanceSummary(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gb-gray hover:text-gb-black"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1871,62 +1862,58 @@ export default function ComparisonModeV2() {
           <div className="p-6">
             {/* Summary counts */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{rebalanceSummary.filter(s => s.action === "comprar").length}</div>
-                <div className="text-xs text-green-700 font-medium">Comprar / Aumentar</div>
+              <div className="text-center p-3 bg-gb-success/10 rounded-lg">
+                <div className="text-2xl font-bold text-gb-success">{rebalanceSummary.filter(s => s.action === "comprar").length}</div>
+                <div className="text-xs text-gb-success font-medium">Comprar / Aumentar</div>
               </div>
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{rebalanceSummary.filter(s => s.action === "vender").length}</div>
-                <div className="text-xs text-red-700 font-medium">Vender / Reducir</div>
+              <div className="text-center p-3 bg-gb-danger/10 rounded-lg">
+                <div className="text-2xl font-bold text-gb-danger">{rebalanceSummary.filter(s => s.action === "vender").length}</div>
+                <div className="text-xs text-gb-danger font-medium">Vender / Reducir</div>
               </div>
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <div className="text-2xl font-bold text-gray-600">{rebalanceSummary.filter(s => s.action === "mantener").length}</div>
-                <div className="text-xs text-gray-700 font-medium">Mantener</div>
+              <div className="text-center p-3 bg-gb-light rounded-lg">
+                <div className="text-2xl font-bold text-gb-gray">{rebalanceSummary.filter(s => s.action === "mantener").length}</div>
+                <div className="text-xs text-gb-gray font-medium">Mantener</div>
               </div>
             </div>
 
             {/* Detail table */}
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-2 text-gray-500 font-medium">Instrumento</th>
-                  <th className="text-left py-2 px-2 text-gray-500 font-medium">Clase</th>
-                  <th className="text-right py-2 px-2 text-gray-500 font-medium">Actual %</th>
-                  <th className="text-right py-2 px-2 text-gray-500 font-medium">Recom. %</th>
-                  <th className="text-right py-2 px-2 text-gray-500 font-medium">Diferencia</th>
-                  <th className="text-center py-2 px-2 text-gray-500 font-medium">Accion</th>
+                <tr className="border-b border-gb-border">
+                  <th className="text-left py-2 px-2 text-gb-gray font-medium">Instrumento</th>
+                  <th className="text-left py-2 px-2 text-gb-gray font-medium">Clase</th>
+                  <th className="text-right py-2 px-2 text-gb-gray font-medium">Actual %</th>
+                  <th className="text-right py-2 px-2 text-gb-gray font-medium">Recom. %</th>
+                  <th className="text-right py-2 px-2 text-gb-gray font-medium">Diferencia</th>
+                  <th className="text-center py-2 px-2 text-gb-gray font-medium">Accion</th>
                 </tr>
               </thead>
               <tbody>
                 {rebalanceSummary
                   .sort((a, b) => Math.abs(b.diffPct) - Math.abs(a.diffPct))
                   .map((item, idx) => (
-                  <tr key={idx} className="border-b border-gray-100">
+                  <tr key={idx} className="border-b border-gb-border/60">
                     <td className="py-2.5 px-2">
-                      <div className="font-medium text-gray-900">{item.nombre}</div>
-                      <div className="text-xs text-gray-400">{item.ticker}</div>
+                      <div className="font-medium text-gb-black">{item.nombre}</div>
+                      <div className="text-xs text-gb-gray">{item.ticker}</div>
                     </td>
                     <td className="py-2.5 px-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        item.clase === "Renta Variable" ? "bg-blue-100 text-blue-700" :
-                        item.clase === "Renta Fija" ? "bg-emerald-100 text-emerald-700" :
-                        "bg-amber-100 text-amber-700"
-                      }`}>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-background text-gb-gray border border-gb-border">
                         {item.clase === "Renta Variable" ? "RV" : item.clase === "Renta Fija" ? "RF" : "ALT"}
                       </span>
                     </td>
-                    <td className="py-2.5 px-2 text-right font-medium">{item.actualPct.toFixed(1)}%</td>
-                    <td className="py-2.5 px-2 text-right font-medium">{item.recomendadoPct.toFixed(1)}%</td>
+                    <td className="py-2.5 px-2 text-right font-medium text-gb-black">{item.actualPct.toFixed(1)}%</td>
+                    <td className="py-2.5 px-2 text-right font-medium text-gb-black">{item.recomendadoPct.toFixed(1)}%</td>
                     <td className={`py-2.5 px-2 text-right font-bold ${
-                      item.diffPct > 0 ? "text-green-600" : item.diffPct < 0 ? "text-red-600" : "text-gray-500"
+                      item.diffPct > 0 ? "text-gb-success" : item.diffPct < 0 ? "text-gb-danger" : "text-gb-gray"
                     }`}>
                       {item.diffPct > 0 ? "+" : ""}{item.diffPct.toFixed(1)}%
                     </td>
                     <td className="py-2.5 px-2 text-center">
                       <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                        item.action === "comprar" ? "bg-green-100 text-green-700" :
-                        item.action === "vender" ? "bg-red-100 text-red-700" :
-                        "bg-gray-100 text-gray-600"
+                        item.action === "comprar" ? "bg-gb-success/10 text-gb-success" :
+                        item.action === "vender" ? "bg-gb-danger/10 text-gb-danger" :
+                        "bg-gb-light text-gb-gray"
                       }`}>
                         {item.action === "comprar" ? "Comprar" : item.action === "vender" ? "Vender" : "Mantener"}
                       </span>
@@ -1937,16 +1924,16 @@ export default function ComparisonModeV2() {
             </table>
 
             {totalInvestment > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Montos estimados</h4>
+              <div className="mt-4 pt-4 border-t border-gb-border">
+                <h4 className="text-sm font-semibold text-gb-gray mb-2">Montos estimados</h4>
                 <div className="space-y-1">
                   {rebalanceSummary
                     .filter(s => s.action !== "mantener")
                     .sort((a, b) => Math.abs(b.diffPct) - Math.abs(a.diffPct))
                     .map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">{item.nombre}</span>
-                      <span className={`font-medium ${item.diffPct > 0 ? "text-green-600" : "text-red-600"}`}>
+                      <span className="text-gb-gray">{item.nombre}</span>
+                      <span className={`font-medium ${item.diffPct > 0 ? "text-gb-success" : "text-gb-danger"}`}>
                         {item.diffPct > 0 ? "+" : ""}{fmtUSD(totalInvestment * item.diffPct / 100)}
                       </span>
                     </div>
@@ -1964,18 +1951,18 @@ export default function ComparisonModeV2() {
       {showFundSearch && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-xl w-full max-h-[80vh] flex flex-col">
-            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <Search className="w-5 h-5 text-green-600" />
+            <div className="border-b border-gb-border px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-gb-black">
+                <Search className="w-5 h-5 text-gb-primary" />
                 Buscar Fondo o ETF
               </h2>
-              <button onClick={() => { setShowFundSearch(false); setFundSearchQuery(""); setFundSearchResults([]); }} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowFundSearch(false); setFundSearchQuery(""); setFundSearchResults([]); }} className="text-gb-gray hover:text-gb-black">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="px-6 py-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-gray" />
                 <input
                   type="text"
                   autoFocus
@@ -1985,11 +1972,11 @@ export default function ComparisonModeV2() {
                     searchFundsForAdd(e.target.value);
                   }}
                   placeholder="Buscar por nombre, ticker, RUN o ISIN..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
+                  className="w-full pl-10 pr-4 py-3 border border-gb-border rounded-lg focus:border-gb-primary focus:outline-none text-sm"
                 />
-                {fundSearchLoading && <Loader className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600 animate-spin" />}
+                {fundSearchLoading && <Loader className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gb-primary animate-spin" />}
               </div>
-              <p className="text-xs text-gray-400 mt-2">Busca en fondos chilenos (AAFM/Fintual), ETFs internacionales y acciones</p>
+              <p className="text-xs text-gb-gray mt-2">Busca en fondos chilenos (AAFM/Fintual), ETFs internacionales y acciones</p>
             </div>
             <div className="flex-1 overflow-y-auto px-6 pb-4">
               {fundSearchResults.length > 0 ? (
@@ -1998,38 +1985,38 @@ export default function ComparisonModeV2() {
                     <button
                       key={fund.id}
                       onClick={() => addFundToProposed(fund)}
-                      className="w-full p-3 hover:bg-green-50 rounded-lg transition-colors text-left flex items-center justify-between group"
+                      className="w-full p-3 hover:bg-gb-light rounded-lg transition-colors text-left flex items-center justify-between group"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-bold text-green-700">{fund.symbol}</span>
-                          <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{fund.type}</span>
+                          <span className="font-mono text-sm font-bold text-gb-black">{fund.symbol}</span>
+                          <span className="text-xs px-1.5 py-0.5 bg-gb-light text-gb-gray rounded">{fund.type}</span>
                           {fund.source === "local" && (
-                            <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">BD</span>
+                            <span className="text-xs px-1.5 py-0.5 bg-background text-gb-gray border border-gb-border rounded">BD</span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-700 truncate mt-0.5">{fund.name}</p>
-                        <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
+                        <p className="text-sm text-gb-black truncate mt-0.5">{fund.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-gb-gray">
                           {fund.ter != null && <span>TER: {fund.ter}%</span>}
                           {fund.return_1y != null && (
-                            <span className={fund.return_1y >= 0 ? "text-green-600" : "text-red-600"}>
+                            <span className={fund.return_1y >= 0 ? "text-gb-success" : "text-gb-danger"}>
                               1Y: {fund.return_1y > 0 ? "+" : ""}{typeof fund.return_1y === "number" && Math.abs(fund.return_1y) > 1 ? fund.return_1y.toFixed(1) : ((fund.return_1y ?? 0) * 100).toFixed(1)}%
                             </span>
                           )}
                         </div>
                       </div>
-                      <Plus className="w-5 h-5 text-gray-300 group-hover:text-green-600 transition-colors flex-shrink-0 ml-2" />
+                      <Plus className="w-5 h-5 text-gb-border group-hover:text-gb-primary transition-colors flex-shrink-0 ml-2" />
                     </button>
                   ))}
                 </div>
               ) : fundSearchQuery.length >= 2 && !fundSearchLoading ? (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-8 text-gb-gray">
                   <p className="text-sm">No se encontraron resultados para &ldquo;{fundSearchQuery}&rdquo;</p>
                   <p className="text-xs mt-1">Puedes escribir el ticker directamente en la tabla</p>
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-400">
-                  <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <div className="text-center py-8 text-gb-gray">
+                  <Search className="w-8 h-8 mx-auto mb-2 text-gb-border" />
                   <p className="text-sm">Escribe al menos 2 caracteres para buscar</p>
                 </div>
               )}
@@ -2044,53 +2031,50 @@ export default function ComparisonModeV2() {
       {showExcelHelp && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+            <div className="border-b border-gb-border px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-gb-black">
+                <FileSpreadsheet className="w-5 h-5 text-gb-info" />
                 Formato de Excel para Datos Históricos
               </h2>
               <button
                 onClick={() => setShowExcelHelp(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gb-gray hover:text-gb-black"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-6">
               {/* Download template button */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-gb-light border border-gb-border rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium text-blue-900">Descargar Template</h3>
-                    <p className="text-sm text-blue-700">Archivo Excel de ejemplo con el formato correcto</p>
+                    <h3 className="font-medium text-gb-black">Descargar Template</h3>
+                    <p className="text-sm text-gb-gray">Archivo Excel de ejemplo con el formato correcto</p>
                   </div>
-                  <button
-                    onClick={downloadExcelTemplate}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
+                  <Button onClick={downloadExcelTemplate}>
                     <Download className="w-4 h-4" />
                     Descargar
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               {/* Format explanation */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">Estructura del Archivo</h3>
-                <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm">
+                <h3 className="font-medium text-gb-black mb-3">Estructura del Archivo</h3>
+                <div className="bg-gb-light rounded-lg p-4 font-mono text-sm">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-gray-300">
-                        <th className="text-left py-2 px-3 bg-gray-200">Fecha</th>
-                        <th className="text-right py-2 px-3 bg-gray-200">Valor</th>
+                      <tr className="border-b border-gb-border">
+                        <th className="text-left py-2 px-3 bg-gb-border/40">Fecha</th>
+                        <th className="text-right py-2 px-3 bg-gb-border/40">Valor</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="border-b border-gray-200">
+                      <tr className="border-b border-gb-border">
                         <td className="py-2 px-3">2024-01-15</td>
                         <td className="text-right py-2 px-3">1000.00</td>
                       </tr>
-                      <tr className="border-b border-gray-200">
+                      <tr className="border-b border-gb-border">
                         <td className="py-2 px-3">2024-02-15</td>
                         <td className="text-right py-2 px-3">1025.50</td>
                       </tr>
@@ -2105,21 +2089,21 @@ export default function ComparisonModeV2() {
 
               {/* Column names */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">Nombres de Columnas Aceptados</h3>
+                <h3 className="font-medium text-gb-black mb-3">Nombres de Columnas Aceptados</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Columna de Fecha:</h4>
+                  <div className="bg-gb-light rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-gb-gray mb-2">Columna de Fecha:</h4>
                     <div className="flex flex-wrap gap-1">
                       {["Fecha", "Date", "F", "D"].map(name => (
-                        <span key={name} className="px-2 py-0.5 bg-gray-200 rounded text-xs">{name}</span>
+                        <span key={name} className="px-2 py-0.5 bg-gb-border/40 rounded text-xs">{name}</span>
                       ))}
                     </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Columna de Valor:</h4>
+                  <div className="bg-gb-light rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-gb-gray mb-2">Columna de Valor:</h4>
                     <div className="flex flex-wrap gap-1">
                       {["Valor", "Value", "Precio", "Price", "Close", "NAV", "P", "V"].map(name => (
-                        <span key={name} className="px-2 py-0.5 bg-gray-200 rounded text-xs">{name}</span>
+                        <span key={name} className="px-2 py-0.5 bg-gb-border/40 rounded text-xs">{name}</span>
                       ))}
                     </div>
                   </div>
@@ -2128,31 +2112,31 @@ export default function ComparisonModeV2() {
 
               {/* Date formats */}
               <div>
-                <h3 className="font-medium text-gray-900 mb-3">Formatos de Fecha Aceptados</h3>
-                <ul className="space-y-2 text-sm text-gray-600">
+                <h3 className="font-medium text-gb-black mb-3">Formatos de Fecha Aceptados</h3>
+                <ul className="space-y-2 text-sm text-gb-gray">
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span><code className="bg-gray-100 px-1 rounded">2024-01-15</code> (ISO)</span>
+                    <Check className="w-4 h-4 text-gb-success" />
+                    <span><code className="bg-gb-light px-1 rounded">2024-01-15</code> (ISO)</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span><code className="bg-gray-100 px-1 rounded">15/01/2024</code> (DD/MM/YYYY)</span>
+                    <Check className="w-4 h-4 text-gb-success" />
+                    <span><code className="bg-gb-light px-1 rounded">15/01/2024</code> (DD/MM/YYYY)</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span><code className="bg-gray-100 px-1 rounded">01/15/2024</code> (MM/DD/YYYY)</span>
+                    <Check className="w-4 h-4 text-gb-success" />
+                    <span><code className="bg-gb-light px-1 rounded">01/15/2024</code> (MM/DD/YYYY)</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-green-500" />
+                    <Check className="w-4 h-4 text-gb-success" />
                     <span>Formato de fecha nativo de Excel</span>
                   </li>
                 </ul>
               </div>
 
               {/* Tips */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <h3 className="font-medium text-amber-900 mb-2">Recomendaciones</h3>
-                <ul className="space-y-1 text-sm text-amber-800">
+              <div className="bg-gb-warning/10 border border-gb-warning/30 rounded-lg p-4">
+                <h3 className="font-medium text-gb-black mb-2">Recomendaciones</h3>
+                <ul className="space-y-1 text-sm text-gb-warning">
                   <li>• Usa datos mensuales o semanales (no diarios) para mejor rendimiento</li>
                   <li>• Incluye al menos 12 meses de datos para cálculos precisos</li>
                   <li>• Los valores deben ser el NAV o precio de cierre del fondo</li>
@@ -2161,7 +2145,7 @@ export default function ComparisonModeV2() {
               </div>
 
               {/* File types */}
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gb-gray">
                 <span className="font-medium">Formatos soportados:</span> .xlsx, .xls, .csv
               </div>
             </div>
@@ -2175,14 +2159,14 @@ export default function ComparisonModeV2() {
       {showExcelModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-md w-full">
-            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+            <div className="border-b border-gb-border px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-gb-black">
+                <FileSpreadsheet className="w-5 h-5 text-gb-info" />
                 Cargar Datos del Fondo
               </h2>
               <button
                 onClick={() => setShowExcelModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gb-gray hover:text-gb-black"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2190,15 +2174,15 @@ export default function ComparisonModeV2() {
             <div className="p-6 space-y-4">
               {/* File upload - Required */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Archivo Excel con Valores Cuota <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gb-gray mb-2">
+                  Archivo Excel con Valores Cuota <span className="text-gb-danger">*</span>
                 </label>
                 <div
                   onClick={() => modalFileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
                     excelModalData.file
-                      ? "border-green-300 bg-green-50"
-                      : "border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                      ? "border-gb-success/40 bg-gb-success/10"
+                      : "border-gb-border hover:border-gb-info hover:bg-gb-light"
                   }`}
                 >
                   <input
@@ -2209,21 +2193,21 @@ export default function ComparisonModeV2() {
                     className="hidden"
                   />
                   {excelModalData.file ? (
-                    <div className="flex items-center justify-center gap-2 text-green-700">
+                    <div className="flex items-center justify-center gap-2 text-gb-success">
                       <Check className="w-5 h-5" />
                       <span className="font-medium">{excelModalData.file.name}</span>
                     </div>
                   ) : (
-                    <div className="text-gray-500">
-                      <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <div className="text-gb-gray">
+                      <Upload className="w-8 h-8 mx-auto mb-2 text-gb-gray" />
                       <p>Click para seleccionar archivo</p>
-                      <p className="text-xs text-gray-400 mt-1">.xlsx, .xls, .csv</p>
+                      <p className="text-xs text-gb-gray mt-1">.xlsx, .xls, .csv</p>
                     </div>
                   )}
                 </div>
                 <button
                   onClick={() => setShowExcelHelp(true)}
-                  className="text-xs text-blue-600 hover:text-blue-700 mt-2 flex items-center gap-1"
+                  className="text-xs text-gb-info hover:text-gb-primary mt-2 flex items-center gap-1"
                 >
                   <HelpCircle className="w-3 h-3" />
                   Ver formato requerido
@@ -2231,13 +2215,13 @@ export default function ComparisonModeV2() {
               </div>
 
               {/* Divider */}
-              <div className="border-t border-gray-200 pt-4">
-                <p className="text-sm text-gray-500 mb-3">Datos adicionales (opcional)</p>
+              <div className="border-t border-gb-border pt-4">
+                <p className="text-sm text-gb-gray mb-3">Datos adicionales (opcional)</p>
               </div>
 
               {/* TER */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gb-gray mb-1">
                   TER (%)
                 </label>
                 <input
@@ -2246,13 +2230,13 @@ export default function ComparisonModeV2() {
                   value={excelModalData.ter}
                   onChange={(e) => setExcelModalData(prev => ({ ...prev, ter: e.target.value }))}
                   placeholder="Ej: 0.85"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gb-border rounded-lg px-3 py-2 text-sm focus:border-gb-info focus:ring-1 focus:ring-gb-info outline-none"
                 />
               </div>
 
               {/* ISIN */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gb-gray mb-1">
                   ISIN
                 </label>
                 <input
@@ -2260,13 +2244,13 @@ export default function ComparisonModeV2() {
                   value={excelModalData.isin}
                   onChange={(e) => setExcelModalData(prev => ({ ...prev, isin: e.target.value.toUpperCase() }))}
                   placeholder="Ej: LU0323578657"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase"
+                  className="w-full border border-gb-border rounded-lg px-3 py-2 text-sm focus:border-gb-info focus:ring-1 focus:ring-gb-info outline-none uppercase"
                 />
               </div>
 
               {/* Nombre del fondo */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gb-gray mb-1">
                   Nombre del Fondo
                 </label>
                 <input
@@ -2274,19 +2258,19 @@ export default function ComparisonModeV2() {
                   value={excelModalData.nombre}
                   onChange={(e) => setExcelModalData(prev => ({ ...prev, nombre: e.target.value }))}
                   placeholder="Ej: Robeco Global Premium Equities"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gb-border rounded-lg px-3 py-2 text-sm focus:border-gb-info focus:ring-1 focus:ring-gb-info outline-none"
                 />
               </div>
 
               {/* Moneda */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gb-gray mb-1">
                   Moneda
                 </label>
                 <select
                   value={excelModalData.moneda}
                   onChange={(e) => setExcelModalData(prev => ({ ...prev, moneda: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gb-border rounded-lg px-3 py-2 text-sm focus:border-gb-info focus:ring-1 focus:ring-gb-info outline-none"
                 >
                   <option value="USD">USD - Dólar estadounidense</option>
                   <option value="EUR">EUR - Euro</option>
@@ -2296,21 +2280,17 @@ export default function ComparisonModeV2() {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gb-border">
                 <button
                   onClick={() => setShowExcelModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="px-4 py-2 text-gb-gray hover:text-gb-black"
                 >
                   Cancelar
                 </button>
-                <button
-                  onClick={processExcelFromModal}
-                  disabled={!excelModalData.file}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-                >
+                <Button onClick={processExcelFromModal} disabled={!excelModalData.file}>
                   <Upload className="w-4 h-4" />
                   Cargar Datos
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -2323,23 +2303,23 @@ export default function ComparisonModeV2() {
       {showCarteraIA && client && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-md w-full">
-            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Generar Cartera con IA</h2>
+            <div className="border-b border-gb-border px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gb-black">Generar Cartera con IA</h2>
               <button
                 onClick={() => setShowCarteraIA(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gb-gray hover:text-gb-black"
               >
                 ✕
               </button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gb-gray mb-4">
                 La IA analizará el perfil de riesgo del cliente y generará una cartera de inversión optimizada.
               </p>
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowCarteraIA(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="px-4 py-2 text-gb-gray hover:text-gb-black"
                 >
                   Cancelar
                 </button>
