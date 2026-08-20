@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAdvisor } from "@/lib/hooks/useAdvisor";
+import { suggestFundCategory } from "@/lib/fund-category-suggest";
 import {
   Loader,
   Plus,
@@ -446,7 +447,15 @@ export default function AdvisorFondosPage() {
                 </tr>
               </thead>
               <tbody>
-                {funds.map((fund) => (
+                {funds.map((fund) => {
+                  // familia_estudios no viene expuesto en el GET de preferred-funds;
+                  // usamos `objetivo` (texto de la ficha CMF, suele mencionar la clase
+                  // de activo) como mejor proxy disponible en el front, y `fund_name`
+                  // para la geografía dentro de suggestFundCategory.
+                  const suggestedCategory = !fund.category
+                    ? suggestFundCategory(fund.objetivo, fund.fund_name || "")
+                    : null;
+                  return (
                   <tr
                     key={fund.id}
                     className={`border-b border-gb-border last:border-0 hover:bg-gray-50/50 transition-colors ${saving === fund.id ? "opacity-60" : ""}`}
@@ -467,6 +476,16 @@ export default function AdvisorFondosPage() {
                         value={fund.category || ""}
                         onSave={(val) => handleUpdateField(fund.id, "category", val)}
                       />
+                      {suggestedCategory && (
+                        <button
+                          onClick={() => handleUpdateField(fund.id, "category", suggestedCategory)}
+                          disabled={saving === fund.id}
+                          className="block mt-1 text-[10px] font-semibold text-gb-primary hover:underline disabled:opacity-50"
+                          title="Aplicar categoria sugerida"
+                        >
+                          Sugerido: {suggestedCategory} · usar
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -546,7 +565,8 @@ export default function AdvisorFondosPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
