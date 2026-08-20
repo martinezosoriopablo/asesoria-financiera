@@ -295,13 +295,10 @@ export default function AdvisorDashboard() {
                   <Bell className="w-3.5 h-3.5" />
                   Recordatorio
                 </Button>
-                <button
-                  onClick={() => setShowNewMeeting(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gb-primary text-white rounded-lg hover:bg-gb-primary-dark transition-colors"
-                >
+                <Button onClick={() => setShowNewMeeting(true)}>
                   <Plus className="w-3.5 h-3.5" />
                   Nueva Reunion
-                </button>
+                </Button>
               </div>
             </div>
 

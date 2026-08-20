@@ -43,12 +43,22 @@ const eslintConfig = defineConfig([
         "error",
         {
           selector:
-            "JSXAttribute[name.name='className'] Literal[value=/\\b(bg|text|border|from|to|via)-(blue|indigo|purple|teal|emerald|sky|violet|slate|amber|green|red)-(50|100|200|300|400|500|600|700|800|900)\\b/]",
+            "JSXAttribute[name.name='className'] Literal[value=/\\b(bg|text|border|from|to|via)-(blue|indigo|purple|teal|emerald|sky|violet|slate|amber|green|red|gray|orange|rose|cyan|pink|zinc|neutral|stone)-(50|100|200|300|400|500|600|700|800|900)\\b/]",
+          message:
+            "Color crudo fuera de marca. Usa tokens gb-* (navy domina, copper acento, azure acciones, gb-success/gb-danger solo mercado).",
+        },
+        {
+          selector:
+            "JSXAttribute[name.name='className'] TemplateElement[value.raw=/\\b(bg|text|border|from|to|via)-(blue|indigo|purple|teal|emerald|sky|violet|slate|amber|green|red|gray|orange|rose|cyan|pink|zinc|neutral|stone)-(50|100|200|300|400|500|600|700|800|900)\\b/]",
           message:
             "Color crudo fuera de marca. Usa tokens gb-* (navy domina, copper acento, azure acciones, gb-success/gb-danger solo mercado).",
         },
         {
           selector: "JSXAttribute[name.name='className'] Literal[value=/bg-gradient-/]",
+          message: "Sin gradientes en el shell del asesor. Usa navy sólido o neutros.",
+        },
+        {
+          selector: "JSXAttribute[name.name='className'] TemplateElement[value.raw=/bg-gradient-/]",
           message: "Sin gradientes en el shell del asesor. Usa navy sólido o neutros.",
         },
       ],
