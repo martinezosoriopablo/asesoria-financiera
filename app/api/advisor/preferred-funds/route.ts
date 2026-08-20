@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
         instrument_type: instrument_type || "fund",
         expense_ratio: expense_ratio ?? null,
         description: description || null,
-        custodian_type: custodian_type || "agf",
+        custodian_type: custodian_type || null,
         active: true,
       }, { onConflict: "advisor_id,fund_run" })
       .select()

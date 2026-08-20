@@ -470,15 +470,23 @@ export default function AdvisorFondosPage() {
                     </td>
                     <td className="px-4 py-3">
                       <select
-                        value={fund.custodian_type || "agf"}
+                        value={fund.custodian_type || ""}
                         onChange={(e) => handleUpdateField(fund.id, "custodian_type", e.target.value)}
                         disabled={saving === fund.id}
-                        className="text-sm border border-gb-border rounded px-2 py-1 bg-white focus:border-gb-accent focus:outline-none"
+                        className={`text-sm rounded px-2 py-1 bg-white focus:border-gb-accent focus:outline-none ${
+                          fund.custodian_type
+                            ? "border border-gb-border"
+                            : "border-2 border-gb-primary text-gb-primary"
+                        }`}
                       >
+                        <option value="">— elegir custodio —</option>
                         <option value="agf">AGF</option>
                         <option value="corredora">Corredora</option>
                         <option value="internacional">Internacional</option>
                       </select>
+                      {!fund.custodian_type && (
+                        <p className="text-[10px] font-semibold text-gb-primary mt-1">pendiente</p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {fund.tac != null && !isNaN(Number(fund.tac)) ? (
