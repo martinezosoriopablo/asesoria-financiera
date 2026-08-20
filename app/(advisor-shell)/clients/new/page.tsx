@@ -294,37 +294,6 @@ export default function NewClientPage() {
                   <p className="mt-1 text-sm text-gb-danger">{fieldErrors.telefono}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gb-black mb-2">
-                  RUT
-                </label>
-                <input
-                  type="text"
-                  name="rut"
-                  value={formData.rut}
-                  onChange={handleChange}
-                  className={errorInputClassName(!!fieldErrors.rut)}
-                  placeholder="12.345.678-9"
-                />
-                {fieldErrors.rut && (
-                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.rut}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gb-black mb-2">
-                  Fecha de Nacimiento
-                </label>
-                <input
-                  type="date"
-                  name="fecha_nacimiento"
-                  value={formData.fecha_nacimiento}
-                  onChange={handleChange}
-                  className={errorInputClassName(!!fieldErrors.fecha_nacimiento)}
-                />
-                {fieldErrors.fecha_nacimiento && (
-                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.fecha_nacimiento}</p>
-                )}
-              </div>
             </div>
           </div>
 
@@ -403,64 +372,107 @@ export default function NewClientPage() {
             </div>
           </div>
 
-          {/* Perfil de Riesgo */}
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gb-black mb-4 flex items-center gap-2">
-              <Shield className="w-5 h-5 text-gb-primary" />
-              Perfil de Riesgo
-              <span className="text-xs font-normal text-gb-warning bg-gb-warning/10 px-2 py-0.5 rounded-full">estimado</span>
-            </h2>
-            <p className="text-xs text-gb-gray -mt-2 mb-4">
-              Estimacion inicial. Se actualizara automaticamente cuando el cliente complete el cuestionario.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gb-black mb-2">
-                  Clasificación
-                </label>
-                <select
-                  name="perfil_riesgo"
-                  value={formData.perfil_riesgo}
-                  onChange={handleChange}
-                  className={selectClassName}
-                >
-                  <option value="">Seleccionar...</option>
-                  <option value="defensivo">Defensivo</option>
-                  <option value="conservador">Conservador</option>
-                  <option value="moderado">Moderado</option>
-                  <option value="agresivo">Agresivo</option>
-                  <option value="muy_agresivo">Muy Agresivo</option>
-                </select>
+          {/* Datos avanzados (opcional) */}
+          <details className="mb-8 border border-gb-border rounded-[3px] group">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gb-black bg-gb-light">
+              Datos avanzados (opcional)
+            </summary>
+            <div className="px-4 pb-6 pt-2 border-t border-gb-border space-y-8">
+              {/* RUT y Fecha de Nacimiento */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gb-black mb-2">
+                    RUT
+                  </label>
+                  <input
+                    type="text"
+                    name="rut"
+                    value={formData.rut}
+                    onChange={handleChange}
+                    className={errorInputClassName(!!fieldErrors.rut)}
+                    placeholder="12.345.678-9"
+                  />
+                  {fieldErrors.rut && (
+                    <p className="mt-1 text-sm text-gb-danger">{fieldErrors.rut}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gb-black mb-2">
+                    Fecha de Nacimiento
+                  </label>
+                  <input
+                    type="date"
+                    name="fecha_nacimiento"
+                    value={formData.fecha_nacimiento}
+                    onChange={handleChange}
+                    className={errorInputClassName(!!fieldErrors.fecha_nacimiento)}
+                  />
+                  {fieldErrors.fecha_nacimiento && (
+                    <p className="mt-1 text-sm text-gb-danger">{fieldErrors.fecha_nacimiento}</p>
+                  )}
+                </div>
               </div>
-              <Input
-                type="number"
-                name="puntaje_riesgo"
-                value={formData.puntaje_riesgo}
-                onChange={handleChange}
-                min="0"
-                max="100"
-                label="Puntaje (0-100)"
-                placeholder="50"
-              />
+
+              {/* Perfil de Riesgo */}
               <div>
-                <label className="block text-sm font-medium text-gb-black mb-2">
-                  Tolerancia Pérdida (%)
-                </label>
-                <input
-                  type="number"
-                  name="tolerancia_perdida"
-                  value={formData.tolerancia_perdida}
-                  onChange={handleChange}
-                  step="0.1"
-                  className={errorInputClassName(!!fieldErrors.tolerancia_perdida)}
-                  placeholder="10.0"
-                />
-                {fieldErrors.tolerancia_perdida && (
-                  <p className="mt-1 text-sm text-gb-danger">{fieldErrors.tolerancia_perdida}</p>
-                )}
+                <h2 className="text-xl font-bold text-gb-black mb-4 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-gb-primary" />
+                  Perfil de Riesgo
+                  <span className="text-xs font-normal text-gb-warning bg-gb-warning/10 px-2 py-0.5 rounded-full">estimado</span>
+                </h2>
+                <p className="text-xs text-gb-gray -mt-2 mb-4">
+                  Estimacion inicial. Se actualizara automaticamente cuando el cliente complete el cuestionario.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gb-black mb-2">
+                      Clasificación
+                    </label>
+                    <select
+                      name="perfil_riesgo"
+                      value={formData.perfil_riesgo}
+                      onChange={handleChange}
+                      className={selectClassName}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="defensivo">Defensivo</option>
+                      <option value="conservador">Conservador</option>
+                      <option value="moderado">Moderado</option>
+                      <option value="agresivo">Agresivo</option>
+                      <option value="muy_agresivo">Muy Agresivo</option>
+                    </select>
+                  </div>
+                  <Input
+                    type="number"
+                    name="puntaje_riesgo"
+                    value={formData.puntaje_riesgo}
+                    onChange={handleChange}
+                    min="0"
+                    max="100"
+                    label="Puntaje (0-100)"
+                    placeholder="50"
+                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gb-black mb-2">
+                      Tolerancia Pérdida (%)
+                    </label>
+                    <input
+                      type="number"
+                      name="tolerancia_perdida"
+                      value={formData.tolerancia_perdida}
+                      onChange={handleChange}
+                      step="0.1"
+                      className={errorInputClassName(!!fieldErrors.tolerancia_perdida)}
+                      placeholder="10.0"
+                    />
+                    {fieldErrors.tolerancia_perdida && (
+                      <p className="mt-1 text-sm text-gb-danger">{fieldErrors.tolerancia_perdida}</p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </details>
 
           {/* Notas */}
           <div className="mb-8">
