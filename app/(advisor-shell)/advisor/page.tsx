@@ -17,9 +17,6 @@ import {
   DollarSign,
   Calendar,
   Plus,
-  Shield,
-  Briefcase,
-  BarChart3,
   Clock,
   ChevronDown,
   ChevronUp,
@@ -33,6 +30,7 @@ import {
   Loader,
   Bell,
 } from "lucide-react";
+import { computeJourneySteps } from "@/lib/journey/steps";
 
 interface Stats {
   total_clientes: number;
@@ -58,12 +56,14 @@ interface Meeting {
   client?: { nombre: string; apellido: string };
 }
 
-const FLOW_STEPS = [
-  { href: "/clients", icon: Users, title: "Clientes" },
-  { href: "/analisis-cartola", icon: Shield, title: "Riesgo & Cartola" },
-  { href: "/portfolio-designer?mode=comparison", icon: BarChart3, title: "Comparacion" },
-  { href: "/portfolio-designer?mode=model", icon: Briefcase, title: "Modelo" },
-];
+interface ClientRow {
+  id: string;
+  nombre?: string | null;
+  apellido?: string | null;
+  perfil_riesgo?: string | null;
+  tiene_portfolio?: boolean | null;
+  cartera_recomendada?: unknown;
+}
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -146,6 +146,7 @@ export default function AdvisorDashboard() {
   const { advisor, loading: authLoading } = useAdvisor();
   const [stats, setStats] = useState<Stats | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showNewMeeting, setShowNewMeeting] = useState(false);
@@ -157,16 +158,20 @@ export default function AdvisorDashboard() {
     setLoading(true);
     setFetchError(null);
     try {
-      const [statsRes, meetingsRes] = await Promise.all([
+      const [statsRes, meetingsRes, clientsRes] = await Promise.all([
         fetch("/api/advisor/stats"),
         fetch("/api/advisor/meetings?timeframe=week"),
+        fetch("/api/clients"),
       ]);
       const statsData = await statsRes.json();
       const meetingsData = await meetingsRes.json();
+      const clientsData = await clientsRes.json();
       if (statsData.success) setStats(statsData.stats);
       else throw new Error(statsData.error || "Error cargando estadísticas");
       if (meetingsData.success) setMeetings(meetingsData.meetings);
       else throw new Error(meetingsData.error || "Error cargando reuniones");
+      // Lista de clientes con journey incompleto: no bloquea el dashboard si falla
+      if (clientsData.success) setClients(clientsData.clients || []);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Error cargando datos del dashboard");
     } finally {
@@ -213,6 +218,19 @@ export default function AdvisorDashboard() {
 
   const dateLabel = formatDate();
   const dateLabelCap = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+
+  const incompleteJourneyClients = clients
+    .filter((c) => {
+      const steps = computeJourneySteps({
+        perfil_riesgo: c.perfil_riesgo,
+        tiene_portfolio: c.tiene_portfolio,
+        tiene_cartera_recomendada: !!c.cartera_recomendada,
+      });
+      return steps.some((s) => !s.done);
+    })
+    .sort((a, b) =>
+      `${a.nombre ?? ""} ${a.apellido ?? ""}`.localeCompare(`${b.nombre ?? ""} ${b.apellido ?? ""}`)
+    );
 
   return (
     <PageContainer>
@@ -423,30 +441,49 @@ export default function AdvisorDashboard() {
             </div>
           )}
 
-          {/* Flujo de Asesoria */}
-          <div className="bg-white rounded-xl border border-gb-border p-5 animate-fade-in-up" style={{ animationDelay: "250ms" }}>
-            <h2 className="text-sm font-semibold text-gb-black mb-4">Flujo de Asesoria</h2>
-            <div className="flex items-center justify-between relative">
-              {/* Connecting line */}
-              <div className="absolute top-4 left-6 right-6 h-0.5 bg-gb-border" />
-
-              {FLOW_STEPS.map((step, i) => {
-                return (
-                  <Link
-                    key={step.href}
-                    href={step.href}
-                    className="relative flex flex-col items-center gap-1.5 group z-10"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gb-primary text-white flex items-center justify-center text-xs font-bold shadow-sm group-hover:scale-110 transition-transform">
-                      {i + 1}
-                    </div>
-                    <span className="text-[10px] font-medium text-gb-gray group-hover:text-gb-primary text-center leading-tight max-w-[60px] transition-colors">
-                      {step.title}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+          {/* Clientes con journey incompleto */}
+          <div className="animate-fade-in-up" style={{ animationDelay: "250ms" }}>
+            <Card
+              title="Clientes con journey incompleto"
+              action={
+                !loading && incompleteJourneyClients.length > 0 ? (
+                  <span className="text-xs text-gb-gray tabular-nums">{incompleteJourneyClients.length}</span>
+                ) : undefined
+              }
+            >
+              {loading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="skeleton h-10 rounded-lg" />
+                  ))}
+                </div>
+              ) : incompleteJourneyClients.length > 0 ? (
+                <div className="space-y-2">
+                  {incompleteJourneyClients.slice(0, 5).map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/clients/${c.id}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-gb-border px-3 py-2 text-sm hover:border-gb-primary transition-colors"
+                    >
+                      <span className="text-gb-black font-medium truncate">
+                        {`${c.nombre ?? ""} ${c.apellido ?? ""}`.trim() || "Cliente"}
+                      </span>
+                      <span className="text-xs text-gb-info shrink-0">Ver ficha</span>
+                    </Link>
+                  ))}
+                  {incompleteJourneyClients.length > 5 && (
+                    <Link
+                      href="/clients"
+                      className="block text-center text-xs font-medium text-gb-info hover:text-gb-primary pt-1"
+                    >
+                      Ver todos ({incompleteJourneyClients.length})
+                    </Link>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gb-gray text-center py-4">Todos tus clientes están al día</p>
+              )}
+            </Card>
           </div>
 
           {/* Repositorio de reportes */}
