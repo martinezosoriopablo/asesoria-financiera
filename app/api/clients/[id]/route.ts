@@ -412,6 +412,29 @@ export async function PATCH(
       updateData.fund_selection_mode = body.fund_selection_mode;
     }
 
+    // Campos de cobro (Fase 2). pct nullable, rango 0–100; cobro_tipo set cerrado.
+    const pctFields = ["rebate_pct", "advisory_fee_pct", "comision_transaccion_pct"] as const;
+    for (const f of pctFields) {
+      if (body[f] !== undefined) {
+        if (body[f] === "" || body[f] === null) {
+          updateData[f] = null;
+        } else {
+          const n = Number(body[f]);
+          if (Number.isNaN(n) || n < 0 || n > 100) {
+            return errorResponse(`${f} debe estar entre 0 y 100`, 400);
+          }
+          updateData[f] = n;
+        }
+      }
+    }
+    if (body.cobro_tipo !== undefined) {
+      const validTipos = ["agf", "corredora", "mixto"];
+      if (body.cobro_tipo && !validTipos.includes(body.cobro_tipo)) {
+        return errorResponse("cobro_tipo inválido", 400);
+      }
+      updateData.cobro_tipo = body.cobro_tipo || null;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return errorResponse("No hay campos para actualizar", 400);
     }

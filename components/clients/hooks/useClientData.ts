@@ -20,6 +20,10 @@ export interface Client {
   tolerancia_perdida: number;
   tiene_portfolio: boolean;
   tiene_cartera_recomendada?: boolean;
+  cobro_tipo?: "agf" | "corredora" | "mixto" | null;
+  rebate_pct?: number | null;
+  advisory_fee_pct?: number | null;
+  comision_transaccion_pct?: number | null;
   portfolio_data: Record<string, unknown>;
   status: string;
   notas: string;
