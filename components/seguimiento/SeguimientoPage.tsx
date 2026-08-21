@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatNumber, formatCurrency } from "@/lib/format";
 import type { FxAdjust } from "@/lib/portfolio/currency";
+import Card from "@/components/shared/Card";
 import EvolucionChart from "./EvolucionChart";
+import CustodianBreakdown from "./CustodianBreakdown";
 
 import AddSnapshotModal from "./AddSnapshotModal";
 import ReviewSnapshotModal from "./ReviewSnapshotModal";
@@ -46,6 +48,7 @@ interface Props {
 
 export default function SeguimientoPage({ clientId, portalMode = false }: Props) {
   const seg = useSeguimientoData({ clientId, portalMode });
+  const [vistaCustodio, setVistaCustodio] = useState(false);
 
   const {
     benchmarkConfig, setBenchmarkConfig,
@@ -318,19 +321,35 @@ export default function SeguimientoPage({ clientId, portalMode = false }: Props)
 
         {/* Composition breakdown with initial → final + sub-breakdown */}
         {seg.holdingReturnsData && snapshots.length > 0 && (
-          <CompositionBoxes
-            holdingReturnsData={seg.holdingReturnsData}
-            snapshots={snapshots}
-            compositionBaseMode={seg.compositionBaseMode}
-            compositionBaseDate={seg.compositionBaseDate}
-            onBaseModeChange={seg.setCompositionBaseMode}
-            onBaseDateChange={seg.setCompositionBaseDate}
-            convertFromCLP={convertFromCLP}
-            cartolaExchangeRates={cartolaExchangeRates}
-            currentExchangeRates={currentExchangeRates}
-            exchangeRates={exchangeRates}
-            displayCurrency={seg.displayCurrency}
-          />
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <button onClick={() => setVistaCustodio(false)}
+                className={`text-xs font-semibold rounded-[3px] px-3 py-1.5 border ${!vistaCustodio ? "bg-gb-black text-white border-transparent" : "text-gb-info border-gb-border hover:bg-gb-light"}`}>
+                Consolidado
+              </button>
+              <button onClick={() => setVistaCustodio(true)}
+                className={`text-xs font-semibold rounded-[3px] px-3 py-1.5 border ${vistaCustodio ? "bg-gb-black text-white border-transparent" : "text-gb-info border-gb-border hover:bg-gb-light"}`}>
+                Por custodio
+              </button>
+            </div>
+            {vistaCustodio ? (
+              <Card title="Patrimonio por custodio"><CustodianBreakdown snapshots={snapshots} /></Card>
+            ) : (
+              <CompositionBoxes
+                holdingReturnsData={seg.holdingReturnsData}
+                snapshots={snapshots}
+                compositionBaseMode={seg.compositionBaseMode}
+                compositionBaseDate={seg.compositionBaseDate}
+                onBaseModeChange={seg.setCompositionBaseMode}
+                onBaseDateChange={seg.setCompositionBaseDate}
+                convertFromCLP={convertFromCLP}
+                cartolaExchangeRates={cartolaExchangeRates}
+                currentExchangeRates={currentExchangeRates}
+                exchangeRates={exchangeRates}
+                displayCurrency={seg.displayCurrency}
+              />
+            )}
+          </div>
         )}
 
         {/* Holding Returns Panel */}
