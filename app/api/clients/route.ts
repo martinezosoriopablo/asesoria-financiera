@@ -163,6 +163,13 @@ export async function POST(request: NextRequest) {
     // Helper: convert empty strings to null for date/numeric fields
     const emptyToNull = (v: unknown) => (v === "" || v === undefined) ? null : v;
 
+    // Defaults de cobro del asesor (para pre-rellenar el cliente nuevo).
+    const { data: advisorDefaults } = await supabase
+      .from("advisors")
+      .select("default_cobro_tipo, default_rebate_pct, default_advisory_fee_pct, default_comision_transaccion_pct")
+      .eq("id", advisor!.id)
+      .single();
+
     // Crear cliente asignado al advisor autenticado
     const { data: newClient, error } = await supabase
       .from("clients")
@@ -185,6 +192,10 @@ export async function POST(request: NextRequest) {
           notas: body.notas || null,
           asesor_id: advisor!.id, // Siempre asignar al advisor autenticado
           parent_client_id: emptyToNull(body.parent_client_id),
+          cobro_tipo: body.cobro_tipo ?? advisorDefaults?.default_cobro_tipo ?? null,
+          rebate_pct: emptyToNull(body.rebate_pct) ?? advisorDefaults?.default_rebate_pct ?? null,
+          advisory_fee_pct: emptyToNull(body.advisory_fee_pct) ?? advisorDefaults?.default_advisory_fee_pct ?? null,
+          comision_transaccion_pct: emptyToNull(body.comision_transaccion_pct) ?? advisorDefaults?.default_comision_transaccion_pct ?? null,
         },
       ])
       .select()
