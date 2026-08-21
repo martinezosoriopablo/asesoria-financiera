@@ -20,6 +20,7 @@ import {
 import PortfolioEvolution from "@/components/portfolio/PortfolioEvolution";
 import ClientInfoCard from "@/components/clients/ClientInfoCard";
 import ClientJourneyChecklist from "@/components/clients/ClientJourneyChecklist";
+import CobroSection from "@/components/clients/CobroSection";
 import PatrimonioSection from "@/components/clients/patrimonio/PatrimonioSection";
 import { useClientData } from "./hooks/useClientData";
 import { useClientModals } from "./hooks/useClientModals";
@@ -709,6 +710,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
         </div>
 
         <div className="mt-6">
+          <CobroSection client={client} onSaved={fetchClient} />
           <PatrimonioSection clientId={client.id} />
         </div>
       </div>
