@@ -22,6 +22,7 @@ function fmt(n: number | null, currency = "CLP"): string {
 export default function CobroSection({ client, onSaved }: { client: Client; onSaved?: () => void }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     cobro_tipo: client.cobro_tipo ?? "",
     rebate_pct: client.rebate_pct ?? "",
@@ -30,13 +31,16 @@ export default function CobroSection({ client, onSaved }: { client: Client; onSa
   });
 
   const base = client.patrimonio_estimado ?? null;
+  // Clamp a positivos para el preview (el PATCH rechaza <0/>100; acá solo evitamos un estimado negativo cosmético).
+  const posOrNull = (v: string | number) => { const n = Number(v); return n > 0 ? n : null; };
   const estimado = estimateAnnualRevenue(
-    { advisory_fee_pct: Number(form.advisory_fee_pct) || null, rebate_pct: Number(form.rebate_pct) || null },
+    { advisory_fee_pct: posOrNull(form.advisory_fee_pct), rebate_pct: posOrNull(form.rebate_pct) },
     base
   );
 
   async function save() {
     setSaving(true);
+    setError(null);
     try {
       const res = await fetch(`/api/clients/${client.id}`, {
         method: "PATCH",
@@ -51,7 +55,12 @@ export default function CobroSection({ client, onSaved }: { client: Client; onSa
       if (res.ok) {
         setEditing(false);
         onSaved?.();
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "No se pudo guardar el cobro.");
       }
+    } catch {
+      setError("No se pudo guardar el cobro.");
     } finally {
       setSaving(false);
     }
@@ -86,6 +95,7 @@ export default function CobroSection({ client, onSaved }: { client: Client; onSa
             <Input label="Comisión tx %" name="comision_transaccion_pct" type="number" step="0.01" value={form.comision_transaccion_pct} onChange={(e) => setForm({ ...form, comision_transaccion_pct: e.target.value })} />
           </div>
           <p className="text-xs text-gb-gray">Ingreso anual estimado: <span className="font-semibold text-gb-primary">{fmt(estimado)}</span> (advisory + rebate sobre patrimonio estimado; la comisión de transacción no se anualiza).</p>
+          {error && <p className="text-xs font-medium text-gb-danger">{error}</p>}
           <div className="flex gap-2">
             <Button onClick={save} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</Button>
             <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>Cancelar</Button>

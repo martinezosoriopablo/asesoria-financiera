@@ -17,6 +17,9 @@ export default function CustodianBreakdown({ snapshots }: { snapshots: Snap[] })
       .sort((a, b) => (a.snapshot_date < b.snapshot_date ? 1 : -1));
     const latest = withHoldings[0];
     const holdings = (Array.isArray(latest?.holdings) ? latest!.holdings : []) as RawHolding[];
+    // Valor en CLP: preferimos marketValueCLP (persistido en snapshots nuevas). En snapshots
+    // legacy sin ese campo caemos al marketValue nominal — puede subvaluar un custodio con
+    // holdings extranjeros (USD/UF contados como CLP). Solo afecta datos antiguos.
     return groupByCustodian<RawHolding>(
       holdings,
       (h) => h.source,
