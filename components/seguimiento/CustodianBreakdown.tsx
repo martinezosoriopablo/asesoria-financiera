@@ -1,7 +1,6 @@
 // components/seguimiento/CustodianBreakdown.tsx
 "use client";
 import { useMemo } from "react";
-import Card from "@/components/shared/Card";
 import { groupByCustodian } from "@/lib/portfolio/group-by-custodian";
 
 interface RawHolding { source?: string | null; marketValue?: number; marketValueCLP?: number; }
