@@ -14,9 +14,17 @@ export async function GET(request: NextRequest) {
   const { advisor, error: authError } = await requireAdvisor();
   if (authError) return authError;
 
+  // requireAdvisor() trae columnas limitadas; sumamos los defaults de cobro
+  const supabase = createAdminClient();
+  const { data: defaults } = await supabase
+    .from("advisors")
+    .select("default_cobro_tipo, default_rebate_pct, default_advisory_fee_pct, default_comision_transaccion_pct")
+    .eq("id", advisor!.id)
+    .single();
+
   return NextResponse.json({
     success: true,
-    advisor: advisor,
+    advisor: { ...advisor, ...defaults },
   });
 }
 
@@ -35,7 +43,8 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
 
     // Campos permitidos para actualización (whitelist)
-    const allowedFields = ['nombre', 'apellido', 'telefono', 'especialidad', 'bio', 'linkedin_url', 'preferred_ai_model', 'contact_email'];
+    const allowedFields = ['nombre', 'apellido', 'telefono', 'especialidad', 'bio', 'linkedin_url', 'preferred_ai_model', 'contact_email',
+      'default_cobro_tipo', 'default_rebate_pct', 'default_advisory_fee_pct', 'default_comision_transaccion_pct'];
     const updateData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
@@ -48,6 +57,12 @@ export async function PUT(request: NextRequest) {
     if (updateData.contact_email === '') {
       updateData.contact_email = null;
     }
+
+    // defaults de cobro: strings vacíos → null
+    for (const f of ['default_rebate_pct', 'default_advisory_fee_pct', 'default_comision_transaccion_pct'] as const) {
+      if (updateData[f] === '') updateData[f] = null;
+    }
+    if (updateData.default_cobro_tipo === '') updateData.default_cobro_tipo = null;
 
     // Actualizar solo el perfil del asesor autenticado
     const { data: updatedAdvisor, error } = await supabase

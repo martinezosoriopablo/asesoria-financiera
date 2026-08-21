@@ -18,6 +18,10 @@ interface AdvisorProfile {
   linkedin_url?: string;
   preferred_ai_model?: string;
   contact_email: string | null;
+  default_cobro_tipo?: string;
+  default_rebate_pct?: number | string;
+  default_advisory_fee_pct?: number | string;
+  default_comision_transaccion_pct?: number | string;
 }
 
 export default function AdvisorProfilePage() {
@@ -89,6 +93,10 @@ export default function AdvisorProfilePage() {
           linkedin_url: profile.linkedin_url,
           preferred_ai_model: profile.preferred_ai_model,
           contact_email: profile.contact_email,
+          default_cobro_tipo: profile.default_cobro_tipo,
+          default_rebate_pct: profile.default_rebate_pct,
+          default_advisory_fee_pct: profile.default_advisory_fee_pct,
+          default_comision_transaccion_pct: profile.default_comision_transaccion_pct,
         }),
       });
       const data = await res.json();
@@ -407,6 +415,65 @@ export default function AdvisorProfilePage() {
                 <p className="text-xs text-gb-gray">Mejor razonamiento para decisiones complejas. ~$0.53 por recomendacion.</p>
               </div>
             </label>
+          </div>
+        </div>
+
+        {/* Cobro por defecto */}
+        <div className="bg-white rounded-lg border border-gb-border p-6 mt-6">
+          <h2 className="text-base font-semibold text-gb-black mb-4">Cobro por defecto</h2>
+          <p className="text-sm text-gb-gray mb-4">
+            Se usan para pre-rellenar el cobro de cada cliente nuevo; podés ajustarlo por cliente.
+          </p>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-xs font-medium text-gb-dark mb-1.5">Tipo de cobro</label>
+              <select
+                value={profile.default_cobro_tipo ?? ""}
+                onChange={(e) => setProfile({ ...profile, default_cobro_tipo: e.target.value })}
+                className="w-full px-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                disabled={saving}
+              >
+                <option value="">— sin configurar —</option>
+                <option value="agf">AGF (rebate)</option>
+                <option value="corredora">Corredora (advisory fee)</option>
+                <option value="mixto">Mixto</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="block text-xs font-medium text-gb-dark mb-1.5">Advisory fee %</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profile.default_advisory_fee_pct ?? ""}
+                  onChange={(e) => setProfile({ ...profile, default_advisory_fee_pct: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                  disabled={saving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gb-dark mb-1.5">Rebate %</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profile.default_rebate_pct ?? ""}
+                  onChange={(e) => setProfile({ ...profile, default_rebate_pct: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                  disabled={saving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gb-dark mb-1.5">Comisión transacción %</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profile.default_comision_transaccion_pct ?? ""}
+                  onChange={(e) => setProfile({ ...profile, default_comision_transaccion_pct: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gb-border rounded-lg text-sm focus:border-gb-accent focus:outline-none"
+                  disabled={saving}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
